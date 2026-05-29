@@ -127,6 +127,63 @@
         background: #f3f5f8;
       }
 
+      .message-tool-status {
+        margin-inline-end: auto;
+        background: #f6fbfc;
+        border-style: dashed;
+      }
+
+      .message-tool-status-pending {
+        border-color: rgba(25, 111, 140, 0.32);
+        background: #f2f9fd;
+      }
+
+      .message-tool-status-success {
+        border-color: rgba(28, 138, 104, 0.36);
+        background: #eefaf5;
+      }
+
+      .message-tool-status-error {
+        border-color: rgba(179, 69, 69, 0.38);
+        background: #fff2f2;
+      }
+
+      .message-meta-tool-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .tool-status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+
+      .tool-status-badge-pending {
+        color: #1d5b74;
+        background: rgba(38, 136, 173, 0.16);
+        border-color: rgba(38, 136, 173, 0.32);
+      }
+
+      .tool-status-badge-success {
+        color: #186447;
+        background: rgba(26, 156, 108, 0.18);
+        border-color: rgba(26, 156, 108, 0.35);
+      }
+
+      .tool-status-badge-error {
+        color: #8d3636;
+        background: rgba(196, 77, 77, 0.16);
+        border-color: rgba(196, 77, 77, 0.35);
+      }
+
       .message-meta {
         font-size: 11px;
         letter-spacing: 0.02em;

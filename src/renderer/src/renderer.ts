@@ -50,10 +50,10 @@ const SYSTEM_PROMPT = [
 ].join('\n\n')
 
 const DRY_RUN_PROMPT =
-  'لیست ۵ تراکنش آخر دیتابیس را تحلیل کن. ابتدا list_database_tables را اجرا کن، سپس schema جدول‌های مرتبط را با get_database_schema استخراج کن، بعد با fetch_financial_data کوئری نهایی را اجرا کن و خروجی نهایی را به صورت Markdown با جدول شواهد و نمودار متنی خلاصه ارائه بده.'
+  'یک تحلیل اجمالی از وضعیت سیستم حسابداری ما بده. مرحله ۱: ابتدا حتما list_database_tables را اجرا کن تا همه جدول‌ها را ببینی. مرحله ۲: جدول‌های مالی مهم را انتخاب کن و با get_database_schema ساختار حساب‌ها/اسناد/گردش‌ها را بررسی کن. مرحله ۳: با fetch_financial_data چند ردیف نمونه واقعی بگیر و تحلیل کوتاه شامل ریسک‌ها، نکات کلیدی و اقدامات پیشنهادی ارائه بده.'
 const STATUS_POLL_INTERVAL_MS = 12000
 const MAX_CHAT_HISTORY = 28
-const MAX_TOOL_CALL_ROUNDS = 3
+const MAX_TOOL_CALL_ROUNDS = 5
 const MAX_TOOL_ROWS = 120
 const MAX_SCHEMA_ROWS = 240
 const MAX_TABLE_LIST_ROWS = 500
@@ -123,8 +123,15 @@ const FINANCIAL_TOOLS: GeminiToolDefinition[] = [
 ]
 
 type NoticeKind = 'info' | 'success' | 'error'
+type ToolStatusState = 'pending' | 'success' | 'error'
 
 type TabId = 'settingsPanel' | 'analysisPanel'
+
+interface ToolStatusRowHandle {
+  container: HTMLElement
+  badge: HTMLSpanElement
+  body: HTMLElement
+}
 
 const ui = {
   tabButtons: Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn')),
@@ -469,20 +476,23 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
   for (const toolCall of toolCalls) {
     const toolName = toolCall.function.name
+    const args = parseToolArguments(toolCall.function.arguments)
+    const statusRow = appendToolStatusRow(toolName, args)
 
     try {
-      const args = parseToolArguments(toolCall.function.arguments)
-
       if (toolName === 'list_database_tables') {
         const tablePattern = readOptionalStringArg(args, 'table_pattern', 256)
         const listTablesQuery = buildListDatabaseTablesQuery(tablePattern)
 
         const tableListResult = await window.api.sql.executeQuery(listTablesQuery)
         if (!tableListResult.ok || !tableListResult.data) {
+          const errorMessage = tableListResult.error ?? 'Table discovery query failed.'
+          updateToolStatusRow(statusRow, 'error', `❌ خطا در استخراج لیست جداول: ${errorMessage}`)
+
           toolMessages.push(
             createToolResponseMessage(toolCall, {
               ok: false,
-              error: tableListResult.error ?? 'Table discovery query failed.'
+              error: errorMessage
             })
           )
           continue
@@ -490,6 +500,7 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
         const rows = tableListResult.data
         const boundedRows = rows.slice(0, MAX_TABLE_LIST_ROWS)
+        updateToolStatusRow(statusRow, 'success', `✅ تعداد ${rows.length} جدول یافت شد.`)
 
         toolMessages.push(
           createToolResponseMessage(toolCall, {
@@ -508,10 +519,13 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
         const queryResult = await window.api.sql.executeQuery(sqlQuery)
         if (!queryResult.ok || !queryResult.data) {
+          const errorMessage = queryResult.error ?? 'Database query execution failed.'
+          updateToolStatusRow(statusRow, 'error', `❌ خطا در اجرای کوئری مالی: ${errorMessage}`)
+
           toolMessages.push(
             createToolResponseMessage(toolCall, {
               ok: false,
-              error: queryResult.error ?? 'Database query execution failed.'
+              error: errorMessage
             })
           )
           continue
@@ -519,6 +533,7 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
         const rows = queryResult.data
         const boundedRows = rows.slice(0, MAX_TOOL_ROWS)
+        updateToolStatusRow(statusRow, 'success', `✅ تعداد ${rows.length} ردیف مالی استخراج شد.`)
 
         toolMessages.push(
           createToolResponseMessage(toolCall, {
@@ -538,10 +553,13 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
         const schemaResult = await window.api.sql.executeQuery(schemaQuery)
         if (!schemaResult.ok || !schemaResult.data) {
+          const errorMessage = schemaResult.error ?? 'Schema lookup query failed.'
+          updateToolStatusRow(statusRow, 'error', `❌ خطا در تحلیل ساختار جدول [${tableName}]: ${errorMessage}`)
+
           toolMessages.push(
             createToolResponseMessage(toolCall, {
               ok: false,
-              error: schemaResult.error ?? 'Schema lookup query failed.'
+              error: errorMessage
             })
           )
           continue
@@ -549,6 +567,7 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
 
         const rows = schemaResult.data
         const boundedRows = rows.slice(0, MAX_SCHEMA_ROWS)
+        updateToolStatusRow(statusRow, 'success', `✅ ساختار جدول [${tableName}] با ${rows.length} ستون استخراج شد.`)
 
         toolMessages.push(
           createToolResponseMessage(toolCall, {
@@ -563,6 +582,8 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
         continue
       }
 
+      updateToolStatusRow(statusRow, 'error', `❌ ابزار ناشناخته: ${toolName}`)
+
       toolMessages.push(
         createToolResponseMessage(toolCall, {
           ok: false,
@@ -570,10 +591,13 @@ async function executeFinancialToolCalls(toolCalls: GeminiToolCall[]): Promise<G
         })
       )
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      updateToolStatusRow(statusRow, 'error', `❌ خطا در اجرای ابزار ${toolName}: ${errorMessage}`)
+
       toolMessages.push(
         createToolResponseMessage(toolCall, {
           ok: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: errorMessage
         })
       )
     }
@@ -589,6 +613,68 @@ function createToolResponseMessage(toolCall: GeminiToolCall, payload: Record<str
     toolCallId: toolCall.id,
     content: JSON.stringify(payload)
   }
+}
+
+function appendToolStatusRow(toolName: string, args: Record<string, unknown>): ToolStatusRowHandle {
+  const container = document.createElement('article')
+  container.className = 'message message-tool-status message-tool-status-pending'
+
+  const meta = document.createElement('div')
+  meta.className = 'message-meta message-meta-tool-status'
+
+  const badge = document.createElement('span')
+  badge.className = 'tool-status-badge tool-status-badge-pending'
+  badge.textContent = 'در حال اجرا'
+
+  const metaText = document.createElement('span')
+  metaText.textContent = `Tool Step | ${new Date().toLocaleTimeString()}`
+
+  const body = document.createElement('div')
+  body.className = 'message-body'
+  body.textContent = buildPendingToolStatusText(toolName, args)
+
+  meta.append(badge, metaText)
+  container.append(meta, body)
+  ui.chatHistory.appendChild(container)
+  ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
+
+  return {
+    container,
+    badge,
+    body
+  }
+}
+
+function updateToolStatusRow(row: ToolStatusRowHandle, state: ToolStatusState, text: string): void {
+  row.body.textContent = text
+
+  row.container.classList.remove('message-tool-status-pending', 'message-tool-status-success', 'message-tool-status-error')
+  row.container.classList.add(`message-tool-status-${state}`)
+
+  row.badge.classList.remove('tool-status-badge-pending', 'tool-status-badge-success', 'tool-status-badge-error')
+  row.badge.classList.add(`tool-status-badge-${state}`)
+  row.badge.textContent =
+    state === 'pending' ? 'در حال اجرا' : state === 'success' ? 'تکمیل شد' : 'خطا'
+
+  ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
+}
+
+function buildPendingToolStatusText(toolName: string, args: Record<string, unknown>): string {
+  if (toolName === 'list_database_tables') {
+    return '🔍 در حال جستجو و استخراج لیست جداول دیتابیس...'
+  }
+
+  if (toolName === 'get_database_schema') {
+    const tableNameArg = args['table_name']
+    const tableName = typeof tableNameArg === 'string' && tableNameArg.trim() ? tableNameArg.trim() : 'نامشخص'
+    return `📋 در حال تحلیل ساختار و ستون‌های جدول [${tableName}]...`
+  }
+
+  if (toolName === 'fetch_financial_data') {
+    return '📊 در حال اجرای کوئری مالی روی دیتابیس و استخراج ردیف‌ها...'
+  }
+
+  return `🧩 در حال اجرای ابزار ${toolName}...`
 }
 
 function buildListDatabaseTablesQuery(tablePattern: string | null): string {
