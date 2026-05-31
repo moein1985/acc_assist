@@ -1,0 +1,166 @@
+{
+  "sepidar": {
+    "serverInfo": [
+      {
+        "server_version": "16.0.4125.3",
+        "database_name": "SepidarSample"
+      }
+    ],
+    "tables": [
+      { "schema_name": "dbo", "table_name": "ACC_Accounts", "estimated_row_count": 220 },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "estimated_row_count": 840 },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "estimated_row_count": 7600 },
+      { "schema_name": "dbo", "table_name": "BAS_Persons", "estimated_row_count": 430 },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "estimated_row_count": 640 },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "estimated_row_count": 2100 },
+      { "schema_name": "dbo", "table_name": "ACC_CostCenters", "estimated_row_count": 45 },
+      { "schema_name": "dbo", "table_name": "PRJ_Projects", "estimated_row_count": 28 }
+    ],
+    "columns": [
+      { "schema_name": "dbo", "table_name": "ACC_Accounts", "column_name": "account_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "ACC_Accounts", "column_name": "account_code", "data_type": "nvarchar", "max_length": 30, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_Accounts", "column_name": "account_name", "data_type": "nvarchar", "max_length": 120, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "document_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "document_no", "data_type": "nvarchar", "max_length": 25, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "doc_date_shamsi", "data_type": "nvarchar", "max_length": 12, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "fiscal_year", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "line_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "document_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "account_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "debit_amount", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "credit_amount", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "BAS_Persons", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "BAS_Persons", "column_name": "person_name", "data_type": "nvarchar", "max_length": 100, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "BAS_Persons", "column_name": "national_id", "data_type": "nvarchar", "max_length": 20, "is_nullable": 1, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "petty_cash_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "receipt_date_shamsi", "data_type": "nvarchar", "max_length": 12, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "total_amount", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "bank_tx_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "payment_date", "data_type": "datetime", "max_length": 8, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "payment_amount", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "ACC_CostCenters", "column_name": "cost_center_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "ACC_CostCenters", "column_name": "cost_center_name", "data_type": "nvarchar", "max_length": 80, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "PRJ_Projects", "column_name": "project_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "PRJ_Projects", "column_name": "project_name", "data_type": "nvarchar", "max_length": 120, "is_nullable": 0, "is_identity": 0 }
+    ],
+    "primaryKeys": [
+      { "schema_name": "dbo", "table_name": "ACC_Accounts", "column_name": "account_id" },
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "document_id" },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "line_id" },
+      { "schema_name": "dbo", "table_name": "BAS_Persons", "column_name": "person_id" },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "petty_cash_id" },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "bank_tx_id" },
+      { "schema_name": "dbo", "table_name": "ACC_CostCenters", "column_name": "cost_center_id" },
+      { "schema_name": "dbo", "table_name": "PRJ_Projects", "column_name": "project_id" }
+    ],
+    "foreignKeys": [
+      { "schema_name": "dbo", "table_name": "ACC_Documents", "column_name": "person_id", "referenced_schema": "dbo", "referenced_table": "BAS_Persons", "referenced_column": "person_id" },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "document_id", "referenced_schema": "dbo", "referenced_table": "ACC_Documents", "referenced_column": "document_id" },
+      { "schema_name": "dbo", "table_name": "ACC_DocumentItems", "column_name": "account_id", "referenced_schema": "dbo", "referenced_table": "ACC_Accounts", "referenced_column": "account_id" },
+      { "schema_name": "dbo", "table_name": "TRE_PettyCash", "column_name": "person_id", "referenced_schema": "dbo", "referenced_table": "BAS_Persons", "referenced_column": "person_id" },
+      { "schema_name": "dbo", "table_name": "TRE_BankTransactions", "column_name": "person_id", "referenced_schema": "dbo", "referenced_table": "BAS_Persons", "referenced_column": "person_id" }
+    ],
+    "sampleRows": {
+      "dbo.ACC_Documents": [
+        { "document_id": 1001, "document_no": "S-1403-0001", "doc_date_shamsi": "1403/01/14", "person_id": 11, "fiscal_year": 1403 },
+        { "document_id": 1002, "document_no": "S-1403-0002", "doc_date_shamsi": "1403/01/15", "person_id": 12, "fiscal_year": 1403 }
+      ],
+      "dbo.TRE_PettyCash": [
+        { "petty_cash_id": 701, "person_id": 11, "receipt_date_shamsi": "1403/01/21", "total_amount": 2500000 },
+        { "petty_cash_id": 702, "person_id": 11, "receipt_date_shamsi": "1403/01/26", "total_amount": 3400000 }
+      ],
+      "dbo.TRE_BankTransactions": [
+        { "bank_tx_id": 3301, "person_id": 12, "payment_date": "2024-04-10T00:00:00.000Z", "payment_amount": 1750000 },
+        { "bank_tx_id": 3302, "person_id": 12, "payment_date": "2024-04-12T00:00:00.000Z", "payment_amount": 950000 }
+      ]
+    }
+  },
+  "mahak": {
+    "serverInfo": [
+      {
+        "server_version": "15.0.4312.2",
+        "database_name": "MahakSample"
+      }
+    ],
+    "tables": [
+      { "schema_name": "dbo", "table_name": "HesabKol", "estimated_row_count": 120 },
+      { "schema_name": "dbo", "table_name": "HesabMoin", "estimated_row_count": 260 },
+      { "schema_name": "dbo", "table_name": "Sanad", "estimated_row_count": 1100 },
+      { "schema_name": "dbo", "table_name": "SanadItems", "estimated_row_count": 9600 },
+      { "schema_name": "dbo", "table_name": "Ashkhas", "estimated_row_count": 520 },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "estimated_row_count": 1800 },
+      { "schema_name": "dbo", "table_name": "MarkazHazine", "estimated_row_count": 55 },
+      { "schema_name": "dbo", "table_name": "Sandogh", "estimated_row_count": 9 }
+    ],
+    "columns": [
+      { "schema_name": "dbo", "table_name": "HesabKol", "column_name": "hesab_kol_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "HesabKol", "column_name": "hesab_kol_code", "data_type": "nvarchar", "max_length": 20, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "HesabKol", "column_name": "hesab_kol_name", "data_type": "nvarchar", "max_length": 100, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "HesabMoin", "column_name": "hesab_moin_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "HesabMoin", "column_name": "hesab_kol_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "HesabMoin", "column_name": "hesab_moin_name", "data_type": "nvarchar", "max_length": 100, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "Sanad", "column_name": "sanad_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "Sanad", "column_name": "sanad_no", "data_type": "nvarchar", "max_length": 25, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "Sanad", "column_name": "fiscal_period", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "Sanad", "column_name": "tarikh_sanad", "data_type": "nvarchar", "max_length": 12, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "line_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "sanad_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "hesab_moin_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "bed", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "bes", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "Ashkhas", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "Ashkhas", "column_name": "person_name", "data_type": "nvarchar", "max_length": 100, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "tx_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "person_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "fiscal_period", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 0 },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "amount", "data_type": "decimal", "max_length": 9, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "MarkazHazine", "column_name": "cost_center_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "MarkazHazine", "column_name": "cost_center_name", "data_type": "nvarchar", "max_length": 100, "is_nullable": 0, "is_identity": 0 },
+
+      { "schema_name": "dbo", "table_name": "Sandogh", "column_name": "sandogh_id", "data_type": "int", "max_length": 4, "is_nullable": 0, "is_identity": 1 },
+      { "schema_name": "dbo", "table_name": "Sandogh", "column_name": "sandogh_name", "data_type": "nvarchar", "max_length": 80, "is_nullable": 0, "is_identity": 0 }
+    ],
+    "primaryKeys": [
+      { "schema_name": "dbo", "table_name": "HesabKol", "column_name": "hesab_kol_id" },
+      { "schema_name": "dbo", "table_name": "HesabMoin", "column_name": "hesab_moin_id" },
+      { "schema_name": "dbo", "table_name": "Sanad", "column_name": "sanad_id" },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "line_id" },
+      { "schema_name": "dbo", "table_name": "Ashkhas", "column_name": "person_id" },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "tx_id" },
+      { "schema_name": "dbo", "table_name": "MarkazHazine", "column_name": "cost_center_id" },
+      { "schema_name": "dbo", "table_name": "Sandogh", "column_name": "sandogh_id" }
+    ],
+    "foreignKeys": [
+      { "schema_name": "dbo", "table_name": "HesabMoin", "column_name": "hesab_kol_id", "referenced_schema": "dbo", "referenced_table": "HesabKol", "referenced_column": "hesab_kol_id" },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "sanad_id", "referenced_schema": "dbo", "referenced_table": "Sanad", "referenced_column": "sanad_id" },
+      { "schema_name": "dbo", "table_name": "SanadItems", "column_name": "hesab_moin_id", "referenced_schema": "dbo", "referenced_table": "HesabMoin", "referenced_column": "hesab_moin_id" },
+      { "schema_name": "dbo", "table_name": "DaryaftPardakht", "column_name": "person_id", "referenced_schema": "dbo", "referenced_table": "Ashkhas", "referenced_column": "person_id" }
+    ],
+    "sampleRows": {
+      "dbo.Sanad": [
+        { "sanad_id": 5001, "sanad_no": "M-140302-001", "fiscal_period": 140302, "tarikh_sanad": "140302" },
+        { "sanad_id": 5002, "sanad_no": "M-140302-002", "fiscal_period": 140302, "tarikh_sanad": "140302" }
+      ],
+      "dbo.DaryaftPardakht": [
+        { "tx_id": 9201, "person_id": 81, "fiscal_period": 140302, "amount": 2200000 },
+        { "tx_id": 9202, "person_id": 81, "fiscal_period": 140302, "amount": 1800000 }
+      ]
+    }
+  }
+}

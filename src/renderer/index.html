@@ -276,13 +276,13 @@
     <div id="app" class="app-shell">
       <header class="topbar panel">
         <div>
-          <p class="eyebrow">Desktop Finance Intelligence</p>
+          <p class="eyebrow">هوش مالی دسکتاپ</p>
           <h1>ACC Assist</h1>
-          <p class="subtitle">Dynamic SQL + SSH Tunnel + Gemini 2.5 Pro via avalapis.ir proxy</p>
+          <p class="subtitle">اتصال پویا به SQL + تونل SSH + Gemini 2.5 Pro از طریق پراکسی avalapis.ir</p>
         </div>
         <div class="status-row">
-          <span id="sshStatusChipTop" class="chip chip-neutral">SSH: checking...</span>
-          <span id="bridgeStatusChipTop" class="chip chip-neutral">Mobile WS: checking...</span>
+          <span id="sshStatusChipTop" class="chip chip-neutral">SSH: در حال بررسی...</span>
+          <span id="bridgeStatusChipTop" class="chip chip-neutral">پل موبایل: در حال بررسی...</span>
         </div>
       </header>
 
@@ -296,7 +296,7 @@
           aria-controls="settingsPanel"
           aria-selected="true"
         >
-          تنظیمات سیستم | System Settings
+          تنظیمات سیستم
         </button>
         <button
           id="tabAnalysisBtn"
@@ -307,99 +307,236 @@
           aria-controls="analysisPanel"
           aria-selected="false"
         >
-          تحلیل مالی هوش مصنوعی | AI Financial Analysis
+          تحلیل مالی با هوش مصنوعی
         </button>
       </nav>
 
       <main class="tab-panels">
         <section id="settingsPanel" class="panel tab-panel active" role="tabpanel" aria-labelledby="tabSettingsBtn">
           <div class="panel-header">
-            <h2>System Settings</h2>
-            <button id="saveAllSettingsBtn" class="btn btn-primary" type="button">Save All Settings</button>
+            <h2>تنظیمات سیستم</h2>
+            <button id="saveAllSettingsBtn" class="btn btn-primary" type="button">ذخیره همه تنظیمات</button>
           </div>
 
-          <div id="settingsFeedback" class="inline-alert note-info">Load settings and verify connectivity.</div>
+          <div id="settingsFeedback" class="inline-alert note-info">تنظیمات را بارگذاری کنید و اتصال را بررسی کنید.</div>
 
           <div class="settings-grid">
             <fieldset>
-              <legend>SQL Server</legend>
+              <legend>پروفایل اتصال</legend>
               <div class="field-grid">
                 <label>
-                  Host
-                  <input id="sqlHostInput" type="text" placeholder="127.0.0.1" />
+                  پروفایل های ذخیره شده
+                  <select id="profileSelectorInput">
+                    <option value="">(بدون پروفایل)</option>
+                  </select>
                 </label>
-                <label>
-                  Database
-                  <input id="sqlDatabaseInput" type="text" />
-                </label>
-                <label>
-                  User
-                  <input id="sqlUserInput" type="text" />
-                </label>
-                <label>
-                  Password
-                  <input id="sqlPasswordInput" type="password" autocomplete="off" />
-                </label>
-                <div class="row two">
-                  <label>
-                    Port
-                    <input id="sqlPortInput" type="number" min="1" max="65535" />
-                  </label>
-                  <label class="toggle">
-                    <input id="sqlTrustCertInput" type="checkbox" />
-                    Trust Server Certificate
-                  </label>
+                <div class="row">
+                  <button id="createProfileBtn" class="btn" type="button">ایجاد پروفایل</button>
+                  <button id="activateProfileBtn" class="btn" type="button">فعال سازی انتخاب شده</button>
+                  <button id="deleteProfileBtn" class="btn btn-danger" type="button">حذف انتخاب شده</button>
                 </div>
-                <label class="toggle">
-                  <input id="sqlEncryptInput" type="checkbox" />
-                  Encrypt SQL Connection
+                <label>
+                  نام پروفایل
+                  <input id="profileNameInput" type="text" placeholder="اتصال اصلی حسابداری" />
                 </label>
-                <button id="testSqlConnectionBtn" class="btn" type="button">Test SQL Connection</button>
+                <label>
+                  توضیحات
+                  <textarea
+                    id="profileDescriptionInput"
+                    rows="3"
+                    placeholder="مثال: اتصال مستقیم LAN به SQL سرور حسابداری"
+                  ></textarea>
+                </label>
+                <label>
+                  نوع اتصال
+                  <select id="profileTypeInput">
+                    <option value="direct">SQL مستقیم</option>
+                    <option value="ssh">SQL از طریق تونل SSH</option>
+                  </select>
+                </label>
+                <label>
+                  وضعیت آخرین تست
+                  <input id="profileLastTestInput" type="text" readonly />
+                </label>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend>SSH Tunnel</legend>
+              <legend>SQL Server</legend>
               <div class="field-grid">
-                <label class="toggle">
-                  <input id="sshEnabledInput" type="checkbox" />
-                  Enable SSH Tunnel
+                <label>
+                  میزبان
+                  <input id="sqlHostInput" type="text" placeholder="127.0.0.1" />
+                </label>
+                <label>
+                  پایگاه داده
+                  <input id="sqlDatabaseInput" type="text" />
+                </label>
+                <label>
+                  پایگاه های داده شناسایی شده
+                  <select id="sqlDatabaseSelect">
+                    <option value="">(بارگذاری نشده)</option>
+                  </select>
+                </label>
+                <button id="loadSqlDatabasesBtn" class="btn" type="button">بارگذاری پایگاه های داده از سرور</button>
+                <label>
+                  نام کاربری
+                  <input id="sqlUserInput" type="text" />
+                </label>
+                <label>
+                  رمز عبور
+                  <input id="sqlPasswordInput" type="password" autocomplete="off" />
                 </label>
                 <div class="row two">
                   <label>
-                    SSH Host
+                    پورت
+                    <input id="sqlPortInput" type="number" min="1" max="65535" />
+                  </label>
+                  <label class="toggle">
+                    <input id="sqlTrustCertInput" type="checkbox" />
+                    اعتماد به گواهی سرور
+                  </label>
+                </div>
+                <label class="toggle">
+                  <input id="sqlEncryptInput" type="checkbox" />
+                  رمزنگاری اتصال SQL
+                </label>
+                <button id="testSqlConnectionBtn" class="btn" type="button">تست اتصال SQL</button>
+                <div id="sqlHealthCheckResult" class="inline-alert note-info">هنوز بررسی سلامت اتصال اجرا نشده است.</div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>کشف ساختار دیتابیس</legend>
+              <div class="field-grid">
+                <div id="schemaOnboardingPanel" class="field-grid">
+                  <div class="inline-alert note-info">
+                    شروع سریع: اگر نرم افزار حسابداری را می شناسید، همان ابتدا انتخاب کنید تا کشف schema با همان پروفایل انجام شود.
+                  </div>
+                  <div class="onboarding-steps" id="schemaOnboardingSteps" aria-label="مراحل راه انداز">
+                    <span id="schemaOnboardingStepSoftware" class="onboarding-step is-current">1) انتخاب نرم افزار</span>
+                    <span id="schemaOnboardingStepDiscover" class="onboarding-step">2) کشف ساختار</span>
+                    <span id="schemaOnboardingStepMappings" class="onboarding-step">3) اعمال نگاشت پیشنهادی</span>
+                  </div>
+                  <label>
+                    انتخاب نرم افزار هدف (Onboarding)
+                    <select id="schemaOnboardingSoftwareSelect">
+                      <option value="auto">خودکار (تشخیص در زمان کشف)</option>
+                      <option value="sepidar">Sepidar</option>
+                      <option value="mahak">Mahak</option>
+                    </select>
+                  </label>
+                  <button id="schemaOnboardingDiscoverBtn" class="btn btn-primary" type="button">اعمال و کشف ساختار</button>
+                  <button id="schemaOnboardingApplyMappingsBtn" class="btn" type="button">اعمال نگاشت پیشنهادی</button>
+                  <div id="schemaOnboardingSummary" class="inline-alert note-info">
+                    پس از کشف schema، پیشنهاد نگاشت مفاهیم مالی اینجا نمایش داده می شود.
+                  </div>
+                  <div id="schemaOnboardingHint" class="inline-alert note-info">
+                    هنوز catalog این دیتابیس ساخته نشده است. در صورت نیاز نرم افزار هدف را انتخاب کنید.
+                  </div>
+                </div>
+                <hr />
+                <button id="discoverSchemaBtn" class="btn" type="button">کشف ساختار مالی</button>
+                <div id="schemaDiscoveryResult" class="inline-alert note-info">
+                  هنوز catalog این دیتابیس ساخته نشده است.
+                </div>
+                <div id="schemaMappingEditor" class="field-grid" hidden>
+                  <div class="inline-alert note-info">
+                    نگاشت مفاهیم مالی را از بین جدول های شناسایی شده انتخاب کنید.
+                  </div>
+                  <label>
+                    نرم افزار هدف برای تحلیل
+                    <select id="schemaSoftwareSelect">
+                      <option value="auto">خودکار (بر اساس کشف)</option>
+                      <option value="sepidar">Sepidar</option>
+                      <option value="mahak">Mahak</option>
+                    </select>
+                  </label>
+                  <div id="schemaSoftwareHint" class="inline-alert note-info">
+                    نرم افزار موثر هنوز برای این catalog تعیین نشده است.
+                  </div>
+                  <label>
+                    حالت تاریخ برای تحلیل
+                    <select id="schemaDateModeSelect">
+                      <option value="auto">خودکار (بر اساس کشف)</option>
+                      <option value="gregorian">Gregorian</option>
+                      <option value="shamsiText">Shamsi Text</option>
+                      <option value="shamsiNumeric">Shamsi Numeric</option>
+                      <option value="fiscalPeriod">Fiscal Period</option>
+                      <option value="mixed">Mixed</option>
+                      <option value="unknown">Unknown</option>
+                    </select>
+                  </label>
+                  <div id="schemaDateModeHint" class="inline-alert note-info">
+                    تاریخ موثر هنوز برای این catalog تعیین نشده است.
+                  </div>
+                  <div id="schemaMappingRows" class="field-grid"></div>
+                  <div class="row">
+                    <button id="saveSchemaMappingsBtn" class="btn btn-primary" type="button">
+                      ذخیره نگاشت های انتخاب شده
+                    </button>
+                    <button id="resetSchemaMappingsBtn" class="btn" type="button">
+                      بازنشانی به پیشنهادها
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>تونل SSH</legend>
+              <div class="field-grid">
+                <label class="toggle">
+                  <input id="sshEnabledInput" type="checkbox" />
+                  فعال سازی تونل SSH
+                </label>
+                <div class="row two">
+                  <label>
+                    میزبان SSH
                     <input id="sshHostInput" type="text" />
                   </label>
                   <label>
-                    SSH Port
+                    پورت SSH
                     <input id="sshPortInput" type="number" min="1" max="65535" />
                   </label>
                 </div>
                 <label>
-                  SSH User
+                  کاربر SSH
                   <input id="sshUserInput" type="text" />
                 </label>
                 <label>
-                  SSH Password
+                  رمز عبور SSH
                   <input id="sshPasswordInput" type="password" autocomplete="off" />
+                </label>
+                <label>
+                  کلید خصوصی SSH (PEM)
+                  <textarea
+                    id="sshPrivateKeyInput"
+                    rows="5"
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY----- ..."
+                  ></textarea>
+                </label>
+                <label>
+                  گذرواژه کلید SSH
+                  <input id="sshPassphraseInput" type="password" autocomplete="off" />
                 </label>
                 <div class="row two">
                   <label>
-                    Target SQL Host
+                    میزبان مقصد SQL
                     <input id="sshTargetHostInput" type="text" placeholder="127.0.0.1" />
                   </label>
                   <label>
-                    Target SQL Port
+                    پورت مقصد SQL
                     <input id="sshTargetPortInput" type="number" min="1" max="65535" />
                   </label>
                 </div>
                 <label>
-                  Local Forward Port
-                  <input id="sshLocalPortInput" type="number" min="1" max="65535" placeholder="auto if empty" />
+                  پورت فوروارد محلی
+                  <input id="sshLocalPortInput" type="number" min="1" max="65535" placeholder="در صورت خالی بودن خودکار" />
                 </label>
                 <div class="row">
-                  <button id="startSshTunnelBtn" class="btn" type="button">Start SSH Tunnel</button>
-                  <button id="stopSshTunnelBtn" class="btn btn-danger" type="button">Stop SSH Tunnel</button>
+                  <button id="startSshTunnelBtn" class="btn" type="button">شروع تونل SSH</button>
+                  <button id="stopSshTunnelBtn" class="btn btn-danger" type="button">توقف تونل SSH</button>
                 </div>
               </div>
             </fieldset>
@@ -416,14 +553,14 @@
                   <input id="geminiBaseUrlInput" type="text" placeholder="https://api.avalapis.ir/v1" />
                 </label>
                 <label>
-                  Mode
+                  حالت
                   <select id="geminiModeInput">
-                    <option value="openai">OpenAI Compatible</option>
-                    <option value="google">Google Gemini Compatible</option>
+                    <option value="openai">سازگار با OpenAI</option>
+                    <option value="google">سازگار با Google Gemini</option>
                   </select>
                 </label>
                 <label>
-                  Model
+                  مدل
                   <input id="geminiModelInput" type="text" placeholder="gemini-2.5-pro" />
                 </label>
               </div>
@@ -433,50 +570,75 @@
 
         <section id="analysisPanel" class="panel tab-panel" role="tabpanel" aria-labelledby="tabAnalysisBtn">
           <div class="panel-header">
-            <h2>AI Financial Analysis</h2>
+            <h2>تحلیل مالی با هوش مصنوعی</h2>
             <div class="row">
-              <button id="refreshStatusBtn" class="btn" type="button">Refresh Status</button>
-              <button id="clearConversationBtn" class="btn" type="button">Clear Conversation</button>
+              <button id="refreshStatusBtn" class="btn" type="button">به روزرسانی وضعیت</button>
+              <button id="clearConversationBtn" class="btn" type="button">پاک کردن گفت وگو</button>
             </div>
           </div>
 
           <div class="analysis-layout">
             <div class="analysis-status">
-              <span id="sshStatusChipAnalysis" class="chip chip-neutral">SSH: checking...</span>
-              <span id="bridgeStatusChipAnalysis" class="chip chip-neutral">Mobile WS: checking...</span>
+              <span id="sshStatusChipAnalysis" class="chip chip-neutral">SSH: در حال بررسی...</span>
+              <span id="bridgeStatusChipAnalysis" class="chip chip-neutral">پل موبایل: در حال بررسی...</span>
             </div>
 
             <div id="chatToolState" class="inline-alert note-info" hidden>
               هوش مصنوعی در حال استخراج داده از دیتابیس است...
             </div>
 
-            <section id="chatHistory" class="chat-history" aria-live="polite" aria-label="Chat history"></section>
+            <section id="chatHistory" class="chat-history" aria-live="polite" aria-label="تاریخچه گفت وگو"></section>
+
+            <section class="prompt-templates" aria-label="قالب های پرتکرار سوال مالی">
+              <div class="prompt-templates-header">
+                <span class="prompt-templates-title">قالب های پرتکرار سوال مالی</span>
+                <div class="row">
+                  <button id="savePromptTemplateBtn" class="btn" type="button">ذخیره قالب جاری</button>
+                  <button id="clearPromptInputBtn" class="btn" type="button">پاک کردن متن</button>
+                </div>
+              </div>
+              <div id="promptTemplateList" class="prompt-template-list"></div>
+            </section>
+
+            <section id="trendChartPanel" class="trend-chart" aria-label="نمای روند شواهد" hidden>
+              <div class="trend-chart-header">
+                <span class="trend-chart-title">نمای روند از شواهد ابزار</span>
+                <span id="trendChartMeta" class="trend-chart-meta"></span>
+              </div>
+              <div id="trendChartBars" class="trend-chart-bars"></div>
+              <div id="trendChartEmpty" class="inline-alert note-info" hidden>
+                هنوز داده کافی برای ترسیم روند وجود ندارد.
+              </div>
+            </section>
 
             <label>
-              Prompt for AI analysis
+              درخواست برای تحلیل هوش مصنوعی
               <textarea
                 id="promptInput"
                 rows="5"
-                placeholder="Example: Analyze gross margin changes over the last quarter and suggest cost actions. Tip: type /dry-run for diagnostic flow."
+                placeholder="مثال: تغییرات حاشیه سود ناخالص را در فصل گذشته تحلیل کن و اقدام های کاهش هزینه پیشنهاد بده. نکته: برای اجرای مسیر تشخیصی عبارت /dry-run را وارد کنید."
               ></textarea>
             </label>
             <div class="row chat-actions">
+              <button id="exportPdfBtn" class="btn btn-compact" type="button" disabled>خروجی PDF</button>
+              <button id="exportExcelBtn" class="btn btn-compact" type="button" disabled>خروجی Excel</button>
               <button
                 id="runDryRunBtn"
                 class="btn btn-compact"
                 type="button"
-                title="Run end-to-end diagnostic: Gemini -> Tool Call -> SQL -> Gemini"
+                title="اجرای تشخیص انتها-به-انتها: Gemini -> Tool Call -> SQL -> Gemini"
               >
-                Dry-run Tool Flow
+                جریان ابزار Dry-run
               </button>
-              <button id="sendPromptBtn" class="btn btn-primary" type="button">Send to Gemini</button>
+              <button id="cancelPromptBtn" class="btn btn-danger" type="button" disabled>توقف پاسخ</button>
+              <button id="sendPromptBtn" class="btn btn-primary" type="button">ارسال به Gemini</button>
             </div>
           </div>
         </section>
       </main>
 
       <footer id="appNotice" class="footer-note note-info">
-        Ready. Load settings, verify services, then start AI analysis.
+        آماده است. تنظیمات را بارگذاری کنید، سرویس ها را بررسی کنید و سپس تحلیل را شروع کنید.
       </footer>
     </div>
 

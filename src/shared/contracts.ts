@@ -41,11 +41,122 @@ export interface MobileBridgeConfig {
   allowedOrigin: string
 }
 
+export interface SqlSecurityPolicyConfig {
+  enforceReadOnlyLogin: boolean
+  forbidWildcardSelect: boolean
+  requireOrderByWhenLimited: boolean
+  blockQueryHints: boolean
+}
+
+export type ConnectionProfileType = 'direct' | 'ssh'
+export type ConnectionProfileTestStatus = 'never' | 'success' | 'error'
+
+export interface ConnectionProfileMetadata {
+  name: string
+  description: string
+  type: ConnectionProfileType
+  lastTestStatus: ConnectionProfileTestStatus
+  lastTestMessage: string
+  lastTestAt: string | null
+}
+
+export interface ConnectionProfile {
+  id: string
+  metadata: ConnectionProfileMetadata
+  sql: SqlConnectionConfig
+  ssh: SshTunnelConfig
+}
+
+export type AccountingConceptKey =
+  | 'accounts'
+  | 'documents'
+  | 'documentLines'
+  | 'counterparties'
+  | 'cashTransactions'
+  | 'costCenters'
+  | 'projects'
+  | 'banks'
+  | 'pettyCash'
+
+export type AccountingSoftwareId = 'sepidar' | 'mahak'
+
+export interface AccountingSoftwareDetection {
+  id: AccountingSoftwareId
+  name: string
+  score: number
+  confidence: number
+}
+
+export interface SchemaColumnCatalogItem {
+  name: string
+  dataType: string
+  isNullable: boolean
+  maxLength: number | null
+  isIdentity: boolean
+  isPrimaryKey: boolean
+  hasForeignKey: boolean
+  sampleValues: string[]
+}
+
+export interface SchemaForeignKeyCatalogItem {
+  columnName: string
+  referencedSchema: string
+  referencedTable: string
+  referencedColumn: string
+}
+
+export interface SchemaTableCatalogItem {
+  schemaName: string
+  tableName: string
+  estimatedRowCount: number | null
+  tags: AccountingConceptKey[]
+  columns: SchemaColumnCatalogItem[]
+  foreignKeys: SchemaForeignKeyCatalogItem[]
+}
+
+export type SchemaConceptSuggestions = Partial<Record<AccountingConceptKey, string[]>>
+export type SchemaConceptSelections = Partial<Record<AccountingConceptKey, string>>
+export type SchemaDateMode = 'unknown' | 'gregorian' | 'shamsiText' | 'shamsiNumeric' | 'fiscalPeriod' | 'mixed'
+export type SchemaSoftwarePreference = 'auto' | AccountingSoftwareId
+
+export interface SchemaCatalogEntry {
+  profileId: string
+  databaseName: string
+  discoveredAt: string
+  serverVersion: string
+  totalTables: number
+  includedTables: number
+  sampledTables: number
+  tables: SchemaTableCatalogItem[]
+  suggestedMappings: SchemaConceptSuggestions
+  selectedMappings: SchemaConceptSelections
+  detectedSoftware?: AccountingSoftwareDetection | null
+  softwareCandidates?: AccountingSoftwareDetection[]
+  selectedSoftwareId?: AccountingSoftwareId | null
+  detectedDateMode?: SchemaDateMode
+  selectedDateMode?: SchemaDateMode | null
+  dateEvidence?: string[]
+}
+
+export interface PromptTemplate {
+  id: string
+  label: string
+  prompt: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface AppSettings {
   gemini: GeminiConfig
   sql: SqlConnectionConfig
+  sqlSecurity: SqlSecurityPolicyConfig
   ssh: SshTunnelConfig
   mobileBridge: MobileBridgeConfig
+  connectionProfile: ConnectionProfileMetadata
+  connectionProfiles: ConnectionProfile[]
+  activeConnectionProfileId: string
+  schemaCatalogs: SchemaCatalogEntry[]
+  promptTemplates: PromptTemplate[]
 }
 
 export interface SqlParameter {
@@ -68,6 +179,14 @@ export interface SqlQueryResult {
 }
 
 export type SqlQueryRow = Record<string, unknown>
+
+export interface SqlHealthCheck {
+  serverVersion: string
+  databaseName: string
+  loginUser: string
+  isReadOnly: boolean
+  writeCapabilities: string[]
+}
 
 export interface SshTunnelStatus {
   active: boolean
@@ -114,6 +233,124 @@ export interface GeminiChatResponse {
   text: string
   raw: unknown
   toolCalls?: GeminiToolCall[]
+}
+
+export type AgentMessageMode = 'manual' | 'dry-run'
+
+export interface AgentSendMessageRequest {
+  requestId: string
+  conversationId: string
+  prompt: string
+  mode: AgentMessageMode
+  history: GeminiMessage[]
+}
+
+export interface AgentCancelMessageRequest {
+  requestId: string
+  reason?: string
+}
+
+export interface AgentCancelMessageResult {
+  cancelled: boolean
+}
+
+export interface AgentSendMessageResult {
+  history: GeminiMessage[]
+  finalText: string
+  rounds: number
+  toolCallsUsed: number
+}
+
+export type AgentProgressEventType =
+  | 'thinking'
+  | 'response-chunk'
+  | 'cancelled'
+  | 'tool-start'
+  | 'tool-success'
+  | 'tool-error'
+  | 'final'
+
+export interface AgentEvidencePreview {
+  queryPreview?: string
+  columns: string[]
+  rows: SqlQueryRow[]
+  rowCount: number
+  truncated: boolean
+}
+
+export interface AgentProgressEvent {
+  type: AgentProgressEventType
+  message: string
+  toolName?: string
+  toolCallId?: string
+  args?: Record<string, unknown>
+  rowCount?: number
+  evidencePreview?: AgentEvidencePreview
+  errorCode?: string
+  errorCategory?: string
+}
+
+export interface AgentProgressEnvelope {
+  requestId: string
+  event: AgentProgressEvent
+}
+
+export interface SchemaDiscoverRequest {
+  profileId?: string
+  databaseName?: string
+  selectedSoftwareId?: AccountingSoftwareId | null
+  connection?: SqlConnectionConfig
+  ssh?: SshTunnelConfig
+}
+
+export interface SchemaDiscoverResult {
+  catalog: SchemaCatalogEntry
+  schemaCatalogs: SchemaCatalogEntry[]
+}
+
+export interface SchemaCatalogLookupRequest {
+  profileId?: string
+  databaseName?: string
+}
+
+export interface SchemaUpdateMappingsRequest {
+  profileId?: string
+  databaseName?: string
+  selectedMappings: SchemaConceptSelections
+  selectedSoftwareId?: AccountingSoftwareId | null
+  selectedDateMode?: SchemaDateMode | null
+}
+
+export interface SchemaUpdateMappingsResult {
+  catalog: SchemaCatalogEntry
+  schemaCatalogs: SchemaCatalogEntry[]
+}
+
+export type ReportExportFormat = 'pdf' | 'excel'
+
+export interface ReportExportEvidenceItem {
+  toolName: string
+  queryPreview?: string
+  columns: string[]
+  rows: SqlQueryRow[]
+  rowCount: number
+  truncated: boolean
+}
+
+export interface ReportExportRequest {
+  format: ReportExportFormat
+  title: string
+  prompt: string
+  responseMarkdown: string
+  generatedAt: string
+  evidence: ReportExportEvidenceItem[]
+  defaultFileName?: string
+}
+
+export interface ReportExportResult {
+  filePath: string
+  format: ReportExportFormat
+  bytesWritten: number
 }
 
 export interface MobileBridgeStatus {

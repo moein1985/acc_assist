@@ -1,11 +1,25 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  AgentCancelMessageRequest,
+  AgentCancelMessageResult,
+  AgentProgressEnvelope,
+  AgentSendMessageRequest,
+  AgentSendMessageResult,
   AppSettings,
   GeminiChatRequest,
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  ReportExportRequest,
+  ReportExportResult,
+  SchemaCatalogEntry,
+  SchemaCatalogLookupRequest,
+  SchemaDiscoverRequest,
+  SchemaDiscoverResult,
+  SchemaUpdateMappingsRequest,
+  SchemaUpdateMappingsResult,
   SqlConnectionConfig,
+  SqlHealthCheck,
   SqlQueryRow,
   SqlQueryRequest,
   SqlQueryResult,
@@ -18,12 +32,25 @@ export interface AccAssistApi {
     get: () => Promise<IpcResponse<AppSettings>>
     save: (patch: Partial<AppSettings>) => Promise<IpcResponse<AppSettings>>
   }
+  schema: {
+    discover: (payload?: SchemaDiscoverRequest) => Promise<IpcResponse<SchemaDiscoverResult>>
+    getCatalog: (payload?: SchemaCatalogLookupRequest) => Promise<IpcResponse<SchemaCatalogEntry | null>>
+    updateMappings: (payload: SchemaUpdateMappingsRequest) => Promise<IpcResponse<SchemaUpdateMappingsResult>>
+  }
   ssh: {
     start: (config?: SshTunnelConfig) => Promise<IpcResponse<SshTunnelStatus>>
     stop: () => Promise<IpcResponse<SshTunnelStatus>>
     status: () => Promise<IpcResponse<SshTunnelStatus>>
   }
   sql: {
+    listDatabases: (payload?: {
+      connection?: SqlConnectionConfig
+      ssh?: SshTunnelConfig
+    }) => Promise<IpcResponse<string[]>>
+    healthCheck: (payload?: {
+      connection?: SqlConnectionConfig
+      ssh?: SshTunnelConfig
+    }) => Promise<IpcResponse<SqlHealthCheck>>
     testConnection: (payload?: {
       connection?: SqlConnectionConfig
       ssh?: SshTunnelConfig
@@ -34,6 +61,14 @@ export interface AccAssistApi {
   }
   gemini: {
     chat: (payload: GeminiChatRequest) => Promise<IpcResponse<GeminiChatResponse>>
+  }
+  agent: {
+    sendMessage: (payload: AgentSendMessageRequest) => Promise<IpcResponse<AgentSendMessageResult>>
+    cancelMessage: (payload: AgentCancelMessageRequest) => Promise<IpcResponse<AgentCancelMessageResult>>
+    onEvent: (listener: (payload: AgentProgressEnvelope) => void) => () => void
+  }
+  report: {
+    export: (payload: ReportExportRequest) => Promise<IpcResponse<ReportExportResult>>
   }
   mobileBridge: {
     status: () => Promise<IpcResponse<MobileBridgeStatus>>

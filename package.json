@@ -1,10 +1,11 @@
 {
   "name": "acc-assist",
   "version": "1.0.0",
-  "description": "A minimal Electron application with TypeScript",
+  "description": "ACC Assist desktop agent for secure accounting analytics on SQL Server",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "ACC Assist Team",
+  "homepage": "https://accassist.app",
+  "license": "UNLICENSED",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -14,6 +15,16 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
+    "smoke:agent:fast": "tsx scripts/smoke-agent-orchestrator.ts --mode=fast",
+    "smoke:agent:full": "tsx scripts/smoke-agent-orchestrator.ts --mode=full",
+    "smoke:agent": "npm run smoke:agent:full",
+    "smoke:fast": "npm run build && npm run smoke:agent:fast",
+    "smoke:full": "npm run build && npm run smoke:agent:full",
+    "smoke": "npm run smoke:full",
+    "test:unit": "tsx --test tests/unit/**/*.test.ts",
+    "test:integration": "tsx --test tests/integration/**/*.test.ts",
+    "test": "npm run test:unit && npm run test:integration",
+    "validate:connector:live": "tsx scripts/validate-connector-live.ts",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
@@ -25,7 +36,8 @@
     "@electron-toolkit/utils": "^4.0.0",
     "mssql": "^12.5.4",
     "ssh2": "^1.17.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -37,6 +49,7 @@
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "prettier": "^3.7.4",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
   }

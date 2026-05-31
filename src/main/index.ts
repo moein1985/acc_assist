@@ -2,18 +2,37 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import type {
+  AgentCancelMessageRequest,
+  AgentCancelMessageResult,
+  AgentProgressEnvelope,
+  AgentSendMessageRequest,
+  AgentSendMessageResult,
   AppSettings,
   GeminiChatRequest,
   IpcResponse,
+  ReportExportRequest,
+  ReportExportResult,
+  SchemaCatalogEntry,
+  SchemaCatalogLookupRequest,
+  SchemaDateMode,
+  SchemaDiscoverRequest,
+  SchemaDiscoverResult,
+  SchemaUpdateMappingsRequest,
+  SchemaUpdateMappingsResult,
   SqlConnectionConfig,
+  SqlHealthCheck,
   SqlQueryRow,
   SqlQueryRequest,
   SqlQueryResult,
   SshTunnelConfig,
   SshTunnelStatus
 } from '../shared/contracts'
+import { AgentOrchestrator } from './services/agentOrchestrator'
+import { AuditLogService } from './services/auditLogService'
 import { GeminiClient } from './services/geminiClient'
 import { MobileBridgeServer } from './services/mobileBridgeServer'
+import { ReportExportService } from './services/reportExportService'
+import { SchemaDiscoveryService } from './services/schemaDiscoveryService'
 import { SettingsStore } from './services/settingsStore'
 import { SqlConnectionManager } from './services/sqlConnectionManager'
 import { SshTunnelService } from './services/sshTunnelService'
@@ -24,6 +43,29 @@ const sqlConnectionManager = new SqlConnectionManager()
 const sshTunnelService = new SshTunnelService()
 const geminiClient = new GeminiClient()
 const mobileBridgeServer = new MobileBridgeServer()
+const schemaDiscoveryService = new SchemaDiscoveryService()
+const auditLogService = new AuditLogService()
+const reportExportService = new ReportExportService()
+const agentOrchestrator = new AgentOrchestrator({
+  geminiClient,
+  getSettings: () => settingsStore.get(),
+  executeReadOnlySql: async (query: string, signal?: AbortSignal) => {
+    const saved = settingsStore.get()
+    const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+    return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'agent-data', signal, {
+      enforceReadOnlyLogin: saved.sqlSecurity.enforceReadOnlyLogin,
+      forbidWildcardSelect: saved.sqlSecurity.forbidWildcardSelect,
+      requireOrderByWhenLimited: saved.sqlSecurity.requireOrderByWhenLimited,
+      blockQueryHints: saved.sqlSecurity.blockQueryHints
+    })
+  },
+  executeMetadataSql: async (query: string, signal?: AbortSignal) => {
+    const saved = settingsStore.get()
+    const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+    return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'metadata', signal)
+  },
+  auditLog: auditLogService
+})
 
 let mainWindow: BrowserWindow | null = null
 
@@ -75,6 +117,45 @@ function fail<T>(error: unknown): IpcResponse<T> {
   }
 }
 
+function isSameSchemaCatalog(entry: SchemaCatalogEntry, profileId: string, databaseName: string): boolean {
+  return entry.profileId === profileId && entry.databaseName.trim().toLowerCase() === databaseName.trim().toLowerCase()
+}
+
+const SUPPORTED_SCHEMA_DATE_MODES: SchemaDateMode[] = [
+  'unknown',
+  'gregorian',
+  'shamsiText',
+  'shamsiNumeric',
+  'fiscalPeriod',
+  'mixed'
+]
+
+function normalizeSchemaDateMode(value: unknown): SchemaDateMode | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  if (SUPPORTED_SCHEMA_DATE_MODES.includes(trimmed as SchemaDateMode)) {
+    return trimmed as SchemaDateMode
+  }
+
+  return null
+}
+
+function normalizeAccountingSoftwareId(value: unknown): 'sepidar' | 'mahak' | null {
+  if (value === 'sepidar' || value === 'mahak') {
+    return value
+  }
+
+  return null
+}
+
 async function resolveRuntimeSqlConnection(
   connection: SqlConnectionConfig,
   sshConfig?: SshTunnelConfig
@@ -107,6 +188,19 @@ function registerIpcHandlers(): void {
       try {
         const updated = await settingsStore.save(patch)
 
+        const shouldResetSqlRuntime =
+          Boolean(patch.sql) ||
+          Boolean(patch.ssh) ||
+          Boolean(patch.activeConnectionProfileId) ||
+          Boolean(patch.connectionProfiles)
+        if (shouldResetSqlRuntime) {
+          await sqlConnectionManager.close()
+        }
+
+        if (patch.ssh) {
+          await sshTunnelService.stop('SSH tunnel reconfigured from settings')
+        }
+
         if (!updated.mobileBridge.enabled) {
           await mobileBridgeServer.stop()
         } else {
@@ -118,6 +212,213 @@ function registerIpcHandlers(): void {
         }
 
         return ok(updated)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+
+  ipcMain.handle(
+    'sql:list-databases',
+    async (
+      _,
+      payload?: {
+        connection?: SqlConnectionConfig
+        ssh?: SshTunnelConfig
+      }
+    ): Promise<IpcResponse<string[]>> => {
+      try {
+        const saved = settingsStore.get()
+        const connection = payload?.connection ?? saved.sql
+        const ssh = payload?.ssh ?? saved.ssh
+        const runtimeConnection = await resolveRuntimeSqlConnection(connection, ssh)
+        const databases = await sqlConnectionManager.listDatabases(runtimeConnection)
+        return ok(databases)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'sql:health-check',
+    async (
+      _,
+      payload?: {
+        connection?: SqlConnectionConfig
+        ssh?: SshTunnelConfig
+      }
+    ): Promise<IpcResponse<SqlHealthCheck>> => {
+      try {
+        const saved = settingsStore.get()
+        const connection = payload?.connection ?? saved.sql
+        const ssh = payload?.ssh ?? saved.ssh
+        const runtimeConnection = await resolveRuntimeSqlConnection(connection, ssh)
+        const healthCheck = await sqlConnectionManager.getHealthCheck(runtimeConnection)
+        return ok(healthCheck)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'schema:discover',
+    async (_, payload?: SchemaDiscoverRequest): Promise<IpcResponse<SchemaDiscoverResult>> => {
+      try {
+        const saved = settingsStore.get()
+        const connection = payload?.connection ?? saved.sql
+        const ssh = payload?.ssh ?? saved.ssh
+        const runtimeConnection = await resolveRuntimeSqlConnection(connection, ssh)
+        const profileId = payload?.profileId?.trim() || saved.activeConnectionProfileId
+        const requestedDatabase = payload?.databaseName?.trim() || connection.database.trim()
+        const previousCatalog = saved.schemaCatalogs.find((entry) =>
+          isSameSchemaCatalog(entry, profileId, requestedDatabase)
+        )
+        const preservedSelectedSoftwareId = normalizeAccountingSoftwareId(previousCatalog?.selectedSoftwareId)
+        const hasSelectedSoftwareId = payload
+          ? Object.prototype.hasOwnProperty.call(payload, 'selectedSoftwareId')
+          : false
+        const selectedSoftwareId = hasSelectedSoftwareId
+          ? normalizeAccountingSoftwareId(payload?.selectedSoftwareId)
+          : preservedSelectedSoftwareId
+
+        const discoveredCatalog = await schemaDiscoveryService.discoverCatalog({
+          profileId,
+          databaseName: requestedDatabase,
+          softwareOverrideId: selectedSoftwareId,
+          executeSql: async (query: string) => {
+            return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'discovery')
+          }
+        })
+
+        const resolvedPreviousCatalog =
+          previousCatalog ??
+          saved.schemaCatalogs.find((entry) =>
+            isSameSchemaCatalog(entry, discoveredCatalog.profileId, discoveredCatalog.databaseName)
+          )
+        const preservedSelectedDateMode = normalizeSchemaDateMode(resolvedPreviousCatalog?.selectedDateMode)
+        const fallbackSelectedSoftwareId = normalizeAccountingSoftwareId(resolvedPreviousCatalog?.selectedSoftwareId)
+        const effectiveSelectedSoftwareId = hasSelectedSoftwareId
+          ? selectedSoftwareId
+          : fallbackSelectedSoftwareId
+
+        const catalogToSave: SchemaCatalogEntry = {
+          ...discoveredCatalog,
+          selectedMappings: resolvedPreviousCatalog?.selectedMappings ?? {},
+          selectedSoftwareId: effectiveSelectedSoftwareId,
+          selectedDateMode: preservedSelectedDateMode
+        }
+
+        const mergedCatalogs = [
+          catalogToSave,
+          ...saved.schemaCatalogs.filter(
+            (entry) => !isSameSchemaCatalog(entry, catalogToSave.profileId, catalogToSave.databaseName)
+          )
+        ].slice(0, 30)
+
+        const updated = await settingsStore.save({
+          schemaCatalogs: mergedCatalogs
+        })
+
+        return ok({
+          catalog: catalogToSave,
+          schemaCatalogs: updated.schemaCatalogs
+        })
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'schema:get-catalog',
+    async (_, payload?: SchemaCatalogLookupRequest): Promise<IpcResponse<SchemaCatalogEntry | null>> => {
+      try {
+        const saved = settingsStore.get()
+        const profileId = payload?.profileId?.trim() || saved.activeConnectionProfileId
+        const databaseName = payload?.databaseName?.trim() || saved.sql.database.trim()
+
+        const catalog =
+          saved.schemaCatalogs.find((entry) => isSameSchemaCatalog(entry, profileId, databaseName)) ?? null
+
+        return ok(catalog)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'schema:update-mappings',
+    async (_, payload?: SchemaUpdateMappingsRequest): Promise<IpcResponse<SchemaUpdateMappingsResult>> => {
+      try {
+        const saved = settingsStore.get()
+        const profileId = payload?.profileId?.trim() || saved.activeConnectionProfileId
+        const databaseName = payload?.databaseName?.trim() || saved.sql.database.trim()
+
+        if (!profileId || !databaseName) {
+          throw new Error('Profile and database are required to update schema mappings.')
+        }
+
+        const existingCatalog = saved.schemaCatalogs.find((entry) =>
+          isSameSchemaCatalog(entry, profileId, databaseName)
+        )
+
+        if (!existingCatalog) {
+          throw new Error('No schema catalog found for the selected profile and database.')
+        }
+
+        const normalizedMappings = Object.entries(payload?.selectedMappings ?? {}).reduce<
+          Record<string, string>
+        >((acc, [conceptKey, tableRef]) => {
+          if (typeof tableRef !== 'string') {
+            return acc
+          }
+
+          const trimmed = tableRef.trim()
+          if (!trimmed) {
+            return acc
+          }
+
+          acc[conceptKey] = trimmed
+          return acc
+        }, {})
+
+        const hasSelectedDateMode = payload
+          ? Object.prototype.hasOwnProperty.call(payload, 'selectedDateMode')
+          : false
+        const selectedDateMode = hasSelectedDateMode
+          ? normalizeSchemaDateMode(payload?.selectedDateMode)
+          : normalizeSchemaDateMode(existingCatalog.selectedDateMode)
+        const hasSelectedSoftwareId = payload
+          ? Object.prototype.hasOwnProperty.call(payload, 'selectedSoftwareId')
+          : false
+        const selectedSoftwareId = hasSelectedSoftwareId
+          ? normalizeAccountingSoftwareId(payload?.selectedSoftwareId)
+          : normalizeAccountingSoftwareId(existingCatalog.selectedSoftwareId)
+
+        const updatedCatalog: SchemaCatalogEntry = {
+          ...existingCatalog,
+          selectedMappings: normalizedMappings,
+          selectedSoftwareId,
+          selectedDateMode
+        }
+
+        const mergedCatalogs = [
+          updatedCatalog,
+          ...saved.schemaCatalogs.filter((entry) => !isSameSchemaCatalog(entry, profileId, databaseName))
+        ].slice(0, 30)
+
+        const updatedSettings = await settingsStore.save({
+          schemaCatalogs: mergedCatalogs
+        })
+
+        return ok({
+          catalog: updatedCatalog,
+          schemaCatalogs: updatedSettings.schemaCatalogs
+        })
       } catch (error) {
         return fail(error)
       }
@@ -186,7 +487,12 @@ function registerIpcHandlers(): void {
     try {
       const saved = settingsStore.get()
       const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
-      const rows = await sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query)
+      const rows = await sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'generic', undefined, {
+        enforceReadOnlyLogin: saved.sqlSecurity.enforceReadOnlyLogin,
+        forbidWildcardSelect: saved.sqlSecurity.forbidWildcardSelect,
+        requireOrderByWhenLimited: saved.sqlSecurity.requireOrderByWhenLimited,
+        blockQueryHints: saved.sqlSecurity.blockQueryHints
+      })
       return ok(rows)
     } catch (error) {
       return fail(error)
@@ -210,6 +516,66 @@ function registerIpcHandlers(): void {
       return fail(error)
     }
   })
+
+  ipcMain.handle(
+    'agent:send-message',
+    async (event, payload: AgentSendMessageRequest): Promise<IpcResponse<AgentSendMessageResult>> => {
+      try {
+        const requestId = payload.requestId?.trim() || `req-${Date.now()}`
+        const conversationId = payload.conversationId?.trim() || `conv-${Date.now()}`
+
+        const result = await agentOrchestrator.sendMessage(
+          {
+            ...payload,
+            requestId,
+            conversationId
+          },
+          (progressEvent) => {
+            const envelope: AgentProgressEnvelope = {
+              requestId,
+              event: progressEvent
+            }
+
+            event.sender.send('agent:event', envelope)
+          }
+        )
+
+        return ok(result)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'agent:cancel-message',
+    async (_, payload: AgentCancelMessageRequest): Promise<IpcResponse<AgentCancelMessageResult>> => {
+      try {
+        const requestId = payload.requestId?.trim() || ''
+
+        if (!requestId) {
+          throw new Error('requestId is required to cancel an agent request.')
+        }
+
+        const cancelled = agentOrchestrator.cancelMessage(requestId, payload.reason)
+        return ok({ cancelled })
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'report:export',
+    async (_, payload: ReportExportRequest): Promise<IpcResponse<ReportExportResult>> => {
+      try {
+        const result = await reportExportService.exportReport(mainWindow, payload)
+        return ok(result)
+      } catch (error) {
+        return fail(error)
+      }
+    }
+  )
 
   ipcMain.handle('mobile-bridge:status', async () => {
     return ok(mobileBridgeServer.getStatus())

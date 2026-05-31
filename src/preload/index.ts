@@ -1,12 +1,26 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AgentCancelMessageRequest,
+  AgentCancelMessageResult,
+  AgentProgressEnvelope,
+  AgentSendMessageRequest,
+  AgentSendMessageResult,
   AppSettings,
   GeminiChatRequest,
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  ReportExportRequest,
+  ReportExportResult,
+  SchemaCatalogEntry,
+  SchemaCatalogLookupRequest,
+  SchemaDiscoverRequest,
+  SchemaDiscoverResult,
+  SchemaUpdateMappingsRequest,
+  SchemaUpdateMappingsResult,
   SqlConnectionConfig,
+  SqlHealthCheck,
   SqlQueryRow,
   SqlQueryRequest,
   SqlQueryResult,
@@ -20,6 +34,15 @@ const api = {
     save: (patch: Partial<AppSettings>): Promise<IpcResponse<AppSettings>> =>
       ipcRenderer.invoke('settings:save', patch)
   },
+  schema: {
+    discover: (payload?: SchemaDiscoverRequest): Promise<IpcResponse<SchemaDiscoverResult>> =>
+      ipcRenderer.invoke('schema:discover', payload),
+    getCatalog: (payload?: SchemaCatalogLookupRequest): Promise<IpcResponse<SchemaCatalogEntry | null>> =>
+      ipcRenderer.invoke('schema:get-catalog', payload),
+    updateMappings: (
+      payload: SchemaUpdateMappingsRequest
+    ): Promise<IpcResponse<SchemaUpdateMappingsResult>> => ipcRenderer.invoke('schema:update-mappings', payload)
+  },
   ssh: {
     start: (config?: SshTunnelConfig): Promise<IpcResponse<SshTunnelStatus>> =>
       ipcRenderer.invoke('ssh:start', config),
@@ -27,6 +50,14 @@ const api = {
     status: (): Promise<IpcResponse<SshTunnelStatus>> => ipcRenderer.invoke('ssh:status')
   },
   sql: {
+    listDatabases: (payload?: {
+      connection?: SqlConnectionConfig
+      ssh?: SshTunnelConfig
+    }): Promise<IpcResponse<string[]>> => ipcRenderer.invoke('sql:list-databases', payload),
+    healthCheck: (payload?: {
+      connection?: SqlConnectionConfig
+      ssh?: SshTunnelConfig
+    }): Promise<IpcResponse<SqlHealthCheck>> => ipcRenderer.invoke('sql:health-check', payload),
     testConnection: (payload?: {
       connection?: SqlConnectionConfig
       ssh?: SshTunnelConfig
@@ -40,6 +71,27 @@ const api = {
   gemini: {
     chat: (payload: GeminiChatRequest): Promise<IpcResponse<GeminiChatResponse>> =>
       ipcRenderer.invoke('gemini:chat', payload)
+  },
+  agent: {
+    sendMessage: (payload: AgentSendMessageRequest): Promise<IpcResponse<AgentSendMessageResult>> =>
+      ipcRenderer.invoke('agent:send-message', payload),
+    cancelMessage: (payload: AgentCancelMessageRequest): Promise<IpcResponse<AgentCancelMessageResult>> =>
+      ipcRenderer.invoke('agent:cancel-message', payload),
+    onEvent: (listener: (payload: AgentProgressEnvelope) => void): (() => void) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, payload: AgentProgressEnvelope): void => {
+        listener(payload)
+      }
+
+      ipcRenderer.on('agent:event', wrappedListener)
+
+      return (): void => {
+        ipcRenderer.removeListener('agent:event', wrappedListener)
+      }
+    }
+  },
+  report: {
+    export: (payload: ReportExportRequest): Promise<IpcResponse<ReportExportResult>> =>
+      ipcRenderer.invoke('report:export', payload)
   },
   mobileBridge: {
     status: (): Promise<IpcResponse<MobileBridgeStatus>> => ipcRenderer.invoke('mobile-bridge:status')

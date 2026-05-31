@@ -11,8 +11,23 @@ const DEFAULT_OPENAI_BASE_URL = 'https://api.avalapis.ir/v1'
 const DEFAULT_GOOGLE_BASE_URL = 'https://api.avalapis.ir/v1beta'
 const DEFAULT_TIMEOUT_MS = 60000
 
+type OpenAiStreamOptions = {
+  onTextChunk?: (chunkText: string) => void
+  signal?: AbortSignal
+}
+
+type AbortRuntimeContext = {
+  signal: AbortSignal
+  didExternalAbort: () => boolean
+  dispose: () => void
+}
+
 export class GeminiClient {
-  async chat(payload: GeminiChatRequest, savedConfig: GeminiConfig): Promise<GeminiChatResponse> {
+  async chat(
+    payload: GeminiChatRequest,
+    savedConfig: GeminiConfig,
+    streamOptions?: OpenAiStreamOptions
+  ): Promise<GeminiChatResponse> {
     const config = this.normalizeConfig(savedConfig, payload.config)
 
     if (!config.apiKey) {
@@ -24,16 +39,21 @@ export class GeminiClient {
     }
 
     if (config.mode === 'google') {
-      return this.chatGoogle(payload, config)
+      return this.chatGoogle(payload, config, streamOptions?.signal)
     }
 
-    return this.chatOpenAi(payload, config)
+    return this.chatOpenAi(payload, config, streamOptions)
   }
 
   private async chatOpenAi(
     payload: GeminiChatRequest,
-    config: GeminiConfig
+    config: GeminiConfig,
+    streamOptions?: OpenAiStreamOptions
   ): Promise<GeminiChatResponse> {
+    if (streamOptions?.onTextChunk) {
+      return this.chatOpenAiStream(payload, config, streamOptions)
+    }
+
     const url = this.buildOpenAiUrl(config.baseUrl)
 
     const raw = await this.requestJson(
@@ -54,7 +74,8 @@ export class GeminiClient {
           stream: false
         })
       },
-      DEFAULT_TIMEOUT_MS
+      DEFAULT_TIMEOUT_MS,
+      streamOptions?.signal
     )
 
     const text = this.extractOpenAiText(raw)
@@ -63,9 +84,158 @@ export class GeminiClient {
     return { text, raw, toolCalls }
   }
 
+  private async chatOpenAiStream(
+    payload: GeminiChatRequest,
+    config: GeminiConfig,
+    streamOptions: OpenAiStreamOptions
+  ): Promise<GeminiChatResponse> {
+    const onTextChunk = streamOptions.onTextChunk
+
+    if (!onTextChunk) {
+      throw new Error('OpenAI stream mode requires onTextChunk callback.')
+    }
+
+    const url = this.buildOpenAiUrl(config.baseUrl)
+    const abortRuntime = this.createAbortRuntimeContext(DEFAULT_TIMEOUT_MS, streamOptions.signal)
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: config.model || DEFAULT_MODEL,
+          messages: this.toOpenAiMessages(payload.messages),
+          temperature: payload.temperature ?? 0.2,
+          max_tokens: payload.maxOutputTokens,
+          tools: payload.tools && payload.tools.length > 0 ? payload.tools : undefined,
+          tool_choice: payload.tools && payload.tools.length > 0 ? 'auto' : undefined,
+          stream: true
+        }),
+        signal: abortRuntime.signal
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        const payload = this.tryJsonParse(text)
+        const requestId = response.headers.get('x-request-id') || response.headers.get('request-id')
+        const detail = this.extractProxyError(payload)
+        const requestPart = requestId ? `, requestId=${requestId}` : ''
+        throw new Error(`Gemini API request failed (${response.status}${requestPart}): ${detail}`)
+      }
+
+      if (!response.body) {
+        throw new Error('Gemini API streaming response has no body.')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      const rawChunks: unknown[] = []
+      const textChunks: string[] = []
+      const toolCallsByIndex = new Map<number, GeminiToolCall>()
+      let buffer = ''
+      let streamDone = false
+
+      while (!streamDone) {
+        const { value, done } = await reader.read()
+
+        if (done) {
+          break
+        }
+
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+
+        let delimiterIndex = buffer.indexOf('\n\n')
+
+        while (delimiterIndex !== -1) {
+          const eventBlock = buffer.slice(0, delimiterIndex)
+          buffer = buffer.slice(delimiterIndex + 2)
+
+          const dataPayload = this.extractSseDataPayload(eventBlock)
+          if (dataPayload) {
+            const shouldContinue = this.consumeOpenAiStreamPayload(
+              dataPayload,
+              rawChunks,
+              textChunks,
+              toolCallsByIndex,
+              onTextChunk
+            )
+
+            if (!shouldContinue) {
+              streamDone = true
+              break
+            }
+          }
+
+          delimiterIndex = buffer.indexOf('\n\n')
+        }
+      }
+
+      buffer += decoder.decode().replace(/\r\n/g, '\n')
+
+      const trailingPayload = this.extractSseDataPayload(buffer.trim())
+      if (trailingPayload) {
+        this.consumeOpenAiStreamPayload(
+          trailingPayload,
+          rawChunks,
+          textChunks,
+          toolCallsByIndex,
+          onTextChunk
+        )
+      }
+
+      const combinedText = textChunks.join('')
+      const normalizedText = combinedText.trim()
+      const toolCalls = this.buildOpenAiStreamToolCalls(toolCallsByIndex)
+
+      return {
+        text: normalizedText,
+        raw: {
+          stream: true,
+          chunks: rawChunks,
+          choices: [
+            {
+              message: {
+                content: combinedText,
+                tool_calls: toolCalls?.map((toolCall) => ({
+                  id: toolCall.id,
+                  type: toolCall.type,
+                  function: {
+                    name: toolCall.function.name,
+                    arguments: toolCall.function.arguments
+                  }
+                }))
+              }
+            }
+          ]
+        },
+        toolCalls
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (abortRuntime.didExternalAbort()) {
+          throw new Error('Gemini API request canceled by user.')
+        }
+
+        throw new Error(`Gemini API request timeout after ${DEFAULT_TIMEOUT_MS}ms`)
+      }
+
+      if (error instanceof Error) {
+        throw new Error(`Gemini API proxy error: ${error.message}`)
+      }
+
+      throw error
+    } finally {
+      abortRuntime.dispose()
+    }
+  }
+
   private async chatGoogle(
     payload: GeminiChatRequest,
-    config: GeminiConfig
+    config: GeminiConfig,
+    signal?: AbortSignal
   ): Promise<GeminiChatResponse> {
     const url = this.buildGoogleUrl(config.baseUrl, config.model, config.apiKey)
 
@@ -93,7 +263,8 @@ export class GeminiClient {
           }
         })
       },
-      DEFAULT_TIMEOUT_MS
+      DEFAULT_TIMEOUT_MS,
+      signal
     )
 
     const text = this.extractGoogleText(raw)
@@ -180,6 +351,183 @@ export class GeminiClient {
     return normalized.length > 0 ? normalized : undefined
   }
 
+  private extractSseDataPayload(eventBlock: string): string | null {
+    if (!eventBlock) {
+      return null
+    }
+
+    const dataLines: string[] = []
+
+    for (const rawLine of eventBlock.split(/\r?\n/)) {
+      if (!rawLine.startsWith('data:')) {
+        continue
+      }
+
+      dataLines.push(rawLine.slice(5).trimStart())
+    }
+
+    if (dataLines.length === 0) {
+      return null
+    }
+
+    return dataLines.join('\n')
+  }
+
+  private consumeOpenAiStreamPayload(
+    dataPayload: string,
+    rawChunks: unknown[],
+    textChunks: string[],
+    toolCallsByIndex: Map<number, GeminiToolCall>,
+    onTextChunk: (chunkText: string) => void
+  ): boolean {
+    if (!dataPayload || dataPayload === '[DONE]') {
+      return dataPayload !== '[DONE]'
+    }
+
+    const parsedChunk = this.tryJsonParse(dataPayload)
+    rawChunks.push(parsedChunk)
+
+    const typedChunk = parsedChunk as {
+      choices?: Array<{
+        delta?: {
+          content?: unknown
+          tool_calls?: unknown
+        }
+      }>
+    }
+
+    const delta = typedChunk.choices?.[0]?.delta
+    if (!delta) {
+      return true
+    }
+
+    const chunkText = this.extractOpenAiStreamTextDelta(delta.content)
+    if (chunkText) {
+      textChunks.push(chunkText)
+      onTextChunk(chunkText)
+    }
+
+    if (delta.tool_calls) {
+      this.mergeOpenAiStreamToolCalls(delta.tool_calls, toolCallsByIndex)
+    }
+
+    return true
+  }
+
+  private extractOpenAiStreamTextDelta(content: unknown): string {
+    if (typeof content === 'string') {
+      return content
+    }
+
+    if (!Array.isArray(content)) {
+      return ''
+    }
+
+    return content
+      .map((part) => {
+        if (typeof part === 'string') {
+          return part
+        }
+
+        if (!part || typeof part !== 'object') {
+          return ''
+        }
+
+        const typedPart = part as {
+          text?: unknown
+        }
+
+        return typeof typedPart.text === 'string' ? typedPart.text : ''
+      })
+      .join('')
+  }
+
+  private mergeOpenAiStreamToolCalls(
+    streamToolCalls: unknown,
+    toolCallsByIndex: Map<number, GeminiToolCall>
+  ): void {
+    if (!Array.isArray(streamToolCalls)) {
+      return
+    }
+
+    for (const part of streamToolCalls) {
+      if (!part || typeof part !== 'object') {
+        continue
+      }
+
+      const typedPart = part as {
+        index?: unknown
+        id?: unknown
+        type?: unknown
+        function?: {
+          name?: unknown
+          arguments?: unknown
+        }
+      }
+
+      const index = typeof typedPart.index === 'number' && Number.isInteger(typedPart.index) ? typedPart.index : 0
+      const existing = toolCallsByIndex.get(index) ?? {
+        id: `tool_call_${index + 1}`,
+        type: 'function',
+        function: {
+          name: '',
+          arguments: ''
+        }
+      }
+
+      if (typeof typedPart.id === 'string' && typedPart.id.trim()) {
+        existing.id = typedPart.id
+      }
+
+      const functionPart = typedPart.function
+      if (functionPart && typeof functionPart === 'object') {
+        if (typeof functionPart.name === 'string' && functionPart.name.trim()) {
+          const nextName = functionPart.name.trim()
+
+          if (!existing.function.name || nextName.length >= existing.function.name.length) {
+            existing.function.name = nextName
+          }
+        }
+
+        if (typeof functionPart.arguments === 'string' && functionPart.arguments.length > 0) {
+          existing.function.arguments += functionPart.arguments
+        }
+      }
+
+      toolCallsByIndex.set(index, existing)
+    }
+  }
+
+  private buildOpenAiStreamToolCalls(toolCallsByIndex: Map<number, GeminiToolCall>): GeminiToolCall[] | undefined {
+    if (toolCallsByIndex.size === 0) {
+      return undefined
+    }
+
+    const normalizedToolCalls = [...toolCallsByIndex.entries()]
+      .sort(([leftIndex], [rightIndex]) => leftIndex - rightIndex)
+      .map(([index, toolCall]) => {
+        const toolName = toolCall.function.name.trim()
+
+        if (!toolName) {
+          return null
+        }
+
+        const toolArguments = toolCall.function.arguments.trim() || '{}'
+
+        return {
+          id: toolCall.id || `tool_call_${index + 1}`,
+          type: 'function',
+          function: {
+            name: toolName,
+            arguments: toolArguments
+          }
+        } as GeminiToolCall
+      })
+      .filter((toolCall): toolCall is GeminiToolCall => Boolean(toolCall))
+
+    return normalizedToolCalls.length > 0 ? normalizedToolCalls : undefined
+  }
+
   private toOpenAiMessages(messages: GeminiMessage[]): Array<Record<string, unknown>> {
     return messages.map((message) => {
       if (message.role === 'tool') {
@@ -251,14 +599,18 @@ export class GeminiClient {
     }
   }
 
-  private async requestJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  private async requestJson(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+    externalSignal?: AbortSignal
+  ): Promise<unknown> {
+    const abortRuntime = this.createAbortRuntimeContext(timeoutMs, externalSignal)
 
     try {
       const response = await fetch(url, {
         ...init,
-        signal: controller.signal
+        signal: abortRuntime.signal
       })
 
       const text = await response.text()
@@ -274,6 +626,10 @@ export class GeminiClient {
       return payload
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
+        if (abortRuntime.didExternalAbort()) {
+          throw new Error('Gemini API request canceled by user.')
+        }
+
         throw new Error(`Gemini API request timeout after ${timeoutMs}ms`)
       }
 
@@ -283,7 +639,43 @@ export class GeminiClient {
 
       throw error
     } finally {
-      clearTimeout(timeout)
+      abortRuntime.dispose()
+    }
+  }
+
+  private createAbortRuntimeContext(timeoutMs: number, externalSignal?: AbortSignal): AbortRuntimeContext {
+    const controller = new AbortController()
+    let didTimeout = false
+    let didExternalAbort = false
+
+    const onExternalAbort = (): void => {
+      didExternalAbort = true
+      controller.abort(externalSignal?.reason)
+    }
+
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        onExternalAbort()
+      } else {
+        externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+      }
+    }
+
+    const timeout = setTimeout(() => {
+      didTimeout = true
+      controller.abort()
+    }, timeoutMs)
+
+    return {
+      signal: controller.signal,
+      didExternalAbort: () => didExternalAbort && !didTimeout,
+      dispose: () => {
+        clearTimeout(timeout)
+
+        if (externalSignal) {
+          externalSignal.removeEventListener('abort', onExternalAbort)
+        }
+      }
     }
   }
 
