@@ -142,7 +142,7 @@ export class SchemaDiscoveryService {
     const executeSql = params.executeSql
 
     if (!profileId) {
-      throw new Error('Profile id is required for schema discovery.')
+      throw new Error('شناسه پروفایل (Profile ID) برای کشف ساختار الزامی است.')
     }
 
     const serverInfoRows = await executeSql(SERVER_INFO_QUERY)

@@ -48,22 +48,46 @@ export class SshTunnelService {
         active: true,
         localHost: LOCAL_HOST,
         localPort,
-        message: `Tunnel active: ${LOCAL_HOST}:${localPort} -> ${config.dstHost}:${config.dstPort}`
+        message: `تونل فعال شد: ${LOCAL_HOST}:${localPort} -> ${config.dstHost}:${config.dstPort}`
       }
 
       return this.status
     } catch (error) {
       await this.disposeTransientResources(server, client)
       const message = error instanceof Error ? error.message : String(error)
+      const persianMessage = this.translateSshError(message)
       this.status = {
         active: false,
         localHost: LOCAL_HOST,
         localPort: null,
-        message: `SSH tunnel start failed: ${message}`
+        message: `خطا در برقراری تونل SSH: ${persianMessage}`
       }
 
-      throw new Error(`Unable to start SSH tunnel: ${message}`)
+      throw new Error(`امکان برقراری تونل SSH وجود ندارد: ${persianMessage}`)
     }
+  }
+
+  private translateSshError(message: string): string {
+    const lower = message.toLowerCase()
+    if (lower.includes('all configured authentication methods failed')) {
+      return 'احراز هویت ناموفق بود. نام کاربری، رمز عبور یا کلید خصوصی را بررسی کنید.'
+    }
+    if (lower.includes('timed out while waiting for handshake')) {
+      return 'زمان انتظار برای دست‌تکانی (Handshake) به پایان رسید. وضعیت شبکه یا پورت را بررسی کنید.'
+    }
+    if (lower.includes('econnrefused')) {
+      return 'اتصال توسط سرور مقصد رد شد. پورت SSH یا فایروال سرور را بررسی کنید.'
+    }
+    if (lower.includes('enotfound') || lower.includes('getaddrinfo')) {
+      return 'آدرس سرور SSH پیدا نشد. لطفاً Hostname را بررسی کنید.'
+    }
+    if (lower.includes('unsupported key type')) {
+      return 'قالب کلید خصوصی (Private Key) پشتیبانی نمی‌شود.'
+    }
+    if (lower.includes('encrypted private key')) {
+      return 'کلید خصوصی رمزگذاری شده است. لطفاً Passphrase را وارد کنید.'
+    }
+    return message
   }
 
   async stop(message = 'Tunnel stopped'): Promise<SshTunnelStatus> {
@@ -119,26 +143,26 @@ export class SshTunnelService {
 
   private validateConfig(config: SshTunnelConfig): void {
     if (!config.host.trim()) {
-      throw new Error('SSH host is required')
+      throw new Error('آدرس سرور SSH وارد نشده است.')
     }
 
     if (!config.username.trim()) {
-      throw new Error('SSH username is required')
+      throw new Error('نام کاربری SSH وارد نشده است.')
     }
 
     if (!config.dstHost.trim()) {
-      throw new Error('SSH destination host is required')
+      throw new Error('آدرس مقصد نهایی (Database Host) وارد نشده است.')
     }
 
     if (config.dstPort <= 0) {
-      throw new Error('SSH destination port must be greater than zero')
+      throw new Error('پورت مقصد نهایی باید عددی بزرگتر از صفر باشد.')
     }
 
     const hasPrivateKey = config.privateKey.trim().length > 0
     const hasPassword = config.password.trim().length > 0
 
     if (!hasPrivateKey && !hasPassword) {
-      throw new Error('SSH password or private key is required')
+      throw new Error('رمز عبور یا کلید خصوصی (Private Key) برای اتصال SSH الزامی است.')
     }
   }
 

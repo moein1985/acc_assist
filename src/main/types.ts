@@ -46,6 +46,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
     port: 3310,
     allowedOrigin: 'xapi.test'
   },
+  telemetry: {
+    enabled: false,
+    ingestUrl: '',
+    bearerToken: '',
+    logLevel: 'debug',
+    flushIntervalMs: 5000,
+    requestTimeoutMs: 8000,
+    maxBatchSize: 25,
+    maxQueueSize: 5000,
+    includeRendererErrors: true
+  },
   connectionProfile: {
     name: 'پروفایل پیش فرض',
     description: 'پروفایل اصلی اتصال SQL و SSH',
@@ -120,6 +131,10 @@ export function mergeSettings(current: AppSettings, patch: Partial<AppSettings>)
     mobileBridge: {
       ...current.mobileBridge,
       ...patch.mobileBridge
+    },
+    telemetry: {
+      ...current.telemetry,
+      ...patch.telemetry
     },
     connectionProfile: {
       ...current.connectionProfile,

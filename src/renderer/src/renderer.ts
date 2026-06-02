@@ -9,11 +9,14 @@ import type {
   ConnectionProfileType,
   GeminiMessage,
   PromptTemplate,
+  RendererTelemetryEvent,
   ReportExportEvidenceItem,
   ReportExportFormat,
   SchemaCatalogEntry,
   SchemaConceptSelections,
   SchemaDateMode,
+  TelemetryConfig,
+  TelemetryLogLevel,
   SqlHealthCheck,
   SqlConnectionConfig,
   MobileBridgeStatus,
@@ -157,6 +160,15 @@ const ui = {
   geminiBaseUrlInput: getById<HTMLInputElement>('geminiBaseUrlInput'),
   geminiModeInput: getById<HTMLSelectElement>('geminiModeInput'),
   geminiModelInput: getById<HTMLInputElement>('geminiModelInput'),
+  telemetryEnabledInput: getById<HTMLInputElement>('telemetryEnabledInput'),
+  telemetryIngestUrlInput: getById<HTMLInputElement>('telemetryIngestUrlInput'),
+  telemetryBearerTokenInput: getById<HTMLInputElement>('telemetryBearerTokenInput'),
+  telemetryLogLevelInput: getById<HTMLSelectElement>('telemetryLogLevelInput'),
+  telemetryFlushIntervalInput: getById<HTMLInputElement>('telemetryFlushIntervalInput'),
+  telemetryRequestTimeoutInput: getById<HTMLInputElement>('telemetryRequestTimeoutInput'),
+  telemetryMaxBatchSizeInput: getById<HTMLInputElement>('telemetryMaxBatchSizeInput'),
+  telemetryMaxQueueSizeInput: getById<HTMLInputElement>('telemetryMaxQueueSizeInput'),
+  telemetryIncludeRendererErrorsInput: getById<HTMLInputElement>('telemetryIncludeRendererErrorsInput'),
   profileSelectorInput: getById<HTMLSelectElement>('profileSelectorInput'),
   createProfileBtn: getById<HTMLButtonElement>('createProfileBtn'),
   activateProfileBtn: getById<HTMLButtonElement>('activateProfileBtn'),
@@ -239,6 +251,7 @@ window.addEventListener('DOMContentLoaded', () => {
   state.unsubscribeAgentEvents = window.api.agent.onEvent((payload) => {
     handleAgentProgressEvent(payload)
   })
+  installRendererCrashTelemetryHooks()
   bindEvents()
   renderPromptTemplates()
   renderTrendChart(null)
@@ -260,6 +273,73 @@ window.addEventListener('beforeunload', () => {
     state.unsubscribeAgentEvents = null
   }
 })
+
+let rendererCrashHooksInstalled = false
+
+function installRendererCrashTelemetryHooks(): void {
+  if (rendererCrashHooksInstalled) {
+    return
+  }
+
+  rendererCrashHooksInstalled = true
+
+  window.addEventListener('error', (event) => {
+    emitRendererTelemetry({
+      level: 'error',
+      category: 'renderer.runtime',
+      event: 'window-error',
+      message: normalizeRendererErrorMessage(event.message || 'Unhandled renderer error'),
+      stack: event.error instanceof Error ? event.error.stack : undefined,
+      details: {
+        fileName: event.filename,
+        line: event.lineno,
+        column: event.colno
+      }
+    })
+  })
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reasonMessage = normalizeRendererErrorMessage(event.reason)
+    const reasonStack = event.reason instanceof Error ? event.reason.stack : undefined
+
+    emitRendererTelemetry({
+      level: 'error',
+      category: 'renderer.runtime',
+      event: 'unhandled-rejection',
+      message: reasonMessage,
+      stack: reasonStack,
+      details: {
+        hasReason: event.reason !== undefined
+      }
+    })
+  })
+}
+
+function emitRendererTelemetry(payload: RendererTelemetryEvent): void {
+  void window.api.telemetry.captureRendererEvent(payload).catch(() => {
+    // Telemetry ارسال شکست بخورد نباید UI را مختل کند.
+  })
+}
+
+function normalizeRendererErrorMessage(reason: unknown): string {
+  if (reason instanceof Error) {
+    return reason.message
+  }
+
+  if (typeof reason === 'string') {
+    return reason.slice(0, 4000)
+  }
+
+  try {
+    const serialized = JSON.stringify(reason)
+    if (!serialized) {
+      return String(reason)
+    }
+    return serialized.slice(0, 4000)
+  } catch {
+    return String(reason)
+  }
+}
 
 function bindEvents(): void {
   for (const tabButton of ui.tabButtons) {
@@ -1838,11 +1918,22 @@ function setBridgeUnavailable(message: string): void {
 
 function populateSettingsForm(settings: AppSettings): void {
   const activeProfile = getActiveConnectionProfile(settings)
+  const telemetry = settings.telemetry ?? createDefaultSettings().telemetry
 
   ui.geminiApiKeyInput.value = settings.gemini.apiKey
   ui.geminiBaseUrlInput.value = settings.gemini.baseUrl
   ui.geminiModeInput.value = settings.gemini.mode
   ui.geminiModelInput.value = settings.gemini.model
+
+  ui.telemetryEnabledInput.checked = telemetry.enabled
+  ui.telemetryIngestUrlInput.value = telemetry.ingestUrl
+  ui.telemetryBearerTokenInput.value = telemetry.bearerToken
+  ui.telemetryLogLevelInput.value = telemetry.logLevel
+  ui.telemetryFlushIntervalInput.value = String(telemetry.flushIntervalMs)
+  ui.telemetryRequestTimeoutInput.value = String(telemetry.requestTimeoutMs)
+  ui.telemetryMaxBatchSizeInput.value = String(telemetry.maxBatchSize)
+  ui.telemetryMaxQueueSizeInput.value = String(telemetry.maxQueueSize)
+  ui.telemetryIncludeRendererErrorsInput.checked = telemetry.includeRendererErrors
 
   populateProfileSelector(settings)
   ui.profileNameInput.value = activeProfile.metadata.name
@@ -1920,6 +2011,7 @@ function collectSettingsFromForm(): AppSettings {
       mode: toApiMode(ui.geminiModeInput.value),
       model: ui.geminiModelInput.value.trim() || baseline.gemini.model
     },
+    telemetry: collectTelemetryConfigFromForm(),
     sql: nextSqlConfig,
     sqlSecurity: {
       ...baseline.sqlSecurity
@@ -1931,6 +2023,22 @@ function collectSettingsFromForm(): AppSettings {
     activeConnectionProfileId: activeProfileId,
     schemaCatalogs: baseline.schemaCatalogs,
     promptTemplates: baseline.promptTemplates
+  }
+}
+
+function collectTelemetryConfigFromForm(): TelemetryConfig {
+  const baseline = state.settings?.telemetry ?? createDefaultSettings().telemetry
+
+  return {
+    enabled: ui.telemetryEnabledInput.checked,
+    ingestUrl: ui.telemetryIngestUrlInput.value.trim(),
+    bearerToken: ui.telemetryBearerTokenInput.value.trim(),
+    logLevel: toTelemetryLogLevel(ui.telemetryLogLevelInput.value),
+    flushIntervalMs: toNumber(ui.telemetryFlushIntervalInput.value, baseline.flushIntervalMs),
+    requestTimeoutMs: toNumber(ui.telemetryRequestTimeoutInput.value, baseline.requestTimeoutMs),
+    maxBatchSize: toNumber(ui.telemetryMaxBatchSizeInput.value, baseline.maxBatchSize),
+    maxQueueSize: toNumber(ui.telemetryMaxQueueSizeInput.value, baseline.maxQueueSize),
+    includeRendererErrors: ui.telemetryIncludeRendererErrorsInput.checked
   }
 }
 
@@ -3142,6 +3250,17 @@ function createDefaultSettings(): AppSettings {
       mode: 'openai',
       model: 'gemini-2.5-pro'
     },
+    telemetry: {
+      enabled: false,
+      ingestUrl: '',
+      bearerToken: '',
+      logLevel: 'debug',
+      flushIntervalMs: 5000,
+      requestTimeoutMs: 8000,
+      maxBatchSize: 25,
+      maxQueueSize: 5000,
+      includeRendererErrors: true
+    },
     sql: {
       server: '127.0.0.1',
       database: '',
@@ -3237,6 +3356,19 @@ function toApiMode(value: string): ApiMode {
 
 function toConnectionProfileType(value: string): ConnectionProfileType {
   return value === 'ssh' ? 'ssh' : 'direct'
+}
+
+function toTelemetryLogLevel(value: string): TelemetryLogLevel {
+  switch (value) {
+    case 'info':
+      return 'info'
+    case 'warn':
+      return 'warn'
+    case 'error':
+      return 'error'
+    default:
+      return 'debug'
+  }
 }
 
 function toNullableNumber(value: string): number | null {

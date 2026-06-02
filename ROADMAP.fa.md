@@ -22,9 +22,9 @@
 - فاز 1: **تقریبا بسته** (باز واقعی: یکپارچه سازی کامل فارسی سازی خطاهای زیربنایی)
 - فاز 2: **بسته**
 - فاز 3: **تقریبا بسته** (باز واقعی: abstraction کامل provider adapter هنوز می تواند بهتر شود)
-- فاز 4: **در حال انجام** (بخش اصلی پیاده شده، اما همه کنترل های سختگیرانه نهایی نشده)
-- فاز 5: **در حال انجام** (بخش export/evidence/follow-up انجام شده، اما بخشی از UX مانده)
-- فاز 5.5: **بسته**
+- فاز 4: **تقریبا بسته** (استفاده از Parser/AST واقعی برای T-SQL پیاده‌سازی شد + لایه‌های دفاعی Regex).
+- فاز 5: **در حال انجام** (بخش اصلی انجام شده، سیستم ذخیره Templateهای کاربر تکمیل شد).
+- فاز 5.5: **بسته** (Mobile Bridge از حالت Placeholder خارج شد؛ سیستم جفت‌سازی، احراز هویت و برودکست رویدادهای Orchestrator پیاده‌سازی شد).
 - فاز 6: **تقریبا بسته** (باز واقعی: تایید نهایی روی دیتابیس های واقعی مشتری)
 - فاز 7: **تقریبا بسته** (باز واقعی: تکمیل چند معیار کیفیت روی دیتای واقعی)
 - فاز 8: **باز**
@@ -63,6 +63,7 @@
 - `src/main/services/auditLogService.ts`: audit log محلی برای مراحل agent/tool.
 - `src/main/services/accountingConnectorProfiles.ts`: detection profile برای Sepidar/Mahak.
 - `src/main/services/sshTunnelService.ts`: tunnel با `ssh2`.
+- `src/main/services/telemetryIngestService.ts`: سیستم جمع‌آوری crash و event در سطح main و renderer با قابلیت صف‌بندی محلی و ارسال به collector.
 - `src/main/services/mobileBridgeServer.ts`: سرور WebSocket فعلا placeholder.
 - `src/renderer/src/renderer.ts`: UI، مدیریت eventهای agent/tool، onboarding schema، export report، cancel/streaming rendering.
 - `tests/unit/*` و `tests/integration/*`: پوشش validator/discovery/agent/export.
@@ -90,6 +91,7 @@ ACC Assist قرار است یک agent مالی و حسابداری برای صا
 - مسیر SQL read-only نسبت به نسخه اولیه تقویت شده است: محدودیت scope، بودجه ابزار، redaction، timeout/row limit و policy error code.
 - schema discovery + mapping + date-mode + software detection برای Sepidar/Mahak به جریان runtime متصل شده است.
 - UI فعلی شامل تب تنظیمات، profile manager، onboarding schema، چت agentic، توقف پاسخ، drill-down شواهد و خروجی PDF/Excel است.
+- زیرساخت تلمتری مرکزی (Collector) بر روی Proxmox (کانتینر ۲۰۵) پیاده‌سازی شده و اپلیکیشن تمامی خطاها، crashهای main/renderer و رویدادهای کلیدی را به صورت امن و با Bearer Token به آن ارسال می‌کند.
 - WebSocket mobile bridge فعلا بیشتر حالت placeholder دارد و هنوز به یک پروتکل واقعی، احراز هویت و routing کاربردی وصل نشده است.
 - smoke/golden/CI matrix و تست های unit/integration برای مسیرهای کلیدی موجود است.
 
@@ -419,6 +421,28 @@ SQL Server / SSH Tunnel
 6. پاسخ ها فقط باید read-only باشند یا در آینده عملیات مثل ثبت سند، اصلاح اطلاعات یا ارسال گزارش هم مدنظر است؟
 7. آیا محصول فقط دسکتاپ است یا mobile bridge هم باید به یک اپ موبایل واقعی وصل شود؟
 8. گزارش خروجی بیشتر برای تصمیم مدیریتی لازم است یا برای حسابدار و سندرسی هم باید جزئیات کامل داشته باشد؟
+
+## زیرساخت تلمتری و مانیتورینگ (Ops)
+
+برای پایش وضعیت برنامه در محیط مشتری و عیب‌یابی سریع، سرور تلمتری مرکزی (Collector) راه‌اندازی شده است. رخدادها و خطاها به صورت محلی در اپلیکیشن صف‌بندی (persistent queue) و سپس به کانتینر ۲۰۵ ارسال می‌شوند.
+
+### مشخصات سرور (Container 205)
+- **نام کانتینر**: `acc-telemetry`
+- **آی‌پی Collector**: `192.168.85.84`
+- **آی‌پی میزبان (Proxmox)**: `192.168.85.37`
+- **پورت سرویس**: `8081` (Endpoint: `/ingest`)
+- **مسیر ذخیره‌سازی لاگ**: `/var/lib/acc-telemetry/events.ndjson`
+
+### طریقه ارتباط و مشاهده لاگ‌ها
+برای مشاهده لاگ‌های زنده از روی سرور Proxmox:
+```bash
+# مشاهده زنده رخدادها
+pct exec 205 -- tail -f /var/lib/acc-telemetry/events.ndjson
+
+# جستجوی خطاهای خاص
+pct exec 205 -- grep "error" /var/lib/acc-telemetry/events.ndjson
+```
+نحوه احراز هویت با استفاده از Bearer Token است که در کادر تنظیمات تلمتری برنامه در بخش Settings وارد می‌شود (مقدار پیش‌فرض در `/etc/acc-telemetry/token` سرور قرار دارد).
 
 ## اصل های غیرقابل مذاکره محصول
 

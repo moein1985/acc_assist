@@ -11,6 +11,7 @@ import type {
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  RendererTelemetryEvent,
   ReportExportRequest,
   ReportExportResult,
   SchemaCatalogEntry,
@@ -95,6 +96,10 @@ const api = {
   },
   mobileBridge: {
     status: (): Promise<IpcResponse<MobileBridgeStatus>> => ipcRenderer.invoke('mobile-bridge:status')
+  },
+  telemetry: {
+    captureRendererEvent: (payload: RendererTelemetryEvent): Promise<IpcResponse<boolean>> =>
+      ipcRenderer.invoke('telemetry:capture-renderer-event', payload)
   }
 }
 

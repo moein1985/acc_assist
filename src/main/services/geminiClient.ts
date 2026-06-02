@@ -31,11 +31,11 @@ export class GeminiClient {
     const config = this.normalizeConfig(savedConfig, payload.config)
 
     if (!config.apiKey) {
-      throw new Error('Gemini API key is empty. Please set it in Settings.')
+      throw new Error('کلید API هوش مصنوعی تنظیم نشده است. لطفاً در بخش تنظیمات آن را وارد کنید.')
     }
 
     if (payload.messages.length === 0) {
-      throw new Error('At least one message is required for Gemini chat.')
+      throw new Error('پیامی برای ارسال به هوش مصنوعی وجود ندارد.')
     }
 
     if (config.mode === 'google') {
@@ -216,20 +216,41 @@ export class GeminiClient {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (abortRuntime.didExternalAbort()) {
-          throw new Error('Gemini API request canceled by user.')
+          throw new Error('درخواست هوش مصنوعی توسط کاربر لغو شد.')
         }
 
-        throw new Error(`Gemini API request timeout after ${DEFAULT_TIMEOUT_MS}ms`)
+        throw new Error(`زمان انتظار برای هوش مصنوعی به پایان رسید (${DEFAULT_TIMEOUT_MS} میلی‌ثانیه). وضعیت شبکه یا فیلترشکن خود را بررسی کنید.`)
       }
 
       if (error instanceof Error) {
-        throw new Error(`Gemini API proxy error: ${error.message}`)
+        const persianError = this.translateAiError(error.message)
+        throw new Error(`خطای ارتباط با هوش مصنوعی: ${persianError}`)
       }
 
       throw error
     } finally {
       abortRuntime.dispose()
     }
+  }
+
+  private translateAiError(message: string): string {
+    const lower = message.toLowerCase()
+    if (lower.includes('401') || lower.includes('unauthorized')) {
+      return 'کلید API معتبر نیست.'
+    }
+    if (lower.includes('429') || lower.includes('too many requests')) {
+      return 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید.'
+    }
+    if (lower.includes('404') || lower.includes('not found')) {
+      return 'سرویس هوش مصنوعی یا مدل انتخاب شده پیدا نشد.'
+    }
+    if (lower.includes('500') || lower.includes('internal server error')) {
+      return 'خطای سرور سرویس‌دهنده هوش مصنوعی.'
+    }
+    if (lower.includes('econnrefused') || lower.includes('enotfound')) {
+      return 'خطای دسترسی به شبکه. لطفاً اتصال اینترنت یا آدرس Base URL را بررسی کنید.'
+    }
+    return message
   }
 
   private async chatGoogle(

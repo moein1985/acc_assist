@@ -1,4 +1,5 @@
 import mssql, { type ConnectionPool } from 'mssql'
+import { Parser } from 'node-sql-parser'
 
 import type { SqlConnectionConfig, SqlHealthCheck, SqlQueryRequest, SqlQueryResult, SqlQueryRow } from '../../shared/contracts'
 
@@ -11,6 +12,8 @@ const FORBIDDEN_EXTERNAL_DATA_ACCESS_PATTERN =
   /\b(OPENROWSET|OPENQUERY|OPENDATASOURCE)\s*\(/i
 const SENSITIVE_METADATA_ACCESS_PATTERN =
   /\bINFORMATION_SCHEMA\b|\bSYS\.[A-Z_][A-Z0-9_]*\b|\bSYSOBJECTS\b|\bSYSCOLUMNS\b|\bSYSINDEXES\b/i
+const FORBIDDEN_SYSTEM_PROC_PATTERN = /\b(XP_|SP_|DS_)\w+/i
+const FORBIDDEN_TESSERACT_NESTING = /\b(GO|DECLARE|SET)\b/i
 const FORBIDDEN_QUERY_HINT_PATTERN = /\bOPTION\s*\(/i
 const FORBIDDEN_EXPORT_CLAUSE_PATTERN = /\bFOR\s+(XML|JSON)\b/i
 const AGGREGATION_SQL_PATTERN =
@@ -50,6 +53,8 @@ export type SqlPolicyViolationCode =
   | 'SQL_POLICY_QUERY_TIMEOUT'
   | 'SQL_POLICY_SCOPE_LIMIT_EXCEEDED'
   | 'SQL_POLICY_REQUIRE_READONLY_LOGIN'
+  | 'SQL_POLICY_FORBIDDEN_SYSTEM_PROC'
+  | 'SQL_POLICY_FORBIDDEN_BATCH_COMMAND'
 
 export class SqlPolicyViolationError extends Error {
   readonly code: SqlPolicyViolationCode
@@ -60,6 +65,51 @@ export class SqlPolicyViolationError extends Error {
     this.name = 'SqlPolicyViolationError'
     this.code = code
     this.category = category
+  }
+
+  getPersianMessage(): string {
+    switch (this.code) {
+      case 'SQL_POLICY_EMPTY_QUERY':
+        return 'کوئری ارسالی خالی است.'
+      case 'SQL_POLICY_NOT_SELECT':
+        return 'فقط کوئری‌های SELECT مجاز هستند.'
+      case 'SQL_POLICY_FORBIDDEN_KEYWORD':
+        return 'استفاده از کلمات کلیدی غیرمجاز (مانند INSERT/UPDATE/DELETE) در کوئری شناسایی شد.'
+      case 'SQL_POLICY_FORBIDDEN_HINT':
+        return 'استفاده از Query Hintها در این سطح دسترسی مجاز نیست.'
+      case 'SQL_POLICY_FORBIDDEN_EXPORT_CLAUSE':
+        return 'استفاده از خروجی‌های XML یا JSON در کوئری مجاز نیست.'
+      case 'SQL_POLICY_EXTERNAL_DATA_ACCESS':
+        return 'دسترسی به منابع داده خارجی (OpenRowset/OpenQuery) مسدود شده است.'
+      case 'SQL_POLICY_METADATA_SCOPE_BLOCK':
+        return 'دسترسی مستقیم به جدول‌های سیستم و متادیتا محدود شده است.'
+      case 'SQL_POLICY_WILDCARD_SELECT_BLOCKED':
+        return 'استفاده از SELECT * در این بخش مجاز نیست. لطفاً نام ستون‌ها را صریحاً ذکر کنید.'
+      case 'SQL_POLICY_SELECT_INTO':
+        return 'ساخت جدول جدید (SELECT INTO) مجاز نیست.'
+      case 'SQL_POLICY_MULTI_STATEMENT':
+        return 'اجرای همزمان چند دستور در یک کوئری مجاز نیست.'
+      case 'SQL_POLICY_REQUIRE_RESULT_LIMIT':
+        return 'برای جلوگیری از بار اضافی، کوئری باید دارای محدودیت تعداد ردیف (TOP یا FETCH NEXT) باشد.'
+      case 'SQL_POLICY_REQUIRE_ORDER_BY_FOR_LIMITED_QUERY':
+        return 'استفاده از محدودیت ردیف بدون ORDER BY مجاز نیست.'
+      case 'SQL_POLICY_NON_NUMERIC_LIMIT':
+        return 'مقدار محدودیت تعداد ردیف باید عدد باشد.'
+      case 'SQL_POLICY_INVALID_LIMIT':
+        return 'مقدار محدودیت تعداد ردیف نامعتبر است.'
+      case 'SQL_POLICY_QUERY_TIMEOUT':
+        return 'زمان اجرای کوئری بیش از حد مجاز طول کشید.'
+      case 'SQL_POLICY_SCOPE_LIMIT_EXCEEDED':
+        return 'تعداد ردیف‌های خروجی بیش از سقف مجاز برای این عملیات است.'
+      case 'SQL_POLICY_REQUIRE_READONLY_LOGIN':
+        return 'این عملیات مستلزم استفاده از یک دسترسی فقط-خواندنی (Read-Only) واقعی در سطح بانک اطلاعاتی است.'
+      case 'SQL_POLICY_FORBIDDEN_SYSTEM_PROC':
+        return 'فراخوانی توابع و پروسیجرهای سیستمی (xp_*/sp_*) مجاز نیست.'
+      case 'SQL_POLICY_FORBIDDEN_BATCH_COMMAND':
+        return 'استفاده از دستورات دسته‌ای (مانند GO، DECLARE، SET) در کوئری‌های مالی مجاز نیست.'
+      default:
+        return 'خطای سیاست امنیتی SQL رخ داده است.'
+    }
   }
 }
 
@@ -81,6 +131,7 @@ export class SqlConnectionManager {
   private pool: ConnectionPool | null = null
   private poolSignature: string | null = null
   private connectPromise: Promise<ConnectionPool> | null = null
+  private readonly sqlParser = new Parser()
   private readonlyPermissionCache = new Map<
     string,
     {
@@ -170,7 +221,7 @@ SELECT
 
   async query(payload: SqlQueryRequest): Promise<SqlQueryResult> {
     if (!payload.query.trim()) {
-      throw new Error('SQL query is empty.')
+      throw new Error('کوئری SQL خالی است.')
     }
 
     const pool = await this.getOrCreatePool(payload.connection)
@@ -380,6 +431,40 @@ SELECT
       throw new SqlPolicyViolationError('SQL_POLICY_EMPTY_QUERY', 'read-only-policy', 'SQL query is empty.')
     }
 
+    // 1. AST-based check (Primary)
+    try {
+      // Use 'transactsql' dialect for T-SQL awareness
+      const ast = this.sqlParser.astify(trimmed, { database: 'transactsql' })
+      const astList = Array.isArray(ast) ? ast : [ast]
+
+      if (astList.length > 1 && (scope === 'generic' || scope === 'agent-data')) {
+        throw new SqlPolicyViolationError(
+          'SQL_POLICY_MULTI_STATEMENT',
+          'security-policy',
+          'Multi-statement queries are not allowed for this operation.'
+        )
+      }
+
+      for (const statement of astList) {
+        if (statement.type !== 'select') {
+          throw new SqlPolicyViolationError(
+            'SQL_POLICY_NOT_SELECT',
+            'security-policy',
+            `Invalid statement type: ${statement.type}. Only SELECT is allowed.`
+          )
+        }
+      }
+    } catch (error) {
+      // If it's already a policy violation, rethrow
+      if (error instanceof SqlPolicyViolationError) throw error
+
+      // Fallback: If AST parsing fails (might be complex T-SQL syntax not fully supported by the parser),
+      // we proceed to strict Regex validation as a safety net.
+      // We don't block just because of parsing failure, but we stay extremely cautious.
+      console.warn('[SqlConnectionManager] SQL AST parsing failed, falling back to regex:', error)
+    }
+
+    // 2. Regex-based check (Secondary / Defense in depth)
     const normalized = this.stripSqlCommentsAndLiterals(trimmed).replace(/\s+/g, ' ').trim()
 
     if (!normalized) {
@@ -405,6 +490,22 @@ SELECT
         'SQL_POLICY_FORBIDDEN_KEYWORD',
         'security-policy',
         'Query contains forbidden SQL keyword. Only read-only SELECT is allowed.'
+      )
+    }
+
+    if (FORBIDDEN_SYSTEM_PROC_PATTERN.test(upper)) {
+      throw new SqlPolicyViolationError(
+        'SQL_POLICY_FORBIDDEN_SYSTEM_PROC',
+        'security-policy',
+        'System procedures (xp_*/sp_*) are not allowed.'
+      )
+    }
+
+    if (FORBIDDEN_TESSERACT_NESTING.test(upper)) {
+      throw new SqlPolicyViolationError(
+        'SQL_POLICY_FORBIDDEN_BATCH_COMMAND',
+        'security-policy',
+        'Batch commands (GO/DECLARE/SET) are not allowed.'
       )
     }
 
@@ -437,6 +538,22 @@ SELECT
         'SQL_POLICY_METADATA_SCOPE_BLOCK',
         'security-policy',
         'Agent data queries cannot access SQL Server metadata schemas or system tables.'
+      )
+    }
+
+    if (FORBIDDEN_SYSTEM_PROC_PATTERN.test(upper)) {
+      throw new SqlPolicyViolationError(
+        'SQL_POLICY_FORBIDDEN_SYSTEM_PROC',
+        'security-policy',
+        'System procedures (xp_*/sp_*) are not allowed.'
+      )
+    }
+
+    if (FORBIDDEN_TESSERACT_NESTING.test(upper)) {
+      throw new SqlPolicyViolationError(
+        'SQL_POLICY_FORBIDDEN_BATCH_COMMAND',
+        'security-policy',
+        'Batch commands (GO/DECLARE/SET) are not allowed.'
       )
     }
 

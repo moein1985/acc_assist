@@ -41,6 +41,21 @@ export interface MobileBridgeConfig {
   allowedOrigin: string
 }
 
+export type TelemetryLogLevel = 'debug' | 'info' | 'warn' | 'error'
+export type TelemetryEventLevel = TelemetryLogLevel | 'fatal'
+
+export interface TelemetryConfig {
+  enabled: boolean
+  ingestUrl: string
+  bearerToken: string
+  logLevel: TelemetryLogLevel
+  flushIntervalMs: number
+  requestTimeoutMs: number
+  maxBatchSize: number
+  maxQueueSize: number
+  includeRendererErrors: boolean
+}
+
 export interface SqlSecurityPolicyConfig {
   enforceReadOnlyLogin: boolean
   forbidWildcardSelect: boolean
@@ -144,6 +159,7 @@ export interface PromptTemplate {
   prompt: string
   createdAt?: string
   updatedAt?: string
+  isSystem?: boolean
 }
 
 export interface AppSettings {
@@ -152,6 +168,7 @@ export interface AppSettings {
   sqlSecurity: SqlSecurityPolicyConfig
   ssh: SshTunnelConfig
   mobileBridge: MobileBridgeConfig
+  telemetry: TelemetryConfig
   connectionProfile: ConnectionProfileMetadata
   connectionProfiles: ConnectionProfile[]
   activeConnectionProfileId: string
@@ -359,6 +376,15 @@ export interface MobileBridgeStatus {
   port: number
   url: string
   clientCount: number
+}
+
+export interface RendererTelemetryEvent {
+  event: string
+  level?: TelemetryEventLevel
+  category?: string
+  message?: string
+  stack?: string
+  details?: Record<string, unknown>
 }
 
 export interface IpcResponse<T> {

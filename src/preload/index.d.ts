@@ -10,6 +10,7 @@ import type {
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  RendererTelemetryEvent,
   ReportExportRequest,
   ReportExportResult,
   SchemaCatalogEntry,
@@ -72,6 +73,9 @@ export interface AccAssistApi {
   }
   mobileBridge: {
     status: () => Promise<IpcResponse<MobileBridgeStatus>>
+  }
+  telemetry: {
+    captureRendererEvent: (payload: RendererTelemetryEvent) => Promise<IpcResponse<boolean>>
   }
 }
 

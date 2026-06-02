@@ -565,6 +565,62 @@
                 </label>
               </div>
             </fieldset>
+
+            <fieldset>
+              <legend>Crash / Event Telemetry</legend>
+              <div class="field-grid">
+                <label class="toggle">
+                  <input id="telemetryEnabledInput" type="checkbox" />
+                  ارسال رخدادها به collector
+                </label>
+                <label>
+                  Ingest URL
+                  <input id="telemetryIngestUrlInput" type="text" placeholder="http://192.168.85.84:8081/ingest" />
+                </label>
+                <label>
+                  Bearer Token
+                  <input id="telemetryBearerTokenInput" type="password" autocomplete="off" />
+                </label>
+                <div class="row two">
+                  <label>
+                    سطح لاگ
+                    <select id="telemetryLogLevelInput">
+                      <option value="debug">debug (پرحجم)</option>
+                      <option value="info">info</option>
+                      <option value="warn">warn</option>
+                      <option value="error">error (حداقلی)</option>
+                    </select>
+                  </label>
+                  <label>
+                    فاصله ارسال (ms)
+                    <input id="telemetryFlushIntervalInput" type="number" min="1000" max="60000" />
+                  </label>
+                </div>
+                <div class="row two">
+                  <label>
+                    timeout درخواست (ms)
+                    <input id="telemetryRequestTimeoutInput" type="number" min="1000" max="60000" />
+                  </label>
+                  <label>
+                    حداکثر batch
+                    <input id="telemetryMaxBatchSizeInput" type="number" min="1" max="200" />
+                  </label>
+                </div>
+                <div class="row two">
+                  <label>
+                    حداکثر صف محلی
+                    <input id="telemetryMaxQueueSizeInput" type="number" min="100" max="50000" />
+                  </label>
+                  <label class="toggle">
+                    <input id="telemetryIncludeRendererErrorsInput" type="checkbox" />
+                    ثبت خطاهای Renderer
+                  </label>
+                </div>
+                <div class="inline-alert note-info">
+                  برای عدم از دست رفتن خطاها، رخدادها همیشه به صورت محلی صف می شوند و در زمان اتصال به collector ارسال خواهند شد.
+                </div>
+              </div>
+            </fieldset>
           </div>
         </section>
 

@@ -61,6 +61,7 @@ export class SettingsStore {
     snapshot.ssh.password = this.encryptIfPossible(snapshot.ssh.password)
     snapshot.ssh.privateKey = this.encryptIfPossible(snapshot.ssh.privateKey)
     snapshot.ssh.passphrase = this.encryptIfPossible(snapshot.ssh.passphrase)
+    snapshot.telemetry.bearerToken = this.encryptIfPossible(snapshot.telemetry.bearerToken)
     snapshot.connectionProfiles = snapshot.connectionProfiles.map((profile) => ({
       ...profile,
       sql: {
@@ -94,6 +95,10 @@ export class SettingsStore {
         password: this.decryptIfNeeded(settings.ssh.password),
         privateKey: this.decryptIfNeeded(settings.ssh.privateKey),
         passphrase: this.decryptIfNeeded(settings.ssh.passphrase)
+      },
+      telemetry: {
+        ...settings.telemetry,
+        bearerToken: this.decryptIfNeeded(settings.telemetry.bearerToken)
       },
       connectionProfiles: settings.connectionProfiles.map((profile) => ({
         ...profile,
@@ -286,6 +291,7 @@ export class SettingsStore {
         typeof typedTemplate.updatedAt === 'string' && typedTemplate.updatedAt.trim()
           ? typedTemplate.updatedAt.trim()
           : undefined
+      const isSystem = Boolean(typedTemplate.isSystem)
 
       ids.add(id)
       normalized.push({
@@ -293,7 +299,8 @@ export class SettingsStore {
         label,
         prompt,
         createdAt,
-        updatedAt
+        updatedAt,
+        isSystem
       })
 
       if (normalized.length >= 30) {

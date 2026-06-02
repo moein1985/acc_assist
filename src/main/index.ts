@@ -10,6 +10,7 @@ import type {
   AppSettings,
   GeminiChatRequest,
   IpcResponse,
+  RendererTelemetryEvent,
   ReportExportRequest,
   ReportExportResult,
   SchemaCatalogEntry,
@@ -36,6 +37,7 @@ import { SchemaDiscoveryService } from './services/schemaDiscoveryService'
 import { SettingsStore } from './services/settingsStore'
 import { SqlConnectionManager } from './services/sqlConnectionManager'
 import { SshTunnelService } from './services/sshTunnelService'
+import { TelemetryIngestService } from './services/telemetryIngestService'
 import icon from '../../resources/icon.png?asset'
 
 const settingsStore = new SettingsStore()
@@ -46,6 +48,7 @@ const mobileBridgeServer = new MobileBridgeServer()
 const schemaDiscoveryService = new SchemaDiscoveryService()
 const auditLogService = new AuditLogService()
 const reportExportService = new ReportExportService()
+const telemetryIngestService = new TelemetryIngestService()
 const agentOrchestrator = new AgentOrchestrator({
   geminiClient,
   getSettings: () => settingsStore.get(),
@@ -64,7 +67,8 @@ const agentOrchestrator = new AgentOrchestrator({
     const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
     return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'metadata', signal)
   },
-  auditLog: auditLogService
+  auditLog: auditLogService,
+  mobileBridge: mobileBridgeServer
 })
 
 let mainWindow: BrowserWindow | null = null
@@ -89,6 +93,36 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  mainWindow.on('unresponsive', () => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'error',
+      category: 'renderer.health',
+      event: 'window-unresponsive'
+    })
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: isMainFrame ? 'error' : 'warn',
+      category: 'renderer.health',
+      event: 'did-fail-load',
+      message: errorDescription,
+      details: {
+        errorCode,
+        validatedURL,
+        isMainFrame
+      }
+    })
+  })
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    telemetryIngestService.captureError('renderer.health', 'preload-error', error, 'main', {
+      preloadPath
+    })
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -110,11 +144,71 @@ function ok<T>(data: T): IpcResponse<T> {
   }
 }
 
-function fail<T>(error: unknown): IpcResponse<T> {
+function failWithContext<T>(error: unknown, channel: string): IpcResponse<T> {
+  telemetryIngestService.captureError('ipc.handler', channel, error, 'main')
+
   return {
     ok: false,
     error: error instanceof Error ? error.message : String(error)
   }
+}
+
+function registerCrashObservers(): void {
+  process.on('uncaughtExceptionMonitor', (error, origin) => {
+    telemetryIngestService.captureError('process.crash', 'uncaught-exception', error, 'main', {
+      origin
+    })
+    void telemetryIngestService.flushNow('uncaught-exception')
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    telemetryIngestService.captureError('process.crash', 'unhandled-rejection', reason, 'main')
+    void telemetryIngestService.flushNow('unhandled-rejection')
+  })
+
+  process.on('warning', (warning) => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'warn',
+      category: 'process.warning',
+      event: warning.name || 'warning',
+      message: warning.message,
+      details: {
+        stack: warning.stack
+      }
+    })
+  })
+
+  app.on('render-process-gone', (_event, webContents, details) => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: details.reason === 'clean-exit' ? 'warn' : 'fatal',
+      category: 'process.crash',
+      event: 'render-process-gone',
+      message: details.reason,
+      details: {
+        exitCode: details.exitCode,
+        url: webContents.getURL(),
+        webContentsId: webContents.id
+      }
+    })
+  })
+
+  app.on('child-process-gone', (_event, details) => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: details.reason === 'clean-exit' ? 'warn' : 'error',
+      category: 'process.crash',
+      event: 'child-process-gone',
+      message: details.reason,
+      details: {
+        exitCode: details.exitCode,
+        name: details.name,
+        serviceName: details.serviceName,
+        type: details.type
+      }
+    })
+  })
 }
 
 function isSameSchemaCatalog(entry: SchemaCatalogEntry, profileId: string, databaseName: string): boolean {
@@ -201,6 +295,8 @@ function registerIpcHandlers(): void {
           await sshTunnelService.stop('SSH tunnel reconfigured from settings')
         }
 
+        telemetryIngestService.configure(updated.telemetry)
+
         if (!updated.mobileBridge.enabled) {
           await mobileBridgeServer.stop()
         } else {
@@ -213,7 +309,7 @@ function registerIpcHandlers(): void {
 
         return ok(updated)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'settings:save')
       }
     }
   )
@@ -236,7 +332,7 @@ function registerIpcHandlers(): void {
         const databases = await sqlConnectionManager.listDatabases(runtimeConnection)
         return ok(databases)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'sql:list-databases')
       }
     }
   )
@@ -258,7 +354,7 @@ function registerIpcHandlers(): void {
         const healthCheck = await sqlConnectionManager.getHealthCheck(runtimeConnection)
         return ok(healthCheck)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'sql:health-check')
       }
     }
   )
@@ -327,7 +423,7 @@ function registerIpcHandlers(): void {
           schemaCatalogs: updated.schemaCatalogs
         })
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'schema:discover')
       }
     }
   )
@@ -345,7 +441,7 @@ function registerIpcHandlers(): void {
 
         return ok(catalog)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'schema:get-catalog')
       }
     }
   )
@@ -420,7 +516,7 @@ function registerIpcHandlers(): void {
           schemaCatalogs: updatedSettings.schemaCatalogs
         })
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'schema:update-mappings')
       }
     }
   )
@@ -430,7 +526,7 @@ function registerIpcHandlers(): void {
       const tunnelStatus = await sshTunnelService.start(config ?? settingsStore.get().ssh)
       return ok(tunnelStatus)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'ssh:start')
     }
   })
 
@@ -439,7 +535,7 @@ function registerIpcHandlers(): void {
       const tunnelStatus = await sshTunnelService.stop('SSH tunnel stopped by user')
       return ok(tunnelStatus)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'ssh:stop')
     }
   })
 
@@ -464,7 +560,7 @@ function registerIpcHandlers(): void {
         const message = await sqlConnectionManager.testConnection(runtimeConnection)
         return ok(message)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'sql:test-connection')
       }
     }
   )
@@ -479,7 +575,7 @@ function registerIpcHandlers(): void {
 
       return ok(result)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'sql:query')
     }
   })
 
@@ -495,7 +591,7 @@ function registerIpcHandlers(): void {
       })
       return ok(rows)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'sql:execute-query')
     }
   })
 
@@ -504,7 +600,7 @@ function registerIpcHandlers(): void {
       await sqlConnectionManager.close()
       return ok(true)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'sql:disconnect')
     }
   })
 
@@ -513,7 +609,7 @@ function registerIpcHandlers(): void {
       const response = await geminiClient.chat(payload, settingsStore.get().gemini)
       return ok(response)
     } catch (error) {
-      return fail(error)
+      return failWithContext(error, 'gemini:chat')
     }
   })
 
@@ -542,7 +638,7 @@ function registerIpcHandlers(): void {
 
         return ok(result)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'agent:send-message')
       }
     }
   )
@@ -560,7 +656,7 @@ function registerIpcHandlers(): void {
         const cancelled = agentOrchestrator.cancelMessage(requestId, payload.reason)
         return ok({ cancelled })
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'agent:cancel-message')
       }
     }
   )
@@ -572,7 +668,30 @@ function registerIpcHandlers(): void {
         const result = await reportExportService.exportReport(mainWindow, payload)
         return ok(result)
       } catch (error) {
-        return fail(error)
+        return failWithContext(error, 'report:export')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'telemetry:capture-renderer-event',
+    async (_, payload: RendererTelemetryEvent): Promise<IpcResponse<boolean>> => {
+      try {
+        telemetryIngestService.capture({
+          process: 'renderer',
+          level: payload.level ?? 'error',
+          category: payload.category?.trim() || 'renderer.runtime',
+          event: payload.event?.trim() || 'renderer-event',
+          message: payload.message,
+          details: {
+            stack: payload.stack,
+            ...(payload.details ?? {})
+          }
+        })
+
+        return ok(true)
+      } catch (error) {
+        return failWithContext(error, 'telemetry:capture-renderer-event')
       }
     }
   )
@@ -583,10 +702,18 @@ function registerIpcHandlers(): void {
 }
 
 async function cleanupServices(): Promise<void> {
+  telemetryIngestService.capture({
+    process: 'main',
+    level: 'info',
+    category: 'app.lifecycle',
+    event: 'cleanup-services'
+  })
+
   await Promise.allSettled([
     sqlConnectionManager.close(),
     sshTunnelService.stop('Application is closing'),
-    mobileBridgeServer.stop()
+    mobileBridgeServer.stop(),
+    telemetryIngestService.shutdown('application-closing')
   ])
 }
 
@@ -606,6 +733,13 @@ app.whenReady().then(() => {
 
   void (async () => {
     await settingsStore.load()
+    telemetryIngestService.configure(settingsStore.get().telemetry)
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'info',
+      category: 'app.lifecycle',
+      event: 'app-ready'
+    })
     registerIpcHandlers()
 
     const mobileBridgeConfig = settingsStore.get().mobileBridge
@@ -614,6 +748,7 @@ app.whenReady().then(() => {
         await mobileBridgeServer.start(mobileBridgeConfig)
       } catch (error) {
         console.error('Unable to start mobile bridge server:', error)
+        telemetryIngestService.captureError('mobile-bridge', 'start-failed', error, 'main')
       }
     }
 
@@ -640,6 +775,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   void cleanupServices()
 })
+
+registerCrashObservers()
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.

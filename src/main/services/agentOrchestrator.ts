@@ -375,6 +375,9 @@ interface AgentOrchestratorDeps {
   auditLog: {
     write: (entry: AuditLogEntry) => Promise<void>
   }
+  mobileBridge?: {
+    broadcast: (message: any) => void
+  }
 }
 
 export class AgentOrchestrator {
@@ -383,6 +386,7 @@ export class AgentOrchestrator {
   private readonly executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   private readonly executeMetadataSql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   private readonly auditLog: AgentOrchestratorDeps['auditLog']
+  private readonly mobileBridge?: AgentOrchestratorDeps['mobileBridge']
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
 
@@ -392,6 +396,7 @@ export class AgentOrchestrator {
     this.executeReadOnlySql = deps.executeReadOnlySql
     this.executeMetadataSql = deps.executeMetadataSql
     this.auditLog = deps.auditLog
+    this.mobileBridge = deps.mobileBridge
   }
 
   async sendMessage(
@@ -924,11 +929,16 @@ export class AgentOrchestrator {
     onProgress: ((event: AgentProgressEvent) => void) | undefined,
     event: AgentProgressEvent
   ): void {
-    if (!onProgress) {
-      return
+    if (onProgress) {
+      onProgress(event)
     }
 
-    onProgress(event)
+    if (this.mobileBridge) {
+      this.mobileBridge.broadcast({
+        type: 'agent:progress',
+        payload: event
+      })
+    }
   }
 
   private async safeAuditWrite(entry: AuditLogEntry): Promise<void> {
