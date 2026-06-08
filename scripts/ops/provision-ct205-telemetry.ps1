@@ -6,7 +6,7 @@ param(
   [string]$ProxmoxUser,
 
   [Parameter(Mandatory = $true)]
-  [string]$ProxmoxPassword,
+  [SecureString]$ProxmoxPassword,
 
   [int]$ContainerId = 205,
   [string]$Template = 'debian-12-bookworm-iran-custom.tar.gz',

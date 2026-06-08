@@ -136,7 +136,7 @@ npm run smoke:agent:full -- --global-min-score=97
 
 ## پیکربندی provider هوش مصنوعی
 
-- provider پیش‌فرض سایت **avalapis.ir** است و از مسیر سازگار با OpenAI در `https://api.avalapis.ir/v1` استفاده می‌شود (`mode: openai`).
+- provider پیش‌فرض سایت **avalai.ir** است و از مسیر سازگار با OpenAI در `https://api.avalai.ir/v1` استفاده می‌شود (`mode: openai`).
 - مدل هدف **`gemini-2.5-pro`** است. این کلید چند مدل را در اختیار می‌گذارد، اما در این محصول فقط باید از `gemini-2.5-pro` استفاده شود.
 - کلید API فقط از طریق تب Settings دریافت و در storage برنامه ذخیره می‌شود (با safeStorage در سیستم‌عامل). مقدار پیش‌فرض خالی است.
 - حالت `google` فعلاً tool/function calling را پشتیبانی نمی‌کند؛ برای agent از حالت `openai` استفاده کنید.

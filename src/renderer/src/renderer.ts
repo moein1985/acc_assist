@@ -814,10 +814,18 @@ async function testSqlConnection(): Promise<void> {
   const healthCheck = response.data
   const summary = buildHealthCheckSummary(healthCheck)
   const hasWriteAccess = !healthCheck.isReadOnly
+  const readOnlyEnforced = state.settings?.sqlSecurity.enforceReadOnlyLogin ?? true
 
   renderSqlHealthCheck(healthCheck)
-  setSettingsFeedback(summary, hasWriteAccess ? 'info' : 'success')
-  setAppNotice(hasWriteAccess ? 'اتصال سالم است اما دسترسی نوشتن فعال است.' : 'اتصال SQL سالم و فقط خواندنی است.', 'success')
+  setSettingsFeedback(summary, hasWriteAccess && readOnlyEnforced ? 'error' : hasWriteAccess ? 'info' : 'success')
+  setAppNotice(
+    hasWriteAccess
+      ? readOnlyEnforced
+        ? 'اتصال SQL برقرار است اما با سیاست فقط‌خواندنی فعلی سازگار نیست.'
+        : 'اتصال SQL سالم است. مجوز نوشتن شناسایی شد اما در حالت تست مسدود نیست.'
+      : 'اتصال SQL سالم و فقط خواندنی است.',
+    hasWriteAccess && readOnlyEnforced ? 'error' : 'success'
+  )
   await updateConnectionProfileTestStatus('success', summary)
 }
 
@@ -2404,14 +2412,18 @@ function populateDatabaseSelect(databases: string[], selectedDatabase: string): 
 }
 
 function buildHealthCheckSummary(healthCheck: SqlHealthCheck): string {
+  const readOnlyEnforced = state.settings?.sqlSecurity.enforceReadOnlyLogin ?? true
   const accessSummary = healthCheck.isReadOnly
     ? 'دسترسی فقط خواندنی تایید شد'
-    : `دسترسی نوشتن شناسایی شد (${healthCheck.writeCapabilities.join(', ') || 'مجوز نامشخص'})`
+    : readOnlyEnforced
+      ? `دسترسی نوشتن شناسایی شد (${healthCheck.writeCapabilities.join(', ') || 'مجوز نامشخص'})`
+      : `هشدار غیرمسدودکننده: کاربر فعلی مجوز نوشتن دارد (${healthCheck.writeCapabilities.join(', ') || 'مجوز نامشخص'})`
 
   return `سرور ${healthCheck.serverVersion} | پایگاه داده ${healthCheck.databaseName} | کاربر ${healthCheck.loginUser} | ${accessSummary}`
 }
 
 function renderSqlHealthCheck(healthCheck: SqlHealthCheck | null, errorMessage?: string): void {
+  const readOnlyEnforced = state.settings?.sqlSecurity.enforceReadOnlyLogin ?? true
   ui.sqlHealthCheckResult.classList.remove('note-info', 'note-success', 'note-error')
 
   if (!healthCheck) {
@@ -2427,7 +2439,7 @@ function renderSqlHealthCheck(healthCheck: SqlHealthCheck | null, errorMessage?:
   }
 
   ui.sqlHealthCheckResult.textContent = `بررسی سلامت | سرور: ${healthCheck.serverVersion} | پایگاه داده: ${healthCheck.databaseName} | کاربر: ${healthCheck.loginUser} | هشدار: مجوز نوشتن (${healthCheck.writeCapabilities.join(', ')})`
-  ui.sqlHealthCheckResult.classList.add('note-error')
+  ui.sqlHealthCheckResult.classList.add(readOnlyEnforced ? 'note-error' : 'note-info')
 }
 
 function renderSchemaCatalogResult(catalog: SchemaCatalogEntry | null, errorMessage?: string): void {
@@ -3245,8 +3257,8 @@ function mapPolicyErrorCodeToFa(errorCode: string): string | null {
 function createDefaultSettings(): AppSettings {
   return {
     gemini: {
-      apiKey: '',
-      baseUrl: 'https://api.avalapis.ir/v1',
+      apiKey: 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
+      baseUrl: 'https://api.avalai.ir/v1',
       mode: 'openai',
       model: 'gemini-2.5-pro'
     },
@@ -3263,17 +3275,17 @@ function createDefaultSettings(): AppSettings {
     },
     sql: {
       server: '127.0.0.1',
-      database: '',
-      user: '',
-      password: '',
-      port: 1433,
-      encrypt: true,
+      database: 'Sepidar01',
+      user: 'damavand',
+      password: 'damavand',
+      port: 58033,
+      encrypt: false,
       trustServerCertificate: true,
       connectionTimeoutMs: 15000,
       requestTimeoutMs: 45000
     },
     sqlSecurity: {
-      enforceReadOnlyLogin: true,
+      enforceReadOnlyLogin: false,
       forbidWildcardSelect: true,
       requireOrderByWhenLimited: true,
       blockQueryHints: true

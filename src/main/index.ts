@@ -29,6 +29,7 @@ import type {
   SshTunnelStatus
 } from '../shared/contracts'
 import { AgentOrchestrator } from './services/agentOrchestrator'
+import { AgentDebugServer } from './services/agentDebugServer'
 import { AuditLogService } from './services/auditLogService'
 import { GeminiClient } from './services/geminiClient'
 import { MobileBridgeServer } from './services/mobileBridgeServer'
@@ -49,6 +50,7 @@ const schemaDiscoveryService = new SchemaDiscoveryService()
 const auditLogService = new AuditLogService()
 const reportExportService = new ReportExportService()
 const telemetryIngestService = new TelemetryIngestService()
+const agentDebugServer = new AgentDebugServer()
 const agentOrchestrator = new AgentOrchestrator({
   geminiClient,
   getSettings: () => settingsStore.get(),
@@ -72,6 +74,10 @@ const agentOrchestrator = new AgentOrchestrator({
 })
 
 let mainWindow: BrowserWindow | null = null
+const AGENT_DEBUG_HOST = '127.0.0.1'
+const AGENT_DEBUG_PORT = 3322
+const AGENT_DEBUG_TOKEN = 'accassist-ssh-debug-token'
+const isAgentDebugServerOnly = process.argv.includes('--agent-debug-server-only')
 
 function createWindow(): void {
   // Create the browser window.
@@ -712,6 +718,7 @@ async function cleanupServices(): Promise<void> {
   await Promise.allSettled([
     sqlConnectionManager.close(),
     sshTunnelService.stop('Application is closing'),
+    agentDebugServer.stop(),
     mobileBridgeServer.stop(),
     telemetryIngestService.shutdown('application-closing')
   ])
@@ -752,10 +759,42 @@ app.whenReady().then(() => {
       }
     }
 
-    createWindow()
+    try {
+      await agentDebugServer.start({
+        host: AGENT_DEBUG_HOST,
+        port: AGENT_DEBUG_PORT,
+        token: AGENT_DEBUG_TOKEN,
+        sendMessage: async (payload, onProgress) => {
+          return agentOrchestrator.sendMessage(payload, onProgress)
+        }
+      })
+      telemetryIngestService.capture({
+        process: 'main',
+        level: 'info',
+        category: 'agent.debug-server',
+        event: 'started',
+        details: {
+          host: AGENT_DEBUG_HOST,
+          port: AGENT_DEBUG_PORT
+        }
+      })
+    } catch (error) {
+      telemetryIngestService.captureError('agent.debug-server', 'start-failed', error, 'main', {
+        host: AGENT_DEBUG_HOST,
+        port: AGENT_DEBUG_PORT
+      })
+    }
+
+    if (!isAgentDebugServerOnly) {
+      createWindow()
+    }
   })()
 
   app.on('activate', function () {
+    if (isAgentDebugServerOnly) {
+      return
+    }
+
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -766,7 +805,7 @@ app.whenReady().then(() => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && !isAgentDebugServerOnly) {
     void cleanupServices()
     app.quit()
   }

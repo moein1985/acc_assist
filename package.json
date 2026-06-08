@@ -29,7 +29,16 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "remote:status": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action status",
+    "remote:install": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action install",
+    "remote:uninstall": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action uninstall",
+    "remote:start": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action start",
+    "remote:stop": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action stop",
+    "remote:restart": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action restart",
+    "remote:autoconfig-sql": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action autoconfig-sql",
+    "remote:logs": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action logs",
+    "remote:ask-ai": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action ask-ai"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

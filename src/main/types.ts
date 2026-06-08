@@ -4,24 +4,24 @@ const DEFAULT_PROFILE_ID = 'default-profile'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   gemini: {
-    apiKey: '',
-    baseUrl: 'https://api.avalapis.ir/v1',
+    apiKey: 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
+    baseUrl: 'https://api.avalai.ir/v1',
     mode: 'openai',
     model: 'gemini-2.5-pro'
   },
   sql: {
     server: '127.0.0.1',
-    database: '',
-    user: '',
-    password: '',
-    port: 1433,
-    encrypt: true,
+    database: 'Sepidar01',
+    user: 'damavand',
+    password: 'damavand',
+    port: 58033,
+    encrypt: false,
     trustServerCertificate: true,
     connectionTimeoutMs: 15000,
     requestTimeoutMs: 45000
   },
   sqlSecurity: {
-    enforceReadOnlyLogin: true,
+    enforceReadOnlyLogin: false,
     forbidWildcardSelect: true,
     requireOrderByWhenLimited: true,
     blockQueryHints: true
@@ -47,9 +47,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     allowedOrigin: 'xapi.test'
   },
   telemetry: {
-    enabled: false,
-    ingestUrl: '',
-    bearerToken: '',
+    enabled: true,
+    ingestUrl: 'http://192.168.85.84:8081/ingest',
+    bearerToken: 'JibUK503KErSUaDAMBoLWqTS254Z08SLqR15BMQinrKIfgvk',
     logLevel: 'debug',
     flushIntervalMs: 5000,
     requestTimeoutMs: 8000,
@@ -78,11 +78,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
       },
       sql: {
         server: '127.0.0.1',
-        database: '',
-        user: '',
-        password: '',
-        port: 1433,
-        encrypt: true,
+        database: 'Sepidar01',
+        user: 'damavand',
+        password: 'damavand',
+        port: 58033,
+        encrypt: false,
         trustServerCertificate: true,
         connectionTimeoutMs: 15000,
         requestTimeoutMs: 45000

@@ -7,8 +7,7 @@ import type {
 } from '../../shared/contracts'
 
 const DEFAULT_MODEL = 'gemini-2.5-pro'
-const DEFAULT_OPENAI_BASE_URL = 'https://api.avalapis.ir/v1'
-const DEFAULT_GOOGLE_BASE_URL = 'https://api.avalapis.ir/v1beta'
+const DEFAULT_OPENAI_BASE_URL = 'https://api.avalai.ir/v1'
 const DEFAULT_TIMEOUT_MS = 60000
 
 type OpenAiStreamOptions = {
@@ -36,10 +35,6 @@ export class GeminiClient {
 
     if (payload.messages.length === 0) {
       throw new Error('پیامی برای ارسال به هوش مصنوعی وجود ندارد.')
-    }
-
-    if (config.mode === 'google') {
-      return this.chatGoogle(payload, config, streamOptions?.signal)
     }
 
     return this.chatOpenAi(payload, config, streamOptions)
@@ -251,59 +246,6 @@ export class GeminiClient {
       return 'خطای دسترسی به شبکه. لطفاً اتصال اینترنت یا آدرس Base URL را بررسی کنید.'
     }
     return message
-  }
-
-  private async chatGoogle(
-    payload: GeminiChatRequest,
-    config: GeminiConfig,
-    signal?: AbortSignal
-  ): Promise<GeminiChatResponse> {
-    const url = this.buildGoogleUrl(config.baseUrl, config.model, config.apiKey)
-
-    const systemMessages = payload.messages.filter((message) => message.role === 'system')
-    const conversationalMessages = payload.messages.filter((message) => message.role !== 'system')
-
-    const raw = await this.requestJson(
-      url,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: this.toGoogleContents(conversationalMessages),
-          systemInstruction:
-            systemMessages.length > 0
-              ? {
-                  parts: systemMessages.map((message) => ({ text: message.content }))
-                }
-              : undefined,
-          generationConfig: {
-            temperature: payload.temperature ?? 0.2,
-            maxOutputTokens: payload.maxOutputTokens
-          }
-        })
-      },
-      DEFAULT_TIMEOUT_MS,
-      signal
-    )
-
-    const text = this.extractGoogleText(raw)
-
-    return { text, raw }
-  }
-
-  private toGoogleContents(messages: GeminiMessage[]): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
-    const mapped: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = messages.map((message) => ({
-      role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: message.content }]
-    }))
-
-    if (mapped.length > 0) {
-      return mapped
-    }
-
-    return [{ role: 'user', parts: [{ text: 'Hello' }] }]
   }
 
   private extractOpenAiText(raw: unknown): string {
@@ -583,40 +525,22 @@ export class GeminiClient {
     })
   }
 
-  private extractGoogleText(raw: unknown): string {
-    const typed = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{
-            text?: string
-          }>
-        }
-      }>
-    }
-
-    return (
-      typed.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text ?? '')
-        .join('\n')
-        .trim() ?? ''
-    )
-  }
-
   private normalizeConfig(saved: GeminiConfig, patch?: Partial<GeminiConfig>): GeminiConfig {
     const merged: GeminiConfig = {
       ...saved,
       ...patch
     }
 
-    const mode = merged.mode === 'google' ? 'google' : 'openai'
+    const baseUrlCandidate = merged.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL
+    const isGoogleDomain = /googleapis\.com/i.test(baseUrlCandidate)
+    const normalizedBaseUrl = isGoogleDomain ? DEFAULT_OPENAI_BASE_URL : baseUrlCandidate
 
     return {
       ...merged,
-      mode,
+      mode: 'openai',
       apiKey: merged.apiKey.trim(),
       model: merged.model?.trim() || DEFAULT_MODEL,
-      baseUrl:
-        merged.baseUrl?.trim() || (mode === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_OPENAI_BASE_URL)
+      baseUrl: normalizedBaseUrl
     }
   }
 
@@ -766,21 +690,4 @@ export class GeminiClient {
     return `${normalized}/chat/completions`
   }
 
-  private buildGoogleUrl(baseUrl: string, model: string, apiKey: string): string {
-    const normalized = baseUrl.replace(/\/+$/, '')
-
-    let url = normalized
-    if (normalized.includes(':generateContent')) {
-      url = normalized
-    } else if (/\/models\/[^/]+$/.test(normalized)) {
-      url = `${normalized}:generateContent`
-    } else if (normalized.endsWith('/models')) {
-      url = `${normalized}/${model}:generateContent`
-    } else {
-      url = `${normalized}/models/${model}:generateContent`
-    }
-
-    const separator = url.includes('?') ? '&' : '?'
-    return `${url}${separator}key=${encodeURIComponent(apiKey)}`
-  }
 }

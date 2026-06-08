@@ -6,6 +6,23 @@ import type { AppSettings, ConnectionProfile, ConnectionProfileMetadata, PromptT
 import { DEFAULT_SETTINGS, mergeSettings } from '../types'
 
 const ENCRYPTED_PREFIX = 'accassist:enc:v1:'
+const FORCE_TEST_SQL_PROFILE = true
+const FORCE_AVALAI_PROFILE = true
+const TEST_SQL_PROFILE = {
+  server: '127.0.0.1',
+  port: 58033,
+  database: 'Sepidar01',
+  user: 'damavand',
+  password: 'damavand',
+  encrypt: false,
+  trustServerCertificate: true
+} as const
+const FORCED_AVALAI_PROFILE = {
+  apiKey: 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
+  baseUrl: 'https://api.avalai.ir/v1',
+  mode: 'openai',
+  model: 'gemini-2.5-pro'
+} as const
 
 export class SettingsStore {
   private readonly filePath: string
@@ -21,14 +38,16 @@ export class SettingsStore {
       const raw = await readFile(this.filePath, 'utf8')
       const parsed = JSON.parse(raw) as Partial<AppSettings>
       const merged = mergeSettings(DEFAULT_SETTINGS, parsed)
-      this.cache = this.normalizeConnectionProfiles(this.decryptSensitiveFields(merged))
+      const normalized = this.normalizeConnectionProfiles(this.decryptSensitiveFields(merged))
+      this.cache = this.applyForcedTestSqlProfile(normalized)
+      await this.persist()
     } catch (error) {
       const fileError = error as NodeJS.ErrnoException
       if (fileError.code !== 'ENOENT') {
         console.warn('[SettingsStore] Failed to read settings file. Recreating defaults.', error)
       }
 
-      this.cache = this.normalizeConnectionProfiles(mergeSettings(DEFAULT_SETTINGS, {}))
+      this.cache = this.applyForcedTestSqlProfile(this.normalizeConnectionProfiles(mergeSettings(DEFAULT_SETTINGS, {})))
       await this.persist()
     }
 
@@ -41,9 +60,43 @@ export class SettingsStore {
 
   async save(patch: Partial<AppSettings>): Promise<AppSettings> {
     const merged = mergeSettings(this.cache, patch)
-    this.cache = this.normalizeConnectionProfiles(merged, patch)
+    const normalized = this.normalizeConnectionProfiles(merged, patch)
+    this.cache = this.applyForcedTestSqlProfile(normalized)
     await this.persist()
     return this.cache
+  }
+
+  private applyForcedTestSqlProfile(settings: AppSettings): AppSettings {
+    if (!FORCE_TEST_SQL_PROFILE && !FORCE_AVALAI_PROFILE) {
+      return settings
+    }
+
+    const forcedGemini = FORCE_AVALAI_PROFILE
+      ? {
+          ...settings.gemini,
+          ...FORCED_AVALAI_PROFILE
+        }
+      : settings.gemini
+
+    return {
+      ...settings,
+      gemini: forcedGemini,
+      sql: {
+        ...settings.sql,
+        ...TEST_SQL_PROFILE
+      },
+      sqlSecurity: {
+        ...settings.sqlSecurity,
+        enforceReadOnlyLogin: false
+      },
+      connectionProfiles: settings.connectionProfiles.map((profile) => ({
+        ...profile,
+        sql: {
+          ...profile.sql,
+          ...TEST_SQL_PROFILE
+        }
+      }))
+    }
   }
 
   private async persist(): Promise<void> {

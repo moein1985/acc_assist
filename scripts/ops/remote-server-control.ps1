@@ -1,0 +1,329 @@
+param(
+  [ValidateSet('status', 'install', 'uninstall', 'start', 'stop', 'restart', 'logs', 'settings', 'autoconfig-sql', 'ask-ai')]
+  [string]$Action = 'status',
+
+  [string]$ServerHost = '192.168.85.56',
+  [int]$Port = 2211,
+  [string]$User = 'administrator',
+  [string]$Password = 'Hs-co@12321#',
+  [string]$HostKey = 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ',
+
+  [string]$InstallerPath = 'dist/acc-assist-1.0.0-setup.exe',
+  [string]$RemoteInstallerPath = 'C:/Windows/Temp/acc-assist-1.0.0-setup.exe',
+
+  [string]$SqlServer = '127.0.0.1',
+  [int]$SqlPort = 58033,
+  [string]$SqlDatabase = 'Sepidar01',
+  [string]$SqlUser = 'damavand',
+  [string]$SqlPassword = 'damavand',
+
+  [string]$Prompt = '',
+  [string]$DebugToken = 'accassist-ssh-debug-token',
+
+  [int]$Tail = 60
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Invoke-SshCommand {
+  param([string]$Command)
+
+  & plink -P $Port -ssh -batch -hostkey $HostKey -pw $Password "$User@$ServerHost" $Command
+}
+
+function Invoke-RemotePowerShell {
+  param([string]$Script)
+
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($Script))
+  Invoke-SshCommand "powershell -NoProfile -EncodedCommand $encoded"
+}
+
+function Copy-Installer {
+  if (-not (Test-Path $InstallerPath)) {
+    throw "Installer not found at '$InstallerPath'. Run npm run build:win first."
+  }
+
+  & pscp -P $Port -batch -hostkey $HostKey -pw $Password $InstallerPath "$User@${ServerHost}:$RemoteInstallerPath"
+}
+
+switch ($Action) {
+  'status' {
+    $script = @"
+`$settingsPath = Join-Path `$env:APPDATA 'acc-assist\\acc-assist.settings.json'
+`$exeCandidates = @(
+  (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'),
+  (Join-Path `$env:LOCALAPPDATA 'Programs\\ACC Assist\\ACCAssist.exe'),
+  'C:\\Program Files\\ACC Assist\\ACCAssist.exe'
+)
+
+Write-Host '---PROCESS---'
+Get-Process ACCAssist -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize
+
+Write-Host '---EXE---'
+`$exeCandidates | Where-Object { Test-Path `$_ } | ForEach-Object { Get-Item `$_ | Select-Object FullName, LastWriteTime, Length | Format-List }
+
+Write-Host '---SETTINGS---'
+if (Test-Path `$settingsPath) {
+  `$settings = Get-Content -Raw `$settingsPath | ConvertFrom-Json
+  [pscustomobject]@{
+    SqlServer = `$settings.sql.server
+    SqlPort = `$settings.sql.port
+    SqlDatabase = `$settings.sql.database
+    SqlUser = `$settings.sql.user
+    SqlEncrypt = `$settings.sql.encrypt
+    SqlTrustServerCertificate = `$settings.sql.trustServerCertificate
+    TelemetryEnabled = `$settings.telemetry.enabled
+    TelemetryIngestUrl = `$settings.telemetry.ingestUrl
+  } | Format-List
+}
+
+Write-Host '---LOG FILES---'
+`$logDir = Join-Path `$env:APPDATA 'acc-assist\\logs'
+if (Test-Path `$logDir) {
+  Get-ChildItem `$logDir | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize
+}
+
+Write-Host '---DEBUG ENDPOINT---'
+[pscustomobject]@{
+  Url = 'http://127.0.0.1:3322/ask'
+  Health = 'http://127.0.0.1:3322/health'
+} | Format-List
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'install' {
+    Copy-Installer
+
+    $script = @"
+Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Process -FilePath '$RemoteInstallerPath' -ArgumentList '/S' -Wait
+Write-Host 'Install completed.'
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'uninstall' {
+    $script = @"
+Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force
+
+`$uninstallKeys = @(
+  'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+  'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+  'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'
+)
+
+`$app = Get-ItemProperty `$uninstallKeys -ErrorAction SilentlyContinue |
+  Where-Object { `$_.DisplayName -eq 'ACC Assist' } |
+  Select-Object -First 1
+
+if (-not `$app) {
+  Write-Host 'ACC Assist uninstall entry not found.'
+  exit 0
+}
+
+if (`$app.QuietUninstallString) {
+  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', `$app.QuietUninstallString -Wait
+} elseif (`$app.UninstallString) {
+  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', (`$app.UninstallString + ' /S') -Wait
+}
+
+Write-Host 'Uninstall completed.'
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'start' {
+    $script = @"
+`$exeCandidates = @(
+  (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'),
+  (Join-Path `$env:LOCALAPPDATA 'Programs\\ACC Assist\\ACCAssist.exe'),
+  'C:\\Program Files\\ACC Assist\\ACCAssist.exe'
+)
+`$exe = `$exeCandidates | Where-Object { Test-Path `$_ } | Select-Object -First 1
+if (-not `$exe) { throw 'ACCAssist.exe not found' }
+Start-Process -FilePath `$exe
+Write-Host "Started: `$exe"
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'stop' {
+    Invoke-RemotePowerShell "Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host 'Stopped.'"
+  }
+
+  'restart' {
+    Invoke-RemotePowerShell "Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1"
+    & $PSCommandPath -Action start -ServerHost $ServerHost -Port $Port -User $User -Password $Password -HostKey $HostKey | Out-Host
+  }
+
+  'settings' {
+    Invoke-RemotePowerShell "`$settingsPath = Join-Path `$env:APPDATA 'acc-assist\\acc-assist.settings.json'; Get-Content -Raw `$settingsPath"
+  }
+
+  'autoconfig-sql' {
+    $script = @"
+Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 1
+
+`$settingsPath = Join-Path `$env:APPDATA 'acc-assist\\acc-assist.settings.json'
+if (-not (Test-Path `$settingsPath)) { throw 'Settings file not found.' }
+`$settings = Get-Content -Raw `$settingsPath | ConvertFrom-Json
+
+`$settings.sql.server = '$SqlServer'
+`$settings.sql.port = $SqlPort
+`$settings.sql.database = '$SqlDatabase'
+`$settings.sql.user = '$SqlUser'
+`$settings.sql.password = '$SqlPassword'
+`$settings.sql.encrypt = `$false
+`$settings.sql.trustServerCertificate = `$true
+`$settings.sqlSecurity.enforceReadOnlyLogin = `$false
+
+foreach (`$profile in `$settings.connectionProfiles) {
+  if (`$profile.sql) {
+    `$profile.sql.server = '$SqlServer'
+    `$profile.sql.port = $SqlPort
+    `$profile.sql.database = '$SqlDatabase'
+    `$profile.sql.user = '$SqlUser'
+    `$profile.sql.password = '$SqlPassword'
+    `$profile.sql.encrypt = `$false
+    `$profile.sql.trustServerCertificate = `$true
+  }
+}
+
+`$settings | ConvertTo-Json -Depth 100 | Set-Content -Encoding UTF8 `$settingsPath
+
+[pscustomobject]@{
+  SqlServer = `$settings.sql.server
+  SqlPort = `$settings.sql.port
+  SqlDatabase = `$settings.sql.database
+  SqlUser = `$settings.sql.user
+} | Format-List
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'logs' {
+    $script = @"
+`$logPath = Join-Path `$env:APPDATA 'acc-assist\\logs\\telemetry-events.ndjson'
+if (-not (Test-Path `$logPath)) { throw "Telemetry log not found: `$logPath" }
+Get-Content -Path `$logPath -Tail $Tail -Wait
+"@
+
+    Invoke-RemotePowerShell $script
+  }
+
+  'ask-ai' {
+    if ([string]::IsNullOrWhiteSpace($Prompt)) {
+      throw 'Prompt is required for Action=ask-ai.'
+    }
+
+    $promptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
+
+    $script = @"
+`$ProgressPreference = 'SilentlyContinue'
+`$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
+`$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$promptBase64'))
+`$headers = @{ 'x-debug-token' = '$DebugToken' }
+
+function Test-DebugEndpoint {
+  try {
+    Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3322/health' -Headers `$headers -TimeoutSec 2 | Out-Null
+    return `$true
+  } catch {
+    return `$false
+  }
+}
+
+if (-not (Test-DebugEndpoint)) {
+  `$exeCandidates = @(
+    (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'),
+    (Join-Path `$env:LOCALAPPDATA 'Programs\\ACC Assist\\ACCAssist.exe'),
+    'C:\\Program Files\\ACC Assist\\ACCAssist.exe'
+  )
+
+  `$exe = `$exeCandidates | Where-Object { Test-Path `$_ } | Select-Object -First 1
+  if (-not `$exe) { throw 'ACCAssist.exe not found' }
+
+  Start-Process -FilePath `$exe -ArgumentList '--agent-debug-server-only'
+
+  `$ready = `$false
+  for (`$i = 0; `$i -lt 20; `$i++) {
+    Start-Sleep -Seconds 1
+    if (Test-DebugEndpoint) {
+      `$ready = `$true
+      break
+    }
+  }
+
+  if (-not `$ready) {
+    throw 'Debug endpoint did not start on 127.0.0.1:3322.'
+  }
+}
+
+`$body = @{
+  prompt = `$prompt
+  mode = 'manual'
+  conversationId = 'ssh-debug'
+} | ConvertTo-Json -Depth 5
+
+try {
+  `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers `$headers -Body `$body -ContentType 'application/json'
+
+  `$payload = [pscustomobject]@{
+    Ok = [bool]`$response.ok
+    ConversationId = [string]`$response.conversationId
+    RequestId = [string]`$response.requestId
+    FinalTextBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]`$response.result.finalText))
+    ErrorTextBase64 = ''
+    Rounds = [int]`$response.result.rounds
+    ToolCallsUsed = [int]`$response.result.toolCallsUsed
+  }
+} catch {
+  `$errorMessage = if (`$_.ErrorDetails -and `$_.ErrorDetails.Message) { [string]`$_.ErrorDetails.Message } else { [string]`$_.Exception.Message }
+  `$payload = [pscustomobject]@{
+    Ok = `$false
+    ConversationId = ''
+    RequestId = ''
+    FinalTextBase64 = ''
+    ErrorTextBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(`$errorMessage))
+    Rounds = 0
+    ToolCallsUsed = 0
+  }
+}
+
+Write-Output '__ACC_ASSIST_JSON_BEGIN__'
+Write-Output (`$payload | ConvertTo-Json -Compress)
+Write-Output '__ACC_ASSIST_JSON_END__'
+"@
+
+    $rawOutput = Invoke-RemotePowerShell $script | Out-String
+
+    if ($rawOutput -match '__ACC_ASSIST_JSON_BEGIN__\s*(\{.+?\})\s*__ACC_ASSIST_JSON_END__') {
+      $payload = $Matches[1] | ConvertFrom-Json
+      $finalText = if ([string]::IsNullOrWhiteSpace([string]$payload.FinalTextBase64)) { '' } else { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$payload.FinalTextBase64)) }
+      $errorText = if ([string]::IsNullOrWhiteSpace([string]$payload.ErrorTextBase64)) { '' } else { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$payload.ErrorTextBase64)) }
+
+      Write-Host "Ok: $($payload.Ok)"
+      Write-Host "ConversationId: $($payload.ConversationId)"
+      Write-Host "RequestId: $($payload.RequestId)"
+      Write-Host "Rounds: $($payload.Rounds)"
+      Write-Host "ToolCallsUsed: $($payload.ToolCallsUsed)"
+      if (-not [string]::IsNullOrWhiteSpace($errorText)) {
+        Write-Host '---ERROR---'
+        Write-Host $errorText
+      }
+      if (-not [string]::IsNullOrWhiteSpace($finalText)) {
+        Write-Host '---FINAL TEXT---'
+        Write-Host $finalText
+      }
+    } else {
+      $rawOutput
+    }
+  }
+}
