@@ -14,6 +14,7 @@ import type {
   SqlQueryRow
 } from '../../shared/contracts'
 import type { AuditLogEntry } from './auditLogService'
+import { detectFinancialIntent, type FinancialIntentId } from './financialIntentRegistry'
 import { SqlPolicyViolationError } from './sqlConnectionManager'
 
 const FINANCIAL_SCHEMA_GUIDE = [
@@ -172,9 +173,6 @@ const DATE_RANGE_AMBIGUITY_SIGNAL_PATTERN =
 const DATE_RANGE_EXPLICIT_SCOPE_PATTERN =
   /((?:13|14|19|20)\d{2}|this|current|today|امسال|سال\s*جاری|ماه\s*جاری|فصل\s*جاری|month\s*to\s*date|quarter\s*to\s*date)/iu
 
-const FISCAL_YEAR_COUNT_INTENT_PATTERN =
-  /(?:\bhow\s+many\s+fiscal\s+years\b|\bfiscal\s+year\s+count\b|\bcount\s+of\s+fiscal\s+years\b|(?:تعداد|چند)\s*سال\s*مالی|سال\s*مالی\s*(?:چند|تعداد))/iu
-
 type PreferredMapping = {
   tableRef: string
   source: 'selected' | 'suggested'
@@ -256,8 +254,15 @@ type ActiveAgentExecution = {
   abortController: AbortController
 }
 
-type FiscalYearCountFallbackResult = {
-  markdown: string
+type DeterministicFiscalIntent = Extract<FinancialIntentId, 'count_fiscal_years' | 'list_fiscal_years'>
+
+type FiscalYearFallbackResult = {
+  count: number
+  years: number[]
+  tableRef: string
+  columnName: string
+  minYear: number | null
+  maxYear: number | null
   toolCallsUsed: number
 }
 
@@ -471,21 +476,25 @@ export class AgentOrchestrator {
         conversationMemory
       )
       let totalToolCallCount = 0
-      const shouldUseFiscalYearCountFallback =
-        payload.mode === 'manual' && this.isFiscalYearCountIntent(prompt)
+      const deterministicFiscalIntent =
+        payload.mode === 'manual' ? this.detectDeterministicFiscalIntent(prompt) : null
 
       const clarificationResponse =
         payload.mode === 'manual'
           ? this.buildClarificationResponseIfNeeded(settings, prompt, conversationMemory)
           : null
 
-      if (shouldUseFiscalYearCountFallback) {
+      if (deterministicFiscalIntent) {
         this.emitProgress(onProgress, {
           type: 'thinking',
-          message: 'در حال اجرای مسیر تخصصی شمارش سال مالی از دیتابیس...'
+          message:
+            deterministicFiscalIntent === 'count_fiscal_years'
+              ? 'در حال اجرای ابزار قطعی شمارش سال مالی از دیتابیس...'
+              : 'در حال اجرای ابزار قطعی فهرست سال های مالی از دیتابیس...'
         })
 
-        const fallbackResult = await this.tryResolveFiscalYearCountFallback(
+        const fallbackResult = await this.tryResolveFiscalYearFallback(
+          deterministicFiscalIntent,
           settings,
           conversationMemory,
           execution.abortController.signal,
@@ -494,8 +503,9 @@ export class AgentOrchestrator {
 
         if (fallbackResult) {
           totalToolCallCount += fallbackResult.toolCallsUsed
-          const finalText = this.ensureFinancialResponseTemplate(
-            fallbackResult.markdown,
+          const finalText = this.finalizeFinancialResponse(
+            prompt,
+            this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
             conversationMemory,
             totalToolCallCount
           )
@@ -529,7 +539,8 @@ export class AgentOrchestrator {
       }
 
       if (clarificationResponse) {
-        const finalText = this.ensureFinancialResponseTemplate(
+        const finalText = this.finalizeFinancialResponse(
+          prompt,
           clarificationResponse,
           conversationMemory,
           totalToolCallCount
@@ -608,13 +619,17 @@ export class AgentOrchestrator {
         }
 
         if (toolCalls.length === 0) {
-          if (shouldUseFiscalYearCountFallback && totalToolCallCount === 0) {
+          if (deterministicFiscalIntent && totalToolCallCount === 0) {
             this.emitProgress(onProgress, {
               type: 'thinking',
-              message: 'در حال اجرای مسیر کنترلی برای شمارش سال مالی از داده واقعی دیتابیس...'
+              message:
+                deterministicFiscalIntent === 'count_fiscal_years'
+                  ? 'در حال اجرای ابزار پشتیبان شمارش سال مالی از داده واقعی دیتابیس...'
+                  : 'در حال اجرای ابزار پشتیبان فهرست سال های مالی از داده واقعی دیتابیس...'
             })
 
-            const fallbackResult = await this.tryResolveFiscalYearCountFallback(
+            const fallbackResult = await this.tryResolveFiscalYearFallback(
+              deterministicFiscalIntent,
               settings,
               conversationMemory,
               execution.abortController.signal,
@@ -623,8 +638,9 @@ export class AgentOrchestrator {
 
             if (fallbackResult) {
               totalToolCallCount += fallbackResult.toolCallsUsed
-              const finalText = this.ensureFinancialResponseTemplate(
-                fallbackResult.markdown,
+              const finalText = this.finalizeFinancialResponse(
+                prompt,
+                this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
                 conversationMemory,
                 totalToolCallCount
               )
@@ -658,7 +674,8 @@ export class AgentOrchestrator {
           }
 
           const rawFinalText = response.text.trim() || 'Model returned an empty response.'
-          const finalText = this.ensureFinancialResponseTemplate(
+          const finalText = this.finalizeFinancialResponse(
+            prompt,
             rawFinalText,
             conversationMemory,
             totalToolCallCount
@@ -2405,17 +2422,23 @@ export class AgentOrchestrator {
     return `${normalized.slice(0, maxLength - 1)}…`
   }
 
-  private isFiscalYearCountIntent(prompt: string): boolean {
-    const normalizedPrompt = this.normalizePersianDigits(prompt)
-    return FISCAL_YEAR_COUNT_INTENT_PATTERN.test(normalizedPrompt)
+  private detectDeterministicFiscalIntent(prompt: string): DeterministicFiscalIntent | null {
+    const matchedIntent = detectFinancialIntent(prompt)
+
+    if (matchedIntent?.intentId === 'count_fiscal_years' || matchedIntent?.intentId === 'list_fiscal_years') {
+      return matchedIntent.intentId
+    }
+
+    return null
   }
 
-  private async tryResolveFiscalYearCountFallback(
+  private async tryResolveFiscalYearFallback(
+    deterministicIntent: DeterministicFiscalIntent,
     settings: AppSettings,
     conversationMemory: ConversationMemoryState,
     signal: AbortSignal,
     onProgress?: (event: AgentProgressEvent) => void
-  ): Promise<FiscalYearCountFallbackResult | null> {
+  ): Promise<FiscalYearFallbackResult | null> {
     const activeCatalog = this.findActiveSchemaCatalog(settings)
     let toolCallsUsed = 0
 
@@ -2564,7 +2587,7 @@ WHERE fiscal_text LIKE '[12][0-9][0-9][0-9]'
   FROM ${this.quoteSqlIdentifier(bestRef.schemaName)}.${this.quoteSqlIdentifier(bestRef.tableName)}
   WHERE TRY_CONVERT(NVARCHAR(32), ${this.quoteSqlIdentifier(best.candidate.columnName)}) LIKE '[12][0-9][0-9][0-9]'
 )
-SELECT TOP (8) fiscal_year
+SELECT TOP (48) fiscal_year
 FROM fiscal_values
 WHERE fiscal_year BETWEEN 1300 AND 2099
 ORDER BY fiscal_year DESC`
@@ -2581,43 +2604,194 @@ ORDER BY fiscal_year DESC`
       previewYears = []
     }
 
-    const yearSpanText =
-      best.minYear !== null && best.maxYear !== null
-        ? `${best.minYear} تا ${best.maxYear}`
-        : 'نامشخص'
-    const previewText = previewYears.length > 0 ? previewYears.join('، ') : 'نمونه معتبر بازیابی نشد.'
-
     this.rememberToolTrace(
       conversationMemory,
-      `fallback:fiscal_year_count table=${best.candidate.tableRef} column=${best.candidate.columnName} count=${best.count}`
+      `fallback:${deterministicIntent} table=${best.candidate.tableRef} column=${best.candidate.columnName} count=${best.count}`
     )
 
     this.emitProgress(onProgress, {
       type: 'tool-success',
-      message: `✅ مسیر کنترلی سال مالی اجرا شد: ${best.count} سال مالی در ${best.candidate.tableRef}.${best.candidate.columnName}`,
-      toolName: 'fetch_financial_data',
+      message: `✅ ابزار ${deterministicIntent} اجرا شد: ${best.count} سال مالی در ${best.candidate.tableRef}.${best.candidate.columnName}`,
+      toolName: deterministicIntent,
       rowCount: best.count
     })
 
     return {
-      markdown: [
-        '### Summary',
-        `در دیتابیس فعلی ${best.count} سال مالی متمایز شناسایی شد.`,
-        '',
-        '### Findings',
-        `- جدول/ستون مبنا: ${best.candidate.tableRef}.${best.candidate.columnName}`,
-        `- بازه سال‌ها: ${yearSpanText}`,
-        `- نمونه سال‌های بازیابی‌شده (نزولی): ${previewText}`,
-        '',
-        '### Evidence',
-        `- مسیر کنترلی read-only اجرا شد و ${toolCallsUsed} کوئری امن برای کشف و اعتبارسنجی سال مالی اجرا گردید.`,
-        '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در شمارش لحاظ شدند.',
-        '',
-        '### Actions',
-        '- اگر منظورتان سال مالی یک شرکت یا شعبه خاص است، نام شرکت/شعبه را اعلام کنید تا شمارش scope-based انجام شود.'
-      ].join('\n'),
+      count: best.count,
+      years: previewYears,
+      tableRef: best.candidate.tableRef,
+      columnName: best.candidate.columnName,
+      minYear: best.minYear,
+      maxYear: best.maxYear,
       toolCallsUsed
     }
+  }
+
+  private composeFiscalYearDeterministicMarkdown(
+    deterministicIntent: DeterministicFiscalIntent,
+    result: FiscalYearFallbackResult
+  ): string {
+    const yearSpanText =
+      result.minYear !== null && result.maxYear !== null
+        ? `${result.minYear} تا ${result.maxYear}`
+        : 'نامشخص'
+    const previewText = result.years.length > 0 ? result.years.join('، ') : 'نمونه معتبر بازیابی نشد.'
+
+    if (deterministicIntent === 'list_fiscal_years') {
+      const listedYears = result.years.length > 0 ? result.years.join('، ') : 'سال مالی قابل اتکا یافت نشد.'
+
+      return [
+        '### Summary',
+        `فهرست سال های مالی شناسایی شده: ${listedYears}`,
+        '',
+        '### Findings',
+        `- تعداد کل سال های مالی متمایز: ${result.count}`,
+        `- بازه سال ها: ${yearSpanText}`,
+        `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
+        '',
+        '### Evidence',
+        `- ابزار قطعی list_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
+        '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در خروجی لحاظ شدند.',
+        '',
+        '### Actions',
+        '- اگر منظور شما شرکت یا شعبه خاصی است، scope را مشخص کنید تا لیست محدودشده ارائه شود.'
+      ].join('\n')
+    }
+
+    return [
+      '### Summary',
+      `در دیتابیس فعلی ${result.count} سال مالی متمایز شناسایی شد.`,
+      '',
+      '### Findings',
+      `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
+      `- بازه سال ها: ${yearSpanText}`,
+      `- نمونه سال های بازیابی شده (نزولی): ${previewText}`,
+      '',
+      '### Evidence',
+      `- ابزار قطعی count_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
+      '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در شمارش لحاظ شدند.',
+      '',
+      '### Actions',
+      '- اگر منظورتان سال مالی یک شرکت یا شعبه خاص است، نام شرکت/شعبه را اعلام کنید تا شمارش scope-based انجام شود.'
+    ].join('\n')
+  }
+
+  private finalizeFinancialResponse(
+    prompt: string,
+    rawText: string,
+    conversationMemory: ConversationMemoryState,
+    totalToolCallCount: number
+  ): string {
+    const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
+    const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
+    return this.enforceEvidenceFirstContract(prompt, alignedText, totalToolCallCount)
+  }
+
+  private enforceEvidenceFirstContract(prompt: string, finalText: string, totalToolCallCount: number): string {
+    const normalizedText = this.normalizePersianDigits(finalText)
+
+    if (/cannot\s+answer\s+reliably/iu.test(normalizedText)) {
+      return finalText
+    }
+
+    const sections = this.parseFinancialTemplateSections(finalText)
+    const narrative = `${sections.summary}\n${sections.findings}`.trim()
+    const evidence = sections.evidence
+    const appearsFinancialClaim = this.appearsToContainFinancialClaim(narrative)
+    const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
+
+    if (totalToolCallCount === 0 && appearsFinancialClaim) {
+      return this.buildEvidenceContractFailureResponse(
+        'پاسخ مالی عددی بدون اجرای ابزار read-only تولید شد و قابل اتکا نیست.',
+        prompt
+      )
+    }
+
+    if (totalToolCallCount > 0 && !hasStructuredEvidence) {
+      return this.buildEvidenceContractFailureResponse(
+        'پاسخ مالی فاقد شواهد ساخت یافته کافی (ابزار/کوئری/جدول/ردیف) بود.',
+        prompt
+      )
+    }
+
+    return finalText
+  }
+
+  private appearsToContainFinancialClaim(text: string): boolean {
+    const normalized = this.normalizePersianDigits(text)
+    const hasNumericSignal =
+      /\b(?:13|14|19|20)\d{2}\b/.test(normalized) || /\b\d{1,3}(?:[\s,]\d{3})*(?:\.\d+)?\b/.test(normalized)
+    const hasFinancialSignal =
+      /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار)/iu.test(
+        normalized
+      )
+
+    return hasNumericSignal && hasFinancialSignal
+  }
+
+  private hasStructuredEvidence(evidenceSection: string): boolean {
+    const normalized = this.normalizePersianDigits(evidenceSection)
+
+    return /(?:query|tool|read-only|table|column|row|runtime\s*scope|fetch_financial_data|count_fiscal_years|list_fiscal_years|کوئری|ابزار|جدول|ستون|ردیف|شواهد|شاهد)/iu.test(
+      normalized
+    )
+  }
+
+  private buildEvidenceContractFailureResponse(reason: string, prompt: string): string {
+    return [
+      '### Summary',
+      'Cannot answer reliably: پاسخ مالی بدون شواهد کافی مجاز نیست.',
+      '',
+      '### Findings',
+      `- دلیل رد پاسخ: ${reason}`,
+      '',
+      '### Evidence',
+      '- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.',
+      '',
+      '### Actions',
+      `- سوال را با scope دقیق تر تکرار کنید: ${this.compactText(prompt, 180)}`,
+      '- در صورت نیاز، بازه زمانی/سال مالی/شرکت/شعبه را مشخص کنید تا ابزارها اجرا شوند.'
+    ].join('\n')
+  }
+
+  private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
+    const expectedIntent = this.detectDeterministicFiscalIntent(prompt)
+
+    if (!expectedIntent) {
+      return finalText
+    }
+
+    const normalizedText = this.normalizePersianDigits(finalText)
+    const hasFiscalYearPhrase = /سال\s*مالی|fiscal\s*year/iu.test(normalizedText)
+    const hasCountSignal = /(?:تعداد|count|شمارش)/iu.test(normalizedText)
+    const hasListSignal = /(?:لیست|فهرست|list|سال\s*های\s*مالی|سالهای\s*مالی)/iu.test(normalizedText)
+    const hasYearToken = /\b(?:13|14|19|20)\d{2}\b/.test(normalizedText)
+
+    const matchedIntent =
+      hasFiscalYearPhrase && hasListSignal && hasYearToken
+        ? 'list_fiscal_years'
+        : hasFiscalYearPhrase && (hasCountSignal || hasYearToken)
+          ? 'count_fiscal_years'
+          : null
+
+    if (matchedIntent === expectedIntent) {
+      return finalText
+    }
+
+    return [
+      '### Summary',
+      'Cannot answer reliably: پاسخ مدل با intent سوال کاربر هم راستا نیست.',
+      '',
+      '### Findings',
+      `- intent مورد انتظار: ${expectedIntent}`,
+      `- intent تشخیص داده شده در پاسخ: ${matchedIntent ?? 'unknown'}`,
+      '',
+      '### Evidence',
+      '- قاعده کنترل کیفیت intent پاسخ فعال شد و از ارائه پاسخ مالی نامعتبر جلوگیری کرد.',
+      '',
+      '### Actions',
+      '- لطفا سوال را دقیق تر بیان کنید (مثال: تعداد سال های مالی یا لیست سال های مالی).'
+    ].join('\n')
   }
 
   private quoteSqlIdentifier(value: string): string {

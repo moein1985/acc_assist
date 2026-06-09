@@ -102,6 +102,12 @@ export interface AccountingSoftwareDetection {
   confidence: number
 }
 
+export interface ConnectorSchemaFingerprint {
+  tableRefCount: number
+  normalizedTokenCount: number
+  signature: string
+}
+
 export interface SchemaColumnCatalogItem {
   name: string
   dataType: string
@@ -151,6 +157,7 @@ export interface SchemaCatalogEntry {
   detectedDateMode?: SchemaDateMode
   selectedDateMode?: SchemaDateMode | null
   dateEvidence?: string[]
+  connectorFingerprint?: ConnectorSchemaFingerprint
 }
 
 export interface PromptTemplate {
@@ -385,6 +392,37 @@ export interface RendererTelemetryEvent {
   message?: string
   stack?: string
   details?: Record<string, unknown>
+}
+
+export type AuditLogStage = 'start' | 'tool-start' | 'tool-success' | 'tool-error' | 'final' | 'error'
+
+export interface AuditLogQueryRequest {
+  limit?: number
+  requestId?: string
+  conversationId?: string
+  stage?: AuditLogStage | 'all'
+  fromTimestamp?: string
+  toTimestamp?: string
+}
+
+export interface AuditLogViewerEntry {
+  timestamp: string
+  requestId: string
+  conversationId?: string
+  stage: AuditLogStage
+  toolName?: string
+  rowCount?: number
+  round?: number
+  durationMs?: number
+  errorCode?: string
+  errorCategory?: string
+  promptPreview?: string
+  sqlQueryPreview?: string
+}
+
+export interface AuditLogQueryResult {
+  entries: AuditLogViewerEntry[]
+  total: number
 }
 
 export interface IpcResponse<T> {

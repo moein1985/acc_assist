@@ -263,10 +263,200 @@
         flex-wrap: wrap;
       }
 
+      .audit-viewer {
+        border: 1px solid rgba(45, 63, 79, 0.18);
+        border-radius: 14px;
+        background: rgba(252, 251, 247, 0.9);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .audit-viewer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .audit-viewer-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #2a3c46;
+      }
+
+      .audit-filter-grid {
+        display: grid;
+        grid-template-columns: minmax(160px, 1fr) minmax(130px, 160px) minmax(110px, 130px) auto;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .audit-list {
+        max-height: 260px;
+        overflow: auto;
+        border: 1px solid rgba(45, 63, 79, 0.18);
+        border-radius: 10px;
+        background: #fffdf9;
+        padding: 8px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .audit-item {
+        border: 1px solid rgba(66, 85, 102, 0.2);
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 8px 10px;
+        display: grid;
+        gap: 4px;
+      }
+
+      .audit-item-meta {
+        font-size: 11px;
+        font-weight: 700;
+        color: #4d5f70;
+      }
+
+      .audit-item-body {
+        font-size: 12px;
+        color: #2f3f4c;
+        white-space: pre-wrap;
+      }
+
+      .kpi-panel {
+        border: 1px solid rgba(45, 63, 79, 0.18);
+        border-radius: 14px;
+        background: linear-gradient(145deg, rgba(249, 253, 252, 0.95) 0%, rgba(242, 249, 250, 0.95) 100%);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .kpi-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #27404b;
+      }
+
+      .kpi-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      }
+
+      .kpi-card {
+        border: 1px solid rgba(50, 72, 89, 0.2);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.88);
+        padding: 10px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .kpi-card-label {
+        font-size: 11px;
+        color: #58707f;
+        font-weight: 700;
+      }
+
+      .kpi-card-value {
+        font-size: 19px;
+        font-weight: 850;
+        color: #17303d;
+      }
+
+      .kpi-card-hint {
+        font-size: 11px;
+        color: #4f6270;
+      }
+
+      .quality-panel {
+        border: 1px solid rgba(45, 63, 79, 0.18);
+        border-radius: 14px;
+        background: linear-gradient(145deg, rgba(252, 249, 244, 0.95) 0%, rgba(247, 242, 233, 0.95) 100%);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .quality-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      }
+
+      .quality-card {
+        border: 1px solid rgba(77, 64, 40, 0.22);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.88);
+        padding: 10px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .quality-card-label {
+        font-size: 11px;
+        color: #6d5a3c;
+        font-weight: 700;
+      }
+
+      .quality-card-value {
+        font-size: 18px;
+        font-weight: 850;
+        color: #3f2f17;
+      }
+
+      .quality-stage-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .quality-stage-chip {
+        border: 1px solid rgba(91, 77, 47, 0.28);
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 11px;
+        color: #5f4d2f;
+        background: rgba(255, 255, 255, 0.84);
+      }
+
+      .wizard-panel {
+        border: 1px solid rgba(45, 63, 79, 0.18);
+        border-radius: 12px;
+        background: rgba(250, 252, 253, 0.86);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .wizard-meta {
+        font-size: 12px;
+        color: #425666;
+        font-weight: 700;
+      }
+
+      .wizard-concept-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #22333f;
+      }
+
+      .wizard-suggestions {
+        font-size: 12px;
+        color: #3f4f5d;
+      }
+
       @media (max-width: 760px) {
         .tab-btn {
           width: 100%;
           text-align: center;
+        }
+
+        .audit-filter-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -443,6 +633,25 @@
                 <div id="schemaMappingEditor" class="field-grid" hidden>
                   <div class="inline-alert note-info">
                     نگاشت مفاهیم مالی را از بین جدول های شناسایی شده انتخاب کنید.
+                  </div>
+                  <div class="row">
+                    <button id="startSchemaWizardBtn" class="btn" type="button">شروع wizard نگاشت دستی</button>
+                  </div>
+                  <div id="schemaMappingWizard" class="wizard-panel" hidden>
+                    <div id="schemaWizardSummary" class="wizard-meta">wizard نگاشت آماده اجرا است.</div>
+                    <div id="schemaWizardConceptTitle" class="wizard-concept-title">-</div>
+                    <label>
+                      انتخاب جدول برای مفهوم جاری
+                      <select id="schemaWizardSelect"></select>
+                    </label>
+                    <div id="schemaWizardSuggestions" class="wizard-suggestions">پیشنهادها: -</div>
+                    <div class="row">
+                      <button id="schemaWizardPrevBtn" class="btn" type="button">قبلی</button>
+                      <button id="schemaWizardSkipBtn" class="btn" type="button">رد کردن</button>
+                      <button id="schemaWizardApplyBtn" class="btn" type="button">ثبت این مرحله</button>
+                      <button id="schemaWizardNextBtn" class="btn" type="button">بعدی</button>
+                      <button id="schemaWizardCloseBtn" class="btn btn-danger" type="button">بستن wizard</button>
+                    </div>
                   </div>
                   <label>
                     نرم افزار هدف برای تحلیل
@@ -656,6 +865,23 @@
               <div id="promptTemplateList" class="prompt-template-list"></div>
             </section>
 
+            <section id="kpiCardsPanel" class="kpi-panel" aria-label="خلاصه KPI پاسخ" hidden>
+              <div class="kpi-title">خلاصه KPI از شواهد پاسخ</div>
+              <div id="kpiCardsGrid" class="kpi-grid"></div>
+              <div id="kpiCardsEmpty" class="inline-alert note-info" hidden>
+                برای این پاسخ KPI قابل اعتماد از شواهد استخراج نشد.
+              </div>
+            </section>
+
+            <section id="qualityDashboardPanel" class="quality-panel" aria-label="داشبورد کیفیت عامل" hidden>
+              <div class="kpi-title">داشبورد کیفیت عامل</div>
+              <div id="qualityDashboardGrid" class="quality-grid"></div>
+              <div id="qualityStageBreakdown" class="quality-stage-row"></div>
+              <div id="qualityDashboardEmpty" class="inline-alert note-info" hidden>
+                هنوز داده کافی برای محاسبه کیفیت در لاگ حسابرسی وجود ندارد.
+              </div>
+            </section>
+
             <section id="trendChartPanel" class="trend-chart" aria-label="نمای روند شواهد" hidden>
               <div class="trend-chart-header">
                 <span class="trend-chart-title">نمای روند از شواهد ابزار</span>
@@ -665,6 +891,37 @@
               <div id="trendChartEmpty" class="inline-alert note-info" hidden>
                 هنوز داده کافی برای ترسیم روند وجود ندارد.
               </div>
+            </section>
+
+            <section class="audit-viewer" aria-label="مشاهده لاگ حسابرسی">
+              <div class="audit-viewer-header">
+                <span class="audit-viewer-title">Audit Viewer (Read-Only)</span>
+                <span id="auditLogSummary" class="inline-alert note-info">در حال بارگذاری لاگ حسابرسی...</span>
+              </div>
+              <div class="audit-filter-grid">
+                <label>
+                  فیلتر requestId
+                  <input id="auditRequestIdInput" type="text" placeholder="مثال: req-..." />
+                </label>
+                <label>
+                  Stage
+                  <select id="auditStageFilterInput">
+                    <option value="all">all</option>
+                    <option value="start">start</option>
+                    <option value="tool-start">tool-start</option>
+                    <option value="tool-success">tool-success</option>
+                    <option value="tool-error">tool-error</option>
+                    <option value="final">final</option>
+                    <option value="error">error</option>
+                  </select>
+                </label>
+                <label>
+                  Limit
+                  <input id="auditLimitInput" type="number" min="10" max="500" value="80" />
+                </label>
+                <button id="auditRefreshBtn" class="btn" type="button">به روزرسانی لاگ</button>
+              </div>
+              <div id="auditLogList" class="audit-list"></div>
             </section>
 
             <label>

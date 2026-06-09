@@ -18,6 +18,8 @@ param(
   [string]$SqlPassword = 'damavand',
 
   [string]$Prompt = '',
+  [string]$PromptBase64 = '',
+  [string]$PromptFile = '',
   [string]$DebugToken = 'accassist-ssh-debug-token',
 
   [int]$Tail = 60
@@ -219,16 +221,28 @@ Get-Content -Path `$logPath -Tail $Tail -Wait
   }
 
   'ask-ai' {
-    if ([string]::IsNullOrWhiteSpace($Prompt)) {
-      throw 'Prompt is required for Action=ask-ai.'
+    $finalPromptBase64 = ''
+    if (-not [string]::IsNullOrWhiteSpace($PromptFile)) {
+      if (-not (Test-Path $PromptFile)) {
+        throw "Prompt file not found: $PromptFile"
+      }
+      $fileContent = Get-Content -Raw -Path $PromptFile -Encoding UTF8
+      $finalPromptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($fileContent))
     }
-
-    $promptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
+    elseif (-not [string]::IsNullOrWhiteSpace($PromptBase64)) {
+      $finalPromptBase64 = $PromptBase64
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($Prompt)) {
+      $finalPromptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
+    }
+    else {
+      throw 'Prompt is required for Action=ask-ai. Use -Prompt, -PromptBase64, or -PromptFile.'
+    }
 
     $script = @"
 `$ProgressPreference = 'SilentlyContinue'
 `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
-`$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$promptBase64'))
+`$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$finalPromptBase64'))
 `$headers = @{ 'x-debug-token' = '$DebugToken' }
 
 function Test-DebugEndpoint {

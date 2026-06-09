@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 import { SchemaDiscoveryService } from '../../src/main/services/schemaDiscoveryService'
 import { createSyntheticSchemaExecutor, loadSyntheticDbSnapshot } from '../helpers/syntheticDbFixture'
@@ -31,6 +33,8 @@ test('detects Sepidar connector and shamsi date mode from synthetic schema', asy
   )
 
   assert.equal(catalog.detectedDateMode, 'shamsiText')
+  assert.ok(catalog.connectorFingerprint)
+  assert.ok((catalog.connectorFingerprint?.signature?.length ?? 0) >= 16)
 })
 
 test('detects Mahak connector and fiscal period mode from synthetic schema', async () => {
@@ -60,6 +64,8 @@ test('detects Mahak connector and fiscal period mode from synthetic schema', asy
   )
 
   assert.equal(catalog.detectedDateMode, 'fiscalPeriod')
+  assert.ok(catalog.connectorFingerprint)
+  assert.ok((catalog.connectorFingerprint?.tableRefCount ?? 0) > 0)
 })
 
 test('keeps auto-detection while persisting manual software override', async () => {
@@ -75,4 +81,25 @@ test('keeps auto-detection while persisting manual software override', async () 
 
   assert.equal(catalog.selectedSoftwareId, 'mahak')
   assert.equal(catalog.detectedSoftware?.id, 'sepidar')
+})
+
+test('security regression: should not expose a raw sql:query IPC handler', async () => {
+  const mainProcessFile = resolve(process.cwd(), 'src/main/index.ts')
+  const preloadScriptFile = resolve(process.cwd(), 'src/preload/index.ts')
+
+  const mainContent = await readFile(mainProcessFile, 'utf-8')
+  const preloadContent = await readFile(preloadScriptFile, 'utf-8')
+
+  const forbiddenMain = "ipcMain.handle('sql:query'"
+  const forbiddenPreload = "ipcRenderer.invoke('sql:query'"
+
+  assert.ok(
+    !mainContent.includes(forbiddenMain),
+    `Found forbidden raw IPC handler '${forbiddenMain}' in src/main/index.ts`
+  )
+
+  assert.ok(
+    !preloadContent.includes(forbiddenPreload),
+    `Found forbidden raw IPC invocation '${forbiddenPreload}' in src/preload/index.ts`
+  )
 })

@@ -1,7 +1,35 @@
 [
   {
+    "id": "count-fiscal-years-fa",
+    "prompt": "در دیتابیس چند سال مالی قرار داره؟",
+    "type": "tool",
+    "expectedTool": {
+      "name": "count_fiscal_years",
+      "arguments": {}
+    },
+    "toolResult": {
+      "count": 3,
+      "query": "SELECT COUNT(DISTINCT fiscal_year) as year_count FROM dbo.ACC_Documents",
+      "evidence": "Counted distinct fiscal_year from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "3",
+        "سال مالی"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
     "id": "petty-cash-last-quarter",
     "prompt": "How much petty cash did Mr. Moradi receive in the last quarter?",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 person_name, total_amount FROM petty_cash_receipts WHERE person_name = N'Mr. Moradi' ORDER BY receipt_date DESC",
     "sqlRows": [
       {
@@ -22,7 +50,12 @@
       "dimensionField": "person_name",
       "expectedDimensionValue": "Mr. Moradi",
       "expectedTotal": 14600000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -31,6 +64,7 @@
   {
     "id": "bank-payments-vendor-farvardin",
     "prompt": "Give me the total bank payments for vendor Parsa Trading in Farvardin.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 vendor_name, payment_amount FROM bank_payments WHERE vendor_name = N'Parsa Trading' AND fiscal_month = N'Farvardin' ORDER BY payment_date DESC",
     "sqlRows": [
       {
@@ -47,7 +81,12 @@
       "dimensionField": "vendor_name",
       "expectedDimensionValue": "Parsa Trading",
       "expectedTotal": 4750000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -56,6 +95,7 @@
   {
     "id": "petty-cash-shamsi-farvardin-1403",
     "prompt": "For Mr. Moradi, give the petty cash total in 1403/01 using Shamsi dates.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 person_name, total_amount, receipt_date_shamsi FROM petty_cash_receipts WHERE person_name = N'Mr. Moradi' AND receipt_date_shamsi BETWEEN N'1403/01/01' AND N'1403/01/31' ORDER BY receipt_date_shamsi DESC",
     "sqlRows": [
       {
@@ -79,7 +119,12 @@
       "dimensionField": "person_name",
       "expectedDimensionValue": "Mr. Moradi",
       "expectedTotal": 9300000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -88,6 +133,7 @@
   {
     "id": "bank-payments-fiscal-period-140302",
     "prompt": "Total bank payments for vendor Parsa Trading in fiscal period 140302.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 vendor_name, payment_amount, fiscal_period FROM bank_payments WHERE vendor_name = N'Parsa Trading' AND fiscal_period = 140302 ORDER BY payment_date DESC",
     "sqlRows": [
       {
@@ -111,7 +157,12 @@
       "dimensionField": "vendor_name",
       "expectedDimensionValue": "Parsa Trading",
       "expectedTotal": 4900000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -120,6 +171,7 @@
   {
     "id": "supplier-payments-ambiguous-mapping-ordibehesht",
     "prompt": "For Ordibehesht, show total payments to supplier Arman Co from the mapped AP payment table, not journal lines.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 supplier_name, payment_amount, persian_month FROM ap_supplier_payments WHERE supplier_name = N'Arman Co' AND persian_month = N'Ordibehesht' ORDER BY payment_date DESC",
     "sqlRows": [
       {
@@ -143,7 +195,12 @@
       "dimensionField": "supplier_name",
       "expectedDimensionValue": "Arman Co",
       "expectedTotal": 3050000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -152,6 +209,7 @@
   {
     "id": "sepidar-vouchers-fiscal-year-1403",
     "prompt": "In Sepidar, total debit from ACC_DocumentItems for fiscal year 1403.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 d.document_no, i.debit_amount, i.credit_amount FROM dbo.ACC_Documents d INNER JOIN dbo.ACC_DocumentItems i ON i.document_id = d.document_id WHERE d.fiscal_year = 1403 ORDER BY d.document_id DESC",
     "sqlRows": [
       {
@@ -175,7 +233,12 @@
       "dimensionField": "document_no",
       "expectedDimensionValue": "S-1403-0104",
       "expectedTotal": 5100000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95
@@ -184,6 +247,7 @@
   {
     "id": "mahak-daryaftpardakht-fiscal-period-140302",
     "prompt": "In Mahak, total received payments from DaryaftPardakht in fiscal period 140302.",
+    "type": "sql",
     "sqlQuery": "SELECT TOP 10 p.person_name, d.amount, d.fiscal_period FROM dbo.DaryaftPardakht d INNER JOIN dbo.Ashkhas p ON p.person_id = d.person_id WHERE d.fiscal_period = 140302 ORDER BY d.tx_id DESC",
     "sqlRows": [
       {
@@ -207,7 +271,12 @@
       "dimensionField": "person_name",
       "expectedDimensionValue": "Parsa Trading",
       "expectedTotal": 4000000,
-      "requiredSections": ["Summary", "Findings", "Evidence", "Actions"],
+      "requiredSections": [
+        "Summary",
+        "Findings",
+        "Evidence",
+        "Actions"
+      ],
       "minToolCalls": 1,
       "maxRounds": 3,
       "minScore": 95

@@ -2,6 +2,8 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import type {
+  AuditLogQueryRequest,
+  AuditLogQueryResult,
   AgentCancelMessageRequest,
   AgentCancelMessageResult,
   AgentProgressEnvelope,
@@ -647,6 +649,18 @@ function registerIpcHandlers(): void {
         return ok({ cancelled })
       } catch (error) {
         return failWithContext(error, 'agent:cancel-message')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'audit:list',
+    async (_, payload?: AuditLogQueryRequest): Promise<IpcResponse<AuditLogQueryResult>> => {
+      try {
+        const result = await auditLogService.query(payload)
+        return ok(result)
+      } catch (error) {
+        return failWithContext(error, 'audit:list')
       }
     }
   )

@@ -1,5 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  AuditLogQueryRequest,
+  AuditLogQueryResult,
   AgentCancelMessageRequest,
   AgentCancelMessageResult,
   AgentProgressEnvelope,
@@ -64,6 +66,9 @@ export interface AccAssistApi {
     sendMessage: (payload: AgentSendMessageRequest) => Promise<IpcResponse<AgentSendMessageResult>>
     cancelMessage: (payload: AgentCancelMessageRequest) => Promise<IpcResponse<AgentCancelMessageResult>>
     onEvent: (listener: (payload: AgentProgressEnvelope) => void) => () => void
+  }
+  audit: {
+    list: (payload?: AuditLogQueryRequest) => Promise<IpcResponse<AuditLogQueryResult>>
   }
   report: {
     export: (payload: ReportExportRequest) => Promise<IpcResponse<ReportExportResult>>

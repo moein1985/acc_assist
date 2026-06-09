@@ -1,4 +1,5 @@
 import type { AccountingConceptKey } from '../../shared/contracts'
+import { detectConnectorByPresets, scoreTableForPresetConcept, type ConnectorPreset } from './connectorSdk'
 
 export type AccountingSoftwareId = 'sepidar' | 'mahak'
 
@@ -9,12 +10,7 @@ export interface AccountingSoftwareDetectionCandidate {
   confidence: number
 }
 
-type AccountingConnectorProfile = {
-  id: AccountingSoftwareId
-  name: string
-  detectionPatterns: RegExp[]
-  conceptPatterns: Partial<Record<AccountingConceptKey, RegExp[]>>
-}
+type AccountingConnectorProfile = ConnectorPreset
 
 const CONNECTOR_PROFILES: AccountingConnectorProfile[] = [
   {
@@ -69,44 +65,15 @@ export function detectAccountingSoftware(tableRefs: string[]): {
   primary: AccountingSoftwareDetectionCandidate | null
   candidates: AccountingSoftwareDetectionCandidate[]
 } {
-  const normalizedTableRefs = tableRefs.map((tableRef) => tableRef.trim().toLowerCase()).filter(Boolean)
-
-  if (normalizedTableRefs.length === 0) {
-    return {
-      primary: null,
-      candidates: []
-    }
-  }
-
-  const scoredCandidates = CONNECTOR_PROFILES.map((profile) => {
-    const score = calculateProfileScore(profile, normalizedTableRefs)
-
-    return {
-      id: profile.id,
-      name: profile.name,
-      score,
-      confidence: 0
-    } satisfies AccountingSoftwareDetectionCandidate
+  const detection = detectConnectorByPresets({
+    presets: CONNECTOR_PROFILES,
+    tableRefs,
+    minScore: MIN_DETECTION_SCORE
   })
-    .filter((candidate) => candidate.score >= MIN_DETECTION_SCORE)
-    .sort((left, right) => right.score - left.score)
-
-  if (scoredCandidates.length === 0) {
-    return {
-      primary: null,
-      candidates: []
-    }
-  }
-
-  const topScore = scoredCandidates[0].score
-  const normalizedCandidates = scoredCandidates.map((candidate) => ({
-    ...candidate,
-    confidence: Number((candidate.score / topScore).toFixed(2))
-  }))
 
   return {
-    primary: normalizedCandidates[0],
-    candidates: normalizedCandidates
+    primary: detection.primary,
+    candidates: detection.candidates
   }
 }
 
@@ -125,32 +92,5 @@ export function scoreTableForSoftwareConcept(
     return 0
   }
 
-  const conceptPatterns = profile.conceptPatterns[conceptKey] ?? []
-  const normalizedTableRef = tableRef.trim().toLowerCase()
-
-  if (!normalizedTableRef) {
-    return 0
-  }
-
-  return conceptPatterns.some((pattern) => pattern.test(normalizedTableRef)) ? 6 : 0
-}
-
-function calculateProfileScore(profile: AccountingConnectorProfile, tableRefs: string[]): number {
-  let score = 0
-
-  for (const pattern of profile.detectionPatterns) {
-    if (tableRefs.some((tableRef) => pattern.test(tableRef))) {
-      score += 5
-    }
-  }
-
-  for (const conceptKey of Object.keys(profile.conceptPatterns) as AccountingConceptKey[]) {
-    const conceptPatterns = profile.conceptPatterns[conceptKey] ?? []
-
-    if (conceptPatterns.some((pattern) => tableRefs.some((tableRef) => pattern.test(tableRef)))) {
-      score += 2
-    }
-  }
-
-  return score
+  return scoreTableForPresetConcept(profile, conceptKey, tableRef)
 }

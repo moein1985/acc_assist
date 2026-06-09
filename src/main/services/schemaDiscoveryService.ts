@@ -9,6 +9,7 @@ import type {
   SqlQueryRow
 } from '../../shared/contracts'
 import { detectAccountingSoftware, scoreTableForSoftwareConcept } from './accountingConnectorProfiles'
+import { buildConnectorSchemaFingerprint } from './connectorSdk'
 
 const MAX_TABLES = 220
 const MAX_COLUMNS_PER_TABLE = 120
@@ -251,9 +252,9 @@ export class SchemaDiscoveryService {
       table.tags = this.detectTableTags(table)
     }
 
-    const softwareDetection = detectAccountingSoftware(
-      tables.map((table) => `${table.schemaName}.${table.tableName}`)
-    )
+    const tableRefs = tables.map((table) => `${table.schemaName}.${table.tableName}`)
+    const softwareDetection = detectAccountingSoftware(tableRefs)
+    const connectorFingerprint = buildConnectorSchemaFingerprint(tableRefs)
     const effectiveSoftwareId = softwareOverrideId ?? softwareDetection.primary?.id ?? null
 
     const sampleTargets = this.pickSampleTables(tables)
@@ -283,7 +284,8 @@ export class SchemaDiscoveryService {
       selectedSoftwareId: softwareOverrideId,
       detectedDateMode: dateDetection.mode,
       selectedDateMode: null,
-      dateEvidence: dateDetection.evidence
+      dateEvidence: dateDetection.evidence,
+      connectorFingerprint
     }
   }
 

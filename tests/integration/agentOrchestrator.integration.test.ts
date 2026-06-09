@@ -922,3 +922,175 @@ test('agent orchestrator asks follow-up question when date range is ambiguous', 
   assert.ok(progressEvents.some((event) => event.type === 'final'))
   assert.ok(!progressEvents.some((event) => event.type === 'tool-start'))
 })
+
+test('agent orchestrator handles fiscal-year count with deterministic tool path', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  const executedReadOnlyQueries: string[] = []
+  const executedMetadataQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+
+      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
+        return [
+          {
+            fiscal_year_count: 3,
+            min_fiscal_year: 1401,
+            max_fiscal_year: 1403
+          }
+        ]
+      }
+
+      if (query.includes('SELECT TOP (48) fiscal_year')) {
+        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
+      }
+
+      return []
+    },
+    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedMetadataQueries.push(query)
+      return [
+        {
+          table_schema: 'dbo',
+          table_name: 'ACC_Documents',
+          column_name: 'fiscal_year'
+        }
+      ]
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fiscal-count-1',
+    conversationId: 'integration-conversation-fiscal-count-1',
+    prompt: 'در دیتابیس چند سال مالی قرار داره؟',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 2)
+  assert.ok(result.finalText.includes('3 سال مالی'))
+  assert.ok(result.finalText.includes('count_fiscal_years'))
+  assert.ok(executedMetadataQueries.length >= 1)
+  assert.ok(executedReadOnlyQueries.length >= 1)
+})
+
+test('agent orchestrator blocks final answer when prompt intent mismatches response intent', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: [
+        '### Summary',
+        'Sales trend improved in the last quarter.',
+        '',
+        '### Findings',
+        'Revenue was higher compared to previous period.',
+        '',
+        '### Evidence',
+        'No fiscal-year count evidence was provided.',
+        '',
+        '### Actions',
+        'Review sales KPIs.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-intent-guard-1',
+    conversationId: 'integration-conversation-intent-guard-1',
+    prompt: 'در دیتابیس چند سال مالی قرار داره؟',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 1)
+  assert.ok(result.finalText.includes('Cannot answer reliably'))
+  assert.ok(result.finalText.includes('count_fiscal_years'))
+})
+
+test('agent orchestrator enforces evidence-first contract for numeric financial claims without tools', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: [
+        '### Summary',
+        'Total sales is 150000000 in this period.',
+        '',
+        '### Findings',
+        'Revenue grew by 12 percent against prior month.',
+        '',
+        '### Evidence',
+        'General assumption from model reasoning.',
+        '',
+        '### Actions',
+        'Use this value for management report.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-evidence-contract-1',
+    conversationId: 'integration-conversation-evidence-contract-1',
+    prompt: 'فروش ماهانه را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 1)
+  assert.equal(result.toolCallsUsed, 0)
+  assert.ok(result.finalText.includes('Cannot answer reliably'))
+  assert.ok(result.finalText.includes('Evidence-first contract'))
+})

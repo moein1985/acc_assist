@@ -80,6 +80,12 @@ npm run smoke:full
 # alias پیش فرض smoke (فعلاً برابر smoke:full)
 npm run smoke
 
+# smoke live اختیاری روی محیط ریموت (PromptBase64)
+npm run smoke:live:agent
+
+# smoke live اختیاری بدون fail کردن CI/local (best-effort)
+npm run smoke:live:agent:allow-failure
+
 # تست های unit (validator/discovery)
 npm run test:unit
 
@@ -159,6 +165,27 @@ npm run smoke:agent:full -- --global-min-score=97
 3. تست اتصال از طریق SSH tunnel.
 4. اجرای `dry-run` از تب تحلیل برای بررسی مسیر کامل tool-call.
 5. یک پرسش مالی ساده و بررسی صحت پاسخ و شواهد.
+
+## Smoke Live اختیاری با PromptBase64
+
+برای smoke زنده ریموت، اسکریپت [scripts/ops/smoke-live-agent.ps1](scripts/ops/smoke-live-agent.ps1) اضافه شده که prompt را همیشه با Base64 ارسال می‌کند تا مشکل quoting فارسی در npm/PowerShell حذف شود.
+
+نمونه اجرا:
+
+```powershell
+# اجرای پیش فرض (prompt فارسی تستی)
+npm run smoke:live:agent
+
+# اجرای با prompt فایل
+pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -PromptFile scripts/fixtures/live-smoke-prompt.fa.txt
+
+# اجرای با assertion سفارشی روی خروجی
+pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -ExpectedContains 'سال مالی','Evidence'
+```
+
+نکته:
+
+- این smoke اختیاری است و برای محیط‌هایی که سرور ریموت در دسترس نیست، می‌توانید از حالت `-AllowFailure` یا `npm run smoke:live:agent:allow-failure` استفاده کنید.
 
 ## IDE پیشنهادی
 

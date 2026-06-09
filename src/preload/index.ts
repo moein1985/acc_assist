@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AuditLogQueryRequest,
+  AuditLogQueryResult,
   AgentCancelMessageRequest,
   AgentCancelMessageResult,
   AgentProgressEnvelope,
@@ -85,6 +87,10 @@ const api = {
         ipcRenderer.removeListener('agent:event', wrappedListener)
       }
     }
+  },
+  audit: {
+    list: (payload?: AuditLogQueryRequest): Promise<IpcResponse<AuditLogQueryResult>> =>
+      ipcRenderer.invoke('audit:list', payload)
   },
   report: {
     export: (payload: ReportExportRequest): Promise<IpcResponse<ReportExportResult>> =>

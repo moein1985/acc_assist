@@ -38,7 +38,9 @@
     "remote:restart": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action restart",
     "remote:autoconfig-sql": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action autoconfig-sql",
     "remote:logs": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action logs",
-    "remote:ask-ai": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action ask-ai"
+    "remote:ask-ai": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action ask-ai",
+    "smoke:live:agent": "pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1",
+    "smoke:live:agent:allow-failure": "pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -AllowFailure"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

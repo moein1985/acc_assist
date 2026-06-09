@@ -1,0 +1,173 @@
+export type FinancialIntentId =
+  | 'count_fiscal_years'
+  | 'list_fiscal_years'
+  | 'get_party_balance'
+  | 'get_account_balance'
+  | 'get_account_turnover'
+  | 'get_sales_summary_by_period'
+  | 'get_receivables_summary'
+  | 'get_payables_summary'
+  | 'get_cashflow_summary'
+  | 'get_recent_or_suspicious_documents'
+
+type FinancialIntentResponseMode = 'deterministic' | 'model-assisted'
+
+type FinancialIntentSlot = 'partyName' | 'accountCodeOrName' | 'dateRange' | 'fiscalYear' | 'period'
+
+export type FinancialIntentDefinition = {
+  id: FinancialIntentId
+  description: string
+  responseMode: FinancialIntentResponseMode
+  requiredSlots: FinancialIntentSlot[]
+  patterns: RegExp[]
+}
+
+export type FinancialIntentMatch = {
+  intentId: FinancialIntentId
+  confidence: number
+}
+
+const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
+  {
+    id: 'count_fiscal_years',
+    description: 'Count distinct fiscal years in the active database.',
+    responseMode: 'deterministic',
+    requiredSlots: [],
+    patterns: [
+      /\bhow\s+many\s+fiscal\s+years\b/iu,
+      /\bfiscal\s+year\s+count\b/iu,
+      /\bcount\s+of\s+fiscal\s+years\b/iu,
+      /(?:تعداد|چند)\s*سال\s*مالی/iu,
+      /سال\s*مالی\s*(?:چند|تعداد)/iu
+    ]
+  },
+  {
+    id: 'list_fiscal_years',
+    description: 'List fiscal years in the active database.',
+    responseMode: 'deterministic',
+    requiredSlots: [],
+    patterns: [
+      /\blist\s+(?:of\s+)?fiscal\s+years\b/iu,
+      /\bfiscal\s+years?\s+list\b/iu,
+      /(?:لیست|فهرست|نمایش)\s*(?:سال\s*های|سالهای|سال)\s*مالی/iu,
+      /سال\s*های\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)/iu
+    ]
+  },
+  {
+    id: 'get_party_balance',
+    description: 'Return balance for a person/counterparty.',
+    responseMode: 'model-assisted',
+    requiredSlots: ['partyName'],
+    patterns: [/مانده\s*(?:شخص|طرف\s*حساب)/iu, /\bparty\s+balance\b/iu, /\bcounterparty\s+balance\b/iu]
+  },
+  {
+    id: 'get_account_balance',
+    description: 'Return balance for an account/chart item.',
+    responseMode: 'model-assisted',
+    requiredSlots: ['accountCodeOrName'],
+    patterns: [/مانده\s*(?:حساب|سرفصل)/iu, /\baccount\s+balance\b/iu]
+  },
+  {
+    id: 'get_account_turnover',
+    description: 'Return account turnover in a date range.',
+    responseMode: 'model-assisted',
+    requiredSlots: ['accountCodeOrName', 'dateRange'],
+    patterns: [/گردش\s*حساب/iu, /\baccount\s+turnover\b/iu]
+  },
+  {
+    id: 'get_sales_summary_by_period',
+    description: 'Return monthly/quarterly/yearly sales summary.',
+    responseMode: 'model-assisted',
+    requiredSlots: ['period'],
+    patterns: [/فروش\s*(?:ماهانه|فصلی|سالانه)/iu, /\bsales\s+summary\b/iu]
+  },
+  {
+    id: 'get_receivables_summary',
+    description: 'Return receivables summary.',
+    responseMode: 'model-assisted',
+    requiredSlots: [],
+    patterns: [/\breceivables\b/iu, /بدهکاران/iu]
+  },
+  {
+    id: 'get_payables_summary',
+    description: 'Return payables summary.',
+    responseMode: 'model-assisted',
+    requiredSlots: [],
+    patterns: [/\bpayables\b/iu, /بستانکاران/iu]
+  },
+  {
+    id: 'get_cashflow_summary',
+    description: 'Return cashflow summary.',
+    responseMode: 'model-assisted',
+    requiredSlots: ['dateRange'],
+    patterns: [/جریان\s*نقد/iu, /\bcash\s*flow\b/iu]
+  },
+  {
+    id: 'get_recent_or_suspicious_documents',
+    description: 'Return recent or suspicious accounting documents.',
+    responseMode: 'model-assisted',
+    requiredSlots: [],
+    patterns: [/اسناد\s*(?:اخیر|مشکوک)/iu, /\b(?:recent|suspicious)\s+documents\b/iu]
+  }
+]
+
+export function listFinancialIntentDefinitions(): FinancialIntentDefinition[] {
+  return FINANCIAL_INTENT_REGISTRY.map((entry) => ({ ...entry, patterns: [...entry.patterns] }))
+}
+
+export function detectFinancialIntent(prompt: string): FinancialIntentMatch | null {
+  const normalizedPrompt = normalizePersianDigits(prompt).trim()
+
+  if (!normalizedPrompt) {
+    return null
+  }
+
+  let bestMatch: FinancialIntentMatch | null = null
+
+  for (const intent of FINANCIAL_INTENT_REGISTRY) {
+    let matchedPatterns = 0
+
+    for (const pattern of intent.patterns) {
+      if (pattern.test(normalizedPrompt)) {
+        matchedPatterns += 1
+      }
+    }
+
+    if (matchedPatterns === 0) {
+      continue
+    }
+
+    const confidence = matchedPatterns / intent.patterns.length
+
+    if (!bestMatch || confidence > bestMatch.confidence) {
+      bestMatch = {
+        intentId: intent.id,
+        confidence
+      }
+    }
+  }
+
+  return bestMatch
+}
+
+function normalizePersianDigits(value: string): string {
+  const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹']
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩']
+
+  return value
+    .split('')
+    .map((char) => {
+      const persianIndex = persianDigits.indexOf(char)
+      if (persianIndex >= 0) {
+        return String(persianIndex)
+      }
+
+      const arabicIndex = arabicDigits.indexOf(char)
+      if (arabicIndex >= 0) {
+        return String(arabicIndex)
+      }
+
+      return char
+    })
+    .join('')
+}

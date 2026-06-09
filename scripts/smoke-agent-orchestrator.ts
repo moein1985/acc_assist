@@ -25,22 +25,47 @@ type ChatHandler = (
   streamOptions?: ChatStreamOptions
 ) => Promise<GeminiChatResponse>
 
-type GoldenPromptFixture = {
+type GoldenPromptExpected = {
+  requiredSections: string[]
+  minToolCalls: number
+  maxRounds: number
+  minScore: number
+}
+
+type GoldenSqlPromptFixture = {
   id: string
   prompt: string
+  type: 'sql'
   sqlQuery: string
   sqlRows: SqlQueryRow[]
-  expected: {
+  expected: GoldenPromptExpected & {
     metricField: string
     dimensionField: string
     expectedDimensionValue: string
     expectedTotal: number
-    requiredSections: string[]
-    minToolCalls: number
-    maxRounds: number
-    minScore: number
   }
 }
+
+type GoldenToolPromptFixture = {
+  id: string
+  prompt: string
+  type: 'tool'
+  expectedTool: {
+    name: 'count_fiscal_years' | 'list_fiscal_years'
+    arguments: Record<string, unknown>
+  }
+  toolResult: {
+    count: number
+    years?: number[]
+    query: string
+    evidence: string
+  }
+  expected: GoldenPromptExpected & {
+    responseTextContains: string[]
+  }
+}
+
+type GoldenPromptFixture = GoldenSqlPromptFixture | GoldenToolPromptFixture
 
 type SmokeMode = 'fast' | 'full'
 
@@ -327,6 +352,120 @@ async function runGoldenPromptRegressionSmoke(options?: {
     const gemini = new QueueGeminiStub()
     const executedQueries: string[] = []
 
+    if (fixture.type === 'tool') {
+      const expectedYears =
+        fixture.toolResult.years && fixture.toolResult.years.length > 0
+          ? fixture.toolResult.years
+          : [1403, 1402, 1401]
+
+      const minYear = Math.min(...expectedYears)
+      const maxYear = Math.max(...expectedYears)
+
+      const orchestrator = createOrchestrator({
+        gemini,
+        executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+          executedQueries.push(query)
+
+          if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
+            return [
+              {
+                fiscal_year_count: fixture.toolResult.count,
+                min_fiscal_year: Number.isFinite(minYear) ? minYear : null,
+                max_fiscal_year: Number.isFinite(maxYear) ? maxYear : null
+              }
+            ]
+          }
+
+          if (query.includes('SELECT TOP (48) fiscal_year')) {
+            return expectedYears.map((year) => ({ fiscal_year: year }))
+          }
+
+          return []
+        },
+        executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+          return [
+            {
+              table_schema: 'dbo',
+              table_name: 'ACC_Documents',
+              column_name: 'fiscal_year'
+            }
+          ]
+        }
+      })
+
+      const progressEvents: AgentProgressEvent[] = []
+
+      const result = await orchestrator.sendMessage(
+        {
+          requestId: `smoke-golden-${fixture.id}`,
+          conversationId: `smoke-golden-conversation-${fixture.id}`,
+          prompt: fixture.prompt,
+          mode: 'manual',
+          history: []
+        },
+        (event) => {
+          progressEvents.push(event)
+        }
+      )
+
+      assert.ok(executedQueries.length >= 1, `[${fixture.id}] Expected deterministic tool SQL execution.`)
+      assert.ok(
+        result.toolCallsUsed >= fixture.expected.minToolCalls,
+        `[${fixture.id}] Tool usage count is lower than expected minimum.`
+      )
+      assert.ok(
+        result.rounds <= fixture.expected.maxRounds,
+        `[${fixture.id}] Agent rounds exceeded expected maximum.`
+      )
+
+      for (const needle of fixture.expected.responseTextContains) {
+        assert.ok(
+          result.finalText.includes(needle),
+          `[${fixture.id}] Final answer does not include required phrase [${needle}].`
+        )
+      }
+
+      let matchedSections = 0
+      for (const section of fixture.expected.requiredSections) {
+        const sectionMatched = result.finalText.includes(`### ${section}`)
+
+        if (sectionMatched) {
+          matchedSections += 1
+        }
+
+        assert.ok(sectionMatched, `[${fixture.id}] Missing required section [${section}] in final answer.`)
+      }
+
+      const requiredEventTypes: AgentProgressEvent['type'][] = ['tool-success', 'final']
+      let matchedEventCount = 0
+
+      for (const eventType of requiredEventTypes) {
+        const eventMatched = progressEvents.some((event) => event.type === eventType)
+
+        if (eventMatched) {
+          matchedEventCount += 1
+        }
+
+        assert.ok(eventMatched, `[${fixture.id}] Missing progress event [${eventType}].`)
+      }
+
+      const scoreCard = calculateGoldenToolCaseScore({
+        fixture,
+        result,
+        matchedSections,
+        matchedEventCount,
+        requiredEventCount: requiredEventTypes.length
+      })
+
+      assert.ok(
+        scoreCard.score >= fixture.expected.minScore,
+        `[${fixture.id}] Score ${scoreCard.score.toFixed(1)} is below minScore ${fixture.expected.minScore}.`
+      )
+
+      scoreCards.push(scoreCard)
+      continue
+    }
+
     gemini.enqueue(async () => {
       return {
         text: '',
@@ -494,6 +633,62 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
   const fixtureRecord = rawFixture as Record<string, unknown>
   const id = readRequiredFixtureString(fixtureRecord, 'id', index)
   const prompt = readRequiredFixtureString(fixtureRecord, 'prompt', index)
+
+  const fixtureTypeRaw = fixtureRecord['type']
+  const fixtureType = fixtureTypeRaw === 'tool' ? 'tool' : 'sql'
+
+  if (fixtureType === 'tool') {
+    const rawExpectedTool = fixtureRecord['expectedTool']
+    if (!rawExpectedTool || typeof rawExpectedTool !== 'object') {
+      throw new Error(`Golden fixture [${id}] with type=tool must define expectedTool.`)
+    }
+
+    const expectedToolRecord = rawExpectedTool as Record<string, unknown>
+    const expectedToolName = readRequiredFixtureString(expectedToolRecord, 'name', index, id)
+
+    if (expectedToolName !== 'count_fiscal_years' && expectedToolName !== 'list_fiscal_years') {
+      throw new Error(`Golden fixture [${id}] has unsupported expectedTool name [${expectedToolName}].`)
+    }
+
+    const rawToolResult = fixtureRecord['toolResult']
+    if (!rawToolResult || typeof rawToolResult !== 'object') {
+      throw new Error(`Golden fixture [${id}] with type=tool must define toolResult.`)
+    }
+
+    const toolResultRecord = rawToolResult as Record<string, unknown>
+    const count = toPositiveIntegerOrThrow(toolResultRecord['count'], `toolResult.count in fixture [${id}]`)
+    const query = readRequiredFixtureString(toolResultRecord, 'query', index, id)
+    const evidence = readRequiredFixtureString(toolResultRecord, 'evidence', index, id)
+    const years = Array.isArray(toolResultRecord['years'])
+      ? toolResultRecord['years'].map((value, yearIndex) => {
+          const parsed = toPositiveIntegerOrThrow(value, `toolResult.years[${yearIndex}] in fixture [${id}]`)
+          return parsed
+        })
+      : undefined
+
+    const expected = normalizeGoldenToolExpectedFixture(fixtureRecord, id)
+
+    return {
+      id,
+      prompt,
+      type: 'tool',
+      expectedTool: {
+        name: expectedToolName,
+        arguments:
+          expectedToolRecord['arguments'] && typeof expectedToolRecord['arguments'] === 'object'
+            ? (expectedToolRecord['arguments'] as Record<string, unknown>)
+            : {}
+      },
+      toolResult: {
+        count,
+        years,
+        query,
+        evidence
+      },
+      expected
+    }
+  }
+
   const sqlQuery = readRequiredFixtureString(fixtureRecord, 'sqlQuery', index)
 
   const rawRows = fixtureRecord['sqlRows']
@@ -509,12 +704,23 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
     return row as SqlQueryRow
   })
 
-  const rawExpected = fixtureRecord['expected']
-  if (!rawExpected || typeof rawExpected !== 'object') {
-    throw new Error(`Golden fixture [${id}] must define an expected object.`)
+  const expectedRecord = normalizeGoldenSqlExpectedFixture(fixtureRecord, index, id)
+  return {
+    id,
+    prompt,
+    type: 'sql',
+    sqlQuery,
+    sqlRows,
+    expected: expectedRecord
   }
+}
 
-  const expectedRecord = rawExpected as Record<string, unknown>
+function normalizeGoldenSqlExpectedFixture(
+  fixtureRecord: Record<string, unknown>,
+  index: number,
+  id: string
+): GoldenSqlPromptFixture['expected'] {
+  const expectedRecord = readExpectedFixtureObject(fixtureRecord, id)
   const metricField = readRequiredFixtureString(expectedRecord, 'metricField', index, id)
   const dimensionField = readRequiredFixtureString(expectedRecord, 'dimensionField', index, id)
   const expectedDimensionValue = readRequiredFixtureString(
@@ -555,21 +761,84 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
   }
 
   return {
-    id,
-    prompt,
-    sqlQuery,
-    sqlRows,
-    expected: {
-      metricField,
-      dimensionField,
-      expectedDimensionValue,
-      expectedTotal,
-      requiredSections,
-      minToolCalls,
-      maxRounds,
-      minScore
-    }
+    metricField,
+    dimensionField,
+    expectedDimensionValue,
+    expectedTotal,
+    requiredSections,
+    minToolCalls,
+    maxRounds,
+    minScore
   }
+}
+
+function normalizeGoldenToolExpectedFixture(
+  fixtureRecord: Record<string, unknown>,
+  id: string
+): GoldenToolPromptFixture['expected'] {
+  const expectedRecord = readExpectedFixtureObject(fixtureRecord, id)
+  const responseTextContains = Array.isArray(expectedRecord['responseTextContains'])
+    ? expectedRecord['responseTextContains'].map((entry, entryIndex) => {
+        if (typeof entry !== 'string' || !entry.trim()) {
+          throw new Error(`Fixture [${id}] has invalid responseTextContains[${entryIndex}] value.`)
+        }
+
+        return entry.trim()
+      })
+    : []
+
+  if (responseTextContains.length === 0) {
+    throw new Error(`Fixture [${id}] with type=tool must define responseTextContains.`)
+  }
+
+  const requiredSections = Array.isArray(expectedRecord['requiredSections'])
+    ? expectedRecord['requiredSections'].map((section, sectionIndex) => {
+        if (typeof section !== 'string' || !section.trim()) {
+          throw new Error(`Fixture [${id}] has invalid requiredSections[${sectionIndex}] value.`)
+        }
+
+        return section.trim()
+      })
+    : []
+
+  if (requiredSections.length === 0) {
+    throw new Error(`Fixture [${id}] must define at least one required section.`)
+  }
+
+  const minToolCalls = toPositiveIntegerOrThrow(
+    expectedRecord['minToolCalls'],
+    `minToolCalls in fixture [${id}]`
+  )
+  const maxRounds = toPositiveIntegerOrThrow(expectedRecord['maxRounds'], `maxRounds in fixture [${id}]`)
+  const minScoreRaw = expectedRecord['minScore']
+  const minScore =
+    minScoreRaw === undefined
+      ? DEFAULT_GLOBAL_MIN_SCORE
+      : toFiniteNumberOrThrow(minScoreRaw, `minScore in fixture [${id}]`)
+
+  if (minScore < 0 || minScore > 100) {
+    throw new Error(`Fixture [${id}] must define minScore between 0 and 100.`)
+  }
+
+  return {
+    responseTextContains,
+    requiredSections,
+    minToolCalls,
+    maxRounds,
+    minScore
+  }
+}
+
+function readExpectedFixtureObject(
+  fixtureRecord: Record<string, unknown>,
+  id: string
+): Record<string, unknown> {
+  const rawExpected = fixtureRecord['expected']
+  if (!rawExpected || typeof rawExpected !== 'object') {
+    throw new Error(`Golden fixture [${id}] must define an expected object.`)
+  }
+
+  return rawExpected as Record<string, unknown>
 }
 
 function readRequiredFixtureString(
@@ -655,7 +924,7 @@ function normalizeSqlForAssertion(sql: string): string {
 }
 
 function calculateGoldenCaseScore(params: {
-  fixture: GoldenPromptFixture
+  fixture: GoldenSqlPromptFixture
   result: {
     finalText: string
     rounds: number
@@ -703,6 +972,48 @@ function calculateGoldenCaseScore(params: {
     score: Number(rawScore.toFixed(1)),
     sqlMatched,
     totalDeltaPercent: Number((totalDeltaRatio * 100).toFixed(2)),
+    sectionCoveragePercent: Number((sectionCoverage * 100).toFixed(1)),
+    eventCoveragePercent: Number((eventCoverage * 100).toFixed(1)),
+    rounds: result.rounds,
+    toolCalls: result.toolCallsUsed
+  }
+}
+
+function calculateGoldenToolCaseScore(params: {
+  fixture: GoldenToolPromptFixture
+  result: {
+    finalText: string
+    rounds: number
+    toolCallsUsed: number
+  }
+  matchedSections: number
+  matchedEventCount: number
+  requiredEventCount: number
+}): GoldenCaseScore {
+  const { fixture, result, matchedSections, matchedEventCount, requiredEventCount } = params
+  const sectionCoverage =
+    fixture.expected.requiredSections.length === 0
+      ? 1
+      : matchedSections / fixture.expected.requiredSections.length
+  const eventCoverage = requiredEventCount === 0 ? 1 : matchedEventCount / requiredEventCount
+  const containsCoverage =
+    fixture.expected.responseTextContains.length === 0
+      ? 1
+      : fixture.expected.responseTextContains.filter((entry) => result.finalText.includes(entry)).length /
+        fixture.expected.responseTextContains.length
+
+  const rawScore =
+    50 * clamp(containsCoverage, 0, 1) +
+    25 * clamp(sectionCoverage, 0, 1) +
+    15 * clamp(eventCoverage, 0, 1) +
+    (result.toolCallsUsed >= fixture.expected.minToolCalls ? 5 : 0) +
+    (result.rounds <= fixture.expected.maxRounds ? 5 : 0)
+
+  return {
+    id: fixture.id,
+    score: Number(rawScore.toFixed(1)),
+    sqlMatched: true,
+    totalDeltaPercent: 0,
     sectionCoveragePercent: Number((sectionCoverage * 100).toFixed(1)),
     eventCoveragePercent: Number((eventCoverage * 100).toFixed(1)),
     rounds: result.rounds,

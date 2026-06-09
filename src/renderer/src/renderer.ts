@@ -1,4 +1,7 @@
 import type {
+  AuditLogQueryRequest,
+  AuditLogStage,
+  AuditLogViewerEntry,
   AccountingSoftwareId,
   AccountingConceptKey,
   AgentEvidencePreview,
@@ -23,6 +26,7 @@ import type {
   SshTunnelConfig,
   SshTunnelStatus
 } from '../../shared/contracts'
+import { localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
 
 const DRY_RUN_PROMPT =
   'یک تحلیل اجمالی از وضعیت سیستم حسابداری ما بده. مرحله ۱: ابتدا حتما list_database_tables را اجرا کن تا همه جدول‌ها را ببینی. مرحله ۲: جدول‌های مالی مهم را انتخاب کن و با get_database_schema ساختار حساب‌ها/اسناد/گردش‌ها را بررسی کن. مرحله ۳: با fetch_financial_data چند ردیف نمونه واقعی بگیر و تحلیل کوتاه شامل ریسک‌ها، نکات کلیدی و اقدامات پیشنهادی ارائه بده.'
@@ -123,6 +127,23 @@ interface TrendChartSeries {
   points: TrendChartPoint[]
 }
 
+interface KpiCardModel {
+  label: string
+  value: string
+  hint: string
+}
+
+interface QualityCardModel {
+  label: string
+  value: string
+}
+
+interface SchemaMappingWizardState {
+  open: boolean
+  conceptIndex: number
+  draftSelections: SchemaConceptSelections
+}
+
 const ui = {
   tabButtons: Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn')),
   settingsPanel: getById<HTMLElement>('settingsPanel'),
@@ -151,6 +172,13 @@ const ui = {
   trendChartMeta: getById<HTMLElement>('trendChartMeta'),
   trendChartBars: getById<HTMLElement>('trendChartBars'),
   trendChartEmpty: getById<HTMLElement>('trendChartEmpty'),
+  kpiCardsPanel: getById<HTMLElement>('kpiCardsPanel'),
+  kpiCardsGrid: getById<HTMLElement>('kpiCardsGrid'),
+  kpiCardsEmpty: getById<HTMLElement>('kpiCardsEmpty'),
+  qualityDashboardPanel: getById<HTMLElement>('qualityDashboardPanel'),
+  qualityDashboardGrid: getById<HTMLElement>('qualityDashboardGrid'),
+  qualityStageBreakdown: getById<HTMLElement>('qualityStageBreakdown'),
+  qualityDashboardEmpty: getById<HTMLElement>('qualityDashboardEmpty'),
   promptInput: getById<HTMLTextAreaElement>('promptInput'),
   sshStatusChipTop: getById<HTMLSpanElement>('sshStatusChipTop'),
   bridgeStatusChipTop: getById<HTMLSpanElement>('bridgeStatusChipTop'),
@@ -196,6 +224,17 @@ const ui = {
   schemaOnboardingStepDiscover: getById<HTMLElement>('schemaOnboardingStepDiscover'),
   schemaOnboardingStepMappings: getById<HTMLElement>('schemaOnboardingStepMappings'),
   schemaMappingEditor: getById<HTMLElement>('schemaMappingEditor'),
+  startSchemaWizardBtn: getById<HTMLButtonElement>('startSchemaWizardBtn'),
+  schemaMappingWizard: getById<HTMLElement>('schemaMappingWizard'),
+  schemaWizardSummary: getById<HTMLElement>('schemaWizardSummary'),
+  schemaWizardConceptTitle: getById<HTMLElement>('schemaWizardConceptTitle'),
+  schemaWizardSelect: getById<HTMLSelectElement>('schemaWizardSelect'),
+  schemaWizardSuggestions: getById<HTMLElement>('schemaWizardSuggestions'),
+  schemaWizardPrevBtn: getById<HTMLButtonElement>('schemaWizardPrevBtn'),
+  schemaWizardSkipBtn: getById<HTMLButtonElement>('schemaWizardSkipBtn'),
+  schemaWizardApplyBtn: getById<HTMLButtonElement>('schemaWizardApplyBtn'),
+  schemaWizardNextBtn: getById<HTMLButtonElement>('schemaWizardNextBtn'),
+  schemaWizardCloseBtn: getById<HTMLButtonElement>('schemaWizardCloseBtn'),
   schemaSoftwareSelect: getById<HTMLSelectElement>('schemaSoftwareSelect'),
   schemaSoftwareHint: getById<HTMLElement>('schemaSoftwareHint'),
   schemaDateModeSelect: getById<HTMLSelectElement>('schemaDateModeSelect'),
@@ -214,7 +253,13 @@ const ui = {
   sshTargetPortInput: getById<HTMLInputElement>('sshTargetPortInput'),
   sshLocalPortInput: getById<HTMLInputElement>('sshLocalPortInput'),
   tabSettingsBtn: getById<HTMLButtonElement>('tabSettingsBtn'),
-  tabAnalysisBtn: getById<HTMLButtonElement>('tabAnalysisBtn')
+  tabAnalysisBtn: getById<HTMLButtonElement>('tabAnalysisBtn'),
+  auditRefreshBtn: getById<HTMLButtonElement>('auditRefreshBtn'),
+  auditRequestIdInput: getById<HTMLInputElement>('auditRequestIdInput'),
+  auditStageFilterInput: getById<HTMLSelectElement>('auditStageFilterInput'),
+  auditLimitInput: getById<HTMLInputElement>('auditLimitInput'),
+  auditLogList: getById<HTMLElement>('auditLogList'),
+  auditLogSummary: getById<HTMLElement>('auditLogSummary')
 }
 
 const state: {
@@ -231,6 +276,7 @@ const state: {
   streamingAssistantBuffer: string
   unsubscribeAgentEvents: (() => void) | null
   selectedProfileId: string | null
+  schemaWizard: SchemaMappingWizardState
 } = {
   settings: null,
   chatHistory: [],
@@ -244,7 +290,12 @@ const state: {
   streamingAssistantMessage: null,
   streamingAssistantBuffer: '',
   unsubscribeAgentEvents: null,
-  selectedProfileId: null
+  selectedProfileId: null,
+  schemaWizard: {
+    open: false,
+    conceptIndex: 0,
+    draftSelections: {}
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -254,6 +305,8 @@ window.addEventListener('DOMContentLoaded', () => {
   installRendererCrashTelemetryHooks()
   bindEvents()
   renderPromptTemplates()
+  renderKpiCards(null)
+  renderQualityDashboard([])
   renderTrendChart(null)
   setReportExportButtonsEnabled(false)
   activateTab('settingsPanel')
@@ -362,6 +415,12 @@ function bindEvents(): void {
     void discoverSchemaCatalog(collectSchemaSoftwareFromOnboarding())
   )
   ui.schemaOnboardingApplyMappingsBtn.addEventListener('click', () => void applyOnboardingSuggestedMappings())
+  ui.startSchemaWizardBtn.addEventListener('click', () => startSchemaMappingWizard())
+  ui.schemaWizardPrevBtn.addEventListener('click', () => stepSchemaWizard(-1))
+  ui.schemaWizardNextBtn.addEventListener('click', () => stepSchemaWizard(1))
+  ui.schemaWizardSkipBtn.addEventListener('click', () => skipCurrentSchemaWizardStep())
+  ui.schemaWizardApplyBtn.addEventListener('click', () => applyCurrentSchemaWizardSelection())
+  ui.schemaWizardCloseBtn.addEventListener('click', () => closeSchemaMappingWizard())
   ui.saveSchemaMappingsBtn.addEventListener('click', () => void saveSchemaMappings())
   ui.resetSchemaMappingsBtn.addEventListener('click', () => resetSchemaMappingsToSuggestions())
   ui.startSshTunnelBtn.addEventListener('click', () => void startSshTunnel())
@@ -373,6 +432,7 @@ function bindEvents(): void {
   ui.sendPromptBtn.addEventListener('click', () => void sendChatPrompt())
   ui.exportPdfBtn.addEventListener('click', () => void exportLatestReport('pdf'))
   ui.exportExcelBtn.addEventListener('click', () => void exportLatestReport('excel'))
+  ui.auditRefreshBtn.addEventListener('click', () => void loadAuditLogViewer())
   ui.savePromptTemplateBtn.addEventListener('click', () => void saveCurrentPromptTemplate())
   ui.clearPromptInputBtn.addEventListener('click', () => {
     ui.promptInput.value = ''
@@ -439,6 +499,17 @@ function bindEvents(): void {
       ...currentCatalog,
       selectedSoftwareId
     })
+  })
+
+  ui.auditRequestIdInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      void loadAuditLogViewer()
+    }
+  })
+
+  ui.auditStageFilterInput.addEventListener('change', () => {
+    void loadAuditLogViewer()
   })
 }
 
@@ -616,6 +687,7 @@ function slugifyTemplateId(value: string): string {
 async function bootstrap(): Promise<void> {
   await loadSettingsIntoForm()
   await refreshRuntimeStatuses(true)
+  await loadAuditLogViewer()
   startStatusPolling()
 }
 
@@ -911,6 +983,7 @@ async function discoverSchemaCatalog(overrideSelectedSoftwareId?: AccountingSoft
   }
 
   renderSchemaCatalogResult(discovered.catalog)
+  closeSchemaMappingWizard()
 
   const financialTaggedTables = discovered.catalog.tables.filter((table) => table.tags.length > 0).length
   const detectedDateMode = discovered.catalog.detectedDateMode ?? 'unknown'
@@ -978,6 +1051,7 @@ async function saveSchemaMappings(): Promise<void> {
   }
 
   renderSchemaCatalogResult(response.data.catalog)
+  closeSchemaMappingWizard()
 
   const selectedCount = Object.keys(selectedMappings).length
   const effectiveDateMode = getEffectiveSchemaDateMode(response.data.catalog)
@@ -1018,8 +1092,154 @@ function resetSchemaMappingsToSuggestions(): void {
 
   const selectedSoftwareId = collectSchemaSoftwareFromEditor(catalog)
   renderSchemaMappingEditor(catalog, suggestedMappings, null, selectedSoftwareId)
+  closeSchemaMappingWizard()
   setSettingsFeedback('نگاشت ها به پیشنهادهای کشف شده بازنشانی شد. برای ثبت، دکمه ذخیره را بزنید.', 'info')
   setAppNotice('پیشنهادهای mapping اعمال شد.', 'info')
+}
+
+function startSchemaMappingWizard(): void {
+  const catalog = getActiveSchemaCatalogFromState()
+
+  if (!catalog) {
+    const message = 'برای شروع wizard ابتدا باید catalog همین دیتابیس در دسترس باشد.'
+    setSettingsFeedback(message, 'error')
+    setAppNotice(message, 'error')
+    return
+  }
+
+  state.schemaWizard.open = true
+  state.schemaWizard.conceptIndex = 0
+  state.schemaWizard.draftSelections = collectSchemaSelectionsFromEditor(catalog)
+  renderSchemaMappingWizard(catalog)
+  setSettingsFeedback('wizard نگاشت دستی فعال شد. هر مفهوم را بررسی و ثبت کنید.', 'info')
+  setAppNotice('wizard نگاشت دستی شروع شد.', 'info')
+}
+
+function closeSchemaMappingWizard(): void {
+  state.schemaWizard.open = false
+  ui.schemaMappingWizard.hidden = true
+}
+
+function stepSchemaWizard(delta: number): void {
+  if (!state.schemaWizard.open) {
+    return
+  }
+
+  const maxIndex = ACCOUNTING_CONCEPT_KEYS.length - 1
+  const nextIndex = Math.min(maxIndex, Math.max(0, state.schemaWizard.conceptIndex + delta))
+  state.schemaWizard.conceptIndex = nextIndex
+
+  const catalog = getActiveSchemaCatalogFromState()
+  if (catalog) {
+    renderSchemaMappingWizard(catalog)
+  }
+}
+
+function skipCurrentSchemaWizardStep(): void {
+  const catalog = getActiveSchemaCatalogFromState()
+
+  if (!catalog || !state.schemaWizard.open) {
+    return
+  }
+
+  const conceptKey = ACCOUNTING_CONCEPT_KEYS[state.schemaWizard.conceptIndex]
+
+  if (!conceptKey) {
+    return
+  }
+
+  delete state.schemaWizard.draftSelections[conceptKey]
+  renderSchemaMappingEditor(catalog, state.schemaWizard.draftSelections)
+
+  if (state.schemaWizard.conceptIndex < ACCOUNTING_CONCEPT_KEYS.length - 1) {
+    state.schemaWizard.conceptIndex += 1
+    renderSchemaMappingWizard(catalog)
+    return
+  }
+
+  renderSchemaMappingWizard(catalog)
+}
+
+function applyCurrentSchemaWizardSelection(): void {
+  const catalog = getActiveSchemaCatalogFromState()
+
+  if (!catalog || !state.schemaWizard.open) {
+    return
+  }
+
+  const conceptKey = ACCOUNTING_CONCEPT_KEYS[state.schemaWizard.conceptIndex]
+
+  if (!conceptKey) {
+    return
+  }
+
+  const selectedValue = ui.schemaWizardSelect.value.trim()
+
+  if (!selectedValue) {
+    delete state.schemaWizard.draftSelections[conceptKey]
+  } else {
+    state.schemaWizard.draftSelections[conceptKey] = selectedValue
+  }
+
+  renderSchemaMappingEditor(catalog, state.schemaWizard.draftSelections)
+
+  if (state.schemaWizard.conceptIndex < ACCOUNTING_CONCEPT_KEYS.length - 1) {
+    state.schemaWizard.conceptIndex += 1
+    renderSchemaMappingWizard(catalog)
+    return
+  }
+
+  renderSchemaMappingWizard(catalog)
+  setSettingsFeedback('همه مراحل wizard طی شد. برای ثبت نهایی، ذخیره نگاشت ها را بزنید.', 'success')
+  setAppNotice('wizard تکمیل شد؛ نگاشت ها هنوز نیاز به ذخیره نهایی دارند.', 'info')
+}
+
+function renderSchemaMappingWizard(catalog: SchemaCatalogEntry): void {
+  if (!state.schemaWizard.open) {
+    ui.schemaMappingWizard.hidden = true
+    return
+  }
+
+  const totalSteps = ACCOUNTING_CONCEPT_KEYS.length
+  const conceptKey = ACCOUNTING_CONCEPT_KEYS[state.schemaWizard.conceptIndex]
+
+  if (!conceptKey) {
+    closeSchemaMappingWizard()
+    return
+  }
+
+  const selectedValue = state.schemaWizard.draftSelections[conceptKey]?.trim() ?? ''
+  const suggestions = (catalog.suggestedMappings[conceptKey] ?? []).map((value) => value.trim()).filter(Boolean)
+  const availableTableRefs = catalog.tables
+    .map((table) => `${table.schemaName}.${table.tableName}`)
+    .filter((value) => value.trim().length > 0)
+    .sort((left, right) => left.localeCompare(right))
+  const candidateRefs = [...new Set([selectedValue, ...suggestions, ...availableTableRefs].filter(Boolean))]
+
+  ui.schemaWizardSelect.innerHTML = ''
+
+  const emptyOption = document.createElement('option')
+  emptyOption.value = ''
+  emptyOption.textContent = '(بدون انتخاب)'
+  ui.schemaWizardSelect.appendChild(emptyOption)
+
+  for (const tableRef of candidateRefs) {
+    const option = document.createElement('option')
+    option.value = tableRef
+    option.textContent = suggestions.includes(tableRef) ? `${tableRef} (پیشنهادی)` : tableRef
+    ui.schemaWizardSelect.appendChild(option)
+  }
+
+  ui.schemaWizardSelect.value = selectedValue
+  ui.schemaWizardConceptTitle.textContent = `مفهوم ${localizeConceptKey(conceptKey)}`
+  ui.schemaWizardSummary.textContent = `مرحله ${state.schemaWizard.conceptIndex + 1} از ${totalSteps}`
+  ui.schemaWizardSuggestions.textContent =
+    suggestions.length > 0 ? `پیشنهادها: ${suggestions.slice(0, 3).join(' | ')}` : 'برای این مفهوم پیشنهاد خودکار موجود نیست.'
+
+  ui.schemaWizardPrevBtn.disabled = state.schemaWizard.conceptIndex === 0
+  ui.schemaWizardNextBtn.disabled = state.schemaWizard.conceptIndex >= totalSteps - 1
+  ui.schemaWizardApplyBtn.disabled = candidateRefs.length === 0 && !selectedValue
+  ui.schemaMappingWizard.hidden = false
 }
 
 async function applyOnboardingSuggestedMappings(): Promise<void> {
@@ -1074,6 +1294,7 @@ async function applyOnboardingSuggestedMappings(): Promise<void> {
   }
 
   renderSchemaCatalogResult(response.data.catalog)
+  closeSchemaMappingWizard()
 
   const selectedCount = Object.keys(response.data.catalog.selectedMappings).length
   const effectiveSoftware = getEffectiveSchemaSoftware(response.data.catalog)
@@ -1200,6 +1421,7 @@ async function submitChatPrompt(prompt: string, mode: 'manual' | 'dry-run'): Pro
       generatedAt: new Date().toISOString(),
       evidence: Array.from(state.activeRequestEvidenceByCallId.values())
     }
+    renderKpiCards(state.latestReportSnapshot)
     renderTrendChart(state.latestReportSnapshot)
 
     const toolUsageSummary = `مصرف ابزار: ${response.data.toolCallsUsed}`
@@ -1526,6 +1748,7 @@ async function clearConversation(): Promise<void> {
   state.toolRowsByCallId.clear()
   state.activeRequestEvidenceByCallId.clear()
   state.latestReportSnapshot = null
+  renderKpiCards(null)
   renderTrendChart(null)
   clearStreamingAssistantTracking()
   setReportExportButtonsEnabled(false)
@@ -1551,6 +1774,149 @@ function captureReportEvidencePreview(event: AgentProgressEnvelope['event']): vo
     rowCount: preview.rowCount,
     truncated: preview.truncated
   })
+}
+
+function renderKpiCards(snapshot: ReportSnapshot | null): void {
+  ui.kpiCardsGrid.innerHTML = ''
+  ui.kpiCardsEmpty.hidden = true
+
+  if (!snapshot) {
+    ui.kpiCardsPanel.hidden = true
+    return
+  }
+
+  ui.kpiCardsPanel.hidden = false
+  const cards = extractKpiCards(snapshot)
+
+  if (cards.length === 0) {
+    ui.kpiCardsEmpty.hidden = false
+    return
+  }
+
+  for (const card of cards) {
+    const item = document.createElement('article')
+    item.className = 'kpi-card'
+
+    const label = document.createElement('div')
+    label.className = 'kpi-card-label'
+    label.textContent = card.label
+
+    const value = document.createElement('div')
+    value.className = 'kpi-card-value'
+    value.textContent = card.value
+
+    const hint = document.createElement('div')
+    hint.className = 'kpi-card-hint'
+    hint.textContent = card.hint
+
+    item.append(label, value, hint)
+    ui.kpiCardsGrid.appendChild(item)
+  }
+}
+
+function extractKpiCards(snapshot: ReportSnapshot): KpiCardModel[] {
+  const evidenceItems = snapshot.evidence
+  const evidenceCount = evidenceItems.length
+  const totalRows = evidenceItems.reduce((sum, item) => sum + (Number.isFinite(item.rowCount) ? item.rowCount : 0), 0)
+
+  const cards: KpiCardModel[] = [
+    {
+      label: 'تعداد ابزارهای دارای شواهد',
+      value: formatKpiNumber(evidenceCount),
+      hint: 'جمع ابزارهایی که خروجی قابل استناد برگردانده‌اند.'
+    },
+    {
+      label: 'جمع ردیف های شواهد',
+      value: formatKpiNumber(totalRows),
+      hint: 'نمایی از حجم داده تحلیل شده در پاسخ جاری.'
+    }
+  ]
+
+  const metric = findPrimaryNumericMetric(evidenceItems)
+
+  if (!metric) {
+    return cards
+  }
+
+  cards.push({
+    label: `جمع ${metric.columnName}`,
+    value: formatKpiNumber(metric.sum),
+    hint: `ابزار: ${metric.toolName}`
+  })
+  cards.push({
+    label: `بیشینه ${metric.columnName}`,
+    value: formatKpiNumber(metric.max),
+    hint: `کمینه: ${formatKpiNumber(metric.min)} | میانگین: ${formatKpiNumber(metric.avg)}`
+  })
+
+  return cards
+}
+
+function findPrimaryNumericMetric(evidenceItems: ReportExportEvidenceItem[]): {
+  toolName: string
+  columnName: string
+  sum: number
+  min: number
+  max: number
+  avg: number
+} | null {
+  for (const item of evidenceItems) {
+    if (!Array.isArray(item.rows) || item.rows.length === 0) {
+      continue
+    }
+
+    const columns = Array.isArray(item.columns) ? item.columns.filter((column) => column.trim()) : []
+    if (columns.length === 0) {
+      continue
+    }
+
+    const metricColumn = selectMetricColumn(columns, item.rows)
+    if (!metricColumn) {
+      continue
+    }
+
+    const values: number[] = []
+
+    for (const row of item.rows) {
+      const parsed = toChartNumber(row[metricColumn])
+
+      if (parsed === null) {
+        continue
+      }
+
+      values.push(parsed)
+    }
+
+    if (values.length === 0) {
+      continue
+    }
+
+    const sum = values.reduce((acc, value) => acc + value, 0)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const avg = sum / values.length
+
+    return {
+      toolName: item.toolName,
+      columnName: metricColumn,
+      sum,
+      min,
+      max,
+      avg
+    }
+  }
+
+  return null
+}
+
+function formatKpiNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '-'
+  }
+
+  return new Intl.NumberFormat('fa-IR', {
+    maximumFractionDigits: 2
+  }).format(value)
 }
 
 function renderTrendChart(snapshot: ReportSnapshot | null): void {
@@ -1872,6 +2238,239 @@ async function refreshRuntimeStatuses(silent: boolean): Promise<void> {
       setAppNotice(bridgeResult.error ?? 'بررسی وضعیت پل موبایل ناموفق بود.', 'error')
     }
   }
+
+  if (!silent) {
+    await loadAuditLogViewer()
+  }
+}
+
+async function loadAuditLogViewer(): Promise<void> {
+  ui.auditRefreshBtn.disabled = true
+  ui.auditRefreshBtn.textContent = 'در حال بارگذاری...'
+
+  const request: AuditLogQueryRequest = {
+    limit: toSafeAuditLimit(ui.auditLimitInput.value),
+    requestId: ui.auditRequestIdInput.value.trim() || undefined,
+    stage: toAuditStageFilter(ui.auditStageFilterInput.value)
+  }
+
+  const response = await window.api.audit.list(request)
+
+  ui.auditRefreshBtn.disabled = false
+  ui.auditRefreshBtn.textContent = 'به روزرسانی لاگ'
+
+  if (!response.ok || !response.data) {
+    ui.auditLogSummary.textContent = response.error ?? 'خواندن لاگ حسابرسی انجام نشد.'
+    ui.auditLogSummary.className = 'inline-alert note-error'
+    ui.auditLogList.innerHTML = ''
+    renderQualityDashboard([])
+    return
+  }
+
+  renderAuditLogEntries(response.data.entries)
+  renderQualityDashboard(response.data.entries)
+  ui.auditLogSummary.textContent = `تعداد ${response.data.entries.length} رکورد (از ${response.data.total}) نمایش داده شد.`
+  ui.auditLogSummary.className = 'inline-alert note-info'
+}
+
+function renderQualityDashboard(entries: AuditLogViewerEntry[]): void {
+  ui.qualityDashboardGrid.innerHTML = ''
+  ui.qualityStageBreakdown.innerHTML = ''
+  ui.qualityDashboardEmpty.hidden = true
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    ui.qualityDashboardPanel.hidden = true
+    return
+  }
+
+  ui.qualityDashboardPanel.hidden = false
+
+  const toolSuccessCount = entries.filter((entry) => entry.stage === 'tool-success').length
+  const toolErrorCount = entries.filter((entry) => entry.stage === 'tool-error').length
+  const finalCount = entries.filter((entry) => entry.stage === 'final').length
+  const errorCount = entries.filter((entry) => entry.stage === 'error').length
+  const qualityDenominator = toolSuccessCount + toolErrorCount
+  const toolSuccessRate = qualityDenominator > 0 ? (toolSuccessCount / qualityDenominator) * 100 : null
+
+  const durationValues = entries
+    .map((entry) => entry.durationMs)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+  const avgDuration =
+    durationValues.length > 0
+      ? durationValues.reduce((sum, value) => sum + value, 0) / durationValues.length
+      : null
+
+  const rowCountValues = entries
+    .map((entry) => entry.rowCount)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+  const avgRowCount =
+    rowCountValues.length > 0
+      ? rowCountValues.reduce((sum, value) => sum + value, 0) / rowCountValues.length
+      : null
+
+  const cards: QualityCardModel[] = [
+    {
+      label: 'نرخ موفقیت ابزارها',
+      value: toolSuccessRate === null ? '-' : `${formatKpiNumber(toolSuccessRate)}%`
+    },
+    {
+      label: 'ابزار موفق',
+      value: formatKpiNumber(toolSuccessCount)
+    },
+    {
+      label: 'ابزار خطادار',
+      value: formatKpiNumber(toolErrorCount)
+    },
+    {
+      label: 'پاسخ نهایی',
+      value: formatKpiNumber(finalCount)
+    },
+    {
+      label: 'خطاهای نهایی',
+      value: formatKpiNumber(errorCount)
+    },
+    {
+      label: 'میانگین زمان (ms)',
+      value: avgDuration === null ? '-' : formatKpiNumber(avgDuration)
+    },
+    {
+      label: 'میانگین ردیف شواهد',
+      value: avgRowCount === null ? '-' : formatKpiNumber(avgRowCount)
+    }
+  ]
+
+  for (const card of cards) {
+    const article = document.createElement('article')
+    article.className = 'quality-card'
+
+    const label = document.createElement('div')
+    label.className = 'quality-card-label'
+    label.textContent = card.label
+
+    const value = document.createElement('div')
+    value.className = 'quality-card-value'
+    value.textContent = card.value
+
+    article.append(label, value)
+    ui.qualityDashboardGrid.appendChild(article)
+  }
+
+  const stageCountMap = new Map<string, number>()
+
+  for (const entry of entries) {
+    const stage = entry.stage
+    stageCountMap.set(stage, (stageCountMap.get(stage) ?? 0) + 1)
+  }
+
+  const orderedStages: AuditLogStage[] = ['start', 'tool-start', 'tool-success', 'tool-error', 'final', 'error']
+
+  for (const stage of orderedStages) {
+    const count = stageCountMap.get(stage) ?? 0
+    const chip = document.createElement('span')
+    chip.className = 'quality-stage-chip'
+    chip.textContent = `${stage}: ${formatKpiNumber(count)}`
+    ui.qualityStageBreakdown.appendChild(chip)
+  }
+
+  if (cards.length === 0) {
+    ui.qualityDashboardEmpty.hidden = false
+  }
+}
+
+function renderAuditLogEntries(entries: AuditLogViewerEntry[]): void {
+  ui.auditLogList.innerHTML = ''
+
+  if (entries.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'audit-item'
+    empty.textContent = 'برای فیلتر فعلی لاگ حسابرسی یافت نشد.'
+    ui.auditLogList.appendChild(empty)
+    return
+  }
+
+  for (const entry of entries) {
+    const container = document.createElement('article')
+    container.className = 'audit-item'
+
+    const meta = document.createElement('div')
+    meta.className = 'audit-item-meta'
+    const dateText = formatAuditTimestamp(entry.timestamp)
+    const stageText = entry.stage
+    const requestIdText = entry.requestId
+    const toolText = entry.toolName ? ` | tool=${entry.toolName}` : ''
+    meta.textContent = `${dateText} | stage=${stageText} | requestId=${requestIdText}${toolText}`
+
+    const body = document.createElement('div')
+    body.className = 'audit-item-body'
+    const lines: string[] = []
+
+    if (entry.conversationId) {
+      lines.push(`conversationId: ${entry.conversationId}`)
+    }
+    if (typeof entry.round === 'number') {
+      lines.push(`round: ${entry.round}`)
+    }
+    if (typeof entry.rowCount === 'number') {
+      lines.push(`rowCount: ${entry.rowCount}`)
+    }
+    if (typeof entry.durationMs === 'number') {
+      lines.push(`durationMs: ${entry.durationMs}`)
+    }
+    if (entry.errorCode) {
+      lines.push(`errorCode: ${entry.errorCode}`)
+    }
+    if (entry.errorCategory) {
+      lines.push(`errorCategory: ${entry.errorCategory}`)
+    }
+    if (entry.promptPreview) {
+      lines.push(`prompt: ${entry.promptPreview}`)
+    }
+    if (entry.sqlQueryPreview) {
+      lines.push(`sql: ${entry.sqlQueryPreview}`)
+    }
+
+    body.textContent = lines.join('\n') || 'جزئیات اضافه ای برای این رکورد ثبت نشده است.'
+
+    container.append(meta, body)
+    ui.auditLogList.appendChild(container)
+  }
+}
+
+function toSafeAuditLimit(raw: string): number {
+  const parsed = Number.parseInt(raw.trim(), 10)
+
+  if (!Number.isFinite(parsed)) {
+    return 80
+  }
+
+  return Math.min(Math.max(parsed, 10), 500)
+}
+
+function toAuditStageFilter(raw: string): AuditLogStage | 'all' {
+  const stage = raw.trim()
+
+  if (
+    stage === 'start' ||
+    stage === 'tool-start' ||
+    stage === 'tool-success' ||
+    stage === 'tool-error' ||
+    stage === 'final' ||
+    stage === 'error'
+  ) {
+    return stage
+  }
+
+  return 'all'
+}
+
+function formatAuditTimestamp(value: string): string {
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleString('fa-IR')
 }
 
 function startStatusPolling(): void {
@@ -2509,6 +3108,8 @@ function renderSchemaMappingEditor(
 
   if (!catalog) {
     ui.schemaMappingEditor.hidden = true
+    ui.startSchemaWizardBtn.disabled = true
+    closeSchemaMappingWizard()
     ui.saveSchemaMappingsBtn.disabled = true
     ui.resetSchemaMappingsBtn.disabled = true
     renderSchemaSoftwareEditor(null)
@@ -2575,8 +3176,13 @@ function renderSchemaMappingEditor(
 
   ui.schemaMappingEditor.hidden = false
   const hasRows = ui.schemaMappingRows.children.length > 0
+  ui.startSchemaWizardBtn.disabled = !hasRows
   ui.saveSchemaMappingsBtn.disabled = !hasRows
   ui.resetSchemaMappingsBtn.disabled = !hasRows
+
+  if (state.schemaWizard.open) {
+    renderSchemaMappingWizard(catalog)
+  }
 }
 
 function collectSchemaSelectionsFromEditor(catalog: SchemaCatalogEntry): SchemaConceptSelections {
@@ -3109,75 +3715,11 @@ async function updateConnectionProfileTestStatus(
 }
 
 function toFriendlyInfraError(error: string): string {
-  const normalized = error.toLowerCase()
-
-  if (normalized.includes('login failed')) {
-    return 'احراز هویت SQL ناموفق بود. نام کاربری یا رمز عبور را بررسی کنید.'
-  }
-
-  if (normalized.includes('econnrefused') || normalized.includes('connection refused')) {
-    return 'اتصال به سرور رد شد. آدرس میزبان، پورت و فعال بودن SQL Server را بررسی کنید.'
-  }
-
-  if (normalized.includes('enotfound') || normalized.includes('getaddrinfo')) {
-    return 'میزبان پیدا نشد. آدرس میزبان را بررسی کنید.'
-  }
-
-  if (normalized.includes('timeout') || normalized.includes('etimedout')) {
-    return 'مهلت اتصال تمام شد. شبکه، فایروال، پورت یا تاخیر SSH را بررسی کنید.'
-  }
-
-  if (
-    normalized.includes('certificate') ||
-    normalized.includes('self-signed') ||
-    normalized.includes('trustservercertificate')
-  ) {
-    return 'خطای گواهی TLS رخ داد. تنظیمات Encrypt و Trust Server Certificate را بازبینی کنید.'
-  }
-
-  if (normalized.includes('all configured authentication methods failed')) {
-    return 'احراز هویت SSH ناموفق بود. رمز عبور یا کلید خصوصی/Passphrase را بررسی کنید.'
-  }
-
-  if (normalized.includes('unable to start ssh tunnel')) {
-    return 'شروع تونل SSH انجام نشد. تنظیمات SSH و دسترسی سرور را بررسی کنید.'
-  }
-
-  return `خطا: ${error}`
+  return localizeInfraErrorFa(error)
 }
 
 function toFriendlyChatError(error: string): string {
-  const normalized = error.toLowerCase()
-
-  if (normalized.includes('api key is empty')) {
-    return 'کلید API تنظیم نشده است. ابتدا در تب تنظیمات کلید را وارد و ذخیره کنید.'
-  }
-
-  if (normalized.includes('request canceled by user') || normalized.includes('request cancelled by user')) {
-    return 'درخواست توسط کاربر متوقف شد.'
-  }
-
-  if (normalized.includes('agent_request_cancelled')) {
-    return 'درخواست توسط کاربر متوقف شد.'
-  }
-
-  if (normalized.includes('timeout')) {
-    return 'مهلت پاسخ پراکسی هوش مصنوعی تمام شد. دوباره تلاش کنید یا اندازه درخواست را کمتر کنید.'
-  }
-
-  if (normalized.includes('401') || normalized.includes('403')) {
-    return 'احراز هویت توسط پراکسی رد شد. API Key و Base URL را بررسی کنید.'
-  }
-
-  if (normalized.includes('429')) {
-    return 'محدودیت نرخ درخواست توسط پراکسی فعال شده است. کمی بعد دوباره تلاش کنید.'
-  }
-
-  if (normalized.includes('500') || normalized.includes('502') || normalized.includes('503') || normalized.includes('504')) {
-    return 'سرویس پراکسی موقتا در دسترس نیست. کمی بعد دوباره تلاش کنید.'
-  }
-
-  return error
+  return localizeChatErrorFa(error)
 }
 
 function isCancellationMessage(message: string): boolean {
