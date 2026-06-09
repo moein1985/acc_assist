@@ -22,8 +22,6 @@ import type {
   SqlConnectionConfig,
   SqlHealthCheck,
   SqlQueryRow,
-  SqlQueryRequest,
-  SqlQueryResult,
   SshTunnelConfig,
   SshTunnelStatus
 } from '../shared/contracts'
@@ -56,7 +54,6 @@ export interface AccAssistApi {
       connection?: SqlConnectionConfig
       ssh?: SshTunnelConfig
     }) => Promise<IpcResponse<string>>
-    query: (payload: SqlQueryRequest) => Promise<IpcResponse<SqlQueryResult>>
     executeQuery: (query: string) => Promise<IpcResponse<SqlQueryRow[]>>
     disconnect: () => Promise<IpcResponse<boolean>>
   }

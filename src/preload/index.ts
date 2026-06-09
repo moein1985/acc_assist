@@ -23,8 +23,6 @@ import type {
   SqlConnectionConfig,
   SqlHealthCheck,
   SqlQueryRow,
-  SqlQueryRequest,
-  SqlQueryResult,
   SshTunnelConfig,
   SshTunnelStatus
 } from '../shared/contracts'
@@ -63,8 +61,6 @@ const api = {
       connection?: SqlConnectionConfig
       ssh?: SshTunnelConfig
     }): Promise<IpcResponse<string>> => ipcRenderer.invoke('sql:test-connection', payload),
-    query: (payload: SqlQueryRequest): Promise<IpcResponse<SqlQueryResult>> =>
-      ipcRenderer.invoke('sql:query', payload),
     executeQuery: (query: string): Promise<IpcResponse<SqlQueryRow[]>> =>
       ipcRenderer.invoke('sql:execute-query', query),
     disconnect: (): Promise<IpcResponse<boolean>> => ipcRenderer.invoke('sql:disconnect')

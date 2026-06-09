@@ -172,6 +172,9 @@ const DATE_RANGE_AMBIGUITY_SIGNAL_PATTERN =
 const DATE_RANGE_EXPLICIT_SCOPE_PATTERN =
   /((?:13|14|19|20)\d{2}|this|current|today|امسال|سال\s*جاری|ماه\s*جاری|فصل\s*جاری|month\s*to\s*date|quarter\s*to\s*date)/iu
 
+const FISCAL_YEAR_COUNT_INTENT_PATTERN =
+  /(?:\bhow\s+many\s+fiscal\s+years\b|\bfiscal\s+year\s+count\b|\bcount\s+of\s+fiscal\s+years\b|(?:تعداد|چند)\s*سال\s*مالی|سال\s*مالی\s*(?:چند|تعداد))/iu
+
 type PreferredMapping = {
   tableRef: string
   source: 'selected' | 'suggested'
@@ -251,6 +254,11 @@ type ActiveAgentExecution = {
   requestId: string
   conversationId: string
   abortController: AbortController
+}
+
+type FiscalYearCountFallbackResult = {
+  markdown: string
+  toolCallsUsed: number
 }
 
 const SENSITIVE_IDENTIFIER_FIELD_TOKENS = [
@@ -463,11 +471,62 @@ export class AgentOrchestrator {
         conversationMemory
       )
       let totalToolCallCount = 0
+      const shouldUseFiscalYearCountFallback =
+        payload.mode === 'manual' && this.isFiscalYearCountIntent(prompt)
 
       const clarificationResponse =
         payload.mode === 'manual'
           ? this.buildClarificationResponseIfNeeded(settings, prompt, conversationMemory)
           : null
+
+      if (shouldUseFiscalYearCountFallback) {
+        this.emitProgress(onProgress, {
+          type: 'thinking',
+          message: 'در حال اجرای مسیر تخصصی شمارش سال مالی از دیتابیس...'
+        })
+
+        const fallbackResult = await this.tryResolveFiscalYearCountFallback(
+          settings,
+          conversationMemory,
+          execution.abortController.signal,
+          onProgress
+        )
+
+        if (fallbackResult) {
+          totalToolCallCount += fallbackResult.toolCallsUsed
+          const finalText = this.ensureFinancialResponseTemplate(
+            fallbackResult.markdown,
+            conversationMemory,
+            totalToolCallCount
+          )
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'final',
+            durationMs: Date.now() - startedAt,
+            round: 0
+          })
+
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
+
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: 0,
+            toolCallsUsed: totalToolCallCount
+          }
+        }
+      }
 
       if (clarificationResponse) {
         const finalText = this.ensureFinancialResponseTemplate(
@@ -549,6 +608,55 @@ export class AgentOrchestrator {
         }
 
         if (toolCalls.length === 0) {
+          if (shouldUseFiscalYearCountFallback && totalToolCallCount === 0) {
+            this.emitProgress(onProgress, {
+              type: 'thinking',
+              message: 'در حال اجرای مسیر کنترلی برای شمارش سال مالی از داده واقعی دیتابیس...'
+            })
+
+            const fallbackResult = await this.tryResolveFiscalYearCountFallback(
+              settings,
+              conversationMemory,
+              execution.abortController.signal,
+              onProgress
+            )
+
+            if (fallbackResult) {
+              totalToolCallCount += fallbackResult.toolCallsUsed
+              const finalText = this.ensureFinancialResponseTemplate(
+                fallbackResult.markdown,
+                conversationMemory,
+                totalToolCallCount
+              )
+              this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+              const finalHistory = this.compactHistory(
+                [...workingHistory, { role: 'assistant', content: finalText }],
+                conversationMemory
+              )
+
+              await this.safeAuditWrite({
+                timestamp: new Date().toISOString(),
+                requestId,
+                conversationId,
+                stage: 'final',
+                durationMs: Date.now() - startedAt,
+                round: round + 1
+              })
+
+              this.emitProgress(onProgress, {
+                type: 'final',
+                message: finalText
+              })
+
+              return {
+                history: finalHistory,
+                finalText,
+                rounds: round + 1,
+                toolCallsUsed: totalToolCallCount
+              }
+            }
+          }
+
           const rawFinalText = response.text.trim() || 'Model returned an empty response.'
           const finalText = this.ensureFinancialResponseTemplate(
             rawFinalText,
@@ -2295,6 +2403,243 @@ export class AgentOrchestrator {
     }
 
     return `${normalized.slice(0, maxLength - 1)}…`
+  }
+
+  private isFiscalYearCountIntent(prompt: string): boolean {
+    const normalizedPrompt = this.normalizePersianDigits(prompt)
+    return FISCAL_YEAR_COUNT_INTENT_PATTERN.test(normalizedPrompt)
+  }
+
+  private async tryResolveFiscalYearCountFallback(
+    settings: AppSettings,
+    conversationMemory: ConversationMemoryState,
+    signal: AbortSignal,
+    onProgress?: (event: AgentProgressEvent) => void
+  ): Promise<FiscalYearCountFallbackResult | null> {
+    const activeCatalog = this.findActiveSchemaCatalog(settings)
+    let toolCallsUsed = 0
+
+    let fiscalCandidates: RuntimeScopeColumnCandidate[] = []
+
+    if (activeCatalog) {
+      fiscalCandidates = this.collectRuntimeScopeColumnCandidates(activeCatalog)
+        .filter((candidate) => candidate.dimension === 'fiscalYear')
+        .slice(0, 8)
+    }
+
+    if (fiscalCandidates.length === 0) {
+      const metadataRows = await this.executeMetadataSql(
+        `SELECT TOP (48)
+  c.TABLE_SCHEMA AS table_schema,
+  c.TABLE_NAME AS table_name,
+  c.COLUMN_NAME AS column_name
+FROM INFORMATION_SCHEMA.COLUMNS c
+WHERE c.TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'sys')
+  AND (
+    c.COLUMN_NAME LIKE N'%fiscal%'
+    OR c.COLUMN_NAME LIKE N'%year%'
+    OR c.COLUMN_NAME LIKE N'%period%'
+    OR c.COLUMN_NAME LIKE N'%سال%'
+    OR c.COLUMN_NAME LIKE N'%مالی%'
+    OR c.COLUMN_NAME LIKE N'%دوره%'
+  )
+ORDER BY
+  CASE WHEN c.TABLE_SCHEMA IN ('ACC', 'RPA') THEN 0 ELSE 1 END,
+  c.TABLE_SCHEMA,
+  c.TABLE_NAME,
+  c.ORDINAL_POSITION`,
+        signal
+      )
+
+      toolCallsUsed += 1
+
+      const metadataCandidates: RuntimeScopeColumnCandidate[] = []
+
+      for (const row of metadataRows) {
+        const schemaName = String(row['table_schema'] ?? '').trim()
+        const tableName = String(row['table_name'] ?? '').trim()
+        const columnName = String(row['column_name'] ?? '').trim()
+
+        if (!schemaName || !tableName || !columnName) {
+          continue
+        }
+
+        metadataCandidates.push({
+          dimension: 'fiscalYear',
+          tableRef: `${schemaName}.${tableName}`,
+          columnName,
+          score: schemaName === 'ACC' || schemaName === 'RPA' ? 8 : 5,
+          samplePreview: null
+        })
+      }
+
+      fiscalCandidates = metadataCandidates.slice(0, 10)
+    }
+
+    if (fiscalCandidates.length === 0) {
+      return null
+    }
+
+    type FiscalStats = {
+      candidate: RuntimeScopeColumnCandidate
+      count: number
+      minYear: number | null
+      maxYear: number | null
+    }
+
+    const successfulStats: FiscalStats[] = []
+
+    for (const candidate of fiscalCandidates) {
+      this.throwIfRequestCanceled(signal)
+      const tableRef = this.parseSqlTableReference(candidate.tableRef)
+
+      if (!tableRef?.schemaName || !tableRef.tableName) {
+        continue
+      }
+
+      const schemaIdentifier = this.quoteSqlIdentifier(tableRef.schemaName)
+      const tableIdentifier = this.quoteSqlIdentifier(tableRef.tableName)
+      const columnIdentifier = this.quoteSqlIdentifier(candidate.columnName)
+      const fromClause = `${schemaIdentifier}.${tableIdentifier}`
+
+      const statsQuery = `WITH fiscal_values AS (
+  SELECT TRY_CONVERT(NVARCHAR(32), ${columnIdentifier}) AS fiscal_text
+  FROM ${fromClause}
+)
+SELECT
+  COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text)) AS fiscal_year_count,
+  MIN(TRY_CONVERT(INT, fiscal_text)) AS min_fiscal_year,
+  MAX(TRY_CONVERT(INT, fiscal_text)) AS max_fiscal_year
+FROM fiscal_values
+WHERE fiscal_text LIKE '[12][0-9][0-9][0-9]'
+  AND TRY_CONVERT(INT, fiscal_text) BETWEEN 1300 AND 2099`
+
+      try {
+        const rows = await this.executeReadOnlySql(statsQuery, signal)
+        toolCallsUsed += 1
+
+        const row = rows[0] as SqlQueryRow | undefined
+        const count = this.toFiniteInteger(row?.['fiscal_year_count'])
+
+        if (count <= 0) {
+          continue
+        }
+
+        successfulStats.push({
+          candidate,
+          count,
+          minYear: this.toOptionalFiniteInteger(row?.['min_fiscal_year']),
+          maxYear: this.toOptionalFiniteInteger(row?.['max_fiscal_year'])
+        })
+      } catch {
+        // Keep trying other fiscal-year candidates.
+      }
+    }
+
+    if (successfulStats.length === 0) {
+      return null
+    }
+
+    successfulStats.sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count
+      }
+
+      if (right.candidate.score !== left.candidate.score) {
+        return right.candidate.score - left.candidate.score
+      }
+
+      return left.candidate.tableRef.localeCompare(right.candidate.tableRef)
+    })
+
+    const best = successfulStats[0]
+    const bestRef = this.parseSqlTableReference(best.candidate.tableRef)
+
+    if (!bestRef?.schemaName || !bestRef.tableName) {
+      return null
+    }
+
+    const previewQuery = `WITH fiscal_values AS (
+  SELECT DISTINCT TRY_CONVERT(INT, TRY_CONVERT(NVARCHAR(32), ${this.quoteSqlIdentifier(best.candidate.columnName)})) AS fiscal_year
+  FROM ${this.quoteSqlIdentifier(bestRef.schemaName)}.${this.quoteSqlIdentifier(bestRef.tableName)}
+  WHERE TRY_CONVERT(NVARCHAR(32), ${this.quoteSqlIdentifier(best.candidate.columnName)}) LIKE '[12][0-9][0-9][0-9]'
+)
+SELECT TOP (8) fiscal_year
+FROM fiscal_values
+WHERE fiscal_year BETWEEN 1300 AND 2099
+ORDER BY fiscal_year DESC`
+
+    let previewYears: number[] = []
+
+    try {
+      const previewRows = await this.executeReadOnlySql(previewQuery, signal)
+      toolCallsUsed += 1
+      previewYears = previewRows
+        .map((row) => this.toOptionalFiniteInteger(row['fiscal_year']))
+        .filter((value): value is number => value !== null)
+    } catch {
+      previewYears = []
+    }
+
+    const yearSpanText =
+      best.minYear !== null && best.maxYear !== null
+        ? `${best.minYear} تا ${best.maxYear}`
+        : 'نامشخص'
+    const previewText = previewYears.length > 0 ? previewYears.join('، ') : 'نمونه معتبر بازیابی نشد.'
+
+    this.rememberToolTrace(
+      conversationMemory,
+      `fallback:fiscal_year_count table=${best.candidate.tableRef} column=${best.candidate.columnName} count=${best.count}`
+    )
+
+    this.emitProgress(onProgress, {
+      type: 'tool-success',
+      message: `✅ مسیر کنترلی سال مالی اجرا شد: ${best.count} سال مالی در ${best.candidate.tableRef}.${best.candidate.columnName}`,
+      toolName: 'fetch_financial_data',
+      rowCount: best.count
+    })
+
+    return {
+      markdown: [
+        '### Summary',
+        `در دیتابیس فعلی ${best.count} سال مالی متمایز شناسایی شد.`,
+        '',
+        '### Findings',
+        `- جدول/ستون مبنا: ${best.candidate.tableRef}.${best.candidate.columnName}`,
+        `- بازه سال‌ها: ${yearSpanText}`,
+        `- نمونه سال‌های بازیابی‌شده (نزولی): ${previewText}`,
+        '',
+        '### Evidence',
+        `- مسیر کنترلی read-only اجرا شد و ${toolCallsUsed} کوئری امن برای کشف و اعتبارسنجی سال مالی اجرا گردید.`,
+        '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در شمارش لحاظ شدند.',
+        '',
+        '### Actions',
+        '- اگر منظورتان سال مالی یک شرکت یا شعبه خاص است، نام شرکت/شعبه را اعلام کنید تا شمارش scope-based انجام شود.'
+      ].join('\n'),
+      toolCallsUsed
+    }
+  }
+
+  private quoteSqlIdentifier(value: string): string {
+    return `[${value.replace(/\]/g, ']]')}]`
+  }
+
+  private toFiniteInteger(value: unknown): number {
+    const parsed = this.toOptionalFiniteInteger(value)
+    return parsed ?? 0
+  }
+
+  private toOptionalFiniteInteger(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value)
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value.trim(), 10)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+
+    return null
   }
 
   private ensureFinancialResponseTemplate(

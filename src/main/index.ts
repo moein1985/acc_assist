@@ -23,8 +23,6 @@ import type {
   SqlConnectionConfig,
   SqlHealthCheck,
   SqlQueryRow,
-  SqlQueryRequest,
-  SqlQueryResult,
   SshTunnelConfig,
   SshTunnelStatus
 } from '../shared/contracts'
@@ -570,20 +568,6 @@ function registerIpcHandlers(): void {
       }
     }
   )
-
-  ipcMain.handle('sql:query', async (_, payload: SqlQueryRequest): Promise<IpcResponse<SqlQueryResult>> => {
-    try {
-      const runtimeConnection = await resolveRuntimeSqlConnection(payload.connection, payload.ssh)
-      const result = await sqlConnectionManager.query({
-        ...payload,
-        connection: runtimeConnection
-      })
-
-      return ok(result)
-    } catch (error) {
-      return failWithContext(error, 'sql:query')
-    }
-  })
 
   ipcMain.handle('sql:execute-query', async (_, query: string): Promise<IpcResponse<SqlQueryRow[]>> => {
     try {
