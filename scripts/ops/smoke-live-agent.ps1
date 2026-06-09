@@ -8,8 +8,7 @@ param(
   [int]$Port = 2211,
   [string]$User = 'administrator',
   [string]$Password = 'Hs-co@12321#',
-  [string]$HostKey = 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ',
-  [string]$DebugToken = 'accassist-ssh-debug-token'
+  [string]$HostKey = 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,16 +29,16 @@ function Resolve-PromptText {
   throw 'Prompt text is empty. Use -Prompt or -PromptFile.'
 }
 
-try {
-  $promptText = Resolve-PromptText
-  $promptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($promptText))
+function Invoke-RemoteSmokeRun {
+  param(
+    [string]$PromptBase64,
+    [string]$DebugToken
+  )
 
   $remoteScriptPath = Join-Path $PSScriptRoot 'remote-server-control.ps1'
   if (-not (Test-Path $remoteScriptPath)) {
     throw "Remote control script not found: $remoteScriptPath"
   }
-
-  Write-Host '[smoke-live] Running remote ask-ai with PromptBase64 transport...'
 
   $remoteArgs = @{
     Action = 'ask-ai'
@@ -48,14 +47,36 @@ try {
     User = $User
     Password = $Password
     HostKey = $HostKey
-    PromptBase64 = $promptBase64
+    PromptBase64 = $PromptBase64
     DebugToken = $DebugToken
   }
 
   $rawOutput = & $remoteScriptPath @remoteArgs *>&1 | Out-String
 
-  if ($LASTEXITCODE -ne 0) {
-    throw "remote-server-control exited with code $LASTEXITCODE"
+  return [pscustomobject]@{
+    RawOutput = $rawOutput
+    ExitCode = $LASTEXITCODE
+  }
+}
+
+try {
+  $promptText = Resolve-PromptText
+  $promptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($promptText))
+
+  Write-Host '[smoke-live] Running remote ask-ai with PromptBase64 transport...'
+
+  $generatedDebugToken = ([guid]::NewGuid().ToString('N'))
+  $runResult = Invoke-RemoteSmokeRun -PromptBase64 $promptBase64 -DebugToken $generatedDebugToken
+
+  if ($runResult.ExitCode -ne 0 -and $runResult.RawOutput -match 'Debug endpoint did not start') {
+    Write-Host '[smoke-live] Retrying with legacy debug token for installed build compatibility...'
+    $runResult = Invoke-RemoteSmokeRun -PromptBase64 $promptBase64 -DebugToken 'accassist-ssh-debug-token'
+  }
+
+  $rawOutput = $runResult.RawOutput
+
+  if ($runResult.ExitCode -ne 0) {
+    throw "remote-server-control exited with code $($runResult.ExitCode)"
   }
 
   $okMatch = [regex]::Match($rawOutput, '(?m)^Ok:\s*(True|False)\s*$')
@@ -88,12 +109,13 @@ try {
   Write-Host "[smoke-live] PromptLength=$($promptText.Length), FinalLength=$($finalText.Length)"
   exit 0
 } catch {
-  Write-Error "[smoke-live] FAIL: $($_.Exception.Message)"
-
   if ($AllowFailure) {
+    Write-Host "[smoke-live] FAIL (allowed): $($_.Exception.Message)"
     Write-Host '[smoke-live] AllowFailure is set; exiting with success code.'
     exit 0
   }
+
+  Write-Error "[smoke-live] FAIL: $($_.Exception.Message)"
 
   exit 1
 }

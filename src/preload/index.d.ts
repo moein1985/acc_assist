@@ -12,6 +12,7 @@ import type {
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  ReleaseUpdateStatus,
   RendererTelemetryEvent,
   ReportExportRequest,
   ReportExportResult,
@@ -78,6 +79,11 @@ export interface AccAssistApi {
   }
   telemetry: {
     captureRendererEvent: (payload: RendererTelemetryEvent) => Promise<IpcResponse<boolean>>
+  }
+  release: {
+    getUpdateStatus: () => Promise<IpcResponse<ReleaseUpdateStatus>>
+    checkForUpdates: () => Promise<IpcResponse<ReleaseUpdateStatus>>
+    installDownloadedUpdate: () => Promise<IpcResponse<boolean>>
   }
 }
 

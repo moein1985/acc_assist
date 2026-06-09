@@ -37,4 +37,8 @@ linux:
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
+publish:
+  - provider: generic
+    url: https://updates.accassist.app/desktop
+    channel: latest
 npmRebuild: false

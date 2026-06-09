@@ -3,7 +3,11 @@
 async function smokeTest() {
     const INGEST_URL = 'http://192.168.85.84:8081/ingest';
     const EVENTS_URL = 'http://192.168.85.84:8081/events';
-    const BEARER_TOKEN = 'JibUK503KErSUaDAMBoLWqTS254Z08SLqR15BMQinrKIfgvk'; // Fixed token from CT205
+    const BEARER_TOKEN = process.env.ACC_TELEMETRY_BEARER_TOKEN || '';
+
+    if (!BEARER_TOKEN.trim()) {
+        throw new Error('Missing ACC_TELEMETRY_BEARER_TOKEN environment variable.');
+    }
 
     const testEvent = {
         id: `smoke-test-${Date.now()}`,

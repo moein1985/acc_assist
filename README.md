@@ -71,6 +71,19 @@ npm run build:mac
 # ساخت برای لینوکس
 npm run build:linux
 
+# release readiness check (advisory)
+npm run release:readiness
+
+# release readiness check (enforce signing env vars)
+npm run release:readiness:strict
+
+# version bump helpers
+npm run release:version:patch
+npm run release:version:minor
+npm run release:version:major
+npm run release:version:beta
+npm run release:version:rc
+
 # smoke سریع برای PR (build + dry/refinement + golden score subset)
 npm run smoke:fast
 
@@ -186,6 +199,83 @@ pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -ExpectedCon
 نکته:
 
 - این smoke اختیاری است و برای محیط‌هایی که سرور ریموت در دسترس نیست، می‌توانید از حالت `-AllowFailure` یا `npm run smoke:live:agent:allow-failure` استفاده کنید.
+
+## Debug Endpoint و Release Hardening
+
+- debug endpoint داخلی فقط با opt-in صریح بالا می‌آید؛ در buildهای عادی release فعال نمی‌شود.
+- برای فعال‌سازی دستی باید هر دو متغیر زیر تنظیم شوند:
+
+```powershell
+$env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'
+$env:ACC_AGENT_DEBUG_TOKEN = 'یک-توکن-تصادفی-طولانی'
+```
+
+- اسکریپت‌های remote live به‌صورت per-run token تولید می‌کنند تا secret ثابت داخل سورس باقی نماند.
+
+## Auto-Update Channel Strategy
+
+- زیرساخت auto-update با `electron-updater` اضافه شده اما به‌صورت پیش‌فرض خاموش است (opt-in).
+- برای فعال سازی در runtime متغیرهای محیطی زیر را قبل از اجرای برنامه تنظیم کنید:
+
+```powershell
+$env:ACC_ENABLE_AUTO_UPDATE = '1'
+$env:ACC_AUTO_UPDATE_CHANNEL = 'latest' # latest | rc | beta | alpha
+$env:ACC_AUTO_UPDATE_AUTO_DOWNLOAD = '1' # 1 = دانلود خودکار
+```
+
+- channel پیش فرض build در `electron-builder.yml` روی `latest` است.
+- برای buildهای pre-release می‌توانید version را به `-beta` یا `-rc` ببرید و فایل channel متناظر را روی update server منتشر کنید.
+
+## Production Secret Policy
+
+- هیچ credential یا token توسعه ای نباید در `DEFAULT_SETTINGS` یا scriptها hardcode شود.
+- کلید API، SQL user/password و telemetry token باید در runtime توسط کاربر/محیط تامین شوند.
+- در automation ریموت از متغیرهای محیطی استفاده کنید و از ثبت آن ها در git خودداری کنید.
+
+متغیرهای محیطی پیشنهادی برای scriptهای `scripts/ops/remote-server-control.ps1`:
+
+```powershell
+$env:ACC_REMOTE_HOST = 'server-or-ip'
+$env:ACC_REMOTE_USER = 'administrator'
+$env:ACC_REMOTE_SSH_PASSWORD = '...'
+$env:ACC_REMOTE_HOST_KEY = 'ssh-ed25519 255 SHA256:...'
+$env:ACC_REMOTE_SQL_USER = 'readonly_user'
+$env:ACC_REMOTE_SQL_PASSWORD = '...'
+```
+
+متغیر محیطی مورد نیاز برای `scripts/ops/telemetry-smoke-test.mjs`:
+
+```powershell
+$env:ACC_TELEMETRY_BEARER_TOKEN = '...'
+```
+
+نکته امنیتی:
+
+- از user فقط خواندنی SQL در production استفاده کنید و `enforceReadOnlyLogin` را روشن نگه دارید.
+
+## Rollback Runbook (Update Artifacts)
+
+برای rollback سریع artifactهای update (generic provider)، ابتدا از `latest.yml/beta.yml/...` و artifactهای release قبلی backup بگیرید. سپس:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts/ops/rollback-release.ps1 `
+  -UpdatesRoot "D:\updates\desktop" `
+  -BackupRoot "D:\updates\backups\2026-06-09" `
+  -PreviousVersion "1.0.2" `
+  -Channel latest
+```
+
+حالت dry-run:
+
+```powershell
+npm run release:rollback -- -UpdatesRoot "D:\updates\desktop" -BackupRoot "D:\updates\backups\2026-06-09" -PreviousVersion "1.0.2" -Channel latest -WhatIfMode
+```
+
+توصیه عملیاتی:
+
+- قبل از rollback، pipeline انتشار channel را متوقف کنید.
+- بعد از rollback یک canary update test روی یک ماشین اجرا کنید.
+- فایل تولیدشده `build/release-rollback-plan.json` (از `release:readiness`) را کنار artifactها نگه دارید.
 
 ## IDE پیشنهادی
 

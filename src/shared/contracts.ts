@@ -56,6 +56,28 @@ export interface TelemetryConfig {
   includeRendererErrors: boolean
 }
 
+export type ReleaseUpdateChannel = 'latest' | 'rc' | 'beta' | 'alpha'
+export type ReleaseUpdateState =
+  | 'disabled'
+  | 'idle'
+  | 'checking'
+  | 'update-available'
+  | 'update-not-available'
+  | 'downloaded'
+  | 'error'
+
+export interface ReleaseUpdateStatus {
+  enabled: boolean
+  currentVersion: string
+  channel: ReleaseUpdateChannel
+  autoDownload: boolean
+  state: ReleaseUpdateState
+  latestVersion: string | null
+  downloadedVersion: string | null
+  lastCheckedAt: string | null
+  lastError: string | null
+}
+
 export interface SqlSecurityPolicyConfig {
   enforceReadOnlyLogin: boolean
   forbidWildcardSelect: boolean

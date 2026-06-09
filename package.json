@@ -40,11 +40,20 @@
     "remote:logs": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action logs",
     "remote:ask-ai": "pwsh -ExecutionPolicy Bypass -File scripts/ops/remote-server-control.ps1 -Action ask-ai",
     "smoke:live:agent": "pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1",
-    "smoke:live:agent:allow-failure": "pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -AllowFailure"
+    "smoke:live:agent:allow-failure": "pwsh -ExecutionPolicy Bypass -File scripts/ops/smoke-live-agent.ps1 -AllowFailure",
+    "release:readiness": "node scripts/ops/release-readiness.mjs",
+    "release:readiness:strict": "node scripts/ops/release-readiness.mjs --strict-signing",
+    "release:version:patch": "npm version patch --no-git-tag-version",
+    "release:version:minor": "npm version minor --no-git-tag-version",
+    "release:version:major": "npm version major --no-git-tag-version",
+    "release:version:beta": "npm version prerelease --preid=beta --no-git-tag-version",
+    "release:version:rc": "npm version prerelease --preid=rc --no-git-tag-version",
+    "release:rollback": "pwsh -ExecutionPolicy Bypass -File scripts/ops/rollback-release.ps1"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "electron-updater": "^6.6.2",
     "mssql": "^12.5.4",
     "node-sql-parser": "^5.4.0",
     "ssh2": "^1.17.0",

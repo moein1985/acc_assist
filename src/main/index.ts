@@ -13,6 +13,7 @@ import type {
   GeminiChatRequest,
   IpcResponse,
   RendererTelemetryEvent,
+  ReleaseUpdateChannel,
   ReportExportRequest,
   ReportExportResult,
   SchemaCatalogEntry,
@@ -39,6 +40,8 @@ import { SettingsStore } from './services/settingsStore'
 import { SqlConnectionManager } from './services/sqlConnectionManager'
 import { SshTunnelService } from './services/sshTunnelService'
 import { TelemetryIngestService } from './services/telemetryIngestService'
+import { resolveAgentDebugToken, shouldStartAgentDebugServer } from './services/agentDebugConfig'
+import { UpdateManager } from './services/updateManager'
 import icon from '../../resources/icon.png?asset'
 
 const settingsStore = new SettingsStore()
@@ -51,6 +54,7 @@ const auditLogService = new AuditLogService()
 const reportExportService = new ReportExportService()
 const telemetryIngestService = new TelemetryIngestService()
 const agentDebugServer = new AgentDebugServer()
+const updateManager = new UpdateManager(telemetryIngestService)
 const agentOrchestrator = new AgentOrchestrator({
   geminiClient,
   getSettings: () => settingsStore.get(),
@@ -76,8 +80,10 @@ const agentOrchestrator = new AgentOrchestrator({
 let mainWindow: BrowserWindow | null = null
 const AGENT_DEBUG_HOST = '127.0.0.1'
 const AGENT_DEBUG_PORT = 3322
-const AGENT_DEBUG_TOKEN = 'accassist-ssh-debug-token'
 const isAgentDebugServerOnly = process.argv.includes('--agent-debug-server-only')
+const isAgentDebugServerEnabled = shouldStartAgentDebugServer({
+  isAgentDebugServerOnly
+})
 
 function createWindow(): void {
   // Create the browser window.
@@ -254,6 +260,18 @@ function normalizeAccountingSoftwareId(value: unknown): 'sepidar' | 'mahak' | nu
   }
 
   return null
+}
+
+function resolveReleaseUpdateChannel(value: string | undefined): ReleaseUpdateChannel {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (normalized === 'alpha' || normalized === 'beta' || normalized === 'rc' || normalized === 'latest') {
+    return normalized
+  }
+
+  return 'latest'
 }
 
 async function resolveRuntimeSqlConnection(
@@ -703,6 +721,27 @@ function registerIpcHandlers(): void {
   ipcMain.handle('mobile-bridge:status', async () => {
     return ok(mobileBridgeServer.getStatus())
   })
+
+  ipcMain.handle('release:get-update-status', async () => {
+    return ok(updateManager.getStatus())
+  })
+
+  ipcMain.handle('release:check-updates', async () => {
+    try {
+      const status = await updateManager.checkForUpdates()
+      return ok(status)
+    } catch (error) {
+      return failWithContext(error, 'release:check-updates')
+    }
+  })
+
+  ipcMain.handle('release:install-downloaded-update', async () => {
+    try {
+      return ok(updateManager.installDownloadedUpdate())
+    } catch (error) {
+      return failWithContext(error, 'release:install-downloaded-update')
+    }
+  })
 }
 
 async function cleanupServices(): Promise<void> {
@@ -739,6 +778,13 @@ app.whenReady().then(() => {
   void (async () => {
     await settingsStore.load()
     telemetryIngestService.configure(settingsStore.get().telemetry)
+
+    await updateManager.start({
+      enabled: process.env.ACC_ENABLE_AUTO_UPDATE === '1',
+      channel: resolveReleaseUpdateChannel(process.env.ACC_AUTO_UPDATE_CHANNEL),
+      autoDownload: process.env.ACC_AUTO_UPDATE_AUTO_DOWNLOAD === '1'
+    })
+
     telemetryIngestService.capture({
       process: 'main',
       level: 'info',
@@ -757,29 +803,44 @@ app.whenReady().then(() => {
       }
     }
 
-    try {
-      await agentDebugServer.start({
-        host: AGENT_DEBUG_HOST,
-        port: AGENT_DEBUG_PORT,
-        token: AGENT_DEBUG_TOKEN,
-        sendMessage: async (payload, onProgress) => {
-          return agentOrchestrator.sendMessage(payload, onProgress)
-        }
-      })
+    const agentDebugToken = resolveAgentDebugToken()
+
+    if (isAgentDebugServerEnabled && agentDebugToken) {
+      try {
+        await agentDebugServer.start({
+          host: AGENT_DEBUG_HOST,
+          port: AGENT_DEBUG_PORT,
+          token: agentDebugToken,
+          sendMessage: async (payload, onProgress) => {
+            return agentOrchestrator.sendMessage(payload, onProgress)
+          }
+        })
+        telemetryIngestService.capture({
+          process: 'main',
+          level: 'info',
+          category: 'agent.debug-server',
+          event: 'started',
+          details: {
+            host: AGENT_DEBUG_HOST,
+            port: AGENT_DEBUG_PORT,
+            enabled: true
+          }
+        })
+      } catch (error) {
+        telemetryIngestService.captureError('agent.debug-server', 'start-failed', error, 'main', {
+          host: AGENT_DEBUG_HOST,
+          port: AGENT_DEBUG_PORT
+        })
+      }
+    } else {
       telemetryIngestService.capture({
         process: 'main',
         level: 'info',
         category: 'agent.debug-server',
-        event: 'started',
+        event: 'disabled',
         details: {
-          host: AGENT_DEBUG_HOST,
-          port: AGENT_DEBUG_PORT
+          reason: isAgentDebugServerEnabled ? 'missing-token' : 'opt-in-disabled'
         }
-      })
-    } catch (error) {
-      telemetryIngestService.captureError('agent.debug-server', 'start-failed', error, 'main', {
-        host: AGENT_DEBUG_HOST,
-        port: AGENT_DEBUG_PORT
       })
     }
 

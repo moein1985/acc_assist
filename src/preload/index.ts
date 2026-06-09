@@ -13,6 +13,7 @@ import type {
   GeminiChatResponse,
   IpcResponse,
   MobileBridgeStatus,
+  ReleaseUpdateStatus,
   RendererTelemetryEvent,
   ReportExportRequest,
   ReportExportResult,
@@ -102,6 +103,12 @@ const api = {
   telemetry: {
     captureRendererEvent: (payload: RendererTelemetryEvent): Promise<IpcResponse<boolean>> =>
       ipcRenderer.invoke('telemetry:capture-renderer-event', payload)
+  },
+  release: {
+    getUpdateStatus: (): Promise<IpcResponse<ReleaseUpdateStatus>> => ipcRenderer.invoke('release:get-update-status'),
+    checkForUpdates: (): Promise<IpcResponse<ReleaseUpdateStatus>> => ipcRenderer.invoke('release:check-updates'),
+    installDownloadedUpdate: (): Promise<IpcResponse<boolean>> =>
+      ipcRenderer.invoke('release:install-downloaded-update')
   }
 }
 

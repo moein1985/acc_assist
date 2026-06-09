@@ -2,11 +2,11 @@ param(
   [ValidateSet('status', 'install', 'uninstall', 'start', 'stop', 'restart', 'logs', 'settings', 'autoconfig-sql', 'ask-ai')]
   [string]$Action = 'status',
 
-  [string]$ServerHost = '192.168.85.56',
+  [string]$ServerHost = $env:ACC_REMOTE_HOST,
   [int]$Port = 2211,
-  [string]$User = 'administrator',
-  [string]$Password = 'Hs-co@12321#',
-  [string]$HostKey = 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ',
+  [string]$User = $env:ACC_REMOTE_USER,
+  [string]$Password = $env:ACC_REMOTE_SSH_PASSWORD,
+  [string]$HostKey = $env:ACC_REMOTE_HOST_KEY,
 
   [string]$InstallerPath = 'dist/acc-assist-1.0.0-setup.exe',
   [string]$RemoteInstallerPath = 'C:/Windows/Temp/acc-assist-1.0.0-setup.exe',
@@ -14,23 +14,48 @@ param(
   [string]$SqlServer = '127.0.0.1',
   [int]$SqlPort = 58033,
   [string]$SqlDatabase = 'Sepidar01',
-  [string]$SqlUser = 'damavand',
-  [string]$SqlPassword = 'damavand',
+  [string]$SqlUser = $env:ACC_REMOTE_SQL_USER,
+  [string]$SqlPassword = $env:ACC_REMOTE_SQL_PASSWORD,
 
   [string]$Prompt = '',
   [string]$PromptBase64 = '',
   [string]$PromptFile = '',
-  [string]$DebugToken = 'accassist-ssh-debug-token',
+  [string]$DebugToken = '',
 
   [int]$Tail = 60
 )
 
 $ErrorActionPreference = 'Stop'
 
+$normalizedAction = $Action.Trim().ToLowerInvariant()
+
+if ([string]::IsNullOrWhiteSpace($ServerHost)) {
+  throw 'ServerHost is required. Use -ServerHost or set ACC_REMOTE_HOST.'
+}
+
+if ([string]::IsNullOrWhiteSpace($User)) {
+  throw 'User is required. Use -User or set ACC_REMOTE_USER.'
+}
+
+if ([string]::IsNullOrWhiteSpace($Password)) {
+  throw 'Password is required. Use -Password or set ACC_REMOTE_SSH_PASSWORD.'
+}
+
+if ([string]::IsNullOrWhiteSpace($HostKey)) {
+  throw 'HostKey is required. Use -HostKey or set ACC_REMOTE_HOST_KEY.'
+}
+
+if ($normalizedAction -eq 'autoconfig-sql' -and [string]::IsNullOrWhiteSpace($SqlPassword)) {
+  throw 'SqlPassword is required for Action=autoconfig-sql. Use -SqlPassword or set ACC_REMOTE_SQL_PASSWORD.'
+}
+
+$SshPasswordPlainText = $Password
+$SqlPasswordPlainText = $SqlPassword
+
 function Invoke-SshCommand {
   param([string]$Command)
 
-  & plink -P $Port -ssh -batch -hostkey $HostKey -pw $Password "$User@$ServerHost" $Command
+  & plink -P $Port -ssh -batch -hostkey $HostKey -pw $SshPasswordPlainText "$User@$ServerHost" $Command
 }
 
 function Invoke-RemotePowerShell {
@@ -45,7 +70,7 @@ function Copy-Installer {
     throw "Installer not found at '$InstallerPath'. Run npm run build:win first."
   }
 
-  & pscp -P $Port -batch -hostkey $HostKey -pw $Password $InstallerPath "$User@${ServerHost}:$RemoteInstallerPath"
+  & pscp -P $Port -batch -hostkey $HostKey -pw $SshPasswordPlainText $InstallerPath "$User@${ServerHost}:$RemoteInstallerPath"
 }
 
 switch ($Action) {
@@ -180,7 +205,7 @@ if (-not (Test-Path `$settingsPath)) { throw 'Settings file not found.' }
 `$settings.sql.port = $SqlPort
 `$settings.sql.database = '$SqlDatabase'
 `$settings.sql.user = '$SqlUser'
-`$settings.sql.password = '$SqlPassword'
+`$settings.sql.password = '$SqlPasswordPlainText'
 `$settings.sql.encrypt = `$false
 `$settings.sql.trustServerCertificate = `$true
 `$settings.sqlSecurity.enforceReadOnlyLogin = `$false
@@ -191,7 +216,7 @@ foreach (`$profile in `$settings.connectionProfiles) {
     `$profile.sql.port = $SqlPort
     `$profile.sql.database = '$SqlDatabase'
     `$profile.sql.user = '$SqlUser'
-    `$profile.sql.password = '$SqlPassword'
+    `$profile.sql.password = '$SqlPasswordPlainText'
     `$profile.sql.encrypt = `$false
     `$profile.sql.trustServerCertificate = `$true
   }
@@ -221,6 +246,10 @@ Get-Content -Path `$logPath -Tail $Tail -Wait
   }
 
   'ask-ai' {
+    if ([string]::IsNullOrWhiteSpace($DebugToken)) {
+      $DebugToken = ([guid]::NewGuid().ToString('N'))
+    }
+
     $finalPromptBase64 = ''
     if (-not [string]::IsNullOrWhiteSpace($PromptFile)) {
       if (-not (Test-Path $PromptFile)) {
@@ -243,18 +272,26 @@ Get-Content -Path `$logPath -Tail $Tail -Wait
 `$ProgressPreference = 'SilentlyContinue'
 `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 `$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$finalPromptBase64'))
-`$headers = @{ 'x-debug-token' = '$DebugToken' }
+
+function New-DebugHeaders {
+  param([string]`$Token)
+  return @{ 'x-debug-token' = `$Token }
+}
 
 function Test-DebugEndpoint {
+  param([string]`$Token)
   try {
-    Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3322/health' -Headers `$headers -TimeoutSec 2 | Out-Null
+    Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3322/health' -Headers (New-DebugHeaders -Token `$Token) -TimeoutSec 2 | Out-Null
     return `$true
   } catch {
     return `$false
   }
 }
 
-if (-not (Test-DebugEndpoint)) {
+  if (-not (Test-DebugEndpoint -Token '$DebugToken')) {
+  `$env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'
+  `$env:ACC_AGENT_DEBUG_TOKEN = '$DebugToken'
+
   `$exeCandidates = @(
     (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'),
     (Join-Path `$env:LOCALAPPDATA 'Programs\\ACC Assist\\ACCAssist.exe'),
@@ -269,7 +306,7 @@ if (-not (Test-DebugEndpoint)) {
   `$ready = `$false
   for (`$i = 0; `$i -lt 20; `$i++) {
     Start-Sleep -Seconds 1
-    if (Test-DebugEndpoint) {
+    if (Test-DebugEndpoint -Token '$DebugToken') {
       `$ready = `$true
       break
     }
@@ -287,7 +324,7 @@ if (-not (Test-DebugEndpoint)) {
 } | ConvertTo-Json -Depth 5
 
 try {
-  `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers `$headers -Body `$body -ContentType 'application/json'
+  `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers (New-DebugHeaders -Token '$DebugToken') -Body `$body -ContentType 'application/json'
 
   `$payload = [pscustomobject]@{
     Ok = [bool]`$response.ok
