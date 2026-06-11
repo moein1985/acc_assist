@@ -9,6 +9,8 @@ import type {
 const DEFAULT_MODEL = 'gemini-2.5-pro'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.avalai.ir/v1'
 const DEFAULT_TIMEOUT_MS = 60000
+const DEFAULT_RETRY_ATTEMPTS = 2
+const DEFAULT_RETRY_BASE_DELAY_MS = 600
 
 type OpenAiStreamOptions = {
   onTextChunk?: (chunkText: string) => void
@@ -21,23 +23,52 @@ type AbortRuntimeContext = {
   dispose: () => void
 }
 
+type GeminiClientOptions = {
+  retryAttempts?: number
+  retryBaseDelayMs?: number
+}
+
 export class GeminiClient {
+  private readonly retryAttempts: number
+  private readonly retryBaseDelayMs: number
+
+  constructor(options?: GeminiClientOptions) {
+    this.retryAttempts = Math.max(0, options?.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS)
+    this.retryBaseDelayMs = Math.max(0, options?.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS)
+  }
+
   async chat(
     payload: GeminiChatRequest,
     savedConfig: GeminiConfig,
     streamOptions?: OpenAiStreamOptions
   ): Promise<GeminiChatResponse> {
-    const config = this.normalizeConfig(savedConfig, payload.config)
+    try {
+      const config = this.normalizeConfig(savedConfig, payload.config)
 
-    if (!config.apiKey) {
-      throw new Error('کلید API هوش مصنوعی تنظیم نشده است. لطفاً در بخش تنظیمات آن را وارد کنید.')
+      if (!config.apiKey) {
+        throw new Error('کلید API هوش مصنوعی تنظیم نشده است. لطفاً در بخش تنظیمات آن را وارد کنید.')
+      }
+
+      if (payload.messages.length === 0) {
+        throw new Error('پیامی برای ارسال به هوش مصنوعی وجود ندارد.')
+      }
+
+      return await this.chatOpenAi(payload, config, streamOptions)
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.startsWith('خطای ارتباط با هوش مصنوعی')) {
+          throw error
+        }
+
+        if (error.message.includes('Gemini API request')) {
+          throw new Error(`خطای ارتباط با هوش مصنوعی: ${this.translateAiError(error.message)}`)
+        }
+
+        throw error
+      }
+
+      throw error
     }
-
-    if (payload.messages.length === 0) {
-      throw new Error('پیامی برای ارسال به هوش مصنوعی وجود ندارد.')
-    }
-
-    return this.chatOpenAi(payload, config, streamOptions)
   }
 
   private async chatOpenAi(
@@ -46,31 +77,38 @@ export class GeminiClient {
     streamOptions?: OpenAiStreamOptions
   ): Promise<GeminiChatResponse> {
     if (streamOptions?.onTextChunk) {
-      return this.chatOpenAiStream(payload, config, streamOptions)
+      return this.withRetry(
+        () => this.chatOpenAiStream(payload, config, streamOptions),
+        'stream'
+      )
     }
 
     const url = this.buildOpenAiUrl(config.baseUrl)
 
-    const raw = await this.requestJson(
-      url,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.apiKey}`
-        },
-        body: JSON.stringify({
-          model: config.model || DEFAULT_MODEL,
-          messages: this.toOpenAiMessages(payload.messages),
-          temperature: payload.temperature ?? 0.2,
-          max_tokens: payload.maxOutputTokens,
-          tools: payload.tools && payload.tools.length > 0 ? payload.tools : undefined,
-          tool_choice: payload.tools && payload.tools.length > 0 ? 'auto' : undefined,
-          stream: false
-        })
-      },
-      DEFAULT_TIMEOUT_MS,
-      streamOptions?.signal
+    const raw = await this.withRetry(
+      () =>
+        this.requestJson(
+          url,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${config.apiKey}`
+            },
+            body: JSON.stringify({
+              model: config.model || DEFAULT_MODEL,
+              messages: this.toOpenAiMessages(payload.messages),
+              temperature: payload.temperature ?? 0.2,
+              max_tokens: payload.maxOutputTokens,
+              tools: payload.tools && payload.tools.length > 0 ? payload.tools : undefined,
+              tool_choice: payload.tools && payload.tools.length > 0 ? 'auto' : undefined,
+              stream: false
+            })
+          },
+          DEFAULT_TIMEOUT_MS,
+          streamOptions?.signal
+        ),
+      'request'
     )
 
     const text = this.extractOpenAiText(raw)
@@ -94,23 +132,27 @@ export class GeminiClient {
     const abortRuntime = this.createAbortRuntimeContext(DEFAULT_TIMEOUT_MS, streamOptions.signal)
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.apiKey}`
-        },
-        body: JSON.stringify({
-          model: config.model || DEFAULT_MODEL,
-          messages: this.toOpenAiMessages(payload.messages),
-          temperature: payload.temperature ?? 0.2,
-          max_tokens: payload.maxOutputTokens,
-          tools: payload.tools && payload.tools.length > 0 ? payload.tools : undefined,
-          tool_choice: payload.tools && payload.tools.length > 0 ? 'auto' : undefined,
-          stream: true
-        }),
-        signal: abortRuntime.signal
-      })
+      const response = await this.withRetry(
+        () =>
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${config.apiKey}`
+            },
+            body: JSON.stringify({
+              model: config.model || DEFAULT_MODEL,
+              messages: this.toOpenAiMessages(payload.messages),
+              temperature: payload.temperature ?? 0.2,
+              max_tokens: payload.maxOutputTokens,
+              tools: payload.tools && payload.tools.length > 0 ? payload.tools : undefined,
+              tool_choice: payload.tools && payload.tools.length > 0 ? 'auto' : undefined,
+              stream: true
+            }),
+            signal: abortRuntime.signal
+          }),
+        'stream'
+      )
 
       if (!response.ok) {
         const text = await response.text()
@@ -246,6 +288,78 @@ export class GeminiClient {
       return 'خطای دسترسی به شبکه. لطفاً اتصال اینترنت یا آدرس Base URL را بررسی کنید.'
     }
     return message
+  }
+
+  private async withRetry<T>(operation: () => Promise<T>, operationKind: 'request' | 'stream'): Promise<T> {
+    let lastError: unknown
+
+    for (let attempt = 0; attempt <= this.retryAttempts; attempt += 1) {
+      try {
+        return await operation()
+      } catch (error) {
+        lastError = error
+
+        if (attempt >= this.retryAttempts || !this.isRetryableError(error)) {
+          break
+        }
+
+        await this.sleep(this.retryBaseDelayMs * (attempt + 1))
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw new Error(
+        this.decorateRetryFailureMessage(lastError.message, operationKind)
+      )
+    }
+
+    throw lastError
+  }
+
+  private isRetryableError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false
+    }
+
+    const lower = error.message.toLowerCase()
+    return (
+      lower.includes('(429') ||
+      lower.includes('(500') ||
+      lower.includes('(502') ||
+      lower.includes('(503') ||
+      lower.includes('(504') ||
+      lower.includes('too many requests') ||
+      lower.includes('econnreset') ||
+      lower.includes('etimedout') ||
+      lower.includes('timeout') ||
+      lower.includes('network') ||
+      lower.includes('fetch failed') ||
+      lower.includes('ehostunreach') ||
+      lower.includes('econnrefused')
+    )
+  }
+
+  private decorateRetryFailureMessage(message: string, operationKind: 'request' | 'stream'): string {
+    const suffix =
+      this.retryAttempts > 0
+        ? ` پس از ${this.retryAttempts + 1} تلاش ناموفق`
+        : ''
+
+    if (operationKind === 'stream') {
+      return `خطای ارتباط با هوش مصنوعی (stream): ${message}${suffix}`
+    }
+
+    return `خطای ارتباط با هوش مصنوعی: ${message}${suffix}`
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    if (ms <= 0) {
+      return
+    }
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, ms)
+    })
   }
 
   private extractOpenAiText(raw: unknown): string {

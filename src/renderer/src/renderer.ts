@@ -23,6 +23,7 @@ import type {
   SqlHealthCheck,
   SqlConnectionConfig,
   MobileBridgeStatus,
+  ReleaseUpdateStatus,
   SshTunnelConfig,
   SshTunnelStatus
 } from '../../shared/contracts'
@@ -197,6 +198,9 @@ const ui = {
   telemetryMaxBatchSizeInput: getById<HTMLInputElement>('telemetryMaxBatchSizeInput'),
   telemetryMaxQueueSizeInput: getById<HTMLInputElement>('telemetryMaxQueueSizeInput'),
   telemetryIncludeRendererErrorsInput: getById<HTMLInputElement>('telemetryIncludeRendererErrorsInput'),
+  releaseUpdateStatus: getById<HTMLElement>('releaseUpdateStatus'),
+  releaseUpdateRefreshBtn: getById<HTMLButtonElement>('releaseUpdateRefreshBtn'),
+  releaseUpdateInstallBtn: getById<HTMLButtonElement>('releaseUpdateInstallBtn'),
   profileSelectorInput: getById<HTMLSelectElement>('profileSelectorInput'),
   createProfileBtn: getById<HTMLButtonElement>('createProfileBtn'),
   activateProfileBtn: getById<HTMLButtonElement>('activateProfileBtn'),
@@ -272,6 +276,7 @@ const state: {
   toolRowsByCallId: Map<string, ToolStatusRowHandle>
   activeRequestEvidenceByCallId: Map<string, ReportExportEvidenceItem>
   latestReportSnapshot: ReportSnapshot | null
+  releaseUpdateStatus: ReleaseUpdateStatus | null
   streamingAssistantMessage: ChatMessageHandle | null
   streamingAssistantBuffer: string
   unsubscribeAgentEvents: (() => void) | null
@@ -287,6 +292,7 @@ const state: {
   toolRowsByCallId: new Map<string, ToolStatusRowHandle>(),
   activeRequestEvidenceByCallId: new Map<string, ReportExportEvidenceItem>(),
   latestReportSnapshot: null,
+  releaseUpdateStatus: null,
   streamingAssistantMessage: null,
   streamingAssistantBuffer: '',
   unsubscribeAgentEvents: null,
@@ -439,6 +445,8 @@ function bindEvents(): void {
     ui.promptInput.focus()
     setAppNotice('متن درخواست پاک شد.', 'info')
   })
+  ui.releaseUpdateRefreshBtn.addEventListener('click', () => void loadReleaseUpdateStatus(false))
+  ui.releaseUpdateInstallBtn.addEventListener('click', () => void installDownloadedReleaseUpdate())
 
   ui.promptInput.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -687,6 +695,7 @@ function slugifyTemplateId(value: string): string {
 async function bootstrap(): Promise<void> {
   await loadSettingsIntoForm()
   await refreshRuntimeStatuses(true)
+  await loadReleaseUpdateStatus(true)
   await loadAuditLogViewer()
   startStatusPolling()
 }
@@ -2219,7 +2228,11 @@ function isExportCancellationMessage(message: string): boolean {
 }
 
 async function refreshRuntimeStatuses(silent: boolean): Promise<void> {
-  const [sshResult, bridgeResult] = await Promise.all([window.api.ssh.status(), window.api.mobileBridge.status()])
+  const [sshResult, bridgeResult, releaseResult] = await Promise.all([
+    window.api.ssh.status(),
+    window.api.mobileBridge.status(),
+    window.api.release.getUpdateStatus()
+  ])
 
   if (sshResult.ok && sshResult.data) {
     updateSshChips(sshResult.data)
@@ -2239,9 +2252,78 @@ async function refreshRuntimeStatuses(silent: boolean): Promise<void> {
     }
   }
 
+  if (releaseResult.ok && releaseResult.data) {
+    state.releaseUpdateStatus = releaseResult.data
+    renderReleaseUpdateStatus(releaseResult.data)
+  }
+
   if (!silent) {
     await loadAuditLogViewer()
   }
+}
+
+async function loadReleaseUpdateStatus(silent: boolean): Promise<void> {
+  ui.releaseUpdateRefreshBtn.disabled = true
+  ui.releaseUpdateRefreshBtn.textContent = 'در حال بررسی...'
+
+  const response = await window.api.release.checkForUpdates()
+
+  ui.releaseUpdateRefreshBtn.disabled = false
+  ui.releaseUpdateRefreshBtn.textContent = 'بررسی آپدیت'
+
+  if (!response.ok || !response.data) {
+    const message = response.error ?? 'وضعیت آپدیت قابل خواندن نیست.'
+    ui.releaseUpdateStatus.textContent = message
+    ui.releaseUpdateStatus.className = 'inline-alert note-error'
+    ui.releaseUpdateInstallBtn.disabled = true
+
+    if (!silent) {
+      setAppNotice(message, 'error')
+    }
+
+    return
+  }
+
+  state.releaseUpdateStatus = response.data
+  renderReleaseUpdateStatus(response.data)
+}
+
+async function installDownloadedReleaseUpdate(): Promise<void> {
+  const response = await window.api.release.installDownloadedUpdate()
+
+  if (!response.ok) {
+    const message = response.error ?? 'نصب آپدیت دانلودشده انجام نشد.'
+    setAppNotice(message, 'error')
+    return
+  }
+
+  if (!response.data) {
+    setAppNotice('فعلا آپدیت دانلودشده ای برای نصب وجود ندارد.', 'info')
+    return
+  }
+
+  setAppNotice('نصب آپدیت شروع شد. برنامه پس از نصب بسته می شود.', 'success')
+}
+
+function renderReleaseUpdateStatus(status: ReleaseUpdateStatus): void {
+  const stateLabelMap: Record<ReleaseUpdateStatus['state'], string> = {
+    disabled: 'غیرفعال',
+    idle: 'آماده',
+    checking: 'در حال بررسی',
+    'update-available': 'آپدیت جدید موجود است',
+    'update-not-available': 'آپدیت جدیدی یافت نشد',
+    downloaded: 'آپدیت دانلود شد',
+    error: 'خطا'
+  }
+
+  const latestVersionText = status.latestVersion ? ` | نسخه جدید: ${status.latestVersion}` : ''
+  const downloadedVersionText = status.downloadedVersion ? ` | نسخه دانلودشده: ${status.downloadedVersion}` : ''
+  const checkedAtText = status.lastCheckedAt ? ` | آخرین بررسی: ${formatAuditTimestamp(status.lastCheckedAt)}` : ''
+  const errorText = status.lastError ? ` | خطا: ${status.lastError}` : ''
+
+  ui.releaseUpdateStatus.textContent = `auto-update: ${stateLabelMap[status.state]} | channel=${status.channel} | نسخه فعلی=${status.currentVersion}${latestVersionText}${downloadedVersionText}${checkedAtText}${errorText}`
+  ui.releaseUpdateStatus.className = `inline-alert ${status.state === 'error' ? 'note-error' : 'note-info'}`
+  ui.releaseUpdateInstallBtn.disabled = status.state !== 'downloaded'
 }
 
 async function loadAuditLogViewer(): Promise<void> {

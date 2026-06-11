@@ -22,6 +22,8 @@ export type FinancialIntentDefinition = {
   patterns: RegExp[]
 }
 
+export type FinancialIntentSlotHints = Partial<Record<FinancialIntentSlot, string>>
+
 export type FinancialIntentMatch = {
   intentId: FinancialIntentId
   confidence: number
@@ -47,8 +49,9 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     responseMode: 'deterministic',
     requiredSlots: [],
     patterns: [
-      /\blist\s+(?:of\s+)?fiscal\s+years\b/iu,
-      /\bfiscal\s+years?\s+list\b/iu,
+      /\b(?:list|show|display|find)\s+(?:the\s+)?(?:of\s+)?(?:available\s+)?fiscal\s+years\b/iu,
+      /\bfiscal\s+years?\s+(?:available|list|show|display)\b/iu,
+      /\bshow\s+the\s+fiscal\s+years\s+available\b/iu,
       /(?:لیست|فهرست|نمایش)\s*(?:سال\s*های|سالهای|سال)\s*مالی/iu,
       /سال\s*های\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)/iu
     ]
@@ -63,7 +66,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'get_account_balance',
     description: 'Return balance for an account/chart item.',
-    responseMode: 'model-assisted',
+    responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
     patterns: [/مانده\s*(?:حساب|سرفصل)/iu, /\baccount\s+balance\b/iu]
   },
@@ -98,7 +101,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'get_cashflow_summary',
     description: 'Return cashflow summary.',
-    responseMode: 'model-assisted',
+    responseMode: 'deterministic',
     requiredSlots: ['dateRange'],
     patterns: [/جریان\s*نقد/iu, /\bcash\s*flow\b/iu]
   },
@@ -113,6 +116,33 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
 
 export function listFinancialIntentDefinitions(): FinancialIntentDefinition[] {
   return FINANCIAL_INTENT_REGISTRY.map((entry) => ({ ...entry, patterns: [...entry.patterns] }))
+}
+
+export function extractFinancialIntentSlots(prompt: string): FinancialIntentSlotHints {
+  const normalizedPrompt = normalizePersianDigits(prompt).trim()
+  const slots: FinancialIntentSlotHints = {}
+
+  if (/(?:حساب|سرفصل|ledger|account)/iu.test(normalizedPrompt)) {
+    slots.accountCodeOrName = 'detected'
+  }
+
+  if (/(?:طرف\s*حساب|شخص|party|counterparty)/iu.test(normalizedPrompt)) {
+    slots.partyName = 'detected'
+  }
+
+  if (/(?:بازه|از\s+.*\s+تا|to\s+\d{4}|between\s+\d{4})/iu.test(normalizedPrompt)) {
+    slots.dateRange = 'detected'
+  }
+
+  if (/(?:سال\s*مالی|fiscal\s*year)/iu.test(normalizedPrompt)) {
+    slots.fiscalYear = 'detected'
+  }
+
+  if (/(?:ماهانه|فصلی|سالانه|monthly|quarterly|yearly)/iu.test(normalizedPrompt)) {
+    slots.period = 'detected'
+  }
+
+  return slots
 }
 
 export function detectFinancialIntent(prompt: string): FinancialIntentMatch | null {

@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-06-11T15:17:40.285Z",
+  "channel": "latest",
+  "targetVersion": "1.0.0",
+  "previousVersion": "",
+  "updateArtifactHints": [
+    "latest.yml / beta.yml / alpha.yml",
+    "*.exe + *.blockmap (win)",
+    "*.AppImage + *.blockmap (linux)",
+    "*.dmg + *.zip (mac)"
+  ],
+  "requiredBackups": [
+    "publish manifest before release",
+    "channel yaml before release",
+    "artifacts of previous stable version"
+  ],
+  "rollbackSteps": [
+    "Stop publishing pipeline for the affected channel",
+    "Restore previous channel yaml + artifacts",
+    "Verify update endpoint serves previous version metadata",
+    "Smoke test update flow on a canary machine",
+    "Document incident and keep target version blocked"
+  ]
+}

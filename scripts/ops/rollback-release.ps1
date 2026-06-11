@@ -48,8 +48,8 @@ Assert-PathExists -Path $resolvedUpdatesRoot -Label 'UpdatesRoot'
 Assert-PathExists -Path $resolvedBackupRoot -Label 'BackupRoot'
 Assert-PathExists -Path $backupManifestPath -Label 'Backup manifest'
 
-$artifactCandidates = Get-ChildItem -LiteralPath $resolvedBackupRoot -File |
-  Where-Object { $_.Name -match [regex]::Escape($PreviousVersion) }
+$artifactCandidates = @(Get-ChildItem -LiteralPath $resolvedBackupRoot -File |
+  Where-Object { $_.Name -match [regex]::Escape($PreviousVersion) })
 
 if ($artifactCandidates.Count -eq 0) {
   throw "No backup artifacts found for version $PreviousVersion under $resolvedBackupRoot"

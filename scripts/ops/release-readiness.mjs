@@ -131,6 +131,7 @@ function resolveReleaseChannel(version) {
 async function runSecretBaselineCheck(checks, failures) {
   const baselineFiles = [
     path.join(rootDir, 'src', 'main', 'types.ts'),
+    path.join(rootDir, 'src', 'main', 'services', 'settingsStore.ts'),
     path.join(rootDir, 'scripts', 'ops', 'remote-server-control.ps1'),
     path.join(rootDir, 'scripts', 'ops', 'telemetry-smoke-test.mjs')
   ]

@@ -986,6 +986,144 @@ test('agent orchestrator handles fiscal-year count with deterministic tool path'
   assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
+test('agent orchestrator uses deterministic clarification for balance-style intents', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-balance-deterministic-1',
+    conversationId: 'integration-conversation-balance-deterministic-1',
+    prompt: 'مانده حساب فروشگاه را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.finalText.includes('Cannot answer reliably'))
+  assert.ok(result.finalText.includes('get_account_balance'))
+})
+
+test('agent orchestrator adds Assumptions to deterministic fiscal-year list responses', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
+        return [{ fiscal_year_count: 3, min_fiscal_year: 1401, max_fiscal_year: 1403 }]
+      }
+
+      if (query.includes('SELECT TOP (48) fiscal_year')) {
+        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
+      }
+
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return [{ table_schema: 'dbo', table_name: 'ACC_Documents', column_name: 'fiscal_year' }]
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fiscal-list-assumptions-1',
+    conversationId: 'integration-conversation-fiscal-list-assumptions-1',
+    prompt: 'List fiscal years in this database',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(result.finalText.includes('### Assumptions'))
+  assert.ok(result.finalText.includes('سال مالی'))
+})
+
+test('agent orchestrator handles fiscal-year list with deterministic tool path', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  const executedReadOnlyQueries: string[] = []
+  const executedMetadataQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+
+      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
+        return [
+          {
+            fiscal_year_count: 3,
+            min_fiscal_year: 1401,
+            max_fiscal_year: 1403
+          }
+        ]
+      }
+
+      if (query.includes('SELECT TOP (48) fiscal_year')) {
+        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
+      }
+
+      return []
+    },
+    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedMetadataQueries.push(query)
+      return [
+        {
+          table_schema: 'dbo',
+          table_name: 'ACC_Documents',
+          column_name: 'fiscal_year'
+        }
+      ]
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fiscal-list-1',
+    conversationId: 'integration-conversation-fiscal-list-1',
+    prompt: 'List fiscal years in this database',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 2)
+  assert.ok(result.finalText.includes('فهرست سال های مالی شناسایی شده'))
+  assert.ok(result.finalText.includes('list_fiscal_years'))
+  assert.ok(executedMetadataQueries.length >= 1)
+  assert.ok(executedReadOnlyQueries.length >= 1)
+})
+
 test('agent orchestrator blocks final answer when prompt intent mismatches response intent', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'

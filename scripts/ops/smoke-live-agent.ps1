@@ -1,6 +1,7 @@
 param(
   [string]$Prompt = 'در دیتابیس چند سال مالی قرار داره؟',
   [string]$PromptFile = '',
+  [string]$PromptBase64 = '',
   [string[]]$ExpectedContains = @('سال مالی'),
   [switch]$AllowFailure,
 
@@ -22,11 +23,15 @@ function Resolve-PromptText {
     return Get-Content -Raw -Path $PromptFile -Encoding UTF8
   }
 
+  if (-not [string]::IsNullOrWhiteSpace($PromptBase64)) {
+    return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($PromptBase64))
+  }
+
   if (-not [string]::IsNullOrWhiteSpace($Prompt)) {
     return $Prompt
   }
 
-  throw 'Prompt text is empty. Use -Prompt or -PromptFile.'
+  throw 'Prompt text is empty. Use -Prompt, -PromptBase64, or -PromptFile.'
 }
 
 function Invoke-RemoteSmokeRun {
@@ -61,7 +66,8 @@ function Invoke-RemoteSmokeRun {
 
 try {
   $promptText = Resolve-PromptText
-  $promptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($promptText))
+  $transportBase64 = if (-not [string]::IsNullOrWhiteSpace($PromptBase64)) { $PromptBase64 } else { [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($promptText)) }
+  $promptBase64 = $transportBase64
 
   Write-Host '[smoke-live] Running remote ask-ai with PromptBase64 transport...'
 

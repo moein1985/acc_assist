@@ -2,27 +2,46 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
 
-import type { AppSettings, ConnectionProfile, ConnectionProfileMetadata, PromptTemplate } from '../../shared/contracts'
+import type {
+  ApiMode,
+  AppSettings,
+  ConnectionProfile,
+  ConnectionProfileMetadata,
+  PromptTemplate
+} from '../../shared/contracts'
 import { DEFAULT_SETTINGS, mergeSettings } from '../types'
+import { isTruthyEnvValue } from './agentDebugConfig'
 
 const ENCRYPTED_PREFIX = 'accassist:enc:v1:'
-const FORCE_TEST_SQL_PROFILE = true
-const FORCE_AVALAI_PROFILE = true
-const TEST_SQL_PROFILE = {
-  server: '127.0.0.1',
-  port: 58033,
-  database: 'Sepidar01',
-  user: 'damavand',
-  password: 'damavand',
-  encrypt: false,
-  trustServerCertificate: true
-} as const
-const FORCED_AVALAI_PROFILE = {
-  apiKey: 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
-  baseUrl: 'https://api.avalai.ir/v1',
-  mode: 'openai',
-  model: 'gemini-2.5-pro'
-} as const
+
+function isDemoProfileEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isTruthyEnvValue(env.ACC_ENABLE_DEMO_PROFILE)
+}
+
+function resolveDemoSqlProfile(env: NodeJS.ProcessEnv = process.env) {
+  const port = Number.parseInt(env.ACC_DEMO_SQL_PORT ?? '58033', 10)
+
+  return {
+    server: env.ACC_DEMO_SQL_SERVER ?? '127.0.0.1',
+    port: Number.isFinite(port) ? port : 58033,
+    database: env.ACC_DEMO_SQL_DATABASE ?? '',
+    user: env.ACC_DEMO_SQL_USER ?? '',
+    password: env.ACC_DEMO_SQL_PASSWORD ?? '',
+    encrypt: isTruthyEnvValue(env.ACC_DEMO_SQL_ENCRYPT),
+    trustServerCertificate: isTruthyEnvValue(env.ACC_DEMO_SQL_TRUST_SERVER_CERTIFICATE)
+  }
+}
+
+function resolveDemoGeminiProfile(env: NodeJS.ProcessEnv = process.env) {
+  const mode: ApiMode = env.ACC_DEMO_GEMINI_MODE === 'google' ? 'google' : 'openai'
+
+  return {
+    apiKey: env.ACC_DEMO_GEMINI_API_KEY ?? '',
+    baseUrl: env.ACC_DEMO_GEMINI_BASE_URL ?? 'https://api.avalai.ir/v1',
+    mode,
+    model: env.ACC_DEMO_GEMINI_MODEL ?? 'gemini-2.5-pro'
+  }
+}
 
 export class SettingsStore {
   private readonly filePath: string
@@ -67,23 +86,22 @@ export class SettingsStore {
   }
 
   private applyForcedTestSqlProfile(settings: AppSettings): AppSettings {
-    if (!FORCE_TEST_SQL_PROFILE && !FORCE_AVALAI_PROFILE) {
+    if (!isDemoProfileEnabled()) {
       return settings
     }
 
-    const forcedGemini = FORCE_AVALAI_PROFILE
-      ? {
-          ...settings.gemini,
-          ...FORCED_AVALAI_PROFILE
-        }
-      : settings.gemini
+    const demoSqlProfile = resolveDemoSqlProfile()
+    const demoGeminiProfile = resolveDemoGeminiProfile()
 
     return {
       ...settings,
-      gemini: forcedGemini,
+      gemini: {
+        ...settings.gemini,
+        ...demoGeminiProfile
+      },
       sql: {
         ...settings.sql,
-        ...TEST_SQL_PROFILE
+        ...demoSqlProfile
       },
       sqlSecurity: {
         ...settings.sqlSecurity,
@@ -93,7 +111,7 @@ export class SettingsStore {
         ...profile,
         sql: {
           ...profile.sql,
-          ...TEST_SQL_PROFILE
+          ...demoSqlProfile
         }
       }))
     }

@@ -23,11 +23,11 @@ export class UpdateManager {
   private updater: AutoUpdaterLike | null = null
   private status: ReleaseUpdateStatus
 
-  constructor(telemetry: TelemetryIngestService) {
+  constructor(telemetry: TelemetryIngestService, currentVersion: string = app.getVersion()) {
     this.telemetry = telemetry
     this.status = {
       enabled: false,
-      currentVersion: app.getVersion(),
+      currentVersion,
       channel: 'latest',
       autoDownload: false,
       state: 'disabled',

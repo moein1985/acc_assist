@@ -65,6 +65,79 @@ function Invoke-RemotePowerShell {
   Invoke-SshCommand "powershell -NoProfile -EncodedCommand $encoded"
 }
 
+function Resolve-PromptTransportBase64 {
+  param(
+    [string]$PromptValue,
+    [string]$PromptBase64Value,
+    [string]$PromptFileValue
+  )
+
+  function Convert-ToPromptBase64 {
+    param([string]$Text)
+
+    return [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($PromptFileValue)) {
+    if (-not (Test-Path $PromptFileValue)) {
+      throw "Prompt file not found: $PromptFileValue"
+    }
+
+    $raw = Get-Content -Raw -Path $PromptFileValue -Encoding UTF8
+
+    try {
+      $parsed = $raw | ConvertFrom-Json -AsHashtable
+      if ($parsed.ContainsKey('promptBase64') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['promptBase64'])) {
+        return [string]$parsed['promptBase64']
+      }
+
+      if ($parsed.ContainsKey('prompt') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['prompt'])) {
+        return Convert-ToPromptBase64 -Text ([string]$parsed['prompt'])
+      }
+    } catch {
+      # Fall back to raw file content below.
+    }
+
+    return Convert-ToPromptBase64 -Text $raw
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($PromptBase64Value)) {
+    try {
+      $parsed = $PromptBase64Value | ConvertFrom-Json -AsHashtable
+      if ($parsed.ContainsKey('promptBase64') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['promptBase64'])) {
+        return [string]$parsed['promptBase64']
+      }
+
+      if ($parsed.ContainsKey('prompt') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['prompt'])) {
+        return Convert-ToPromptBase64 -Text ([string]$parsed['prompt'])
+      }
+    } catch {
+      # Accept the supplied Base64 string directly.
+    }
+
+    return $PromptBase64Value
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($PromptValue)) {
+    try {
+      $parsed = $PromptValue | ConvertFrom-Json -AsHashtable
+      if ($parsed.ContainsKey('promptBase64') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['promptBase64'])) {
+        return [string]$parsed['promptBase64']
+      }
+
+      if ($parsed.ContainsKey('prompt') -and -not [string]::IsNullOrWhiteSpace([string]$parsed['prompt'])) {
+        return Convert-ToPromptBase64 -Text ([string]$parsed['prompt'])
+      }
+    } catch {
+      # Fall back to plain prompt text.
+    }
+
+    return Convert-ToPromptBase64 -Text $PromptValue
+  }
+
+  throw 'Prompt is required for Action=ask-ai. Use -Prompt, -PromptBase64, or -PromptFile.'
+}
+
 function Copy-Installer {
   if (-not (Test-Path $InstallerPath)) {
     throw "Installer not found at '$InstallerPath'. Run npm run build:win first."
@@ -250,23 +323,7 @@ Get-Content -Path `$logPath -Tail $Tail -Wait
       $DebugToken = ([guid]::NewGuid().ToString('N'))
     }
 
-    $finalPromptBase64 = ''
-    if (-not [string]::IsNullOrWhiteSpace($PromptFile)) {
-      if (-not (Test-Path $PromptFile)) {
-        throw "Prompt file not found: $PromptFile"
-      }
-      $fileContent = Get-Content -Raw -Path $PromptFile -Encoding UTF8
-      $finalPromptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($fileContent))
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($PromptBase64)) {
-      $finalPromptBase64 = $PromptBase64
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($Prompt)) {
-      $finalPromptBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Prompt))
-    }
-    else {
-      throw 'Prompt is required for Action=ask-ai. Use -Prompt, -PromptBase64, or -PromptFile.'
-    }
+    $finalPromptBase64 = Resolve-PromptTransportBase64 -PromptValue $Prompt -PromptBase64Value $PromptBase64 -PromptFileValue $PromptFile
 
     $script = @"
 `$ProgressPreference = 'SilentlyContinue'

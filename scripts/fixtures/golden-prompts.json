@@ -19,9 +19,96 @@
       ],
       "requiredSections": [
         "Summary",
-        "Evidence"
+        "Evidence",
+        "Assumptions"
       ],
       "minToolCalls": 1,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
+    "id": "count-fiscal-years-en",
+    "prompt": "How many fiscal years are in this database?",
+    "type": "tool",
+    "expectedTool": {
+      "name": "count_fiscal_years",
+      "arguments": {}
+    },
+    "toolResult": {
+      "count": 3,
+      "query": "SELECT COUNT(DISTINCT fiscal_year) as year_count FROM dbo.ACC_Documents",
+      "evidence": "Counted distinct fiscal_year from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "3",
+        "fiscal years"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
+    "id": "list-fiscal-years-fa",
+    "prompt": "لیست سال های مالی موجود در دیتابیس را نمایش بده",
+    "type": "tool",
+    "expectedTool": {
+      "name": "list_fiscal_years",
+      "arguments": {}
+    },
+    "toolResult": {
+      "count": 4,
+      "years": [1403, 1402, 1401, 1400],
+      "query": "SELECT DISTINCT fiscal_year FROM dbo.ACC_Documents ORDER BY fiscal_year DESC",
+      "evidence": "Listed distinct fiscal_year values from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "فهرست سال های مالی",
+        "1403"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 2,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
+    "id": "list-fiscal-years-en",
+    "prompt": "List the fiscal years available in this database",
+    "type": "tool",
+    "expectedTool": {
+      "name": "list_fiscal_years",
+      "arguments": {}
+    },
+    "toolResult": {
+      "count": 3,
+      "years": [1403, 1402, 1401],
+      "query": "SELECT DISTINCT fiscal_year FROM dbo.ACC_Documents ORDER BY fiscal_year DESC",
+      "evidence": "Listed distinct fiscal_year values from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "fiscal years",
+        "1403"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 2,
       "maxRounds": 2,
       "minScore": 95
     }

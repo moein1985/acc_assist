@@ -86,7 +86,7 @@ type GoldenScoreSummary = {
 }
 
 const GOLDEN_FIXTURES_PATH = join(process.cwd(), 'scripts', 'fixtures', 'golden-prompts.json')
-const FAST_MODE_GOLDEN_CASE_LIMIT = 1
+const FAST_MODE_GOLDEN_CASE_LIMIT = 4
 const DEFAULT_GLOBAL_MIN_SCORE = 95
 
 class QueueGeminiStub {
@@ -510,7 +510,7 @@ async function runGoldenPromptRegressionSmoke(options?: {
           `Reviewed ${rows.length} rows for ${fixture.expected.dimensionField}.`,
           '',
           '### Evidence',
-          `Metric field used: ${fixture.expected.metricField}.`,
+          `Tool query used: ${fixture.sqlQuery} | rows reviewed: ${rows.length} | metric field: ${fixture.expected.metricField}.`,
           '',
           '### Actions',
           'Use this result in monthly review and reconcile with voucher-level details.'
