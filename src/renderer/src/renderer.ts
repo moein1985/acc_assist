@@ -1219,6 +1219,8 @@ function renderSchemaMappingWizard(catalog: SchemaCatalogEntry): void {
 
   const selectedValue = state.schemaWizard.draftSelections[conceptKey]?.trim() ?? ''
   const suggestions = (catalog.suggestedMappings[conceptKey] ?? []).map((value) => value.trim()).filter(Boolean)
+  const coverageHints = catalog.detectedSoftware?.coverage?.validationHints ?? []
+  const missingConcepts = catalog.detectedSoftware?.coverage?.missingConcepts ?? []
   const availableTableRefs = catalog.tables
     .map((table) => `${table.schemaName}.${table.tableName}`)
     .filter((value) => value.trim().length > 0)
@@ -1241,9 +1243,16 @@ function renderSchemaMappingWizard(catalog: SchemaCatalogEntry): void {
 
   ui.schemaWizardSelect.value = selectedValue
   ui.schemaWizardConceptTitle.textContent = `مفهوم ${localizeConceptKey(conceptKey)}`
-  ui.schemaWizardSummary.textContent = `مرحله ${state.schemaWizard.conceptIndex + 1} از ${totalSteps}`
+  const coverageScore = catalog.detectedSoftware?.coverage?.coverageScore ?? 0
+  const coverageLine = coverageScore > 0 ? ` | پوشش تشخیص: ${coverageScore}%` : ''
+  const missingLine = missingConcepts.length > 0 ? ` | کمبودهای پیشنهادی: ${missingConcepts.join('، ')}` : ''
+  const hintLine = coverageHints.length > 0 ? ` | راهنمای نگاشت: ${coverageHints[0]}` : ''
+  const hintDetails = coverageHints.slice(1).filter(Boolean).join(' | ')
+  ui.schemaWizardSummary.textContent = `مرحله ${state.schemaWizard.conceptIndex + 1} از ${totalSteps}${coverageLine}${missingLine}`
   ui.schemaWizardSuggestions.textContent =
-    suggestions.length > 0 ? `پیشنهادها: ${suggestions.slice(0, 3).join(' | ')}` : 'برای این مفهوم پیشنهاد خودکار موجود نیست.'
+    suggestions.length > 0
+      ? `پیشنهادها: ${suggestions.slice(0, 3).join(' | ')}${hintLine}${hintDetails ? ` | ${hintDetails}` : ''}`
+      : `برای این مفهوم پیشنهاد خودکار موجود نیست.${hintLine}${hintDetails ? ` | ${hintDetails}` : ''}`
 
   ui.schemaWizardPrevBtn.disabled = state.schemaWizard.conceptIndex === 0
   ui.schemaWizardNextBtn.disabled = state.schemaWizard.conceptIndex >= totalSteps - 1
@@ -3174,7 +3183,8 @@ function renderSchemaCatalogResult(catalog: SchemaCatalogEntry | null, errorMess
     ? ` | نرم افزار موثر: ${effectiveSoftware.effectiveName}${softwareConfidenceText} (${softwareSourceText})`
     : ''
 
-  ui.schemaDiscoveryResult.textContent = `آخرین کشف: ${new Date(catalog.discoveredAt).toLocaleString()} | نسخه سرور: ${catalog.serverVersion} | جدول ها: ${catalog.includedTables}/${catalog.totalTables}${mappingText}${dateModeText}${softwareText}`
+  const readinessText = buildSchemaReadinessSummary(catalog)
+  ui.schemaDiscoveryResult.textContent = `آخرین کشف: ${new Date(catalog.discoveredAt).toLocaleString()} | نسخه سرور: ${catalog.serverVersion} | جدول ها: ${catalog.includedTables}/${catalog.totalTables}${mappingText}${dateModeText}${softwareText} | ${readinessText}`
   ui.schemaDiscoveryResult.classList.add('note-success')
   renderSchemaMappingEditor(catalog)
   renderSchemaOnboarding(catalog)
@@ -3404,6 +3414,9 @@ function renderSchemaSoftwareEditor(
     .map((candidate) => `${candidate.name}:${(candidate.confidence * 100).toFixed(0)}%`)
     .join(' | ')
   const candidatesSuffix = candidateText ? ` | کاندیداها: ${candidateText}` : ''
+  const coverageText = catalog.detectedSoftware?.coverage
+    ? ` | پوشش نگاشت: ${catalog.detectedSoftware.coverage.coverageScore}%`
+    : ''
 
   if (!effectiveSoftware.effectiveName) {
     ui.schemaSoftwareHint.textContent = `نرم افزار موثر: نامشخص (${sourceText})${candidatesSuffix}`
@@ -3411,8 +3424,23 @@ function renderSchemaSoftwareEditor(
     return
   }
 
-  ui.schemaSoftwareHint.textContent = `نرم افزار موثر: ${effectiveSoftware.effectiveName} (${sourceText})${confidenceText}${candidatesSuffix}`
+  ui.schemaSoftwareHint.textContent = `نرم افزار موثر: ${effectiveSoftware.effectiveName} (${sourceText})${confidenceText}${coverageText}${candidatesSuffix}`
   ui.schemaSoftwareHint.classList.add(effectiveSoftware.source === 'selected' ? 'note-success' : 'note-info')
+}
+
+function buildSchemaReadinessSummary(catalog: SchemaCatalogEntry): string {
+  const coverage = catalog.detectedSoftware?.coverage
+  const suggestedCount = Object.values(catalog.suggestedMappings).reduce(
+    (sum, entries) => sum + (Array.isArray(entries) ? entries.filter((value) => value.trim().length > 0).length : 0),
+    0
+  )
+  const selectedCount = Object.values(catalog.selectedMappings).filter((value) => typeof value === 'string' && value.trim()).length
+  const coverageScore = coverage?.coverageScore ?? 0
+  const confidence = catalog.detectedSoftware?.confidence ?? 0
+  const isReady = coverageScore >= 80 && confidence >= 0.8
+  const statusLabel = isReady ? 'آماده' : selectedCount > 0 || suggestedCount > 0 ? 'نیاز به بازبینی' : 'ناشناخته'
+
+  return `پوشش نگاشت: ${coverageScore}% | پیشنهادها: ${suggestedCount} | انتخاب‌ها: ${selectedCount} | وضعیت: ${statusLabel}`
 }
 
 function renderSchemaOnboarding(catalog: SchemaCatalogEntry | null, errorMessage?: string): void {
@@ -3477,6 +3505,11 @@ function renderSchemaOnboarding(catalog: SchemaCatalogEntry | null, errorMessage
     .map((candidate) => `${candidate.name}:${(candidate.confidence * 100).toFixed(0)}%`)
     .join(' | ')
   const candidatesSuffix = candidateText ? ` | کاندیداها: ${candidateText}` : ''
+  const coverage = catalog.detectedSoftware?.coverage
+  const coverageText = coverage ? ` | پوشش نگاشت: ${coverage.coverageScore}%` : ''
+  const missingText = coverage?.missingConcepts?.length ? ` | کمبودها: ${coverage.missingConcepts.join('، ')}` : ''
+  const hintText = coverage?.validationHints?.length ? ` | راهنما: ${coverage.validationHints[0]}` : ''
+  const readinessText = ` | ${buildSchemaReadinessSummary(catalog)}`
 
   if (!effectiveSoftware.effectiveName) {
     ui.schemaOnboardingHint.textContent = `نرم افزار موثر هنوز نامشخص است. برای دقت بیشتر می توانید انتخاب دستی انجام دهید.${candidatesSuffix}`
@@ -3484,7 +3517,7 @@ function renderSchemaOnboarding(catalog: SchemaCatalogEntry | null, errorMessage
     return
   }
 
-  ui.schemaOnboardingHint.textContent = `نرم افزار موثر فعلی: ${effectiveSoftware.effectiveName} (${sourceText})${confidenceText}${candidatesSuffix}`
+  ui.schemaOnboardingHint.textContent = `نرم افزار موثر فعلی: ${effectiveSoftware.effectiveName} (${sourceText})${confidenceText}${coverageText}${missingText}${hintText}${readinessText}${candidatesSuffix}`
   ui.schemaOnboardingHint.classList.add(effectiveSoftware.source === 'selected' ? 'note-success' : 'note-info')
 }
 

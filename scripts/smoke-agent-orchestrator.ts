@@ -51,9 +51,11 @@ type GoldenToolPromptFixture = {
   prompt: string
   type: 'tool'
   expectedTool: {
-    name: 'count_fiscal_years' | 'list_fiscal_years'
+    name: 'count_fiscal_years' | 'list_fiscal_years' | 'get_account_balance' | 'get_cashflow_summary'
     arguments: Record<string, unknown>
   }
+  expectedIntent?: string
+  expectedEvidence?: string[]
   toolResult: {
     count: number
     years?: number[]
@@ -360,13 +362,17 @@ async function runGoldenPromptRegressionSmoke(options?: {
 
       const minYear = Math.min(...expectedYears)
       const maxYear = Math.max(...expectedYears)
+      const isFiscalYearTool =
+        fixture.expectedTool.name === 'count_fiscal_years' || fixture.expectedTool.name === 'list_fiscal_years'
+      const isBalanceTool =
+        fixture.expectedTool.name === 'get_account_balance' || fixture.expectedTool.name === 'get_cashflow_summary'
 
       const orchestrator = createOrchestrator({
         gemini,
         executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
           executedQueries.push(query)
 
-          if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
+          if (isFiscalYearTool && query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
             return [
               {
                 fiscal_year_count: fixture.toolResult.count,
@@ -376,8 +382,12 @@ async function runGoldenPromptRegressionSmoke(options?: {
             ]
           }
 
-          if (query.includes('SELECT TOP (48) fiscal_year')) {
+          if (isFiscalYearTool && query.includes('SELECT TOP (48) fiscal_year')) {
             return expectedYears.map((year) => ({ fiscal_year: year }))
+          }
+
+          if (isBalanceTool && query.includes('SELECT SUM(CAST(')) {
+            return [{ result_value: fixture.toolResult.count }]
           }
 
           return []
@@ -447,6 +457,22 @@ async function runGoldenPromptRegressionSmoke(options?: {
         }
 
         assert.ok(eventMatched, `[${fixture.id}] Missing progress event [${eventType}].`)
+      }
+
+      if (fixture.expectedIntent) {
+        assert.ok(
+          result.finalText.includes(fixture.expectedIntent),
+          `[${fixture.id}] Final answer does not mention expected intent [${fixture.expectedIntent}].`
+        )
+      }
+
+      if (fixture.expectedEvidence && fixture.expectedEvidence.length > 0) {
+        for (const evidenceNeedle of fixture.expectedEvidence) {
+          assert.ok(
+            result.finalText.includes(evidenceNeedle),
+            `[${fixture.id}] Final answer does not include expected evidence phrase [${evidenceNeedle}].`
+          )
+        }
       }
 
       const scoreCard = calculateGoldenToolCaseScore({
@@ -646,7 +672,12 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
     const expectedToolRecord = rawExpectedTool as Record<string, unknown>
     const expectedToolName = readRequiredFixtureString(expectedToolRecord, 'name', index, id)
 
-    if (expectedToolName !== 'count_fiscal_years' && expectedToolName !== 'list_fiscal_years') {
+    if (
+      expectedToolName !== 'count_fiscal_years' &&
+      expectedToolName !== 'list_fiscal_years' &&
+      expectedToolName !== 'get_account_balance' &&
+      expectedToolName !== 'get_cashflow_summary'
+    ) {
       throw new Error(`Golden fixture [${id}] has unsupported expectedTool name [${expectedToolName}].`)
     }
 
@@ -667,6 +698,15 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
       : undefined
 
     const expected = normalizeGoldenToolExpectedFixture(fixtureRecord, id)
+    const expectedIntent =
+      typeof fixtureRecord['expectedIntent'] === 'string' && fixtureRecord['expectedIntent'].trim()
+        ? fixtureRecord['expectedIntent'].trim()
+        : undefined
+    const expectedEvidence = Array.isArray(fixtureRecord['expectedEvidence'])
+      ? fixtureRecord['expectedEvidence'].filter(
+          (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0
+        ).map((entry) => entry.trim())
+      : undefined
 
     return {
       id,
@@ -679,6 +719,8 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
             ? (expectedToolRecord['arguments'] as Record<string, unknown>)
             : {}
       },
+      expectedIntent,
+      expectedEvidence,
       toolResult: {
         count,
         years,

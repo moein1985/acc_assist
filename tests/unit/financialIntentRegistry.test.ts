@@ -35,6 +35,13 @@ test('detectFinancialIntent normalizes Persian digits', () => {
   assert.equal(result?.intentId, 'list_fiscal_years')
 })
 
+test('detectFinancialIntent maps Persian fiscal-year range listing prompt', () => {
+  const result = detectFinancialIntent('فهرست سال‌های مالی از ۱۴۰۱ تا ۱۴۰۴ را نمایش بده')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'list_fiscal_years')
+})
+
 test('detectFinancialIntent maps Persian account-balance prompt', () => {
   const result = detectFinancialIntent('مانده حساب فروشگاه را بگو')
 
@@ -51,6 +58,20 @@ test('detectFinancialIntent maps Persian turnover prompt', () => {
 
 test('detectFinancialIntent maps Persian cashflow prompt', () => {
   const result = detectFinancialIntent('جریان نقد ماهانه را خلاصه کن')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_cashflow_summary')
+})
+
+test('detectFinancialIntent maps Persian account-balance synonym prompt', () => {
+  const result = detectFinancialIntent('مانده سرفصل فروش را بگو')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_account_balance')
+})
+
+test('detectFinancialIntent maps Persian cashflow summary prompt', () => {
+  const result = detectFinancialIntent('خلاصه جریان نقد ماهانه را بده')
 
   assert.ok(result)
   assert.equal(result?.intentId, 'get_cashflow_summary')

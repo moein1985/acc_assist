@@ -8,6 +8,13 @@ export interface AccountingSoftwareDetectionCandidate {
   name: string
   score: number
   confidence: number
+  matchedConcepts?: AccountingConceptKey[]
+  coverage?: {
+    coveredConcepts: AccountingConceptKey[]
+    missingConcepts: AccountingConceptKey[]
+    coverageScore: number
+    validationHints: string[]
+  }
 }
 
 type AccountingConnectorProfile = ConnectorPreset

@@ -281,6 +281,15 @@ type FiscalYearFallbackResult = {
   toolCallsUsed: number
 }
 
+type DeterministicFinancialToolResult = {
+  intentId: DeterministicFinancialIntent
+  value: number | null
+  tableRef: string
+  columnName: string
+  query: string
+  toolCallsUsed: number
+}
+
 const SENSITIVE_IDENTIFIER_FIELD_TOKENS = [
   'nationalid',
   'nationalcode',
@@ -497,12 +506,91 @@ export class AgentOrchestrator {
         deterministicIntent && ['count_fiscal_years', 'list_fiscal_years'].includes(deterministicIntent)
           ? deterministicIntent
           : null
-      const deterministicNonFiscalIntent = deterministicIntent && !deterministicFiscalIntent ? deterministicIntent : null
+      const deterministicToolIntent =
+        deterministicIntent && ['get_account_balance', 'get_cashflow_summary'].includes(deterministicIntent)
+          ? deterministicIntent
+          : null
+      const deterministicNonFiscalIntent = deterministicIntent && !deterministicFiscalIntent && !deterministicToolIntent
+        ? deterministicIntent
+        : null
 
       const clarificationResponse =
         payload.mode === 'manual'
           ? this.buildClarificationResponseIfNeeded(settings, prompt, conversationMemory)
           : null
+
+      if (deterministicToolIntent) {
+        const toolResult = await this.tryResolveDeterministicFinancialTool(
+          deterministicToolIntent,
+          settings,
+          conversationMemory,
+          execution.abortController.signal,
+          onProgress
+        )
+
+        if (toolResult) {
+          const finalText = this.finalizeFinancialResponse(
+            prompt,
+            this.composeDeterministicFinancialToolMarkdown(deterministicToolIntent, toolResult),
+            conversationMemory,
+            toolResult.toolCallsUsed
+          )
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'final',
+            durationMs: Date.now() - startedAt,
+            round: 0
+          })
+
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
+
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: 0,
+            toolCallsUsed: toolResult.toolCallsUsed
+          }
+        }
+
+        const finalText = this.buildDeterministicIntentClarificationResponse(deterministicToolIntent)
+        this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+        const finalHistory = this.compactHistory(
+          [...workingHistory, { role: 'assistant', content: finalText }],
+          conversationMemory
+        )
+
+        await this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId,
+          conversationId,
+          stage: 'final',
+          durationMs: Date.now() - startedAt,
+          round: 0
+        })
+
+        this.emitProgress(onProgress, {
+          type: 'final',
+          message: finalText
+        })
+
+        return {
+          history: finalHistory,
+          finalText,
+          rounds: 0,
+          toolCallsUsed: 0
+        }
+      }
 
       if (deterministicNonFiscalIntent) {
         const finalText = this.buildDeterministicIntentClarificationResponse(deterministicNonFiscalIntent)
@@ -2700,6 +2788,119 @@ ORDER BY fiscal_year DESC`
     }
   }
 
+  private async tryResolveDeterministicFinancialTool(
+    deterministicIntent: DeterministicFinancialIntent,
+    settings: AppSettings,
+    conversationMemory: ConversationMemoryState,
+    signal: AbortSignal,
+    onProgress?: (event: AgentProgressEvent) => void
+  ): Promise<DeterministicFinancialToolResult | null> {
+    const activeCatalog = this.findActiveSchemaCatalog(settings)
+
+    if (!activeCatalog) {
+      return null
+    }
+
+    const conceptKey = deterministicIntent === 'get_account_balance' ? 'accounts' : 'cashTransactions'
+    const mapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
+
+    if (!mapping) {
+      return null
+    }
+
+    const tableRef = this.parseSqlTableReference(mapping.tableRef)
+
+    if (!tableRef?.schemaName || !tableRef.tableName) {
+      return null
+    }
+
+    const schemaName = tableRef.schemaName.trim().toLowerCase()
+    const tableName = tableRef.tableName.trim().toLowerCase()
+
+    const catalogTable = activeCatalog.tables.find((entry) => {
+      return (
+        entry.schemaName.trim().toLowerCase() === schemaName &&
+        entry.tableName.trim().toLowerCase() === tableName
+      )
+    })
+
+    const candidateColumns = (catalogTable?.columns ?? []).filter((column) => {
+      const columnName = column.name.toLowerCase()
+      const dataType = column.dataType.toLowerCase()
+      return /(?:amount|balance|debit|credit|total|sum|net|value)/iu.test(columnName) && /(?:int|decimal|numeric|money|float|real)/iu.test(dataType)
+    })
+
+    const column = candidateColumns[0] ?? catalogTable?.columns[0]
+
+    if (!column) {
+      return null
+    }
+
+    const schemaIdentifier = this.quoteSqlIdentifier(schemaName)
+    const tableIdentifier = this.quoteSqlIdentifier(tableName)
+    const columnIdentifier = this.quoteSqlIdentifier(column.name)
+    const query = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
+
+    try {
+      const rows = await this.executeReadOnlySql(query, signal)
+      const row = rows[0] as SqlQueryRow | undefined
+      const value = this.toOptionalFiniteInteger(row?.['result_value'])
+
+      if (value === null) {
+        return null
+      }
+
+      this.rememberToolTrace(
+        conversationMemory,
+        `tool:${deterministicIntent} table=${mapping.tableRef} column=${column.name} value=${value}`
+      )
+
+      this.emitProgress(onProgress, {
+        type: 'tool-success',
+        message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ${mapping.tableRef}.${column.name}`,
+        toolName: deterministicIntent,
+        rowCount: 1
+      })
+
+      return {
+        intentId: deterministicIntent,
+        value,
+        tableRef: mapping.tableRef,
+        columnName: column.name,
+        query,
+        toolCallsUsed: 1
+      }
+    } catch {
+      return null
+    }
+  }
+
+  private composeDeterministicFinancialToolMarkdown(
+    deterministicIntent: DeterministicFinancialIntent,
+    result: DeterministicFinancialToolResult
+  ): string {
+    const label = deterministicIntent === 'get_account_balance' ? 'مانده حساب' : 'خلاصه جریان نقد'
+
+    return [
+      '### Summary',
+      `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value ?? 'نامشخص'}`,
+      '',
+      '### Findings',
+      `- intent قطعی: ${deterministicIntent}`,
+      `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
+      '',
+      '### Evidence',
+      `- ابزار قطعی ${deterministicIntent} با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
+      `- query: ${result.query}`,
+      '',
+      '### Assumptions',
+      '- از mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.',
+      '',
+      '### Actions',
+      '- اگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.'
+    ].join('\n')
+  }
+
   private composeFiscalYearDeterministicMarkdown(
     deterministicIntent: DeterministicFinancialIntent,
     result: FiscalYearFallbackResult
@@ -2724,6 +2925,7 @@ ORDER BY fiscal_year DESC`
         '',
         '### Evidence',
         `- ابزار قطعی list_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
+        '- Listed distinct fiscal_year values from the detected fiscal-year column using the read-only path.',
         '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در خروجی لحاظ شدند.',
         '',
         '### Assumptions',
@@ -2745,6 +2947,7 @@ ORDER BY fiscal_year DESC`
       '',
       '### Evidence',
       `- ابزار قطعی count_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
+      '- Counted distinct fiscal_year values from the detected fiscal-year column using the read-only path.',
       '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در شمارش لحاظ شدند.',
       '',
       '### Assumptions',
@@ -2798,14 +3001,12 @@ ORDER BY fiscal_year DESC`
 
   private appearsToContainFinancialClaim(text: string): boolean {
     const normalized = this.normalizePersianDigits(text)
-    const hasNumericSignal =
-      /\b(?:13|14|19|20)\d{2}\b/.test(normalized) || /\b\d{1,3}(?:[\s,]\d{3})*(?:\.\d+)?\b/.test(normalized)
     const hasFinancialSignal =
       /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار)/iu.test(
         normalized
       )
 
-    return hasNumericSignal && hasFinancialSignal
+    return hasFinancialSignal
   }
 
   private hasStructuredEvidence(evidenceSection: string): boolean {
@@ -2836,7 +3037,7 @@ ORDER BY fiscal_year DESC`
   private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
     const expectedIntent = this.detectDeterministicFinancialIntent(prompt)
 
-    if (!expectedIntent) {
+    if (!expectedIntent || !['count_fiscal_years', 'list_fiscal_years'].includes(expectedIntent)) {
       return finalText
     }
 

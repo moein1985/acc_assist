@@ -35,6 +35,7 @@ test('detects Sepidar connector and shamsi date mode from synthetic schema', asy
   assert.equal(catalog.detectedDateMode, 'shamsiText')
   assert.ok(catalog.connectorFingerprint)
   assert.ok((catalog.connectorFingerprint?.signature?.length ?? 0) >= 16)
+  assert.ok((catalog.detectedSoftware?.coverage?.validationHints ?? []).some((hint) => hint.includes('نگاشت')))
 })
 
 test('detects Mahak connector and fiscal period mode from synthetic schema', async () => {

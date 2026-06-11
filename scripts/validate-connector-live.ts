@@ -1,5 +1,8 @@
+import { pathToFileURL } from 'node:url'
+
 import { SchemaDiscoveryService } from '../src/main/services/schemaDiscoveryService'
 import { SqlConnectionManager } from '../src/main/services/sqlConnectionManager'
+import { buildConnectorReadinessSummary } from '../src/main/services/connectorSdk'
 import type {
   AccountingConceptKey,
   AccountingSoftwareId,
@@ -248,6 +251,26 @@ function validateCatalog(params: {
   return issues
 }
 
+export function summarizeConnectorValidationReadiness(params: {
+  suggestedMappings?: Record<string, string[]>
+  selectedMappings?: Record<string, string>
+  detectedSoftware?: {
+    coverage?: {
+      coveredConcepts?: AccountingConceptKey[]
+      missingConcepts?: AccountingConceptKey[]
+      coverageScore?: number
+      validationHints?: string[]
+    }
+    confidence?: number | null
+  } | null
+}) {
+  return buildConnectorReadinessSummary({
+    suggestedMappings: params.suggestedMappings as any,
+    selectedMappings: params.selectedMappings as any,
+    detectedSoftware: params.detectedSoftware as any
+  })
+}
+
 function printUsage(): void {
   console.log('Live connector validation for ACC Assist')
   console.log('Required env vars:')
@@ -296,6 +319,11 @@ async function main(): Promise<void> {
     })
 
     const effectiveSoftware = resolveEffectiveSoftware(catalog)
+    const readiness = summarizeConnectorValidationReadiness({
+      suggestedMappings: catalog.suggestedMappings,
+      selectedMappings: catalog.selectedMappings,
+      detectedSoftware: catalog.detectedSoftware ?? null
+    })
     const issues = validateCatalog({
       catalog,
       expectedSoftware,
@@ -322,7 +350,7 @@ async function main(): Promise<void> {
         effectiveSoftware.confidence !== null ? effectiveSoftware.confidence.toFixed(2) : 'n/a'
       })`
     )
-
+    console.log(`[connector-live] readiness summary: ${readiness.summaryText}`)
     const candidateText = (catalog.softwareCandidates ?? [])
       .slice(0, 4)
       .map((candidate) => `${candidate.id}:${candidate.confidence.toFixed(2)}`)
@@ -369,9 +397,13 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((error) => {
-  printUsage()
-  console.error('[connector-live] validation failed.')
-  console.error(error)
-  process.exitCode = 1
-})
+const isDirectExecution = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false
+
+if (isDirectExecution) {
+  void main().catch((error) => {
+    printUsage()
+    console.error('[connector-live] validation failed.')
+    console.error(error)
+    process.exitCode = 1
+  })
+}

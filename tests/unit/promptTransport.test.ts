@@ -22,8 +22,20 @@ test('decodePromptTransportValue supports base64 transport payloads', () => {
   assert.equal(decodePromptTransportValue(JSON.stringify({ promptBase64: encoded })), prompt)
 })
 
+test('decodePromptTransportValue preserves multi-word Persian prompts in JSON transport', () => {
+  const prompt = 'در دیتابیس چند سال مالی قرار داره؟ لطفاً 1403/01 را هم بررسی کن.'
+
+  assert.equal(decodePromptTransportValue(JSON.stringify({ prompt })), prompt)
+})
+
 test('encodePromptTransportBase64 round-trips the same Persian prompt', () => {
   const prompt = 'در دیتابیس چند سال مالی قرار داره؟'
+
+  assert.equal(decodePromptTransportValue(encodePromptTransportBase64(prompt)), prompt)
+})
+
+test('encodePromptTransportBase64 round-trips a multi-word Persian prompt with Persian digits', () => {
+  const prompt = 'در دیتابیس چند سال مالی قرار داره؟ لطفاً برای 1403/01 خلاصه بده.'
 
   assert.equal(decodePromptTransportValue(encodePromptTransportBase64(prompt)), prompt)
 })

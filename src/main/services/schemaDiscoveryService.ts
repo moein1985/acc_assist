@@ -9,7 +9,7 @@ import type {
   SqlQueryRow
 } from '../../shared/contracts'
 import { detectAccountingSoftware, scoreTableForSoftwareConcept } from './accountingConnectorProfiles'
-import { buildConnectorSchemaFingerprint } from './connectorSdk'
+import { buildConnectorSchemaFingerprint, buildMappingCoverageSummary } from './connectorSdk'
 
 const MAX_TABLES = 220
 const MAX_COLUMNS_PER_TABLE = 120
@@ -263,6 +263,35 @@ export class SchemaDiscoveryService {
     }
 
     const suggestedMappings = this.buildSuggestedMappings(tables, effectiveSoftwareId)
+    const coverageSummary = buildMappingCoverageSummary(
+      softwareDetection.primary?.name ?? 'Connector',
+      suggestedMappings,
+      {}
+    )
+    const detectedSoftware = softwareDetection.primary
+      ? {
+          ...softwareDetection.primary,
+          coverage: {
+            ...(softwareDetection.primary.coverage ?? {}),
+            ...coverageSummary,
+            validationHints: [
+              ...(softwareDetection.primary.coverage?.validationHints ?? []),
+              ...coverageSummary.validationHints
+            ]
+          }
+        }
+      : null
+    const softwareCandidates = softwareDetection.candidates.map((candidate) => ({
+      ...candidate,
+      coverage: {
+        ...(candidate.coverage ?? {}),
+        ...buildMappingCoverageSummary(candidate.name, suggestedMappings, {}),
+        validationHints: [
+          ...(candidate.coverage?.validationHints ?? []),
+          ...buildMappingCoverageSummary(candidate.name, suggestedMappings, {}).validationHints
+        ]
+      }
+    }))
     const catalogTables = tables
       .sort((a, b) => this.toTableKey(a.schemaName, a.tableName).localeCompare(this.toTableKey(b.schemaName, b.tableName)))
       .map((table) => this.toCatalogTable(table))
@@ -279,8 +308,8 @@ export class SchemaDiscoveryService {
       tables: catalogTables,
       suggestedMappings,
       selectedMappings: {},
-      detectedSoftware: softwareDetection.primary,
-      softwareCandidates: softwareDetection.candidates,
+      detectedSoftware,
+      softwareCandidates,
       selectedSoftwareId: softwareOverrideId,
       detectedDateMode: dateDetection.mode,
       selectedDateMode: null,

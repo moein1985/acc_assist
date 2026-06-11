@@ -117,11 +117,20 @@ export type AccountingConceptKey =
 
 export type AccountingSoftwareId = 'sepidar' | 'mahak'
 
+export interface AccountingSoftwareCoverageSummary {
+  coveredConcepts: AccountingConceptKey[]
+  missingConcepts: AccountingConceptKey[]
+  coverageScore: number
+  validationHints: string[]
+}
+
 export interface AccountingSoftwareDetection {
   id: AccountingSoftwareId
   name: string
   score: number
   confidence: number
+  matchedConcepts?: AccountingConceptKey[]
+  coverage?: AccountingSoftwareCoverageSummary
 }
 
 export interface ConnectorSchemaFingerprint {

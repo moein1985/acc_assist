@@ -40,7 +40,9 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
       /\bfiscal\s+year\s+count\b/iu,
       /\bcount\s+of\s+fiscal\s+years\b/iu,
       /(?:تعداد|چند)\s*سال\s*مالی/iu,
-      /سال\s*مالی\s*(?:چند|تعداد)/iu
+      /سال\s*مالی\s*(?:چند|تعداد)/iu,
+      /\b(?:how\s+many|what\s+is\s+the\s+count)\s+(?:fiscal\s+)?years?\b/iu,
+      /\b(?:count|number)\s+of\s+(?:fiscal\s+)?years?\b/iu
     ]
   },
   {
@@ -52,8 +54,12 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
       /\b(?:list|show|display|find)\s+(?:the\s+)?(?:of\s+)?(?:available\s+)?fiscal\s+years\b/iu,
       /\bfiscal\s+years?\s+(?:available|list|show|display)\b/iu,
       /\bshow\s+the\s+fiscal\s+years\s+available\b/iu,
-      /(?:لیست|فهرست|نمایش)\s*(?:سال\s*های|سالهای|سال)\s*مالی/iu,
-      /سال\s*های\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)/iu
+      /(?:لیست|فهرست|نمایش)\s*(?:سال(?:\s|\u200c)?های?|سال)\s*مالی/iu,
+      /سال(?:\s|\u200c)?های?\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)/iu,
+      /(?:لیست|فهرست|نمایش)\s*(?:سال(?:\s|\u200c)?های?|سال)\s*مالی\s*(?:از|تا|موجود|در\s*دیتابیس)/iu,
+      /سال(?:\s|\u200c)?های?\s*مالی\s*(?:از\s*\d{4}\s*تا\s*\d{4})/iu,
+      /\b(?:available|existing|present)\s+(?:fiscal\s+)?years?\b/iu,
+      /\b(?:لیست|فهرست|نمایش)\s+سال\s*های?\s*مالی\s*(?:موجود|در\s*دیتابیس)?\b/iu
     ]
   },
   {
@@ -61,14 +67,23 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return balance for a person/counterparty.',
     responseMode: 'model-assisted',
     requiredSlots: ['partyName'],
-    patterns: [/مانده\s*(?:شخص|طرف\s*حساب)/iu, /\bparty\s+balance\b/iu, /\bcounterparty\s+balance\b/iu]
+    patterns: [
+      /مانده\s*(?:شخص|طرف\s*حساب)/iu,
+      /\bparty\s+balance\b/iu,
+      /\bcounterparty\s+balance\b/iu,
+      /\bمانده\s+طرف\s*حساب\b/iu
+    ]
   },
   {
     id: 'get_account_balance',
     description: 'Return balance for an account/chart item.',
     responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
-    patterns: [/مانده\s*(?:حساب|سرفصل)/iu, /\baccount\s+balance\b/iu]
+    patterns: [
+      /مانده\s*(?:حساب|سرفصل|تنخواه)/iu,
+      /\baccount\s+balance\b/iu,
+      /\bbalance\s+of\s+(?:account|ledger|chart)\b/iu
+    ]
   },
   {
     id: 'get_account_turnover',
@@ -103,7 +118,12 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return cashflow summary.',
     responseMode: 'deterministic',
     requiredSlots: ['dateRange'],
-    patterns: [/جریان\s*نقد/iu, /\bcash\s*flow\b/iu]
+    patterns: [
+      /جریان\s*نقد/iu,
+      /\bcash\s*flow\b/iu,
+      /\b(?:خلاصه|جمع|مجموع)\s*جریان\s*نقد\b/iu,
+      /\b(?:cash|cashflow)\s+(?:summary|overview)\b/iu
+    ]
   },
   {
     id: 'get_recent_or_suspicious_documents',

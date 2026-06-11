@@ -1,5 +1,104 @@
 [
   {
+    "id": "count-fiscal-years-fa-multiword",
+    "prompt": "در دیتابیس چند سال مالی موجود است؟ لطفا دقیق بگو",
+    "type": "tool",
+    "expectedTool": {
+      "name": "count_fiscal_years",
+      "arguments": {}
+    },
+    "expectedIntent": "count_fiscal_years",
+    "expectedEvidence": [
+      "Counted distinct fiscal_year",
+      "read-only"
+    ],
+    "toolResult": {
+      "count": 4,
+      "query": "SELECT COUNT(DISTINCT fiscal_year) as year_count FROM dbo.ACC_Documents",
+      "evidence": "Counted distinct fiscal_year from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "4",
+        "سال مالی"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
+    "id": "deterministic-account-balance-fa",
+    "prompt": "مانده حساب فروشگاه را بگو",
+    "type": "tool",
+    "expectedTool": {
+      "name": "get_account_balance",
+      "arguments": {}
+    },
+    "expectedIntent": "get_account_balance",
+    "expectedEvidence": [
+      "read-only",
+      "query"
+    ],
+    "toolResult": {
+      "count": 12500000,
+      "query": "SELECT SUM(CAST(amount AS decimal(18,2))) AS result_value FROM dbo.ACC_Documents",
+      "evidence": "Deterministic account balance from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "12500000",
+        "مانده حساب"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 1,
+      "minScore": 95
+    }
+  },
+  {
+    "id": "deterministic-cashflow-summary-fa",
+    "prompt": "خلاصه جریان نقد را بده",
+    "type": "tool",
+    "expectedTool": {
+      "name": "get_cashflow_summary",
+      "arguments": {}
+    },
+    "expectedIntent": "get_cashflow_summary",
+    "expectedEvidence": [
+      "read-only",
+      "query"
+    ],
+    "toolResult": {
+      "count": 12500000,
+      "query": "SELECT SUM(CAST(cash_amount AS decimal(18,2))) AS result_value FROM dbo.ACC_Documents",
+      "evidence": "Deterministic cashflow summary from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "12500000",
+        "جریان نقد"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 1,
+      "minScore": 95
+    }
+  },
+  {
     "id": "count-fiscal-years-fa",
     "prompt": "در دیتابیس چند سال مالی قرار داره؟",
     "type": "tool",
@@ -7,6 +106,11 @@
       "name": "count_fiscal_years",
       "arguments": {}
     },
+    "expectedIntent": "count_fiscal_years",
+    "expectedEvidence": [
+      "Counted distinct fiscal_year",
+      "read-only"
+    ],
     "toolResult": {
       "count": 3,
       "query": "SELECT COUNT(DISTINCT fiscal_year) as year_count FROM dbo.ACC_Documents",
@@ -35,6 +139,11 @@
       "name": "count_fiscal_years",
       "arguments": {}
     },
+    "expectedIntent": "count_fiscal_years",
+    "expectedEvidence": [
+      "Counted distinct fiscal_year",
+      "read-only"
+    ],
     "toolResult": {
       "count": 3,
       "query": "SELECT COUNT(DISTINCT fiscal_year) as year_count FROM dbo.ACC_Documents",
@@ -56,6 +165,40 @@
     }
   },
   {
+    "id": "list-fiscal-years-fa-year-range",
+    "prompt": "فهرست سال‌های مالی از ۱۴۰۱ تا ۱۴۰۴ را نمایش بده",
+    "type": "tool",
+    "expectedTool": {
+      "name": "list_fiscal_years",
+      "arguments": {}
+    },
+    "expectedIntent": "list_fiscal_years",
+    "expectedEvidence": [
+      "Listed distinct fiscal_year",
+      "read-only"
+    ],
+    "toolResult": {
+      "count": 4,
+      "years": [1404, 1403, 1402, 1401],
+      "query": "SELECT DISTINCT fiscal_year FROM dbo.ACC_Documents ORDER BY fiscal_year DESC",
+      "evidence": "Listed distinct fiscal_year values from dbo.ACC_Documents"
+    },
+    "expected": {
+      "responseTextContains": [
+        "فهرست سال های مالی",
+        "1404"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 2,
+      "maxRounds": 2,
+      "minScore": 95
+    }
+  },
+  {
     "id": "list-fiscal-years-fa",
     "prompt": "لیست سال های مالی موجود در دیتابیس را نمایش بده",
     "type": "tool",
@@ -63,6 +206,11 @@
       "name": "list_fiscal_years",
       "arguments": {}
     },
+    "expectedIntent": "list_fiscal_years",
+    "expectedEvidence": [
+      "Listed distinct fiscal_year",
+      "read-only"
+    ],
     "toolResult": {
       "count": 4,
       "years": [1403, 1402, 1401, 1400],
@@ -92,6 +240,11 @@
       "name": "list_fiscal_years",
       "arguments": {}
     },
+    "expectedIntent": "list_fiscal_years",
+    "expectedEvidence": [
+      "Listed distinct fiscal_year",
+      "read-only"
+    ],
     "toolResult": {
       "count": 3,
       "years": [1403, 1402, 1401],
