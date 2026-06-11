@@ -35,10 +35,19 @@ async function main() {
     failures.push('electron-builder.yml does not define a generic publish provider.')
   }
 
-  const hasPublishUrl = /url\s*:\s*https?:\/\//i.test(electronBuilderYaml)
+  const publishUrlMatch = electronBuilderYaml.match(/url\s*:\s*(https?:\/\/[^\s'"#]+)/i)
+  const hasPublishUrl = Boolean(publishUrlMatch)
+  const publishUrl = publishUrlMatch?.[1] || ''
+  const hasPlaceholderPublishUrl = /https?:\/\/(localhost|127\.0\.0\.1|example\.com|example\.org|placeholder|example\.net|updates\.example)/i.test(publishUrl)
+
   checks.push(result(hasPublishUrl, 'electron-builder publish URL is configured'))
   if (!hasPublishUrl) {
     failures.push('electron-builder publish URL is missing.')
+  }
+
+  checks.push(result(!hasPlaceholderPublishUrl, 'electron-builder publish URL is not a placeholder/test URL'))
+  if (hasPlaceholderPublishUrl) {
+    failures.push(`electron-builder publish URL must not use placeholder/test hosts: ${publishUrl || '(missing)'}`)
   }
 
   const hasPublishChannel = /channel\s*:\s*[a-z0-9_-]+/i.test(electronBuilderYaml)

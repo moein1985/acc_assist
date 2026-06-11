@@ -125,10 +125,11 @@ function createBaseSettings(): AppSettings {
 
 function createOrchestrator(params: {
   gemini: QueueGeminiStub
+  settings?: AppSettings
   executeReadOnlySql?: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   executeMetadataSql?: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
 }): AgentOrchestrator {
-  const settings = createBaseSettings()
+  const settings = params.settings ?? createBaseSettings()
 
   return new AgentOrchestrator({
     geminiClient: params.gemini,
@@ -367,8 +368,90 @@ async function runGoldenPromptRegressionSmoke(options?: {
       const isBalanceTool =
         fixture.expectedTool.name === 'get_account_balance' || fixture.expectedTool.name === 'get_cashflow_summary'
 
+      const settings = createBaseSettings()
+      settings.sql.database = 'SepidarSample'
+      settings.schemaCatalogs = [
+        {
+          profileId: settings.activeConnectionProfileId,
+          databaseName: 'SepidarSample',
+          discoveredAt: new Date('2026-05-30T00:00:00.000Z').toISOString(),
+          serverVersion: '16.0.4125.3',
+          totalTables: 1,
+          includedTables: 1,
+          sampledTables: 1,
+          tables: [
+            {
+              schemaName: 'dbo',
+              tableName: 'ACC_Documents',
+              estimatedRowCount: 100,
+              tags: ['documents'],
+              columns: [
+                {
+                  name: 'amount',
+                  dataType: 'decimal',
+                  isNullable: false,
+                  maxLength: null,
+                  isIdentity: false,
+                  isPrimaryKey: false,
+                  hasForeignKey: false,
+                  sampleValues: ['12500000']
+                },
+                {
+                  name: 'cash_amount',
+                  dataType: 'decimal',
+                  isNullable: false,
+                  maxLength: null,
+                  isIdentity: false,
+                  isPrimaryKey: false,
+                  hasForeignKey: false,
+                  sampleValues: ['12500000']
+                },
+                {
+                  name: 'balance',
+                  dataType: 'decimal',
+                  isNullable: false,
+                  maxLength: null,
+                  isIdentity: false,
+                  isPrimaryKey: false,
+                  hasForeignKey: false,
+                  sampleValues: ['12500000']
+                }
+              ],
+              foreignKeys: []
+            }
+          ],
+          suggestedMappings: {
+            accounts: ['dbo.ACC_Documents'],
+            cashTransactions: ['dbo.ACC_Documents']
+          },
+          selectedMappings: {
+            accounts: 'dbo.ACC_Documents',
+            cashTransactions: 'dbo.ACC_Documents'
+          },
+          selectedSoftwareId: 'sepidar',
+          detectedSoftware: {
+            id: 'sepidar',
+            name: 'Sepidar',
+            score: 24,
+            confidence: 1
+          },
+          softwareCandidates: [
+            {
+              id: 'sepidar',
+              name: 'Sepidar',
+              score: 24,
+              confidence: 1
+            }
+          ],
+          detectedDateMode: 'shamsiText',
+          selectedDateMode: null,
+          dateEvidence: ['dbo.ACC_Documents.doc_date_shamsi=1403/01/14']
+        }
+      ]
+
       const orchestrator = createOrchestrator({
         gemini,
+        settings,
         executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
           executedQueries.push(query)
 

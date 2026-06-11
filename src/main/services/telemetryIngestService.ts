@@ -1,6 +1,15 @@
-import { app } from 'electron'
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import { dirname, join } from 'node:path'
+
+let electronApp: { getPath?: (name: string) => string; getVersion?: () => string } | undefined
+
+try {
+  const electron = require('electron') as { app?: { getPath?: (name: string) => string; getVersion?: () => string } }
+  electronApp = electron.app
+} catch {
+  electronApp = undefined
+}
 
 import type { TelemetryConfig, TelemetryEventLevel, TelemetryLogLevel } from '../../shared/contracts'
 
@@ -49,18 +58,38 @@ const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
 
 const MAX_TEXT_LENGTH = 8000
 
+function redactSensitiveText(value: string): string {
+  const patterns = [
+    { regex: /\b\d{10}\b/g, label: 'REDACTED:NATIONAL_CODE' },
+    { regex: /\b09\d{9}\b/g, label: 'REDACTED:PHONE' },
+    { regex: /\b\d{16}\b/g, label: 'REDACTED:ACCOUNT_NUMBER' },
+    { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g, label: 'REDACTED:IBAN' },
+    { regex: /\bBearer\s+[A-Za-z0-9._-]+/gi, label: 'REDACTED:BEARER_TOKEN' },
+    { regex: /\b(api[_-]?key|token|password)\s*[:=]\s*['"][^'"]+['"]/gi, label: 'REDACTED:SECRET' },
+    { regex: /\b(Authorization)\s*[:=]\s*['"][^'"]+['"]/gi, label: 'REDACTED:AUTH_HEADER' }
+  ]
+
+  let redacted = value
+
+  for (const { regex, label } of patterns) {
+    redacted = redacted.replace(regex, label)
+  }
+
+  return redacted
+}
+
 function serializeError(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
     return {
       name: error.name,
-      message: error.message,
-      stack: error.stack,
+      message: redactSensitiveText(error.message),
+      stack: redactSensitiveText(error.stack ?? ''),
       cause: error.cause
     }
   }
 
   return {
-    message: typeof error === 'string' ? error : String(error)
+    message: typeof error === 'string' ? redactSensitiveText(error) : redactSensitiveText(String(error))
   }
 }
 
@@ -69,7 +98,7 @@ function normalizeText(value: unknown): string {
     return ''
   }
 
-  const text = String(value)
+  const text = redactSensitiveText(String(value))
   if (text.length <= MAX_TEXT_LENGTH) {
     return text
   }
@@ -152,7 +181,8 @@ export class TelemetryIngestService {
   private flushTimer: NodeJS.Timeout | null = null
 
   constructor(queueFilePath?: string, eventLogFilePath?: string) {
-    const logsDir = join(app.getPath('userData'), 'logs')
+    const userDataDir = electronApp?.getPath?.('userData') ?? process.env.APPDATA ?? os.tmpdir()
+    const logsDir = join(userDataDir, 'logs')
     this.queueFilePath = queueFilePath ?? join(logsDir, 'telemetry-queue.ndjson')
     this.eventLogFilePath = eventLogFilePath ?? join(logsDir, 'telemetry-events.ndjson')
   }
@@ -333,7 +363,7 @@ export class TelemetryIngestService {
       category: normalizeText(input.category || 'general').slice(0, 120),
       event: normalizeText(input.event || 'event').slice(0, 120),
       process: input.process ?? 'main',
-      appVersion: app.getVersion(),
+      appVersion: electronApp?.getVersion?.() ?? '0.0.0',
       platform: process.platform,
       arch: process.arch,
       message: input.message ? normalizeText(input.message) : undefined,
@@ -377,7 +407,7 @@ export class TelemetryIngestService {
             category: String(event.category),
             event: String(event.event),
             process: event.process === 'renderer' ? 'renderer' : 'main',
-            appVersion: String(event.appVersion || app.getVersion()),
+            appVersion: String(event.appVersion || electronApp?.getVersion?.() || '0.0.0'),
             platform: (event.platform as NodeJS.Platform) || process.platform,
             arch: String(event.arch || process.arch),
             message: event.message ? String(event.message) : undefined,

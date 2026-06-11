@@ -27,8 +27,15 @@ export class AuditLogService {
   }
 
   async write(entry: AuditLogEntry): Promise<void> {
+    const redactedEntry: AuditLogEntry = {
+      ...entry,
+      prompt: this.redactSensitiveText(entry.prompt),
+      sqlQuery: this.redactSensitiveText(entry.sqlQuery),
+      error: this.redactSensitiveText(entry.error)
+    }
+
     await mkdir(dirname(this.filePath), { recursive: true })
-    await appendFile(this.filePath, `${JSON.stringify(entry)}\n`, 'utf8')
+    await appendFile(this.filePath, `${JSON.stringify(redactedEntry)}\n`, 'utf8')
   }
 
   async query(request?: AuditLogQueryRequest): Promise<AuditLogQueryResult> {
@@ -88,6 +95,9 @@ export class AuditLogService {
           continue
         }
 
+        const redactedPrompt = this.redactSensitiveText(entry.prompt)
+        const redactedSql = this.redactSensitiveText(entry.sqlQuery)
+
         parsedEntries.push({
           timestamp: entry.timestamp,
           requestId: entry.requestId,
@@ -99,8 +109,8 @@ export class AuditLogService {
           durationMs: entry.durationMs,
           errorCode: entry.errorCode,
           errorCategory: entry.errorCategory,
-          promptPreview: this.compactText(entry.prompt, 180),
-          sqlQueryPreview: this.compactText(entry.sqlQuery, 220)
+          promptPreview: this.compactText(redactedPrompt, 180),
+          sqlQueryPreview: this.compactText(redactedSql, 220)
         })
       } catch {
         continue
@@ -122,6 +132,27 @@ export class AuditLogService {
 
     const parsed = Date.parse(value)
     return Number.isFinite(parsed) ? parsed : null
+  }
+
+  private redactSensitiveText(value: string | undefined): string | undefined {
+    if (!value) {
+      return value
+    }
+
+    const patterns = [
+      { regex: /\b\d{10}\b/g, label: 'NATIONAL_CODE' },
+      { regex: /\b09\d{9}\b/g, label: 'PHONE' },
+      { regex: /\b\d{16}\b/g, label: 'ACCOUNT_NUMBER' },
+      { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g, label: 'IBAN' }
+    ]
+
+    let redacted = value
+
+    for (const { regex, label } of patterns) {
+      redacted = redacted.replace(regex, () => `[REDACTED:${label}]`)
+    }
+
+    return redacted
   }
 
   private compactText(value: string | undefined, maxLength: number): string | undefined {

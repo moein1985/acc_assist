@@ -55,3 +55,30 @@ test('audit log service queries entries with filters and limit', async () => {
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('audit log service redacts sensitive values before persisting and querying', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'acc-assist-audit-redact-'))
+  const filePath = join(root, 'agent-audit.log')
+  const service = new AuditLogService(filePath)
+
+  try {
+    await service.write({
+      timestamp: '2026-06-09T08:00:00.000Z',
+      requestId: 'req-redact',
+      conversationId: 'conv-redact',
+      stage: 'tool-success',
+      prompt: 'برای شخص با کد ملی 1234567890 و موبایل 09120000000 سوال بده',
+      sqlQuery: 'SELECT * FROM dbo.Accounts WHERE NationalCode = 1234567890 AND Phone = 09120000000'
+    })
+
+    const result = await service.query({ requestId: 'req-redact', limit: 10 })
+
+    assert.equal(result.total, 1)
+    assert.match(result.entries[0]?.promptPreview ?? '', /\[REDACTED/)
+    assert.match(result.entries[0]?.sqlQueryPreview ?? '', /\[REDACTED/)
+    assert.doesNotMatch(result.entries[0]?.promptPreview ?? '', /1234567890/)
+    assert.doesNotMatch(result.entries[0]?.sqlQueryPreview ?? '', /09120000000/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})

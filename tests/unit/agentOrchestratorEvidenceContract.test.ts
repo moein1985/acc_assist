@@ -54,6 +54,30 @@ test('enforceEvidenceFirstContract rejects qualitative financial claims without 
   assert.match(result, /Cannot answer reliably/)
 })
 
+test('enforceEvidenceFirstContract rejects financial answers that omit the contract sections', () => {
+  const orchestrator = createHarness()
+
+  const result = orchestrator.enforceEvidenceFirstContract(
+    'در دیتابیس چند سال مالی قرار داره؟',
+    [
+      '### Summary',
+      '3 fiscal years were found.',
+      '',
+      '### Findings',
+      'The result is based on the database snapshot.',
+      '',
+      '### Evidence',
+      'This is a general model assumption.',
+      '',
+      '### Actions',
+      'Review the report.'
+    ].join('\n'),
+    1
+  )
+
+  assert.match(result, /Cannot answer reliably/)
+})
+
 test('enforceEvidenceFirstContract accepts tool-backed evidence for financial claims', () => {
   const orchestrator = createHarness()
 

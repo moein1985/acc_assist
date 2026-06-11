@@ -2980,7 +2980,15 @@ ORDER BY fiscal_year DESC`
     const narrative = `${sections.summary}\n${sections.findings}`.trim()
     const evidence = sections.evidence
     const appearsFinancialClaim = this.appearsToContainFinancialClaim(narrative)
+    const hasRequiredContractSections = this.hasRequiredFinancialResponseSections(sections)
     const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
+
+    if (appearsFinancialClaim && !hasRequiredContractSections) {
+      return this.buildEvidenceContractFailureResponse(
+        'پاسخ مالی فاقد بلوک‌های قرارداد استاندارد Summary/Findings/Evidence/Assumptions/Actions بود.',
+        prompt
+      )
+    }
 
     if (totalToolCallCount === 0 && appearsFinancialClaim) {
       return this.buildEvidenceContractFailureResponse(
@@ -3007,6 +3015,16 @@ ORDER BY fiscal_year DESC`
       )
 
     return hasFinancialSignal
+  }
+
+  private hasRequiredFinancialResponseSections(sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>): boolean {
+    return Boolean(
+      sections.summary.trim() &&
+        sections.findings.trim() &&
+        sections.evidence.trim() &&
+        sections.assumptions.trim() &&
+        sections.actions.trim()
+    )
   }
 
   private hasStructuredEvidence(evidenceSection: string): boolean {
