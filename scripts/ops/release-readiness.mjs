@@ -193,6 +193,14 @@ const secretPatterns = [
     message: 'hardcoded credential config literal found'
   },
   {
+    regex: /\b(?:INGEST_URL|EVENTS_URL|BEARER_TOKEN|ACCESS_TOKEN|API_KEY|CLIENT_SECRET|PASSWORD|SECRET)\b\s*=\s*(['"])(?!\$\{?process\.env)([^'"\n]+?)\1/gi,
+    message: 'literal telemetry or secret assignment found'
+  },
+  {
+    regex: /\b(?:INGEST_URL|EVENTS_URL)\b\s*=\s*(['"])(https?:\/\/[^'"\n]+)\1/gi,
+    message: 'literal telemetry endpoint URL found'
+  },
+  {
     regex: /ACC_TELEMETRY_BEARER_TOKEN\s*=\s*(['"][^'"]+['"])/gi,
     message: 'telemetry token literal assignment found'
   }

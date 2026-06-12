@@ -408,6 +408,7 @@ function registerIpcHandlers(): void {
           profileId,
           databaseName: requestedDatabase,
           softwareOverrideId: selectedSoftwareId,
+          previousSelectedMappings: previousCatalog?.selectedMappings ?? {},
           executeSql: async (query: string) => {
             return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'discovery')
           }

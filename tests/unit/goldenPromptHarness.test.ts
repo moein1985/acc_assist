@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { evaluateGoldenPromptSet, formatSummary } from '../../scripts/ops/goldenPromptHarness'
+import { DEFAULT_GOLDEN_CASES, evaluateGoldenPromptSet, formatSummary } from '../../scripts/ops/goldenPromptHarness'
 
 test('golden prompt harness recognizes fiscal-year count prompt as deterministic', () => {
   const result = evaluateGoldenPromptSet([
@@ -56,6 +56,12 @@ test('golden prompt harness reports stable scoring for deterministic fiscal-year
   assert.equal(result.results[0]?.checks.mode, true)
   assert.equal(result.results[0]?.checks.tool, true)
   assert.equal(result.results[0]?.checks.evidence, true)
+})
+
+test('default golden set contains a stable manager-facing suite', () => {
+  assert.ok(DEFAULT_GOLDEN_CASES.length >= 6)
+  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'count_fiscal_years'))
+  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'get_receivables_summary'))
 })
 
 test('formatSummary exposes the score for CI reporting', () => {

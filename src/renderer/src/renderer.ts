@@ -28,6 +28,7 @@ import type {
   SshTunnelStatus
 } from '../../shared/contracts'
 import { localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
+import { buildManagerKpiCards, buildQualityDashboardCards } from './managerUx'
 
 const DRY_RUN_PROMPT =
   'یک تحلیل اجمالی از وضعیت سیستم حسابداری ما بده. مرحله ۱: ابتدا حتما list_database_tables را اجرا کن تا همه جدول‌ها را ببینی. مرحله ۲: جدول‌های مالی مهم را انتخاب کن و با get_database_schema ساختار حساب‌ها/اسناد/گردش‌ها را بررسی کن. مرحله ۳: با fetch_financial_data چند ردیف نمونه واقعی بگیر و تحلیل کوتاه شامل ریسک‌ها، نکات کلیدی و اقدامات پیشنهادی ارائه بده.'
@@ -132,11 +133,6 @@ interface KpiCardModel {
   label: string
   value: string
   hint: string
-}
-
-interface QualityCardModel {
-  label: string
-  value: string
 }
 
 interface SchemaMappingWizardState {
@@ -1248,7 +1244,8 @@ function renderSchemaMappingWizard(catalog: SchemaCatalogEntry): void {
   const missingLine = missingConcepts.length > 0 ? ` | کمبودهای پیشنهادی: ${missingConcepts.join('، ')}` : ''
   const hintLine = coverageHints.length > 0 ? ` | راهنمای نگاشت: ${coverageHints[0]}` : ''
   const hintDetails = coverageHints.slice(1).filter(Boolean).join(' | ')
-  ui.schemaWizardSummary.textContent = `مرحله ${state.schemaWizard.conceptIndex + 1} از ${totalSteps}${coverageLine}${missingLine}`
+  const readinessLine = ` | ${(catalog.connectorReadiness?.summaryText ?? buildSchemaReadinessSummary(catalog)).replace(/\s+/g, ' ').trim()}`
+  ui.schemaWizardSummary.textContent = `مرحله ${state.schemaWizard.conceptIndex + 1} از ${totalSteps}${coverageLine}${missingLine}${readinessLine}`
   ui.schemaWizardSuggestions.textContent =
     suggestions.length > 0
       ? `پیشنهادها: ${suggestions.slice(0, 3).join(' | ')}${hintLine}${hintDetails ? ` | ${hintDetails}` : ''}`
@@ -1833,98 +1830,7 @@ function renderKpiCards(snapshot: ReportSnapshot | null): void {
 }
 
 function extractKpiCards(snapshot: ReportSnapshot): KpiCardModel[] {
-  const evidenceItems = snapshot.evidence
-  const evidenceCount = evidenceItems.length
-  const totalRows = evidenceItems.reduce((sum, item) => sum + (Number.isFinite(item.rowCount) ? item.rowCount : 0), 0)
-
-  const cards: KpiCardModel[] = [
-    {
-      label: 'تعداد ابزارهای دارای شواهد',
-      value: formatKpiNumber(evidenceCount),
-      hint: 'جمع ابزارهایی که خروجی قابل استناد برگردانده‌اند.'
-    },
-    {
-      label: 'جمع ردیف های شواهد',
-      value: formatKpiNumber(totalRows),
-      hint: 'نمایی از حجم داده تحلیل شده در پاسخ جاری.'
-    }
-  ]
-
-  const metric = findPrimaryNumericMetric(evidenceItems)
-
-  if (!metric) {
-    return cards
-  }
-
-  cards.push({
-    label: `جمع ${metric.columnName}`,
-    value: formatKpiNumber(metric.sum),
-    hint: `ابزار: ${metric.toolName}`
-  })
-  cards.push({
-    label: `بیشینه ${metric.columnName}`,
-    value: formatKpiNumber(metric.max),
-    hint: `کمینه: ${formatKpiNumber(metric.min)} | میانگین: ${formatKpiNumber(metric.avg)}`
-  })
-
-  return cards
-}
-
-function findPrimaryNumericMetric(evidenceItems: ReportExportEvidenceItem[]): {
-  toolName: string
-  columnName: string
-  sum: number
-  min: number
-  max: number
-  avg: number
-} | null {
-  for (const item of evidenceItems) {
-    if (!Array.isArray(item.rows) || item.rows.length === 0) {
-      continue
-    }
-
-    const columns = Array.isArray(item.columns) ? item.columns.filter((column) => column.trim()) : []
-    if (columns.length === 0) {
-      continue
-    }
-
-    const metricColumn = selectMetricColumn(columns, item.rows)
-    if (!metricColumn) {
-      continue
-    }
-
-    const values: number[] = []
-
-    for (const row of item.rows) {
-      const parsed = toChartNumber(row[metricColumn])
-
-      if (parsed === null) {
-        continue
-      }
-
-      values.push(parsed)
-    }
-
-    if (values.length === 0) {
-      continue
-    }
-
-    const sum = values.reduce((acc, value) => acc + value, 0)
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    const avg = sum / values.length
-
-    return {
-      toolName: item.toolName,
-      columnName: metricColumn,
-      sum,
-      min,
-      max,
-      avg
-    }
-  }
-
-  return null
+  return buildManagerKpiCards({ evidence: snapshot.evidence })
 }
 
 function formatKpiNumber(value: number): string {
@@ -2376,59 +2282,7 @@ function renderQualityDashboard(entries: AuditLogViewerEntry[]): void {
 
   ui.qualityDashboardPanel.hidden = false
 
-  const toolSuccessCount = entries.filter((entry) => entry.stage === 'tool-success').length
-  const toolErrorCount = entries.filter((entry) => entry.stage === 'tool-error').length
-  const finalCount = entries.filter((entry) => entry.stage === 'final').length
-  const errorCount = entries.filter((entry) => entry.stage === 'error').length
-  const qualityDenominator = toolSuccessCount + toolErrorCount
-  const toolSuccessRate = qualityDenominator > 0 ? (toolSuccessCount / qualityDenominator) * 100 : null
-
-  const durationValues = entries
-    .map((entry) => entry.durationMs)
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
-  const avgDuration =
-    durationValues.length > 0
-      ? durationValues.reduce((sum, value) => sum + value, 0) / durationValues.length
-      : null
-
-  const rowCountValues = entries
-    .map((entry) => entry.rowCount)
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
-  const avgRowCount =
-    rowCountValues.length > 0
-      ? rowCountValues.reduce((sum, value) => sum + value, 0) / rowCountValues.length
-      : null
-
-  const cards: QualityCardModel[] = [
-    {
-      label: 'نرخ موفقیت ابزارها',
-      value: toolSuccessRate === null ? '-' : `${formatKpiNumber(toolSuccessRate)}%`
-    },
-    {
-      label: 'ابزار موفق',
-      value: formatKpiNumber(toolSuccessCount)
-    },
-    {
-      label: 'ابزار خطادار',
-      value: formatKpiNumber(toolErrorCount)
-    },
-    {
-      label: 'پاسخ نهایی',
-      value: formatKpiNumber(finalCount)
-    },
-    {
-      label: 'خطاهای نهایی',
-      value: formatKpiNumber(errorCount)
-    },
-    {
-      label: 'میانگین زمان (ms)',
-      value: avgDuration === null ? '-' : formatKpiNumber(avgDuration)
-    },
-    {
-      label: 'میانگین ردیف شواهد',
-      value: avgRowCount === null ? '-' : formatKpiNumber(avgRowCount)
-    }
-  ]
+  const cards = buildQualityDashboardCards(entries)
 
   for (const card of cards) {
     const article = document.createElement('article')
@@ -3509,7 +3363,7 @@ function renderSchemaOnboarding(catalog: SchemaCatalogEntry | null, errorMessage
   const coverageText = coverage ? ` | پوشش نگاشت: ${coverage.coverageScore}%` : ''
   const missingText = coverage?.missingConcepts?.length ? ` | کمبودها: ${coverage.missingConcepts.join('، ')}` : ''
   const hintText = coverage?.validationHints?.length ? ` | راهنما: ${coverage.validationHints[0]}` : ''
-  const readinessText = ` | ${buildSchemaReadinessSummary(catalog)}`
+  const readinessText = ` | ${(catalog.connectorReadiness?.summaryText ?? buildSchemaReadinessSummary(catalog)).replace(/\s+/g, ' ').trim()}`
 
   if (!effectiveSoftware.effectiveName) {
     ui.schemaOnboardingHint.textContent = `نرم افزار موثر هنوز نامشخص است. برای دقت بیشتر می توانید انتخاب دستی انجام دهید.${candidatesSuffix}`

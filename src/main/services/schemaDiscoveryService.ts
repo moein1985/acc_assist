@@ -3,13 +3,14 @@ import type {
   AccountingSoftwareId,
   SchemaCatalogEntry,
   SchemaColumnCatalogItem,
+  SchemaConceptSelections,
   SchemaConceptSuggestions,
   SchemaDateMode,
   SchemaTableCatalogItem,
   SqlQueryRow
 } from '../../shared/contracts'
 import { detectAccountingSoftware, scoreTableForSoftwareConcept } from './accountingConnectorProfiles'
-import { buildConnectorSchemaFingerprint, buildMappingCoverageSummary } from './connectorSdk'
+import { buildConnectorReadinessSummary, buildConnectorSchemaFingerprint, buildMappingCoverageSummary } from './connectorSdk'
 
 const MAX_TABLES = 220
 const MAX_COLUMNS_PER_TABLE = 120
@@ -136,6 +137,7 @@ export class SchemaDiscoveryService {
     profileId: string
     databaseName: string
     softwareOverrideId?: AccountingSoftwareId | null
+    previousSelectedMappings?: SchemaConceptSelections
     executeSql: SqlExecutor
   }): Promise<SchemaCatalogEntry> {
     const profileId = params.profileId.trim()
@@ -263,10 +265,11 @@ export class SchemaDiscoveryService {
     }
 
     const suggestedMappings = this.buildSuggestedMappings(tables, effectiveSoftwareId)
+    const selectedMappings = params.previousSelectedMappings ?? {}
     const coverageSummary = buildMappingCoverageSummary(
       softwareDetection.primary?.name ?? 'Connector',
       suggestedMappings,
-      {}
+      selectedMappings
     )
     const detectedSoftware = softwareDetection.primary
       ? {
@@ -281,6 +284,17 @@ export class SchemaDiscoveryService {
           }
         }
       : null
+
+    const connectorReadiness = buildConnectorReadinessSummary({
+      suggestedMappings,
+      selectedMappings,
+      detectedSoftware: detectedSoftware
+        ? {
+            coverage: detectedSoftware.coverage,
+            confidence: detectedSoftware.confidence
+          }
+        : null
+    })
     const softwareCandidates = softwareDetection.candidates.map((candidate) => ({
       ...candidate,
       coverage: {
@@ -307,7 +321,8 @@ export class SchemaDiscoveryService {
       sampledTables: sampleTargets.length,
       tables: catalogTables,
       suggestedMappings,
-      selectedMappings: {},
+      selectedMappings,
+      connectorReadiness,
       detectedSoftware,
       softwareCandidates,
       selectedSoftwareId: softwareOverrideId,

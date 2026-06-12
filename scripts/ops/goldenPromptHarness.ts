@@ -38,6 +38,38 @@ export const DEFAULT_GOLDEN_CASES: GoldenPromptCase[] = [
     expectedMode: 'deterministic',
     expectedTools: ['get_account_balance'],
     expectedEvidenceKeywords: ['balance']
+  },
+  {
+    id: 'receivables-summary',
+    prompt: 'بدهکاران ماهانه را با شواهد عددی خلاصه کن',
+    expectedIntentId: 'get_receivables_summary',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_receivables_summary'],
+    expectedEvidenceKeywords: ['receivables', 'bedehkar']
+  },
+  {
+    id: 'payables-summary',
+    prompt: 'بستانکاران این ماه را جمع‌بندی کن',
+    expectedIntentId: 'get_payables_summary',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_payables_summary'],
+    expectedEvidenceKeywords: ['payables', 'bestankar']
+  },
+  {
+    id: 'cashflow-summary',
+    prompt: 'جریان نقدی سه ماه اخیر را با شواهد نشان بده',
+    expectedIntentId: 'get_cashflow_summary',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_cashflow_summary'],
+    expectedEvidenceKeywords: ['cashflow', 'جریان نقد']
+  },
+  {
+    id: 'sales-summary',
+    prompt: 'فروش ماهانه را با جمع و روند گزارش بده',
+    expectedIntentId: 'get_sales_summary_by_period',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_sales_summary_by_period'],
+    expectedEvidenceKeywords: ['sales', 'فروش']
   }
 ]
 

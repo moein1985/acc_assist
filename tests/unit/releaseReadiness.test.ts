@@ -49,6 +49,42 @@ test('release readiness rejects placeholder update URLs', async () => {
   assert.match(result.stdout, /placeholder/i)
 })
 
+test('release readiness flags literal telemetry endpoint secrets in smoke helper scripts', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'acc-release-readiness-telemetry-'))
+
+  await mkdir(path.join(tempRoot, 'src', 'main', 'services'), { recursive: true })
+  await mkdir(path.join(tempRoot, 'scripts', 'ops'), { recursive: true })
+
+  await writeFile(
+    path.join(tempRoot, 'package.json'),
+    JSON.stringify({ name: 'temp-release-check', version: '1.0.0' }, null, 2),
+    'utf8'
+  )
+
+  await writeFile(
+    path.join(tempRoot, 'electron-builder.yml'),
+    ['appId: com.example.app', 'productName: Example', 'publish:', '  - provider: generic', '    url: https://example.com/desktop', '    channel: latest'].join('\n'),
+    'utf8'
+  )
+
+  await writeFile(path.join(tempRoot, 'src', 'main', 'types.ts'), "export const apiKey = ''\n", 'utf8')
+  await writeFile(path.join(tempRoot, 'src', 'main', 'services', 'settingsStore.ts'), "export const bearerToken = ''\n", 'utf8')
+  await writeFile(path.join(tempRoot, 'scripts', 'ops', 'remote-server-control.ps1'), 'param()\n', 'utf8')
+  await writeFile(
+    path.join(tempRoot, 'scripts', 'ops', 'telemetry-smoke-test.mjs'),
+    "const INGEST_URL = 'http://192.168.85.84:8081/ingest';\nconst BEARER_TOKEN = 'secret-token';\nexport default {}\n",
+    'utf8'
+  )
+
+  const result = spawnSync('node', [path.join(process.cwd(), 'scripts', 'ops', 'release-readiness.mjs'), '--no-write-plan'], {
+    cwd: tempRoot,
+    encoding: 'utf8'
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stdout, /telemetry.*(token|endpoint|ingest)|http:\/\/192\.168\.85\.84/i)
+})
+
 test('release readiness flags hardcoded remote credentials in smoke helper scripts', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'acc-release-readiness-secret-'))
 

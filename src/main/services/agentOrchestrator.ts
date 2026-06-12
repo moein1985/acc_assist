@@ -3026,6 +3026,37 @@ ORDER BY fiscal_year DESC`
     ].join('\n')
   }
 
+  buildActionProposal(prompt: string, subject: string, priorityCount: number): string {
+    const normalizedPrompt = this.compactText(prompt.replace(/\s+/g, ' ').trim(), 220)
+    const safePriorityCount = Math.max(1, Math.trunc(priorityCount || 1))
+
+    return [
+      '### Summary',
+      `پیشنهاد اقدام برای ${subject}: ${normalizedPrompt}`,
+      '',
+      '### Findings',
+      '- این خروجی فقط یک پیشنهاد مدیریتی و قابل بازبینی است و هیچ تغییر داده‌ای اجرا نمی‌کند.',
+      `- برای تصمیم‌گیری، ${safePriorityCount} اولویت اصلی با مقایسه‌ی شواهد، ریسک و scope بررسی می‌شود.`,
+      '- این پیشنهاد صرفاً برای سناریوهای کم‌ریسک و قابل audit طراحی شده است؛ اقدام واقعی فقط پس از تایید انسانی مجاز است.',
+      '',
+      '### Evidence',
+      '- پیشنهاد بر پایه متن سوال و شواهد مالی موجود در مسیر read-only ساخته می‌شود.',
+      '- هر اقدام بعدی باید با تایید انسانی، dry-run و audit کامل همراه باشد.',
+      '- بررسی/چک‌لیست تایید انسانی: scope، ریسک، اثر روی داده، خروجی قابل بازبینی و امکان rollback/compensating action.',
+      '',
+      '### Assumptions',
+      '- فرض می‌شود داده‌ها از مسیر قابل اتکا و بدون write operation استخراج شده‌اند.',
+      '- اگر سناریو ریسک‌پذیر باشد، پیشنهاد باید به حالت تعلیق و بازبینی انسانی برگردد.',
+      '',
+      '### Actions',
+      '1. مقایسه‌ی نتایج فعلی با baseline و سناریوهای کم‌ریسک.' +
+        '\n2. اولویت‌بندی ' + `${safePriorityCount}` + ' مورد کلیدی برای تایید مدیر.' +
+        '\n3. اجرای dry-run و ثبت audit قبل از هر اقدام بعدی.' +
+        '\n4. بررسی/چک‌لیست تایید انسانی قبل از هر اقدام واقعی.' +
+        '\n5. آماده‌سازی rollback/compensating action و ثبت گزارش before/after برای هر مورد پیشنهادی.'
+    ].join('\n')
+  }
+
   private finalizeFinancialResponse(
     prompt: string,
     rawText: string,

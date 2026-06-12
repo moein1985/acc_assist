@@ -133,6 +133,14 @@ export interface AccountingSoftwareDetection {
   coverage?: AccountingSoftwareCoverageSummary
 }
 
+export interface ConnectorReadinessSummary {
+  coverageScore: number
+  suggestedCount: number
+  selectedCount: number
+  status: 'ready' | 'needs-review' | 'unknown'
+  summaryText: string
+}
+
 export interface ConnectorSchemaFingerprint {
   tableRefCount: number
   normalizedTokenCount: number
@@ -182,6 +190,7 @@ export interface SchemaCatalogEntry {
   tables: SchemaTableCatalogItem[]
   suggestedMappings: SchemaConceptSuggestions
   selectedMappings: SchemaConceptSelections
+  connectorReadiness?: ConnectorReadinessSummary
   detectedSoftware?: AccountingSoftwareDetection | null
   softwareCandidates?: AccountingSoftwareDetection[]
   selectedSoftwareId?: AccountingSoftwareId | null

@@ -1,11 +1,15 @@
 
 // Use native fetch instead of node-fetch
 async function smokeTest() {
-    const INGEST_URL = 'http://192.168.85.84:8081/ingest';
-    const EVENTS_URL = 'http://192.168.85.84:8081/events';
-    const BEARER_TOKEN = process.env.ACC_TELEMETRY_BEARER_TOKEN || '';
+    const INGEST_URL = process.env.ACC_TELEMETRY_INGEST_URL?.trim();
+    const EVENTS_URL = process.env.ACC_TELEMETRY_EVENTS_URL?.trim();
+    const BEARER_TOKEN = process.env.ACC_TELEMETRY_BEARER_TOKEN?.trim();
 
-    if (!BEARER_TOKEN.trim()) {
+    if (!INGEST_URL || !EVENTS_URL) {
+        throw new Error('Missing ACC_TELEMETRY_INGEST_URL or ACC_TELEMETRY_EVENTS_URL environment variable.');
+    }
+
+    if (!BEARER_TOKEN) {
         throw new Error('Missing ACC_TELEMETRY_BEARER_TOKEN environment variable.');
     }
 
