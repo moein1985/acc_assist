@@ -66,6 +66,39 @@
     }
   },
   {
+    "id": "deterministic-party-balance-fa",
+    "prompt": "مانده طرف حساب فروشگاه را بگو",
+    "type": "tool",
+    "expectedTool": {
+      "name": "get_party_balance",
+      "arguments": {}
+    },
+    "expectedIntent": "get_party_balance",
+    "expectedEvidence": [
+      "read-only",
+      "query"
+    ],
+    "toolResult": {
+      "count": 12500000,
+      "query": "SELECT SUM(CAST(balance AS decimal(18,2))) AS result_value FROM dbo.BAS_Persons",
+      "evidence": "Deterministic party balance from dbo.BAS_Persons"
+    },
+    "expected": {
+      "responseTextContains": [
+        "12500000",
+        "مانده طرف حساب"
+      ],
+      "requiredSections": [
+        "Summary",
+        "Evidence",
+        "Assumptions"
+      ],
+      "minToolCalls": 1,
+      "maxRounds": 1,
+      "minScore": 95
+    }
+  },
+  {
     "id": "deterministic-cashflow-summary-fa",
     "prompt": "خلاصه جریان نقد را بده",
     "type": "tool",

@@ -65,7 +65,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'get_party_balance',
     description: 'Return balance for a person/counterparty.',
-    responseMode: 'model-assisted',
+    responseMode: 'deterministic',
     requiredSlots: ['partyName'],
     patterns: [
       /مانده\s*(?:شخص|طرف\s*حساب)/iu,
@@ -102,14 +102,14 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'get_receivables_summary',
     description: 'Return receivables summary.',
-    responseMode: 'model-assisted',
+    responseMode: 'deterministic',
     requiredSlots: [],
     patterns: [/\breceivables\b/iu, /بدهکاران/iu]
   },
   {
     id: 'get_payables_summary',
     description: 'Return payables summary.',
-    responseMode: 'model-assisted',
+    responseMode: 'deterministic',
     requiredSlots: [],
     patterns: [/\bpayables\b/iu, /بستانکاران/iu]
   },

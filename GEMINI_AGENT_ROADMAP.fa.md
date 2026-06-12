@@ -1,6 +1,6 @@
 # نقشه راه تبدیل ACC Assist به Agent مالی شبیه GitHub Copilot
 
-آخرین بازبینی: 2026-06-09
+آخرین بازبینی: 2026-06-11
 
 این سند برای استفاده مستقیم در VS Code با Gemini Code Assist / Gemini 2.5 Pro نوشته شده است. هدف این است که ACC Assist از وضعیت فعلی به یک Agent مالی و حسابداری قابل اعتماد تبدیل شود؛ Agentی که مدیران مجموعه و مدیران مالی بتوانند با زبان فارسی از آن گزارش، تحلیل و شواهد قابل اتکا بگیرند.
 
@@ -46,6 +46,21 @@ Gemini 2.5 Pro باید مغز برنامه ریز و تحلیلگر باشد، 
 - remote SSH/dev loop با `scripts/ops/remote-server-control.ps1`.
 - provider فعلی: AvalAI در مسیر OpenAI-compatible با مدل `gemini-2.5-pro`.
 - مشکل مشاهده شده در تست زنده: اگر prompt فارسی از مسیر npm argument درست منتقل نشود یا مدل آزادانه تصمیم بگیرد، پاسخ ممکن است به موضوع دیگری منحرف شود.
+
+## خلاصه وضعیت فازها (به‌روزرسانی 2026-06-11)
+
+این بخش برای جلوگیری از دوباره‌سازی تطبیق فایل با کد نوشته شده است. وضعیت هر فاز در این repo بر اساس کد و تست‌های موجود به‌صورت خلاصه این است:
+
+- فاز 1 — Foundation Lockdown: تقریباً بسته/قابل اتکا. مسیر read-only enforcement، policy validation و regression test برای جلوگیری از exposure خام `sql:query` در کد وجود دارد.
+- فاز 2 — Prompt & Transport Reliability: بسته. مسیر prompt فارسی از طریق base64/JSON و smoke/transport test پشتیبانی می‌شود.
+- فاز 3 — Financial Intent Registry: بسته. intent detection و registry برای سوالات مالی پرتکرار در کد و تست‌ها وجود دارد.
+- فاز 4 — Deterministic Financial Tools: نیمه‌کامل. ابزارهای پایه مثل `count_fiscal_years` و `list_fiscal_years` وجود دارند، اما ابزارهای کامل مالی پرتکرار هنوز به‌طور جامع گسترش نیافته‌اند.
+- فاز 5 — Evidence-First Response Contract: بسته/قوی. contract و حالت `Cannot answer reliably` در orchestrator و تست‌های مرتبط پوشش داده شده‌اند.
+- فاز 6 — Evaluation Harness: در حال انجام. پایه‌های test و evidence وجود دارد، اما golden set و scoring پایدار کامل نیست.
+- فاز 7 — Connector Framework: نیمه‌کامل. detector و presetهای Sepidar/Mahak و mapping اولیه وجود دارد، اما framework کامل و wizard mapping دستی هنوز تکمیل نشده.
+- فاز 8 — Manager-Grade UX: در حال انجام. پایه UI و audit viewer وجود دارد، اما KPI cards و UX مدیریتی کامل نشده.
+- فاز 9 — Operational Hardening: در حال انجام. telemetry، audit و release-readiness پایه‌ای موجود است، اما hardening نهایی و production polish کامل نیست.
+- فاز 10 — Future Controlled Actions: باز. این فاز برای بعد از بلوغ read-only نگه داشته شده و در حال حاضر اجرا نشده.
 
 ## ریسک های کلیدی
 

@@ -51,7 +51,7 @@ type GoldenToolPromptFixture = {
   prompt: string
   type: 'tool'
   expectedTool: {
-    name: 'count_fiscal_years' | 'list_fiscal_years' | 'get_account_balance' | 'get_cashflow_summary'
+    name: 'count_fiscal_years' | 'list_fiscal_years' | 'get_account_balance' | 'get_party_balance' | 'get_cashflow_summary'
     arguments: Record<string, unknown>
   }
   expectedIntent?: string
@@ -366,7 +366,9 @@ async function runGoldenPromptRegressionSmoke(options?: {
       const isFiscalYearTool =
         fixture.expectedTool.name === 'count_fiscal_years' || fixture.expectedTool.name === 'list_fiscal_years'
       const isBalanceTool =
-        fixture.expectedTool.name === 'get_account_balance' || fixture.expectedTool.name === 'get_cashflow_summary'
+        fixture.expectedTool.name === 'get_account_balance' ||
+        fixture.expectedTool.name === 'get_party_balance' ||
+        fixture.expectedTool.name === 'get_cashflow_summary'
 
       const settings = createBaseSettings()
       settings.sql.database = 'SepidarSample'
@@ -418,14 +420,45 @@ async function runGoldenPromptRegressionSmoke(options?: {
                 }
               ],
               foreignKeys: []
+            },
+            {
+              schemaName: 'dbo',
+              tableName: 'BAS_Persons',
+              estimatedRowCount: 80,
+              tags: ['counterparties'],
+              columns: [
+                {
+                  name: 'amount',
+                  dataType: 'decimal',
+                  isNullable: false,
+                  maxLength: null,
+                  isIdentity: false,
+                  isPrimaryKey: false,
+                  hasForeignKey: false,
+                  sampleValues: ['12500000']
+                },
+                {
+                  name: 'balance',
+                  dataType: 'decimal',
+                  isNullable: false,
+                  maxLength: null,
+                  isIdentity: false,
+                  isPrimaryKey: false,
+                  hasForeignKey: false,
+                  sampleValues: ['12500000']
+                }
+              ],
+              foreignKeys: []
             }
           ],
           suggestedMappings: {
             accounts: ['dbo.ACC_Documents'],
+            counterparties: ['dbo.BAS_Persons'],
             cashTransactions: ['dbo.ACC_Documents']
           },
           selectedMappings: {
             accounts: 'dbo.ACC_Documents',
+            counterparties: 'dbo.BAS_Persons',
             cashTransactions: 'dbo.ACC_Documents'
           },
           selectedSoftwareId: 'sepidar',
@@ -759,6 +792,7 @@ function normalizeGoldenPromptFixture(rawFixture: unknown, index: number): Golde
       expectedToolName !== 'count_fiscal_years' &&
       expectedToolName !== 'list_fiscal_years' &&
       expectedToolName !== 'get_account_balance' &&
+      expectedToolName !== 'get_party_balance' &&
       expectedToolName !== 'get_cashflow_summary'
     ) {
       throw new Error(`Golden fixture [${id}] has unsupported expectedTool name [${expectedToolName}].`)

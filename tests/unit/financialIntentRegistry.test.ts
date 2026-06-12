@@ -105,4 +105,6 @@ test('listFinancialIntentDefinitions exposes roadmap intents including determini
   assert.ok(definitions.some((item) => item.id === 'list_fiscal_years' && item.responseMode === 'deterministic'))
   assert.ok(definitions.some((item) => item.id === 'get_account_balance' && item.responseMode === 'deterministic'))
   assert.ok(definitions.some((item) => item.id === 'get_cashflow_summary' && item.responseMode === 'deterministic'))
+  assert.ok(definitions.some((item) => item.id === 'get_receivables_summary' && item.responseMode === 'deterministic'))
+  assert.ok(definitions.some((item) => item.id === 'get_payables_summary' && item.responseMode === 'deterministic'))
 })

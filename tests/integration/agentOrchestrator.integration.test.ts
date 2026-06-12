@@ -1059,6 +1059,79 @@ test('agent orchestrator uses deterministic balance tooling when schema mapping 
   assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
+test('agent orchestrator uses deterministic party-balance tooling when schema mapping is available', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const counterpartiesTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'BAS_Persons')
+
+  if (counterpartiesTable) {
+    counterpartiesTable.columns = [
+      {
+        name: 'amount',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      },
+      {
+        name: 'balance',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      }
+    ]
+  }
+
+  settings.schemaCatalogs[0]!.selectedMappings.counterparties = 'dbo.BAS_Persons'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: 'fallback',
+      raw: {},
+      toolCalls: []
+    }
+  })
+  const executedReadOnlyQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return [{ result_value: 12500000 }]
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-party-balance-deterministic-1',
+    conversationId: 'integration-conversation-party-balance-deterministic-1',
+    prompt: 'مانده طرف حساب فروشگاه را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(result.finalText.includes('12500000'))
+  assert.ok(result.finalText.includes('get_party_balance'))
+  assert.ok(executedReadOnlyQueries.length >= 1)
+})
+
 test('agent orchestrator uses deterministic cashflow tooling when schema mapping is available', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')

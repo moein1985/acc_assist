@@ -507,7 +507,10 @@ export class AgentOrchestrator {
           ? deterministicIntent
           : null
       const deterministicToolIntent =
-        deterministicIntent && ['get_account_balance', 'get_cashflow_summary'].includes(deterministicIntent)
+        deterministicIntent &&
+        ['get_account_balance', 'get_party_balance', 'get_cashflow_summary', 'get_receivables_summary', 'get_payables_summary'].includes(
+          deterministicIntent
+        )
           ? deterministicIntent
           : null
       const deterministicNonFiscalIntent = deterministicIntent && !deterministicFiscalIntent && !deterministicToolIntent
@@ -2801,7 +2804,16 @@ ORDER BY fiscal_year DESC`
       return null
     }
 
-    const conceptKey = deterministicIntent === 'get_account_balance' ? 'accounts' : 'cashTransactions'
+    const conceptKey =
+      deterministicIntent === 'get_account_balance'
+        ? 'accounts'
+        : deterministicIntent === 'get_party_balance'
+          ? 'counterparties'
+          : deterministicIntent === 'get_cashflow_summary'
+            ? 'cashTransactions'
+            : deterministicIntent === 'get_receivables_summary' || deterministicIntent === 'get_payables_summary'
+              ? 'documents'
+              : 'documents'
     const mapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
 
     if (!mapping) {
@@ -2879,7 +2891,16 @@ ORDER BY fiscal_year DESC`
     deterministicIntent: DeterministicFinancialIntent,
     result: DeterministicFinancialToolResult
   ): string {
-    const label = deterministicIntent === 'get_account_balance' ? 'مانده حساب' : 'خلاصه جریان نقد'
+    const label =
+      deterministicIntent === 'get_account_balance'
+        ? 'مانده حساب'
+        : deterministicIntent === 'get_party_balance'
+          ? 'مانده طرف حساب'
+          : deterministicIntent === 'get_receivables_summary'
+            ? 'خلاصه بدهکاران'
+            : deterministicIntent === 'get_payables_summary'
+              ? 'خلاصه بستانکاران'
+              : 'خلاصه جریان نقد'
 
     return [
       '### Summary',
