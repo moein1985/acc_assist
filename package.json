@@ -24,6 +24,8 @@
     "test:unit": "tsx --test tests/unit/**/*.test.ts",
     "test:integration": "tsx --test tests/integration/**/*.test.ts",
     "test": "npm run test:unit && npm run test:integration",
+    "test:golden": "tsx scripts/ops/goldenPromptHarness.ts",
+    "smoke:prompt-transport": "tsx scripts/ops/promptTransportSmoke.ts",
     "validate:connector:live": "tsx scripts/validate-connector-live.ts",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",

@@ -23,12 +23,20 @@ export function decodePromptTransportValue(value: string): string {
     if (parsed && typeof parsed === 'object') {
       const candidate = parsed as Record<string, unknown>
 
-      if (typeof candidate.prompt === 'string') {
-        return candidate.prompt
+      if (typeof candidate.promptBase64 === 'string') {
+        const base64Candidate = candidate.promptBase64.trim()
+
+        if (looksLikeBase64Transport(base64Candidate)) {
+          const decoded = Buffer.from(base64Candidate, 'base64').toString('utf8')
+
+          if (decoded && !/^\s*$/.test(decoded) && decoded.trim() !== base64Candidate) {
+            return decoded
+          }
+        }
       }
 
-      if (typeof candidate.promptBase64 === 'string') {
-        return Buffer.from(candidate.promptBase64, 'base64').toString('utf8')
+      if (typeof candidate.prompt === 'string') {
+        return candidate.prompt
       }
     }
   } catch {

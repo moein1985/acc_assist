@@ -68,9 +68,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     responseMode: 'deterministic',
     requiredSlots: ['partyName'],
     patterns: [
-      /مانده\s*(?:شخص|طرف\s*حساب)/iu,
+      /مانده\s*(?:شخص|طرف\s*حساب|مشتری|فروشنده|شریک)/iu,
       /\bparty\s+balance\b/iu,
       /\bcounterparty\s+balance\b/iu,
+      /\b(?:balance|مانده)\s+(?:of\s+)?(?:party|counterparty|customer|vendor)\b/iu,
+      /\b(?:party|counterparty|customer|vendor)\s+(?:balance|مانده)\b/iu,
       /\bمانده\s+طرف\s*حساب\b/iu
     ]
   },
@@ -80,9 +82,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
     patterns: [
-      /مانده\s*(?:حساب|سرفصل|تنخواه)/iu,
+      /مانده\s*(?:حساب|سرفصل|تنخواه|معین|تفضیلی)/iu,
       /\baccount\s+balance\b/iu,
-      /\bbalance\s+of\s+(?:account|ledger|chart)\b/iu
+      /\bbalance\s+of\s+(?:account|ledger|chart)\b/iu,
+      /\b(?:ledger|chart)\s+(?:balance|مانده)\b/iu,
+      /\b(?:حساب|سرفصل|معین|تفضیلی)\s+(?:مانده|balance)\b/iu
     ]
   },
   {
@@ -104,14 +108,24 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return receivables summary.',
     responseMode: 'deterministic',
     requiredSlots: [],
-    patterns: [/\breceivables\b/iu, /بدهکاران/iu]
+    patterns: [
+      /\breceivables\b/iu,
+      /\b(?:accounts?\s*receivable|debtors?)\b/iu,
+      /(?:بدهکاران|دریافتنی|دریافتنی‌ها|دریافتنی ها)/iu,
+      /(?:جمع|مجموع|خلاصه)\s*(?:بدهکاران|دریافتنی)/iu
+    ]
   },
   {
     id: 'get_payables_summary',
     description: 'Return payables summary.',
     responseMode: 'deterministic',
     requiredSlots: [],
-    patterns: [/\bpayables\b/iu, /بستانکاران/iu]
+    patterns: [
+      /\bpayables\b/iu,
+      /\b(?:accounts?\s*payable|creditors?)\b/iu,
+      /(?:بستانکاران|پرداختنی|پرداختنی‌ها|پرداختنی ها|به\s*پرداخت)/iu,
+      /(?:جمع|مجموع|خلاصه)\s*(?:بستانکاران|پرداختنی)/iu
+    ]
   },
   {
     id: 'get_cashflow_summary',
@@ -120,8 +134,10 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     requiredSlots: ['dateRange'],
     patterns: [
       /جریان\s*نقد/iu,
+      /جریان\s*وجه/iu,
       /\bcash\s*flow\b/iu,
-      /\b(?:خلاصه|جمع|مجموع)\s*جریان\s*نقد\b/iu,
+      /\bcashflow\b/iu,
+      /\b(?:خلاصه|جمع|مجموع)\s*(?:جریان\s*نقد|جریان\s*وجه|cashflow)\b/iu,
       /\b(?:cash|cashflow)\s+(?:summary|overview)\b/iu
     ]
   },

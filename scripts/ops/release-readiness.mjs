@@ -142,29 +142,36 @@ async function runSecretBaselineCheck(checks, failures) {
     path.join(rootDir, 'src', 'main', 'types.ts'),
     path.join(rootDir, 'src', 'main', 'services', 'settingsStore.ts'),
     path.join(rootDir, 'scripts', 'ops', 'remote-server-control.ps1'),
+    path.join(rootDir, 'scripts', 'ops', 'smoke-live-agent.ps1'),
     path.join(rootDir, 'scripts', 'ops', 'telemetry-smoke-test.mjs')
   ]
 
   const issues = []
 
   for (const filePath of baselineFiles) {
-    const content = await readFile(filePath, 'utf8')
+    let content = ''
+
+    try {
+      content = await readFile(filePath, 'utf8')
+    } catch {
+      continue
+    }
+
     const rel = path.relative(rootDir, filePath)
 
-    if (/apiKey\s*:\s*'[^']+'/.test(content)) {
-      issues.push(`${rel}: hardcoded apiKey found`)
-    }
+    for (const { regex, message } of secretPatterns) {
+      for (const match of content.matchAll(regex)) {
+        const candidate = String(match[0] || '').trim()
+        if (!candidate) {
+          continue
+        }
 
-    if (/bearerToken\s*:\s*'[^']+'/.test(content)) {
-      issues.push(`${rel}: hardcoded bearer token found`)
-    }
+        if (/\$env:/i.test(candidate) || /\$\w+/.test(candidate)) {
+          continue
+        }
 
-    if (/ACC_TELEMETRY_BEARER_TOKEN\s*=\s*['\"][^'\"]+['\"]/.test(content)) {
-      issues.push(`${rel}: telemetry token literal assignment found`)
-    }
-
-    if (/password\s*:\s*'[^']+'/.test(content) && !/password\s*:\s*''/.test(content)) {
-      issues.push(`${rel}: potential hardcoded password found`)
+        issues.push(`${rel}: ${message}`)
+      }
     }
   }
 
@@ -175,6 +182,21 @@ async function runSecretBaselineCheck(checks, failures) {
     failures.push(...issues)
   }
 }
+
+const secretPatterns = [
+  {
+    regex: /\b(?:apiKey|accessToken|refreshToken|bearerToken|clientSecret|secretKey|password|hostKey)\b\s*=\s*(['"])(?!\$)(?!env:)([^'"\n]+?)\1/gi,
+    message: 'hardcoded credential assignment found'
+  },
+  {
+    regex: /\b(?:Password|User|ServerHost|HostKey|password|token|secret|hostKey)\b\s*=\s*(['"])(?!\$)(?!env:)([^'"\n]+?)\1/gi,
+    message: 'hardcoded credential config literal found'
+  },
+  {
+    regex: /ACC_TELEMETRY_BEARER_TOKEN\s*=\s*(['"][^'"]+['"])/gi,
+    message: 'telemetry token literal assignment found'
+  }
+]
 
 function runSigningCheck(strictSigning, checks, failures, warnings) {
   const hasWinSigning =

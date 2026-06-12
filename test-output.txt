@@ -1,0 +1,179 @@
+✔ agent debug config requires explicit opt-in or server-only flag (2.3809ms)
+✔ agent debug config resolves token from env only (0.4083ms)
+✔ truthy env parser accepts release-safe values (0.2682ms)
+✔ enforceEvidenceFirstContract rejects qualitative financial claims without structured evidence (1.8421ms)
+✔ enforceEvidenceFirstContract rejects financial answers that omit the contract sections (0.4763ms)
+✔ enforceEvidenceFirstContract accepts tool-backed evidence for financial claims (0.2175ms)
+✔ audit log service queries entries with filters and limit (104.2008ms)
+✔ audit log service redacts sensitive values before persisting and querying (56.3224ms)
+✔ connector sdk detects strongest preset with confidence normalization (22.3226ms)
+✔ connector sdk returns stable fingerprint for equivalent ref sets (0.4587ms)
+✔ connector sdk reports mapping coverage and validation hints for detected presets (0.502ms)
+✔ buildMappingCoverageSummary uses selected and suggested mappings for readiness checks (0.3513ms)
+✔ buildMappingCoverageSummary counts selected overrides as covered concepts (2.5545ms)
+✔ buildConnectorReadinessSummary produces manager-style readiness metrics (1.1832ms)
+✔ localizeInfraErrorFa maps SQL auth error (1.4707ms)
+✔ localizeInfraErrorFa maps unsupported TLS protocol (0.2441ms)
+✔ localizeInfraErrorFa maps SSH auth failure (0.1875ms)
+✔ localizeChatErrorFa maps 429 provider limit (0.2751ms)
+✔ localizeChatErrorFa maps 404 provider route/model (0.1869ms)
+✔ localizeChatErrorFa maps network reachability issues (0.1537ms)
+✔ detectFinancialIntent maps Persian fiscal-year count prompt (5.6902ms)
+✔ detectFinancialIntent maps English fiscal-year list prompt (2.6951ms)
+✔ detectFinancialIntent maps show-style fiscal-year list prompt (0.5014ms)
+✔ detectFinancialIntent normalizes Persian digits (9.2459ms)
+✔ detectFinancialIntent maps Persian fiscal-year range listing prompt (0.5221ms)
+✔ detectFinancialIntent maps Persian account-balance prompt (0.4764ms)
+✔ detectFinancialIntent maps Persian turnover prompt (0.2878ms)
+✔ detectFinancialIntent maps Persian cashflow prompt (0.2362ms)
+✔ detectFinancialIntent maps Persian account-balance synonym prompt (0.2677ms)
+✔ detectFinancialIntent maps Persian cashflow summary prompt (0.4917ms)
+✔ extractFinancialIntentSlots detects account and date-range hints (1.6954ms)
+✔ extractFinancialIntentSlots detects fiscal-year and period hints (1.302ms)
+✔ detectFinancialIntent returns null for unrelated prompt (5.0949ms)
+✔ listFinancialIntentDefinitions exposes roadmap intents including deterministic balance intents (0.475ms)
+✔ GeminiClient retries transient 429 failures before succeeding (40.5682ms)
+✔ GeminiClient surfaces localized error after retry exhaustion (2.8566ms)
+✔ golden prompt harness recognizes fiscal-year count prompt as deterministic (6.7854ms)
+✔ golden prompt harness flags mismatched intent for a wrong prompt (3.6164ms)
+✔ golden prompt harness reports stable scoring for deterministic fiscal-year prompts (0.6445ms)
+✔ formatSummary exposes the score for CI reporting (0.5478ms)
+✔ decodePromptTransportValue preserves plain-text Persian prompts (1.7069ms)
+✔ decodePromptTransportValue supports JSON prompt payloads (0.3117ms)
+✔ decodePromptTransportValue supports base64 transport payloads (0.409ms)
+✔ decodePromptTransportValue preserves multi-word Persian prompts in JSON transport (0.2379ms)
+✔ encodePromptTransportBase64 round-trips the same Persian prompt (0.4443ms)
+✔ encodePromptTransportBase64 round-trips a multi-word Persian prompt with Persian digits (0.3137ms)
+✔ release readiness script exits cleanly in advisory mode (193.4215ms)
+✔ release readiness rejects placeholder update URLs (123.9754ms)
+✔ rollback-release restores latest manifest and matching artifacts from backup (688.7845ms)
+✔ detects Sepidar connector and shamsi date mode from synthetic schema (40.1066ms)
+✔ detects Mahak connector and fiscal period mode from synthetic schema (5.151ms)
+✔ keeps auto-detection while persisting manual software override (4.01ms)
+✔ security regression: should not expose a raw sql:query IPC handler (1.9999ms)
+✔ SettingsStore keeps default SQL and API values unless demo profile overrides are explicitly enabled (18.6634ms)
+[SqlConnectionManager] SQL AST parsing failed, falling back to regex: s [SyntaxError]: Expected ",", "--", "/*", ";", "FETCH", "FOR", "GO", "LIMIT", "OFFSET", "ORDER", "UNION", [ \t\n\r], or end of input but "O" found.
+    at peg$buildStructuredError (c:\home\runner\work\node-sql-parser\node-sql-parser\pegjs\transactsql.pegjs:3279:12)
+    at Object.typeCase (c:\home\runner\work\node-sql-parser\node-sql-parser\pegjs\transactsql.pegjs:31348:11)
+    at r.parse (c:\home\runner\work\node-sql-parser\node-sql-parser\src\parser.js:34:43)
+    at r.value (c:\home\runner\work\node-sql-parser\node-sql-parser\src\parser.js:9:26)
+    at SqlConnectionManager.validateReadOnlyQuery (c:\Users\Moein\Documents\Codes\ACC Assist\src\main\services\sqlConnectionManager.ts:437:34)
+    at validateReadOnlyQuery (c:\Users\Moein\Documents\Codes\ACC Assist\tests\unit\sqlPolicyValidator.test.ts:8:27)
+    at <anonymous> (c:\Users\Moein\Documents\Codes\ACC Assist\tests\unit\sqlPolicyValidator.test.ts:59:7)
+    at getActual (node:assert:586:5)
+    at strict.throws (node:assert:734:24)
+    at TestContext.<anonymous> (c:\Users\Moein\Documents\Codes\ACC Assist\tests\unit\sqlPolicyValidator.test.ts:57:10) {
+  expected: [
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: ',', ignoreCase: false },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'LIMIT', ignoreCase: true },
+    { type: 'literal', text: 'FETCH', ignoreCase: true },
+    { type: 'literal', text: 'OFFSET', ignoreCase: true },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'FOR', ignoreCase: true },
+    { type: 'literal', text: 'FOR', ignoreCase: true },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'UNION', ignoreCase: true },
+    { type: 'literal', text: 'UNION', ignoreCase: true },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'ORDER', ignoreCase: true },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'LIMIT', ignoreCase: true },
+    { type: 'literal', text: 'FETCH', ignoreCase: true },
+    { type: 'literal', text: 'OFFSET', ignoreCase: true },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: ';', ignoreCase: false },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: ';', ignoreCase: false },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    {
+      type: 'class',
+      parts: [Array],
+      inverted: false,
+      ignoreCase: false
+    },
+    { type: 'literal', text: '/*', ignoreCase: false },
+    { type: 'literal', text: '--', ignoreCase: false },
+    { type: 'literal', text: 'GO', ignoreCase: true },
+    { type: 'end' }
+  ],
+  found: 'O',
+  location: {
+    start: { offset: 77, line: 1, column: 78 },
+    end: { offset: 78, line: 1, column: 79 }
+  }
+}
+✔ accepts aggregated SELECT without TOP (11.3425ms)
+✔ rejects non-aggregated SELECT without TOP or pagination (1.2205ms)
+✔ rejects wildcard SELECT in agent-data scope (0.9455ms)
+✔ rejects limited non-aggregated query without ORDER BY in agent-data scope (0.419ms)
+✔ rejects query hints in read-only mode (114.1628ms)
+✔ rejects SQL metadata access in agent-data scope (0.6424ms)
+✔ allows SQL metadata access in discovery scope (0.4239ms)
+✔ rejects external data source functions (0.9382ms)
+✔ rejects row limits beyond scope cap (0.5329ms)
+✔ rejects multiple SQL statements (0.5761ms)

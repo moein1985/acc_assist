@@ -10,6 +10,7 @@ import type {
   GeminiToolCall,
   GeminiToolDefinition,
   SchemaCatalogEntry,
+  SchemaColumnCatalogItem,
   SchemaDateMode,
   SqlQueryRow
 } from '../../shared/contracts'
@@ -2842,7 +2843,7 @@ ORDER BY fiscal_year DESC`
       return /(?:amount|balance|debit|credit|total|sum|net|value)/iu.test(columnName) && /(?:int|decimal|numeric|money|float|real)/iu.test(dataType)
     })
 
-    const column = candidateColumns[0] ?? catalogTable?.columns[0]
+    const column = this.selectDeterministicToolColumn(deterministicIntent, candidateColumns) ?? catalogTable?.columns[0]
 
     if (!column) {
       return null
@@ -2884,6 +2885,52 @@ ORDER BY fiscal_year DESC`
       }
     } catch {
       return null
+    }
+  }
+
+  private selectDeterministicToolColumn(
+    deterministicIntent: DeterministicFinancialIntent,
+    candidateColumns: SchemaColumnCatalogItem[]
+  ): SchemaColumnCatalogItem | null {
+    if (candidateColumns.length === 0) {
+      return null
+    }
+
+    const intentSpecificOrder = this.buildDeterministicToolColumnPreference(deterministicIntent)
+
+    if (intentSpecificOrder.length === 0) {
+      return candidateColumns[0] ?? null
+    }
+
+    const normalizedCandidates = candidateColumns.map((column) => ({
+      column,
+      name: column.name.toLowerCase()
+    }))
+
+    for (const preferredPattern of intentSpecificOrder) {
+      const match = normalizedCandidates.find((entry) => preferredPattern.test(entry.name))
+      if (match) {
+        return match.column
+      }
+    }
+
+    return candidateColumns[0] ?? null
+  }
+
+  private buildDeterministicToolColumnPreference(
+    deterministicIntent: DeterministicFinancialIntent
+  ): Array<RegExp> {
+    switch (deterministicIntent) {
+      case 'get_receivables_summary':
+        return [/credit_amount|receivable|debt|bedehkar|debtor/i, /amount|balance|total/i]
+      case 'get_payables_summary':
+        return [/debit_amount|payable|bedehkar|creditor|bastankar/i, /amount|balance|total/i]
+      case 'get_cashflow_summary':
+        return [/cash_amount|cash|flow|jaryan/i, /amount|balance|total/i]
+      case 'get_account_balance':
+      case 'get_party_balance':
+      default:
+        return [/balance|amount|total|sum|net|value/i]
     }
   }
 
@@ -3066,6 +3113,9 @@ ORDER BY fiscal_year DESC`
       '',
       '### Evidence',
       '- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.',
+      '',
+      '### Assumptions',
+      '- پاسخ رد شده به دلیل فقدان شواهد ساخت یافته و/یا ابزار read-only قابل اتکا متوقف شد.',
       '',
       '### Actions',
       `- سوال را با scope دقیق تر تکرار کنید: ${this.compactText(prompt, 180)}`,

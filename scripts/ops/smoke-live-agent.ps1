@@ -5,11 +5,11 @@ param(
   [string[]]$ExpectedContains = @('سال مالی'),
   [switch]$AllowFailure,
 
-  [string]$ServerHost = '192.168.85.56',
+  [string]$ServerHost = $env:ACC_REMOTE_HOST,
   [int]$Port = 2211,
-  [string]$User = 'administrator',
-  [string]$Password = 'Hs-co@12321#',
-  [string]$HostKey = 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ'
+  [string]$User = $env:ACC_REMOTE_USER,
+  [string]$Password = $env:ACC_REMOTE_SSH_PASSWORD,
+  [string]$HostKey = $env:ACC_REMOTE_HOST_KEY
 )
 
 $ErrorActionPreference = 'Stop'

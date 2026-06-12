@@ -22,6 +22,16 @@ test('decodePromptTransportValue supports base64 transport payloads', () => {
   assert.equal(decodePromptTransportValue(JSON.stringify({ promptBase64: encoded })), prompt)
 })
 
+test('decodePromptTransportValue prefers base64 payloads when both prompt and promptBase64 are provided', () => {
+  const prompt = 'در دیتابیس چند سال مالی قرار داره؟ لطفاً 1403/01 را هم بررسی کن.'
+  const encoded = encodePromptTransportBase64(prompt)
+
+  assert.equal(
+    decodePromptTransportValue(JSON.stringify({ prompt: 'این متن باید نادیده گرفته شود', promptBase64: encoded })),
+    prompt
+  )
+})
+
 test('decodePromptTransportValue preserves multi-word Persian prompts in JSON transport', () => {
   const prompt = 'در دیتابیس چند سال مالی قرار داره؟ لطفاً 1403/01 را هم بررسی کن.'
 

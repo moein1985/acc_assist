@@ -77,6 +77,27 @@ test('detectFinancialIntent maps Persian cashflow summary prompt', () => {
   assert.equal(result?.intentId, 'get_cashflow_summary')
 })
 
+test('detectFinancialIntent maps Persian receivables synonym prompt', () => {
+  const result = detectFinancialIntent('جمع بدهکاران و دریافتی‌ها را نشان بده')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_receivables_summary')
+})
+
+test('detectFinancialIntent maps English payables synonym prompt', () => {
+  const result = detectFinancialIntent('Show total payables and creditors for this month')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_payables_summary')
+})
+
+test('detectFinancialIntent maps Persian cashflow synonym prompt', () => {
+  const result = detectFinancialIntent('خلاصه جریان وجه نقد را بده')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_cashflow_summary')
+})
+
 test('extractFinancialIntentSlots detects account and date-range hints', () => {
   const slots = extractFinancialIntentSlots('مانده حساب فروشگاه در بازه ۱۴۰۳ تا ۱۴۰۴ را بگو')
 

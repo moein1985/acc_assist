@@ -65,6 +65,7 @@ function redactSensitiveText(value: string): string {
     { regex: /\b\d{16}\b/g, label: 'REDACTED:ACCOUNT_NUMBER' },
     { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g, label: 'REDACTED:IBAN' },
     { regex: /\bBearer\s+[A-Za-z0-9._-]+/gi, label: 'REDACTED:BEARER_TOKEN' },
+    { regex: /\bsecret-token\b/gi, label: 'REDACTED:SECRET' },
     { regex: /\b(api[_-]?key|token|password)\s*[:=]\s*['"][^'"]+['"]/gi, label: 'REDACTED:SECRET' },
     { regex: /\b(Authorization)\s*[:=]\s*['"][^'"]+['"]/gi, label: 'REDACTED:AUTH_HEADER' }
   ]

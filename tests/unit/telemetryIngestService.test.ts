@@ -24,12 +24,11 @@ test('telemetry ingest service redacts sensitive values before persisting and fl
     includeRendererErrors: true
   })
 
+  const rawBodies: string[] = []
   const originalFetch = globalThis.fetch
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     const raw = String(init?.body ?? '')
-    assert.match(raw, /REDACTED:PHONE/)
-    assert.doesNotMatch(raw, /09120000000/)
-    assert.doesNotMatch(raw, /secret-token/)
+    rawBodies.push(raw)
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 }) as Response
   }) as typeof fetch
@@ -39,7 +38,7 @@ test('telemetry ingest service redacts sensitive values before persisting and fl
       category: 'release.support',
       event: 'redact-check',
       process: 'main',
-      level: 'error',
+      level: 'warn',
       message: 'Bearer token secret-token and phone 09120000000 should be redacted.',
       details: {
         token: 'secret-token',
@@ -47,12 +46,17 @@ test('telemetry ingest service redacts sensitive values before persisting and fl
       }
     })
 
+    const persistedBeforeFlush = await readFile(queuePath, 'utf8')
+    assert.match(persistedBeforeFlush, /REDACTED:PHONE/)
+    assert.doesNotMatch(persistedBeforeFlush, /09120000000/)
+    assert.doesNotMatch(persistedBeforeFlush, /secret-token/)
+
     await service.flushNow('test-redaction')
 
-    const persisted = await readFile(queuePath, 'utf8')
-    assert.match(persisted, /REDACTED:PHONE/)
-    assert.doesNotMatch(persisted, /09120000000/)
-    assert.doesNotMatch(persisted, /secret-token/)
+    assert.equal(rawBodies.length, 1)
+    assert.match(rawBodies[0], /REDACTED:PHONE/)
+    assert.doesNotMatch(rawBodies[0], /09120000000/)
+    assert.doesNotMatch(rawBodies[0], /secret-token/)
   } finally {
     globalThis.fetch = originalFetch
     await rm(root, { recursive: true, force: true })

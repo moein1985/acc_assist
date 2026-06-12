@@ -1205,6 +1205,150 @@ test('agent orchestrator uses deterministic cashflow tooling when schema mapping
   assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
+test('agent orchestrator prefers receivable-specific numeric columns for receivables summaries', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
+
+  if (documentsTable) {
+    documentsTable.columns = [
+      {
+        name: 'balance',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      },
+      {
+        name: 'credit_amount',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      }
+    ]
+  }
+
+  settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: 'fallback',
+      raw: {},
+      toolCalls: []
+    }
+  })
+  const executedReadOnlyQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return [{ result_value: 12500000 }]
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-receivables-column-selection-1',
+    conversationId: 'integration-conversation-receivables-column-selection-1',
+    prompt: 'خلاصه بدهکاران را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(executedReadOnlyQueries.some((query) => query.includes('[credit_amount]')))
+  assert.ok(result.finalText.includes('get_receivables_summary'))
+})
+
+test('agent orchestrator prefers payable-specific numeric columns for payables summaries', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
+
+  if (documentsTable) {
+    documentsTable.columns = [
+      {
+        name: 'balance',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      },
+      {
+        name: 'debit_amount',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['12500000']
+      }
+    ]
+  }
+
+  settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: 'fallback',
+      raw: {},
+      toolCalls: []
+    }
+  })
+  const executedReadOnlyQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return [{ result_value: 12500000 }]
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-payables-column-selection-1',
+    conversationId: 'integration-conversation-payables-column-selection-1',
+    prompt: 'خلاصه بستانکاران را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(executedReadOnlyQueries.some((query) => query.includes('[debit_amount]')))
+  assert.ok(result.finalText.includes('get_payables_summary'))
+})
+
 test('agent orchestrator uses deterministic clarification for balance-style intents', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
