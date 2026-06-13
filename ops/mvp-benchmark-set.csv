@@ -1,0 +1,4 @@
+case_id,revision,priority,question,expected_intent,expected_mode,expected_evidence_signal,status,notes
+FY-001,1,P0,در دیتابیس چند سال مالی وجود داره؟,count_fiscal_years,deterministic,table_or_row_count,active,Validated live on 2026-06-13
+TEMPLATE-001,1,P1,<replace with exact benchmark question>,<intent>,<mode>,<evidence signal>,draft,Do not run until wording is finalized
+TEMPLATE-002,1,P1,<replace with exact benchmark question>,<intent>,<mode>,<evidence signal>,draft,Increment revision if wording changes

@@ -20,6 +20,7 @@ param(
   [string]$Prompt = '',
   [string]$PromptBase64 = '',
   [string]$PromptFile = '',
+  [string]$ConversationId = 'ssh-debug',
   [string]$DebugToken = '',
 
   [int]$Tail = 60
@@ -41,10 +42,6 @@ if ([string]::IsNullOrWhiteSpace($Password)) {
   throw 'Password is required. Use -Password or set ACC_REMOTE_SSH_PASSWORD.'
 }
 
-if ([string]::IsNullOrWhiteSpace($HostKey)) {
-  throw 'HostKey is required. Use -HostKey or set ACC_REMOTE_HOST_KEY.'
-}
-
 if ($normalizedAction -eq 'autoconfig-sql' -and [string]::IsNullOrWhiteSpace($SqlPassword)) {
   throw 'SqlPassword is required for Action=autoconfig-sql. Use -SqlPassword or set ACC_REMOTE_SQL_PASSWORD.'
 }
@@ -55,7 +52,29 @@ $SqlPasswordPlainText = $SqlPassword
 function Invoke-SshCommand {
   param([string]$Command)
 
-  & plink -P $Port -ssh -batch -hostkey $HostKey -pw $SshPasswordPlainText "$User@$ServerHost" $Command
+  if (-not [string]::IsNullOrWhiteSpace($HostKey)) {
+    # Use plink with explicit host key verification
+    & plink -P $Port -ssh -batch -hostkey $HostKey -pw $SshPasswordPlainText "$User@$ServerHost" $Command
+  } else {
+    # Fallback: use ssh.exe with auto host key acceptance
+    # This requires Windows OpenSSH (built-in on Windows 10+)
+    $tempKnownHosts = Join-Path $env:TEMP 'acc-assist-known-hosts'
+    
+    # Create wrapper to handle ssh password auth via ssh-keygen or direct call
+    $sshArgs = @(
+      '-o', 'StrictHostKeyChecking=accept-new',
+      '-o', 'UserKnownHostsFile=' + $tempKnownHosts,
+      '-o', 'BatchMode=no',
+      '-p', [string]$Port,
+      "$User@$ServerHost",
+      $Command
+    )
+    
+    # Note: This will fail if ssh.exe is not available or password auth not set up
+    # For better results, set ACC_REMOTE_HOST_KEY environment variable
+    Write-Error "HostKey not provided and SSH fallback is not yet fully supported. Please set ACC_REMOTE_HOST_KEY environment variable with plink host key fingerprint."
+    throw "HostKey required or SSH fallback unavailable"
+  }
 }
 
 function Invoke-RemotePowerShell {
@@ -377,11 +396,12 @@ function Test-DebugEndpoint {
 `$body = @{
   prompt = `$prompt
   mode = 'manual'
-  conversationId = 'ssh-debug'
+  conversationId = '$ConversationId'
 } | ConvertTo-Json -Depth 5
 
 try {
-  `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers (New-DebugHeaders -Token '$DebugToken') -Body `$body -ContentType 'application/json'
+  `$utf8Body = [Text.Encoding]::UTF8.GetBytes(`$body)
+  `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers (New-DebugHeaders -Token '$DebugToken') -Body `$utf8Body -ContentType 'application/json; charset=utf-8'
 
   `$payload = [pscustomobject]@{
     Ok = [bool]`$response.ok

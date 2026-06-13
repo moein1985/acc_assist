@@ -84,6 +84,9 @@ const isAgentDebugServerOnly = process.argv.includes('--agent-debug-server-only'
 const isAgentDebugServerEnabled = shouldStartAgentDebugServer({
   isAgentDebugServerOnly
 })
+let cleanupPromise: Promise<void> | null = null
+let cleanupCompleted = false
+let quittingAfterCleanup = false
 
 function createWindow(): void {
   // Create the browser window.
@@ -746,20 +749,34 @@ function registerIpcHandlers(): void {
 }
 
 async function cleanupServices(): Promise<void> {
-  telemetryIngestService.capture({
-    process: 'main',
-    level: 'info',
-    category: 'app.lifecycle',
-    event: 'cleanup-services'
-  })
+  if (cleanupCompleted) {
+    return
+  }
 
-  await Promise.allSettled([
-    sqlConnectionManager.close(),
-    sshTunnelService.stop('Application is closing'),
-    agentDebugServer.stop(),
-    mobileBridgeServer.stop(),
-    telemetryIngestService.shutdown('application-closing')
-  ])
+  if (cleanupPromise) {
+    return cleanupPromise
+  }
+
+  cleanupPromise = (async () => {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'info',
+      category: 'app.lifecycle',
+      event: 'cleanup-services'
+    })
+
+    await Promise.allSettled([
+      sqlConnectionManager.close(),
+      sshTunnelService.stop('Application is closing'),
+      agentDebugServer.stop(),
+      mobileBridgeServer.stop(),
+      telemetryIngestService.shutdown('application-closing')
+    ])
+
+    cleanupCompleted = true
+  })()
+
+  return cleanupPromise
 }
 
 // This method will be called when Electron has finished
@@ -866,13 +883,20 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !isAgentDebugServerOnly) {
-    void cleanupServices()
     app.quit()
   }
 })
 
-app.on('before-quit', () => {
-  void cleanupServices()
+app.on('before-quit', (event) => {
+  if (cleanupCompleted || quittingAfterCleanup) {
+    return
+  }
+
+  event.preventDefault()
+  void cleanupServices().finally(() => {
+    quittingAfterCleanup = true
+    app.quit()
+  })
 })
 
 registerCrashObservers()

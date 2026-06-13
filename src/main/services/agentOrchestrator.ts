@@ -502,7 +502,7 @@ export class AgentOrchestrator {
       )
       let totalToolCallCount = 0
       const deterministicIntent =
-        payload.mode === 'manual' ? this.detectDeterministicFinancialIntent(prompt) : null
+        payload.mode === 'dry-run' ? null : this.detectDeterministicFinancialIntent(prompt)
       const deterministicFiscalIntent =
         deterministicIntent && ['count_fiscal_years', 'list_fiscal_years'].includes(deterministicIntent)
           ? deterministicIntent
@@ -2582,6 +2582,38 @@ export class AgentOrchestrator {
   }
 
   private detectDeterministicFinancialIntent(prompt: string): DeterministicFinancialIntent | null {
+    const normalizedPrompt = this.normalizePersianDigits(prompt)
+      .normalize('NFKC')
+      .replace(/[\u064a\u0649]/g, 'ی')
+      .replace(/[\u0643]/g, 'ک')
+      .replace(/\u200c/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const compactPrompt = normalizedPrompt.replace(/\s+/g, '')
+
+    // Fast path for frequent fiscal-year intents so we do not fall back to generic schema-exploration loops.
+    if (/(?:تعداد|چند)\s*سال\s*مالی|سال\s*مالی\s*(?:چند|تعداد)|how\s+many\s+fiscal\s+years?|fiscal\s+year\s+count/iu.test(normalizedPrompt)) {
+      return 'count_fiscal_years'
+    }
+
+    if (
+      /(سال\s*مالی|fiscal\s*year)/iu.test(normalizedPrompt) &&
+      /(?:چند|تعداد|وجود|count|how\s+many)/iu.test(normalizedPrompt)
+    ) {
+      return 'count_fiscal_years'
+    }
+
+    if (
+      /(سالمالی|fiscalyear)/iu.test(compactPrompt) &&
+      /(?:چند|تعداد|وجود|count|howmany)/iu.test(compactPrompt)
+    ) {
+      return 'count_fiscal_years'
+    }
+
+    if (/(?:لیست|فهرست|نمایش)\s*(?:سال(?:\s|\u200c)?های?|سال)\s*مالی|سال(?:\s|\u200c)?های?\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)|list\s+(?:the\s+)?(?:available\s+)?fiscal\s+years?/iu.test(normalizedPrompt)) {
+      return 'list_fiscal_years'
+    }
+
     const matchedIntent = detectFinancialIntent(prompt)
 
     if (!matchedIntent) {
@@ -2606,6 +2638,7 @@ export class AgentOrchestrator {
   ): Promise<FiscalYearFallbackResult | null> {
     const activeCatalog = this.findActiveSchemaCatalog(settings)
     let toolCallsUsed = 0
+    let metadataRows: SqlQueryRow[] = []
 
     let fiscalCandidates: RuntimeScopeColumnCandidate[] = []
 
@@ -2616,7 +2649,7 @@ export class AgentOrchestrator {
     }
 
     if (fiscalCandidates.length === 0) {
-      const metadataRows = await this.executeMetadataSql(
+      metadataRows = await this.executeMetadataSql(
         `SELECT TOP (48)
   c.TABLE_SCHEMA AS table_schema,
   c.TABLE_NAME AS table_name,
@@ -2630,6 +2663,10 @@ WHERE c.TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'sys')
     OR c.COLUMN_NAME LIKE N'%سال%'
     OR c.COLUMN_NAME LIKE N'%مالی%'
     OR c.COLUMN_NAME LIKE N'%دوره%'
+    OR c.TABLE_NAME LIKE N'%FiscalYear%'
+    OR c.TABLE_NAME LIKE N'%Fiscal_Year%'
+    OR c.TABLE_NAME LIKE N'%سال%مالی%'
+    OR c.TABLE_NAME LIKE N'%دوره%مالی%'
   )
 ORDER BY
   CASE WHEN c.TABLE_SCHEMA IN ('ACC', 'RPA') THEN 0 ELSE 1 END,
@@ -2725,6 +2762,149 @@ WHERE fiscal_text LIKE '[12][0-9][0-9][0-9]'
     }
 
     if (successfulStats.length === 0) {
+      const fiscalTableRows = await this.executeMetadataSql(
+        `SELECT TOP (240)
+  t.TABLE_SCHEMA AS table_schema,
+  t.TABLE_NAME AS table_name
+FROM INFORMATION_SCHEMA.TABLES t
+WHERE t.TABLE_TYPE = 'BASE TABLE'
+  AND t.TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'sys')
+  AND (
+    t.TABLE_NAME LIKE N'%FiscalYear%'
+    OR t.TABLE_NAME LIKE N'%Fiscal_Year%'
+    OR t.TABLE_NAME LIKE N'%Year%'
+    OR t.TABLE_NAME LIKE N'%Period%'
+    OR t.TABLE_NAME LIKE N'%سال%'
+    OR t.TABLE_NAME LIKE N'%مالی%'
+    OR t.TABLE_NAME LIKE N'%دوره%'
+  )
+ORDER BY
+  CASE WHEN t.TABLE_SCHEMA IN ('FMK', 'ACC', 'RPA') THEN 0 ELSE 1 END,
+  t.TABLE_SCHEMA,
+  t.TABLE_NAME`,
+        signal
+      )
+
+      toolCallsUsed += 1
+
+      if (metadataRows.length === 0) {
+        metadataRows = await this.executeMetadataSql(
+          `SELECT TOP (240)
+  c.TABLE_SCHEMA AS table_schema,
+  c.TABLE_NAME AS table_name,
+  c.COLUMN_NAME AS column_name
+FROM INFORMATION_SCHEMA.COLUMNS c
+WHERE c.TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'sys')
+ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`,
+          signal
+        )
+
+        toolCallsUsed += 1
+      }
+
+      for (const tableRow of fiscalTableRows) {
+        const schemaName = String(tableRow['table_schema'] ?? '').trim()
+        const tableName = String(tableRow['table_name'] ?? '').trim()
+
+        if (!schemaName || !tableName) {
+          continue
+        }
+
+        metadataRows.push({
+          table_schema: schemaName,
+          table_name: tableName,
+          column_name: ''
+        })
+      }
+
+      const tableCandidates = new Map<string, { schemaName: string; tableName: string; score: number }>()
+
+      for (const row of metadataRows) {
+        const schemaName = String(row['table_schema'] ?? '').trim()
+        const tableName = String(row['table_name'] ?? '').trim()
+
+        if (!schemaName || !tableName) {
+          continue
+        }
+
+        const normalizedTable = tableName.toLowerCase()
+        const normalizedSchema = schemaName.toLowerCase()
+        let score = 0
+
+        if (/fiscal\s*_?\s*year|سال\s*مالی|دوره\s*مالی/iu.test(tableName)) {
+          score += 10
+        }
+
+        if (/year|period|سال|دوره/iu.test(tableName)) {
+          score += 4
+        }
+
+        if (['fmk', 'acc', 'rpa'].includes(normalizedSchema)) {
+          score += 3
+        }
+
+        if (score <= 0) {
+          continue
+        }
+
+        const key = `${normalizedSchema}.${normalizedTable}`
+        const existing = tableCandidates.get(key)
+
+        if (!existing || score > existing.score) {
+          tableCandidates.set(key, {
+            schemaName,
+            tableName,
+            score
+          })
+        }
+      }
+
+      const rankedTables = [...tableCandidates.values()].sort((left, right) => right.score - left.score)
+
+      for (const candidate of rankedTables.slice(0, 6)) {
+        this.throwIfRequestCanceled(signal)
+
+        const fromClause = `${this.quoteSqlIdentifier(candidate.schemaName)}.${this.quoteSqlIdentifier(candidate.tableName)}`
+        const countQuery = `SELECT COUNT(1) AS fiscal_year_count FROM ${fromClause}`
+
+        try {
+          const rows = await this.executeReadOnlySql(countQuery, signal)
+          toolCallsUsed += 1
+
+          const count = this.toFiniteInteger((rows[0] as SqlQueryRow | undefined)?.['fiscal_year_count'])
+
+          if (count <= 0 || count > 300) {
+            continue
+          }
+
+          const tableRef = `${candidate.schemaName}.${candidate.tableName}`
+
+          this.rememberToolTrace(
+            conversationMemory,
+            `fallback:${deterministicIntent} table=${tableRef} row_count=${count}`
+          )
+
+          this.emitProgress(onProgress, {
+            type: 'tool-success',
+            message: `✅ ابزار ${deterministicIntent} اجرا شد: ${count} سال مالی (row-count fallback) در ${tableRef}`,
+            toolName: deterministicIntent,
+            rowCount: count
+          })
+
+          return {
+            count,
+            years: [],
+            tableRef,
+            columnName: '(row-count)',
+            minYear: null,
+            maxYear: null,
+            toolCallsUsed
+          }
+        } catch {
+          // Continue with the next candidate table.
+        }
+      }
+
       return null
     }
 
@@ -3161,19 +3341,28 @@ ORDER BY fiscal_year DESC`
       return finalText
     }
 
-    const normalizedText = this.normalizePersianDigits(finalText)
+    const sections = this.parseFinancialTemplateSections(finalText)
+    const intentSourceText = `${sections.summary}\n${sections.findings}\n${sections.evidence}`
+    const normalizedText = this.normalizePersianDigits(intentSourceText)
     const hasFiscalYearPhrase = /(?:سال(?:\s*های?)?\s*مالی|fiscal\s+years?)/iu.test(normalizedText)
     const hasCountSignal = /(?:تعداد|count|شمارش|متمایز)/iu.test(normalizedText)
     const hasListSignal = /(?:لیست|فهرست|list)/iu.test(normalizedText)
-    const hasYearToken = /\b(?:13|14|19|20)\d{2}\b/.test(normalizedText)
+    const yearTokenMatches = normalizedText.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
+    const hasYearToken = yearTokenMatches.length > 0
+    const hasMultipleYearTokens = yearTokenMatches.length >= 2
     const hasNumericCount = /\b\d+\b/.test(normalizedText)
 
+    const countLike = hasFiscalYearPhrase && (hasCountSignal || hasNumericCount)
+    const listLike = hasFiscalYearPhrase && (hasListSignal || hasMultipleYearTokens)
+
     const matchedIntent =
-      hasFiscalYearPhrase && hasListSignal
-        ? 'list_fiscal_years'
-        : hasFiscalYearPhrase && (hasCountSignal || hasNumericCount || hasYearToken)
+      countLike && listLike
+        ? expectedIntent
+        : countLike
           ? 'count_fiscal_years'
-          : null
+          : listLike || (hasFiscalYearPhrase && hasYearToken)
+            ? 'list_fiscal_years'
+            : null
 
     if (matchedIntent === expectedIntent) {
       return finalText

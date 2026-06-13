@@ -1,0 +1,2 @@
+session_id,build,tester,environment,case_id,asked_at,exact_question,outcome,human_note,request_id,conversation_id,intent_detected,tool_calls_used,final_evidence_quality,root_cause_bucket,follow_up_required
+,,,,,,,,,,,,,,,

@@ -112,7 +112,8 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
       /\breceivables\b/iu,
       /\b(?:accounts?\s*receivable|debtors?)\b/iu,
       /(?:بدهکاران|دریافتنی|دریافتنی‌ها|دریافتنی ها)/iu,
-      /(?:جمع|مجموع|خلاصه)\s*(?:بدهکاران|دریافتنی)/iu
+      /(?:جمع|مجموع|خلاصه)\s*(?:بدهکاران|دریافتنی)/iu,
+      /بدهکاران\s+ماهانه/iu
     ]
   },
   {
@@ -124,7 +125,8 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
       /\bpayables\b/iu,
       /\b(?:accounts?\s*payable|creditors?)\b/iu,
       /(?:بستانکاران|پرداختنی|پرداختنی‌ها|پرداختنی ها|به\s*پرداخت)/iu,
-      /(?:جمع|مجموع|خلاصه)\s*(?:بستانکاران|پرداختنی)/iu
+      /(?:جمع|مجموع|خلاصه)\s*(?:بستانکاران|پرداختنی)/iu,
+      /بستانکاران\s+(?:این\s+)?ماه/iu
     ]
   },
   {
@@ -154,8 +156,18 @@ export function listFinancialIntentDefinitions(): FinancialIntentDefinition[] {
   return FINANCIAL_INTENT_REGISTRY.map((entry) => ({ ...entry, patterns: [...entry.patterns] }))
 }
 
+function normalizeFinancialIntentPrompt(prompt: string): string {
+  return normalizePersianDigits(prompt)
+    .normalize('NFKC')
+    .replace(/[\u064a\u0649]/g, 'ی')
+    .replace(/[\u0643]/g, 'ک')
+    .replace(/\u200c/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function extractFinancialIntentSlots(prompt: string): FinancialIntentSlotHints {
-  const normalizedPrompt = normalizePersianDigits(prompt).trim()
+  const normalizedPrompt = normalizeFinancialIntentPrompt(prompt)
   const slots: FinancialIntentSlotHints = {}
 
   if (/(?:حساب|سرفصل|ledger|account)/iu.test(normalizedPrompt)) {
@@ -182,7 +194,7 @@ export function extractFinancialIntentSlots(prompt: string): FinancialIntentSlot
 }
 
 export function detectFinancialIntent(prompt: string): FinancialIntentMatch | null {
-  const normalizedPrompt = normalizePersianDigits(prompt).trim()
+  const normalizedPrompt = normalizeFinancialIntentPrompt(prompt)
 
   if (!normalizedPrompt) {
     return null
