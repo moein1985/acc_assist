@@ -322,12 +322,13 @@ export class GeminiClient {
     }
 
     const lower = error.message.toLowerCase()
+    // Fast-fail for 5xx server errors: do not retry upstream failures
+    if (lower.includes('(500') || lower.includes('(502') || lower.includes('(503') || lower.includes('(504')) {
+      return false
+    }
+
     return (
       lower.includes('(429') ||
-      lower.includes('(500') ||
-      lower.includes('(502') ||
-      lower.includes('(503') ||
-      lower.includes('(504') ||
       lower.includes('too many requests') ||
       lower.includes('econnreset') ||
       lower.includes('etimedout') ||

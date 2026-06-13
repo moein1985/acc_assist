@@ -64,9 +64,9 @@ const SYSTEM_PROMPT = [
   RESPONSE_POLICY_GUIDE
 ].join('\n\n')
 
-const MAX_TOOL_CALL_ROUNDS = 5
+const MAX_TOOL_CALL_ROUNDS = 8
 const MAX_TOOL_CALLS_PER_ROUND = 4
-const MAX_TOTAL_TOOL_CALLS = 12
+const MAX_TOTAL_TOOL_CALLS = 15
 const MAX_CHAT_HISTORY = 28
 const MAX_HISTORY_SUMMARY_USERS = 6
 const MAX_HISTORY_SUMMARY_ASSISTANT = 4
@@ -291,6 +291,16 @@ type DeterministicFinancialToolResult = {
   toolCallsUsed: number
 }
 
+type SalesGrowthFallbackResult = {
+  baseYear: number
+  targetYear: number
+  salesBase: number
+  salesTarget: number
+  percentChange: number | null
+  query: string
+  toolCallsUsed: number
+}
+
 const SENSITIVE_IDENTIFIER_FIELD_TOKENS = [
   'nationalid',
   'nationalcode',
@@ -427,6 +437,8 @@ export class AgentOrchestrator {
   private readonly mobileBridge?: AgentOrchestratorDeps['mobileBridge']
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
+  private readonly schemaCacheByTableKey = new Map<string, { schema: SchemaColumnCatalogItem[]; timestamp: number }>()
+  private readonly SCHEMA_CACHE_TTL_MS = 60000
 
   constructor(deps: AgentOrchestratorDeps) {
     this.geminiClient = deps.geminiClient
@@ -501,6 +513,7 @@ export class AgentOrchestrator {
         conversationMemory
       )
       let totalToolCallCount = 0
+      let totalSuccessfulDataFetches = 0
       const deterministicIntent =
         payload.mode === 'dry-run' ? null : this.detectDeterministicFinancialIntent(prompt)
       const deterministicFiscalIntent =
@@ -537,7 +550,8 @@ export class AgentOrchestrator {
             prompt,
             this.composeDeterministicFinancialToolMarkdown(deterministicToolIntent, toolResult),
             conversationMemory,
-            toolResult.toolCallsUsed
+            toolResult.toolCallsUsed,
+            toolResult.toolCallsUsed > 0 ? 1 : 0
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -649,7 +663,60 @@ export class AgentOrchestrator {
             prompt,
             this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
             conversationMemory,
-            totalToolCallCount
+            totalToolCallCount,
+            1
+          )
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'final',
+            durationMs: Date.now() - startedAt,
+            round: 0
+          })
+
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
+
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: 0,
+            toolCallsUsed: totalToolCallCount
+          }
+        }
+      }
+
+      if (this.isSalesGrowthPercentPrompt(prompt)) {
+        this.emitProgress(onProgress, {
+          type: 'thinking',
+          message: 'در حال محاسبه مستقیم درصد رشد/کاهش فروش از داده واقعی دیتابیس...'
+        })
+
+        const growthFallback = await this.tryResolveSalesGrowthPercentFallback(
+          prompt,
+          conversationMemory,
+          execution.abortController.signal
+        )
+
+        if (growthFallback) {
+          totalToolCallCount += growthFallback.toolCallsUsed
+          totalSuccessfulDataFetches += 1
+
+          const finalText = this.finalizeFinancialResponse(
+            prompt,
+            this.composeSalesGrowthFallbackMarkdown(growthFallback),
+            conversationMemory,
+            totalToolCallCount,
+            totalSuccessfulDataFetches
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -685,7 +752,8 @@ export class AgentOrchestrator {
           prompt,
           clarificationResponse,
           conversationMemory,
-          totalToolCallCount
+          totalToolCallCount,
+          totalSuccessfulDataFetches
         )
         this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
         const finalHistory = this.compactHistory(
@@ -784,7 +852,8 @@ export class AgentOrchestrator {
                 prompt,
                 this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
                 conversationMemory,
-                totalToolCallCount
+                totalToolCallCount,
+                1
               )
               this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
               const finalHistory = this.compactHistory(
@@ -820,7 +889,8 @@ export class AgentOrchestrator {
             prompt,
             rawFinalText,
             conversationMemory,
-            totalToolCallCount
+            totalToolCallCount,
+            totalSuccessfulDataFetches
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -861,7 +931,7 @@ export class AgentOrchestrator {
           toolCalls
         })
 
-        const toolMessages = await this.executeFinancialToolCalls({
+        const toolExecution = await this.executeFinancialToolCalls({
           requestId,
           round: round + 1,
           toolCalls,
@@ -872,8 +942,9 @@ export class AgentOrchestrator {
         })
 
         totalToolCallCount = projectedTotalToolCalls
+        totalSuccessfulDataFetches += toolExecution.successfulDataFetches
 
-        workingHistory = this.compactHistory([...workingHistory, ...toolMessages], conversationMemory)
+        workingHistory = this.compactHistory([...workingHistory, ...toolExecution.toolMessages], conversationMemory)
       }
 
       throw new Error('Tool-call loop exceeded limit. Try a simpler question or narrower date range.')
@@ -928,9 +999,10 @@ export class AgentOrchestrator {
     conversationMemory: ConversationMemoryState
     onProgress?: (event: AgentProgressEvent) => void
     abortSignal: AbortSignal
-  }): Promise<GeminiMessage[]> {
+  }): Promise<{ toolMessages: GeminiMessage[]; successfulDataFetches: number }> {
     const { requestId, round, toolCalls, settings, conversationMemory, onProgress, abortSignal } = params
     const toolMessages: GeminiMessage[] = []
+    let successfulDataFetches = 0
 
     for (const toolCall of toolCalls) {
       this.throwIfRequestCanceled(abortSignal)
@@ -1010,6 +1082,7 @@ export class AgentOrchestrator {
           const sqlQuery = this.readRequiredStringArg(args, 'sql_query', 16000)
           this.ensureFinancialQueryAllowed(sqlQuery, settings, conversationMemory)
           const rows = await this.executeReadOnlySql(sqlQuery, abortSignal)
+          successfulDataFetches += 1
           this.throwIfRequestCanceled(abortSignal)
           this.rememberToolTrace(
             conversationMemory,
@@ -1071,9 +1144,78 @@ export class AgentOrchestrator {
         if (toolName === 'get_database_schema') {
           const tableName = this.readRequiredStringArg(args, 'table_name', 128)
           const schemaName = this.readOptionalStringArg(args, 'schema_name', 128)
+          const cacheKey = `${schemaName || 'dbo'}.${tableName}`
+          
+          // Try schema cache first (INTENT fix: avoid redundant schema lookups)
+          const cached = this.schemaCacheByTableKey.get(cacheKey)
+          if (cached && Date.now() - cached.timestamp < this.SCHEMA_CACHE_TTL_MS) {
+            const rows = cached.schema.map((col, idx) => ({
+              table_schema: schemaName || 'dbo',
+              table_name: tableName,
+              ordinal_position: (idx + 1).toString(),
+              column_name: col.name,
+              data_type: col.dataType,
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              datetime_precision: null,
+              is_nullable: col.isNullable ? 1 : 0,
+              is_identity: col.isIdentity ? 1 : 0
+            }))
+            
+            this.rememberToolTrace(
+              conversationMemory,
+              `get_database_schema rows=${rows.length} table=${cacheKey} (cached)`
+            )
+            
+            toolMessages.push(
+              this.createToolResponseMessage(toolCall, {
+                ok: true,
+                table_name: tableName,
+                schema_name: schemaName ?? null,
+                row_count: rows.length,
+                truncated: false,
+                payload_truncated: false,
+                value_truncated_cells: 0,
+                rows: rows.slice(0, MAX_SCHEMA_ROWS)
+              })
+            )
+            
+            this.emitProgress(onProgress, {
+              type: 'tool-success',
+              message: `✅ ساختار جدول [${tableName}] با ${rows.length} ستون بازیابی شد (از کش).`,
+              toolName,
+              toolCallId: toolCall.id,
+              args,
+              rowCount: rows.length
+            })
+            
+            continue
+          }
+          
           const sqlQuery = this.buildDatabaseSchemaQuery(tableName, schemaName)
           const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
           this.throwIfRequestCanceled(abortSignal)
+          
+          // Cache the schema columns for this table
+          const schemaColumns: SchemaColumnCatalogItem[] = rows.map((row) => {
+            const colName = row['column_name']
+            const dataType = row['data_type']
+            const maxLen = row['character_maximum_length']
+            const isNullable = row['is_nullable']
+            const isIdentity = row['is_identity']
+            return {
+              name: typeof colName === 'string' ? colName : String(colName || ''),
+              dataType: typeof dataType === 'string' ? dataType : 'unknown',
+              isNullable: Boolean(isNullable),
+              maxLength: typeof maxLen === 'number' && maxLen > 0 ? maxLen : null,
+              isIdentity: Boolean(isIdentity),
+              isPrimaryKey: false,
+              hasForeignKey: false,
+              sampleValues: []
+            }
+          })
+          this.schemaCacheByTableKey.set(cacheKey, { schema: schemaColumns, timestamp: Date.now() })
           this.rememberToolTrace(
             conversationMemory,
             `get_database_schema rows=${rows.length} table=${schemaName ? `${schemaName}.` : ''}${tableName}`
@@ -1189,7 +1331,10 @@ export class AgentOrchestrator {
       }
     }
 
-    return toolMessages
+    return {
+      toolMessages,
+      successfulDataFetches
+    }
   }
 
   private emitProgress(
@@ -2629,6 +2774,144 @@ export class AgentOrchestrator {
     return null
   }
 
+  private isSalesGrowthPercentPrompt(prompt: string): boolean {
+    const normalizedPrompt = this.normalizePersianDigits(prompt)
+      .normalize('NFKC')
+      .replace(/[\u064a\u0649]/g, 'ی')
+      .replace(/[\u0643]/g, 'ک')
+      .replace(/\u200c/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const hasSalesSignal = /(?:فروش|sales|revenue)/iu.test(normalizedPrompt)
+    const hasPercentSignal = /(?:درصد|percent|percentage|%)/iu.test(normalizedPrompt)
+    const hasChangeSignal = /(?:رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه)/iu.test(normalizedPrompt)
+    const yearMatches = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
+
+    return hasSalesSignal && hasPercentSignal && hasChangeSignal && yearMatches.length >= 2
+  }
+
+  private extractYearComparison(prompt: string): { targetYear: number; baseYear: number } | null {
+    const normalizedPrompt = this.normalizePersianDigits(prompt)
+      .normalize('NFKC')
+      .replace(/[\u064a\u0649]/g, 'ی')
+      .replace(/[\u0643]/g, 'ک')
+      .replace(/\u200c/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const explicitMatch = normalizedPrompt.match(/\b((?:13|14|19|20)\d{2})\b.{0,40}?نسبت\s*به.{0,40}?\b((?:13|14|19|20)\d{2})\b/iu)
+    if (explicitMatch) {
+      return {
+        targetYear: Number(explicitMatch[1]),
+        baseYear: Number(explicitMatch[2])
+      }
+    }
+
+    const years = (normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []).map((item) => Number(item))
+    const uniqueYears = Array.from(new Set(years))
+
+    if (uniqueYears.length < 2) {
+      return null
+    }
+
+    // If prompt does not explicitly say "X نسبت به Y", use latest year as target and previous as base.
+    uniqueYears.sort((a, b) => a - b)
+    return {
+      targetYear: uniqueYears[uniqueYears.length - 1],
+      baseYear: uniqueYears[uniqueYears.length - 2]
+    }
+  }
+
+  private async tryResolveSalesGrowthPercentFallback(
+    prompt: string,
+    conversationMemory: ConversationMemoryState,
+    signal: AbortSignal
+  ): Promise<SalesGrowthFallbackResult | null> {
+    const yearComparison = this.extractYearComparison(prompt)
+
+    if (!yearComparison) {
+      return null
+    }
+
+    const baseYear = yearComparison.baseYear
+    const targetYear = yearComparison.targetYear
+
+    if (!Number.isFinite(baseYear) || !Number.isFinite(targetYear)) {
+      return null
+    }
+
+    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    fy.Title AS FiscalYearTitle,\n    SUM(ISNULL(inv.NetPriceInBaseCurrency, 0)) AS TotalSales\n  FROM SLS.Invoice inv\n  INNER JOIN FMK.FiscalYear fy ON inv.FiscalYearRef = fy.FiscalYearId\n  WHERE fy.Title IN (N'${baseYear}', N'${targetYear}')\n  GROUP BY fy.Title\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = N'${baseYear}' THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = N'${targetYear}' THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
+
+    this.ensureFinancialQueryAllowed(sqlQuery, this.getSettings(), conversationMemory)
+    const rows = await this.executeReadOnlySql(sqlQuery, signal)
+    this.throwIfRequestCanceled(signal)
+
+    const firstRow = rows[0] ?? {}
+    const salesBase = this.toSafeNumber(firstRow['SalesBase'])
+    const salesTarget = this.toSafeNumber(firstRow['SalesTarget'])
+    const percentRaw = this.toSafeNumber(firstRow['PercentChange'])
+    const percentChange = Number.isFinite(percentRaw) ? percentRaw : null
+
+    this.rememberToolTrace(
+      conversationMemory,
+      `sales_growth_fallback base=${baseYear} target=${targetYear} pct=${percentChange ?? 'null'}`
+    )
+
+    return {
+      baseYear,
+      targetYear,
+      salesBase,
+      salesTarget,
+      percentChange,
+      query: sqlQuery,
+      toolCallsUsed: 1
+    }
+  }
+
+  private composeSalesGrowthFallbackMarkdown(result: SalesGrowthFallbackResult): string {
+    const direction =
+      result.percentChange == null
+        ? 'نامشخص'
+        : result.percentChange > 0
+          ? 'رشد'
+          : result.percentChange < 0
+            ? 'کاهش'
+            : 'بدون تغییر'
+
+    const signedPercent =
+      result.percentChange == null
+        ? 'N/A'
+        : `${result.percentChange >= 0 ? '+' : ''}${result.percentChange.toFixed(2)}%`
+
+    const assumptionsLine =
+      result.percentChange == null
+        ? '- فروش سال مبنا صفر یا ناموجود بوده است؛ درصد تغییر قابل محاسبه نیست.'
+        : '- درصد تغییر طبق فرمول ((فروش سال هدف - فروش سال مبنا) / فروش سال مبنا) * 100 محاسبه شد.'
+
+    return [
+      '### Summary',
+      `فروش سال ${result.targetYear} نسبت به ${result.baseYear}: ${signedPercent} (${direction})`,
+      '',
+      '### Findings',
+      `- فروش سال ${result.baseYear}: ${result.salesBase.toLocaleString('en-US')}`,
+      `- فروش سال ${result.targetYear}: ${result.salesTarget.toLocaleString('en-US')}`,
+      `- درصد تغییر: ${signedPercent}`,
+      '',
+      '### Evidence',
+      '- منبع داده: ابزار fetch_financial_data با تجمیع SLS.Invoice و نگاشت سال از FMK.FiscalYear',
+      `- سال های مقایسه: ${result.baseYear} و ${result.targetYear}`,
+      `- SQL: ${this.compactText(result.query.replace(/\s+/g, ' '), 220)}`,
+      '',
+      '### Assumptions',
+      assumptionsLine,
+      '',
+      '### Actions',
+      '- در صورت نیاز، همین مقایسه را به تفکیک ماه/شعبه/شرکت هم می‌توانم ارائه کنم.',
+      '- اگر تعریف فروش (مثلا NetPrice vs GrossPrice) باید تغییر کند، اعلام کنید تا کوئری اصلاح شود.'
+    ].join('\n')
+  }
+
   private async tryResolveFiscalYearFallback(
     deterministicIntent: DeterministicFinancialIntent,
     settings: AppSettings,
@@ -3241,14 +3524,25 @@ ORDER BY fiscal_year DESC`
     prompt: string,
     rawText: string,
     conversationMemory: ConversationMemoryState,
-    totalToolCallCount: number
+    totalToolCallCount: number,
+    successfulDataFetchCount: number
   ): string {
     const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
     const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
-    return this.enforceEvidenceFirstContract(prompt, alignedText, totalToolCallCount)
+    return this.enforceEvidenceFirstContract(
+      prompt,
+      alignedText,
+      totalToolCallCount,
+      successfulDataFetchCount
+    )
   }
 
-  private enforceEvidenceFirstContract(prompt: string, finalText: string, totalToolCallCount: number): string {
+  private enforceEvidenceFirstContract(
+    prompt: string,
+    finalText: string,
+    totalToolCallCount: number,
+    successfulDataFetchCount: number
+  ): string {
     const normalizedText = this.normalizePersianDigits(finalText)
 
     if (/cannot\s+answer\s+reliably/iu.test(normalizedText)) {
@@ -3261,6 +3555,9 @@ ORDER BY fiscal_year DESC`
     const appearsFinancialClaim = this.appearsToContainFinancialClaim(narrative)
     const hasRequiredContractSections = this.hasRequiredFinancialResponseSections(sections)
     const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
+    const requiresStrictQuantResult = this.requiresStrictQuantitativeDataFetch(prompt)
+    const hasQuantitativeResult = this.hasQuantitativeResultSignal(narrative)
+    const statesNoData = this.appearsToBeNoDataResult(narrative)
 
     if (appearsFinancialClaim && !hasRequiredContractSections) {
       return this.buildEvidenceContractFailureResponse(
@@ -3283,7 +3580,43 @@ ORDER BY fiscal_year DESC`
       )
     }
 
+    if (requiresStrictQuantResult && successfulDataFetchCount === 0) {
+      return this.buildEvidenceContractFailureResponse(
+        'برای سوال درصد رشد/کاهش، پاسخ نهایی بدون اجرای موفق fetch_financial_data مجاز نیست.',
+        prompt
+      )
+    }
+
+    if (requiresStrictQuantResult && !hasQuantitativeResult && !statesNoData) {
+      return this.buildEvidenceContractFailureResponse(
+        'برای سوال درصد رشد/کاهش، پاسخ نهایی باید عدد درصد معتبر (+x% یا -x%) یا پیام صریح نبود داده داشته باشد.',
+        prompt
+      )
+    }
+
     return finalText
+  }
+
+  private requiresStrictQuantitativeDataFetch(prompt: string): boolean {
+    const normalized = this.normalizePersianDigits(prompt)
+
+    return /(?:درصد|percent|percentage|رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه|year\s*over\s*year|yoy)/iu.test(
+      normalized
+    )
+  }
+
+  private hasQuantitativeResultSignal(text: string): boolean {
+    const normalized = this.normalizePersianDigits(text)
+
+    return /(?:[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد|درصد\s*[+-]?\d+(?:\.\d+)?)/iu.test(normalized)
+  }
+
+  private appearsToBeNoDataResult(text: string): boolean {
+    const normalized = this.normalizePersianDigits(text)
+
+    return /(?:داده(?:\s*ای)?\s*یافت\s*نشد|بدون\s*داده|اطلاعات\s*کافی\s*وجود\s*ندارد|no\s*data|insufficient\s*data)/iu.test(
+      normalized
+    )
   }
 
   private appearsToContainFinancialClaim(text: string): boolean {
@@ -3391,6 +3724,20 @@ ORDER BY fiscal_year DESC`
   private toFiniteInteger(value: unknown): number {
     const parsed = this.toOptionalFiniteInteger(value)
     return parsed ?? 0
+  }
+
+  private toSafeNumber(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.replace(/,/g, '').trim()
+      const parsed = Number.parseFloat(normalized)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+
+    return 0
   }
 
   private toOptionalFiniteInteger(value: unknown): number | null {
