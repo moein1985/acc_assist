@@ -11,7 +11,13 @@ try {
   electronApp = undefined
 }
 
-import type { TelemetryConfig, TelemetryEventLevel, TelemetryLogLevel } from '../../shared/contracts'
+import type {
+  TelemetryConfig,
+  TelemetryEventLevel,
+  TelemetryLogLevel,
+  TelemetryQueryRequest,
+  TelemetryQueryResult
+} from '../../shared/contracts'
 
 interface PersistedTelemetryEvent {
   id: string
@@ -25,6 +31,9 @@ interface PersistedTelemetryEvent {
   arch: string
   message?: string
   details?: Record<string, unknown>
+  requestId?: string
+  conversationId?: string
+  correlationId?: string
 }
 
 export interface TelemetryCaptureInput {
@@ -34,6 +43,9 @@ export interface TelemetryCaptureInput {
   process?: 'main' | 'renderer'
   message?: string
   details?: Record<string, unknown>
+  requestId?: string
+  conversationId?: string
+  correlationId?: string
 }
 
 const LEVEL_WEIGHT: Record<TelemetryEventLevel, number> = {
@@ -53,7 +65,8 @@ const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
   requestTimeoutMs: 8000,
   maxBatchSize: 25,
   maxQueueSize: 5000,
-  includeRendererErrors: true
+  includeRendererErrors: true,
+  retentionDays: 30
 }
 
 const MAX_TEXT_LENGTH = 8000
@@ -204,10 +217,12 @@ export class TelemetryIngestService {
       requestTimeoutMs: Math.min(Math.max(Number(merged.requestTimeoutMs) || 8000, 1000), 60000),
       maxBatchSize: Math.min(Math.max(Number(merged.maxBatchSize) || 25, 1), 200),
       maxQueueSize: Math.min(Math.max(Number(merged.maxQueueSize) || 5000, 100), 50000),
-      includeRendererErrors: Boolean(merged.includeRendererErrors)
+      includeRendererErrors: Boolean(merged.includeRendererErrors),
+      retentionDays: Math.max(1, Math.trunc(Number(merged.retentionDays) || DEFAULT_TELEMETRY_CONFIG.retentionDays))
     }
 
     this.ensureLoaded()
+    this.pruneExpiredEvents()
     this.scheduleFlushTimer()
 
     if (this.queue.length > 0) {
@@ -231,6 +246,7 @@ export class TelemetryIngestService {
 
     this.appendToEventLog(event)
     this.queue.push(event)
+    this.pruneExpiredEvents()
 
     if (this.queue.length > this.config.maxQueueSize) {
       const dropped = this.queue.length - this.config.maxQueueSize
@@ -345,6 +361,76 @@ export class TelemetryIngestService {
     }
   }
 
+  async queryEvents(request?: TelemetryQueryRequest): Promise<TelemetryQueryResult> {
+    this.ensureLoaded()
+    this.pruneExpiredEvents()
+
+    const fromTime = request?.from ? new Date(request.from).getTime() : null
+    const toTime = request?.to ? new Date(request.to).getTime() : null
+    const requestedLimit = Math.min(Math.max(Number(request?.limit) || 100, 1), 500)
+    const cursor = request?.cursor ? String(request.cursor).trim() : null
+
+    const filtered = this.eventLogEntries().filter((entry) => {
+      if (fromTime !== null && new Date(entry.timestamp).getTime() < fromTime) {
+        return false
+      }
+
+      if (toTime !== null && new Date(entry.timestamp).getTime() > toTime) {
+        return false
+      }
+
+      if (request?.requestId && entry.requestId !== request.requestId) {
+        return false
+      }
+
+      if (request?.conversationId && entry.conversationId !== request.conversationId) {
+        return false
+      }
+
+      if (request?.category && entry.category !== request.category) {
+        return false
+      }
+
+      if (cursor) {
+        const [cursorTimestamp, cursorId] = cursor.split('|')
+        const entryTime = new Date(entry.timestamp).getTime()
+        const cursorTime = Number(cursorTimestamp) || 0
+
+        if (entryTime < cursorTime || (entryTime === cursorTime && entry.id <= cursorId)) {
+          return false
+        }
+      }
+
+      return true
+    })
+
+    filtered.sort((left, right) => right.timestamp.localeCompare(left.timestamp) || right.id.localeCompare(left.id))
+
+    const total = filtered.length
+    const page = filtered.slice(0, requestedLimit)
+
+    const next = page.length > 0 && page.length < total
+      ? `${new Date(page[page.length - 1]?.timestamp ?? 0).getTime()}|${page[page.length - 1]?.id ?? ''}`
+      : null
+
+    return {
+      entries: page.map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        level: entry.level,
+        category: entry.category,
+        event: entry.event,
+        process: entry.process,
+        message: entry.message,
+        requestId: entry.requestId,
+        conversationId: entry.conversationId,
+        correlationId: entry.correlationId
+      })),
+      total,
+      nextCursor: next
+    }
+  }
+
   async shutdown(reason = 'shutdown'): Promise<void> {
     if (this.flushTimer) {
       clearInterval(this.flushTimer)
@@ -368,7 +454,10 @@ export class TelemetryIngestService {
       platform: process.platform,
       arch: process.arch,
       message: input.message ? normalizeText(input.message) : undefined,
-      details: input.details ? sanitizeDetails(input.details) : undefined
+      details: input.details ? sanitizeDetails(input.details) : undefined,
+      requestId: input.requestId ? normalizeText(input.requestId).trim() || undefined : undefined,
+      conversationId: input.conversationId ? normalizeText(input.conversationId).trim() || undefined : undefined,
+      correlationId: input.correlationId ? normalizeText(input.correlationId).trim() || undefined : undefined
     }
   }
 
@@ -379,6 +468,37 @@ export class TelemetryIngestService {
 
   private canSend(): boolean {
     return Boolean(this.config.enabled && this.config.ingestUrl && this.config.bearerToken)
+  }
+
+  private eventLogEntries(): PersistedTelemetryEvent[] {
+    try {
+      const raw = readFileSync(this.eventLogFilePath, 'utf8')
+      return raw
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as PersistedTelemetryEvent)
+        .filter((item) => Boolean(item.id && item.timestamp))
+    } catch {
+      return []
+    }
+  }
+
+  private pruneExpiredEvents(): void {
+    const cutoff = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000
+
+    const pruneList = (items: PersistedTelemetryEvent[]): PersistedTelemetryEvent[] =>
+      items.filter((item) => new Date(item.timestamp).getTime() >= cutoff)
+
+    const eventEntries = pruneList(this.eventLogEntries())
+    if (eventEntries.length !== this.eventLogEntries().length) {
+      writeFileSync(this.eventLogFilePath, eventEntries.map((item) => JSON.stringify(item)).join('\n') + (eventEntries.length ? '\n' : ''), 'utf8')
+    }
+
+    const queueEntries = pruneList(this.queue)
+    if (queueEntries.length !== this.queue.length) {
+      this.queue = queueEntries
+      this.persistQueue()
+    }
   }
 
   private ensureLoaded(): void {
@@ -412,7 +532,10 @@ export class TelemetryIngestService {
             platform: (event.platform as NodeJS.Platform) || process.platform,
             arch: String(event.arch || process.arch),
             message: event.message ? String(event.message) : undefined,
-            details: event.details ? sanitizeDetails(event.details) : undefined
+            details: event.details ? sanitizeDetails(event.details) : undefined,
+            requestId: event.requestId ? String(event.requestId) : undefined,
+            conversationId: event.conversationId ? String(event.conversationId) : undefined,
+            correlationId: event.correlationId ? String(event.correlationId) : undefined
           })
         } catch {
           continue

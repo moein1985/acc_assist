@@ -1,3 +1,5 @@
+import { Parser } from 'node-sql-parser'
+
 import type {
   AccountingConceptKey,
   AgentEvidencePreview,
@@ -17,6 +19,7 @@ import type {
 import type { AuditLogEntry } from './auditLogService'
 import {
   detectFinancialIntent,
+  detectSalesKpiContractCandidates,
   listFinancialIntentDefinitions,
   type FinancialIntentId
 } from './financialIntentRegistry'
@@ -429,6 +432,7 @@ interface AgentOrchestratorDeps {
 }
 
 export class AgentOrchestrator {
+  private readonly sqlParser = new Parser()
   private readonly geminiClient: AgentOrchestratorDeps['geminiClient']
   private readonly getSettings: () => AppSettings
   private readonly executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
@@ -480,13 +484,20 @@ export class AgentOrchestrator {
     this.pruneConversationMemory()
 
     const startedAt = Date.now()
+    const isRefinementPrompt = this.isLikelyRefinementPrompt(previousMemorySnapshot, prompt)
+    const contextMode = isRefinementPrompt ? 'refinement' : 'fresh'
+    const contextReason = isRefinementPrompt
+      ? 'Refinement cues detected in the current prompt, so prior turn context remains active.'
+      : 'No refinement cues detected; the prompt should be treated as a fresh analysis request.'
 
     await this.safeAuditWrite({
       timestamp: new Date().toISOString(),
       requestId,
       conversationId,
       stage: 'start',
-      prompt
+      prompt,
+      contextMode,
+      contextReason
     })
 
     this.emitProgress(onProgress, {
@@ -551,7 +562,8 @@ export class AgentOrchestrator {
             this.composeDeterministicFinancialToolMarkdown(deterministicToolIntent, toolResult),
             conversationMemory,
             toolResult.toolCallsUsed,
-            toolResult.toolCallsUsed > 0 ? 1 : 0
+            toolResult.toolCallsUsed > 0 ? 1 : 0,
+            'deterministic'
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -664,7 +676,8 @@ export class AgentOrchestrator {
             this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
             conversationMemory,
             totalToolCallCount,
-            1
+            1,
+            'deterministic'
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -716,7 +729,8 @@ export class AgentOrchestrator {
             this.composeSalesGrowthFallbackMarkdown(growthFallback),
             conversationMemory,
             totalToolCallCount,
-            totalSuccessfulDataFetches
+            totalSuccessfulDataFetches,
+            'deterministic'
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -753,7 +767,8 @@ export class AgentOrchestrator {
           clarificationResponse,
           conversationMemory,
           totalToolCallCount,
-          totalSuccessfulDataFetches
+          totalSuccessfulDataFetches,
+          'clarification'
         )
         this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
         const finalHistory = this.compactHistory(
@@ -890,7 +905,8 @@ export class AgentOrchestrator {
             rawFinalText,
             conversationMemory,
             totalToolCallCount,
-            totalSuccessfulDataFetches
+            totalSuccessfulDataFetches,
+            'model-assisted'
           )
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
@@ -1930,8 +1946,11 @@ export class AgentOrchestrator {
     previousMemorySnapshot: ConversationMemorySnapshot
   ): string {
     const schemaContext = this.buildSchemaCatalogContext(settings)
-    const memoryContext = this.buildConversationMemoryContext(conversationMemory)
-    const refinementContext = this.buildRefinementContext(previousMemorySnapshot, prompt)
+    const isRefinementPrompt = this.isLikelyRefinementPrompt(previousMemorySnapshot, prompt)
+    const historyWindowContext = this.buildHistoryWindowContext(isRefinementPrompt)
+    const memoryContext = this.buildConversationMemoryContext(conversationMemory, isRefinementPrompt)
+    const refinementContext = isRefinementPrompt ? this.buildRefinementContext(previousMemorySnapshot, prompt) : null
+    const freshContext = this.buildFreshConversationContext(previousMemorySnapshot, prompt)
     const intentContext = this.buildPromptIntentContext(settings, prompt)
 
     const segments = [SYSTEM_PROMPT]
@@ -1940,12 +1959,18 @@ export class AgentOrchestrator {
       segments.push(schemaContext)
     }
 
+    if (historyWindowContext) {
+      segments.push(historyWindowContext)
+    }
+
     if (memoryContext) {
       segments.push(memoryContext)
     }
 
     if (refinementContext) {
       segments.push(refinementContext)
+    } else if (freshContext) {
+      segments.push(freshContext)
     }
 
     if (intentContext) {
@@ -1955,7 +1980,18 @@ export class AgentOrchestrator {
     return segments.join('\n\n')
   }
 
-  private buildConversationMemoryContext(memory: ConversationMemoryState): string | null {
+  private buildHistoryWindowContext(isRefinementPrompt: boolean): string {
+    const modeLabel = isRefinementPrompt ? 'refinement' : 'fresh'
+
+    return [
+      'Effective history window:',
+      `- Current mode: ${modeLabel}.`,
+      '- Keep the latest 6 user turns and 4 assistant turns in the active working context.',
+      '- Summarize earlier turns into compact context, and do not let stale prior-memory assumptions override a fresh prompt unless the user explicitly asks to continue.'
+    ].join('\n')
+  }
+
+  private buildConversationMemoryContext(memory: ConversationMemoryState, usePersistentHeader = true): string | null {
     const mappingEntries = Object.entries(memory.facts.confirmedMappings)
       .filter(([, tableRef]) => typeof tableRef === 'string' && tableRef.trim())
       .slice(0, 6)
@@ -2014,7 +2050,35 @@ export class AgentOrchestrator {
       return null
     }
 
+    if (!usePersistentHeader) {
+      return lines.join('\n')
+    }
+
     return ['Persistent conversation memory (survives trimmed history):', ...lines].join('\n')
+  }
+
+  private buildFreshConversationContext(previousMemory: ConversationMemorySnapshot, prompt: string): string | null {
+    if (this.isLikelyRefinementPrompt(previousMemory, prompt)) {
+      return null
+    }
+
+    const hasPriorContext = Boolean(previousMemory.lastUserPrompt || previousMemory.lastAssistantOutcome)
+
+    if (!hasPriorContext) {
+      return [
+        'Fresh conversation mode is active:',
+        '- Treat this prompt as a new analysis request unless the user explicitly says to reuse the previous answer.',
+        '- Use only the current question, current schema catalog, and current tool outputs for planning.',
+        '- Do not assume prior turn facts or KPI choices are still valid.'
+      ].join('\n')
+    }
+
+    return [
+      'Fresh conversation mode is active:',
+      '- The current prompt is not a refinement request, so reset the working assumption set before planning.',
+      '- Re-derive KPI intent and scope from the current question only.',
+      '- Keep prior memory as fallback context only when the user explicitly references it.'
+    ].join('\n')
   }
 
   private buildRefinementContext(previousMemory: ConversationMemorySnapshot, prompt: string): string | null {
@@ -2161,6 +2225,12 @@ export class AgentOrchestrator {
     prompt: string,
     conversationMemory: ConversationMemoryState
   ): string | null {
+    const salesKpiClarification = this.buildSalesKpiClarificationResponseIfNeeded(prompt)
+
+    if (salesKpiClarification) {
+      return salesKpiClarification
+    }
+
     const detectedConcepts = this.detectPromptConcepts(prompt)
 
     if (detectedConcepts.length === 0) {
@@ -2194,6 +2264,34 @@ export class AgentOrchestrator {
     }
 
     return null
+  }
+
+  private buildSalesKpiClarificationResponseIfNeeded(prompt: string): string | null {
+    const detection = detectSalesKpiContractCandidates(prompt)
+
+    if (!detection.isAmbiguous) {
+      return null
+    }
+
+    const contractLabels = ['فروش ناخالص', 'فروش خالص', 'فروش دفتری']
+
+    return [
+      '### Summary',
+      'برای پاسخ دقیق فروش سالانه، باید نوع KPI را مشخص کنید.',
+      '',
+      '### Findings',
+      '- پرسش شما بدون تعیین نوع فروش مطرح شده است.',
+      `- گزینه‌های قابل قبول: ${contractLabels.join('، ')}.`,
+      '',
+      '### Evidence',
+      '- در متن سوال، «فروش سالانه» به‌صورت کلی آمده و به بیش از یک قرارداد KPI اشاره می‌کند.',
+      '',
+      '### Actions',
+      '- لطفا یکی از این گزینه‌ها را انتخاب کنید:',
+      '- 1) فروش ناخالص',
+      '- 2) فروش خالص',
+      '- 3) فروش دفتری'
+    ].join('\n')
   }
 
   private buildMissingMappingsClarificationResponse(
@@ -2841,7 +2939,19 @@ export class AgentOrchestrator {
       return null
     }
 
-    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    fy.Title AS FiscalYearTitle,\n    SUM(ISNULL(inv.NetPriceInBaseCurrency, 0)) AS TotalSales\n  FROM SLS.Invoice inv\n  INNER JOIN FMK.FiscalYear fy ON inv.FiscalYearRef = fy.FiscalYearId\n  WHERE fy.Title IN (N'${baseYear}', N'${targetYear}')\n  GROUP BY fy.Title\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = N'${baseYear}' THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = N'${targetYear}' THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
+    const activeCatalog = this.findActiveSchemaCatalog(this.getSettings())
+
+    if (!activeCatalog) {
+      return null
+    }
+
+    const salesSource = this.selectSalesGrowthSourceTable(activeCatalog)
+
+    if (!salesSource) {
+      return null
+    }
+
+    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    CAST(${salesSource.yearColumn} AS int) AS FiscalYearTitle,\n    SUM(CAST(${salesSource.amountColumn} AS decimal(18, 4))) AS TotalSales\n  FROM ${salesSource.tableRef}\n  WHERE CAST(${salesSource.yearColumn} AS int) IN (${baseYear}, ${targetYear})\n  GROUP BY CAST(${salesSource.yearColumn} AS int)\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = ${baseYear} THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = ${targetYear} THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
 
     this.ensureFinancialQueryAllowed(sqlQuery, this.getSettings(), conversationMemory)
     const rows = await this.executeReadOnlySql(sqlQuery, signal)
@@ -2869,6 +2979,60 @@ export class AgentOrchestrator {
     }
   }
 
+  private selectSalesGrowthSourceTable(activeCatalog: SchemaCatalogEntry): {
+    tableRef: string
+    yearColumn: string
+    amountColumn: string
+  } | null {
+    const preferredConcepts = ['documentLines', 'documents', 'accounts'] as AccountingConceptKey[]
+    const preferredMappings = preferredConcepts
+      .map((conceptKey) => this.resolvePreferredMapping(activeCatalog, conceptKey))
+      .filter((mapping): mapping is PreferredMapping => Boolean(mapping))
+
+    const catalogMappings = activeCatalog.tables
+      .filter((table) => table.tags.length > 0)
+      .map((table) => ({
+        tableRef: this.normalizeTableRef(`${table.schemaName}.${table.tableName}`),
+        source: 'suggested' as const
+      }))
+      .filter((mapping) => Boolean(mapping.tableRef)) as PreferredMapping[]
+
+    const tableCandidates: PreferredMapping[] = [...preferredMappings, ...catalogMappings]
+
+    const seen = new Set<string>()
+
+    for (const candidate of tableCandidates) {
+      const normalizedRef = this.normalizeTableRef(candidate.tableRef)
+
+      if (!normalizedRef || seen.has(normalizedRef)) {
+        continue
+      }
+
+      seen.add(normalizedRef)
+
+      const table = activeCatalog.tables.find((entry) => {
+        return this.normalizeTableRef(`${entry.schemaName}.${entry.tableName}`) === normalizedRef
+      })
+
+      if (!table) {
+        continue
+      }
+
+      const yearColumn = table.columns.find((column) => /(?:fiscal|year|period|سال|مالی|دوره)/iu.test(column.name))?.name
+      const amountColumn = table.columns.find((column) => /(?:amount|price|netprice|gross|revenue|total|sale|sum)/iu.test(column.name))?.name
+
+      if (yearColumn && amountColumn) {
+        return {
+          tableRef: normalizedRef,
+          yearColumn,
+          amountColumn
+        }
+      }
+    }
+
+    return null
+  }
+
   private composeSalesGrowthFallbackMarkdown(result: SalesGrowthFallbackResult): string {
     const direction =
       result.percentChange == null
@@ -2891,15 +3055,16 @@ export class AgentOrchestrator {
 
     return [
       '### Summary',
-      `فروش سال ${result.targetYear} نسبت به ${result.baseYear}: ${signedPercent} (${direction})`,
+      `فروش سال ${result.targetYear} نسبت به ${result.baseYear}: ${signedPercent} (${direction}) (نوع KPI: فروش سالانه)`,
       '',
       '### Findings',
+      '- مسیر پاسخ: deterministic',
       `- فروش سال ${result.baseYear}: ${result.salesBase.toLocaleString('en-US')}`,
       `- فروش سال ${result.targetYear}: ${result.salesTarget.toLocaleString('en-US')}`,
       `- درصد تغییر: ${signedPercent}`,
       '',
       '### Evidence',
-      '- منبع داده: ابزار fetch_financial_data با تجمیع SLS.Invoice و نگاشت سال از FMK.FiscalYear',
+      '- منبع داده: ابزار fetch_financial_data با تجمیع جدول مالی انتخاب‌شده از catalog و ستون‌های سال/مبلغ',
       `- سال های مقایسه: ${result.baseYear} و ${result.targetYear}`,
       `- SQL: ${this.compactText(result.query.replace(/\s+/g, ' '), 220)}`,
       '',
@@ -3414,9 +3579,10 @@ ORDER BY fiscal_year DESC`
 
     return [
       '### Summary',
-      `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value ?? 'نامشخص'}`,
+      `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value ?? 'نامشخص'} (نوع KPI: ${label})`,
       '',
       '### Findings',
+      `- مسیر پاسخ: deterministic`,
       `- intent قطعی: ${deterministicIntent}`,
       `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
       '',
@@ -3447,9 +3613,10 @@ ORDER BY fiscal_year DESC`
 
       return [
         '### Summary',
-        `فهرست سال های مالی شناسایی شده (fiscal years): ${listedYears}`,
+        `فهرست سال های مالی شناسایی شده (fiscal years): ${listedYears} (نوع KPI: سال مالی)`,
         '',
         '### Findings',
+        '- مسیر پاسخ: deterministic',
         `- تعداد کل سال های مالی متمایز: ${result.count}`,
         `- بازه سال ها: ${yearSpanText}`,
         `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
@@ -3472,6 +3639,7 @@ ORDER BY fiscal_year DESC`
       `در دیتابیس فعلی ${result.count} سال مالی متمایز شناسایی شد (${result.count} fiscal years).`,
       '',
       '### Findings',
+      '- مسیر پاسخ: deterministic',
       `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
       `- بازه سال ها: ${yearSpanText}`,
       `- نمونه سال های بازیابی شده (نزولی): ${previewText}`,
@@ -3525,16 +3693,45 @@ ORDER BY fiscal_year DESC`
     rawText: string,
     conversationMemory: ConversationMemoryState,
     totalToolCallCount: number,
-    successfulDataFetchCount: number
+    successfulDataFetchCount: number,
+    routeMode: 'deterministic' | 'model-assisted' | 'clarification' = 'model-assisted'
   ): string {
     const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
     const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
+    const routedText = this.annotateManagerUx(alignedText, routeMode)
     return this.enforceEvidenceFirstContract(
       prompt,
-      alignedText,
+      routedText,
       totalToolCallCount,
       successfulDataFetchCount
     )
+  }
+
+  private annotateManagerUx(rawText: string, routeMode: 'deterministic' | 'model-assisted' | 'clarification'): string {
+    const normalizedText = this.normalizePersianDigits(rawText)
+
+    if (/^### Summary\n/i.test(normalizedText)) {
+      const routeLine = `- مسیر پاسخ: ${routeMode}`
+      if (normalizedText.includes('نوع KPI:')) {
+        return rawText.replace('### Findings', `${routeLine}\n- نوع KPI: ${rawText.match(/نوع KPI: ([^\n]+)/)?.[1] ?? 'نامشخص'}\n\n### Findings`)
+      }
+
+      return rawText.replace('### Findings', `${routeLine}\n\n### Findings`)
+    }
+
+    return [
+      '### Summary',
+      'مدیریت پاسخ با شفافیت مسیر و KPI فعال شد.',
+      '',
+      '### Findings',
+      `- مسیر پاسخ: ${routeMode}`,
+      '',
+      '### Evidence',
+      rawText,
+      '',
+      '### Actions',
+      '- برای بررسی بیشتر، خروجی را با شواهد و scope مقایسه کنید.'
+    ].join('\n')
   }
 
   private enforceEvidenceFirstContract(
@@ -3546,6 +3743,15 @@ ORDER BY fiscal_year DESC`
     const normalizedText = this.normalizePersianDigits(finalText)
 
     if (/cannot\s+answer\s+reliably/iu.test(normalizedText)) {
+      return finalText
+    }
+
+    const isClarificationOnlyResponse =
+      /برای\s+پاسخ\s+دقیق|برای\s+جلوگیری\s+از\s+حدس\s+زدن|برای\s+جلوگیری\s+از\s+تحلیل\s+اشتباه|لطفا\s+یکی\s+از\s+این\s+گزینه‌ها|سال\s+مالی\s+دقیق|تاریخ\s+شروع\s+و\s+پایان/i.test(
+        normalizedText
+      )
+
+    if (isClarificationOnlyResponse) {
       return finalText
     }
 
@@ -3653,7 +3859,7 @@ ORDER BY fiscal_year DESC`
       'Cannot answer reliably: پاسخ مالی بدون شواهد کافی مجاز نیست.',
       '',
       '### Findings',
-      `- دلیل رد پاسخ: ${reason}`,
+      `- دلیل ساده: ${reason}`,
       '',
       '### Evidence',
       '- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.',
@@ -3662,8 +3868,8 @@ ORDER BY fiscal_year DESC`
       '- پاسخ رد شده به دلیل فقدان شواهد ساخت یافته و/یا ابزار read-only قابل اتکا متوقف شد.',
       '',
       '### Actions',
-      `- سوال را با scope دقیق تر تکرار کنید: ${this.compactText(prompt, 180)}`,
-      '- در صورت نیاز، بازه زمانی/سال مالی/شرکت/شعبه را مشخص کنید تا ابزارها اجرا شوند.'
+      `- اقدام بعدی: سوال را با scope دقیق‌تر تکرار کنید: ${this.compactText(prompt, 180)}`,
+      '- اگر داده‌ای وجود ندارد، بازه زمانی/سال مالی/شرکت/شعبه را مشخص کنید تا ابزارها بتوانند پاسخ قابل اتکا تولید کنند.'
     ].join('\n')
   }
 
@@ -4010,6 +4216,8 @@ ORDER BY fiscal_year DESC`
     const allowedRefs = this.buildAllowedFinancialTableRefs(activeCatalog)
     const catalogTableNameIndex = this.buildCatalogTableNameIndex(activeCatalog)
     const cteNames = this.extractCteNames(sqlQuery)
+
+    this.validateCatalogColumnReferences(sqlQuery, activeCatalog, allowedRefs, cteNames)
     const activeDatabaseName = this.normalizeSqlIdentifier(activeCatalog.databaseName)
     let validatedRefCount = 0
 
@@ -4481,6 +4689,138 @@ ORDER BY fiscal_year DESC`
 
   private escapeRegexPattern(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  private validateCatalogColumnReferences(
+    sqlQuery: string,
+    activeCatalog: SchemaCatalogEntry,
+    allowedRefs: Set<string>,
+    cteNames: Set<string>
+  ): void {
+    let ast: unknown
+
+    try {
+      ast = this.sqlParser.astify(sqlQuery)
+    } catch {
+      return
+    }
+
+    const tableMap = this.buildCatalogTableAliasMap(activeCatalog, allowedRefs, cteNames)
+
+    this.visitSqlAstColumns(ast, tableMap, activeCatalog)
+  }
+
+  private buildCatalogTableAliasMap(
+    activeCatalog: SchemaCatalogEntry,
+    allowedRefs: Set<string>,
+    cteNames: Set<string>
+  ): Map<string, { schemaName: string; tableName: string }> {
+    const aliasMap = new Map<string, { schemaName: string; tableName: string }>()
+
+    for (const table of activeCatalog.tables) {
+      const normalizedRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
+
+      if (!allowedRefs.has(normalizedRef)) {
+        continue
+      }
+
+      aliasMap.set(table.tableName.trim().toLowerCase(), { schemaName: table.schemaName, tableName: table.tableName })
+      aliasMap.set(`${table.schemaName}.${table.tableName}`.trim().toLowerCase(), {
+        schemaName: table.schemaName,
+        tableName: table.tableName
+      })
+    }
+
+    for (const table of activeCatalog.tables) {
+      const normalizedRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
+
+      if (!allowedRefs.has(normalizedRef) || cteNames.has(table.tableName.trim().toLowerCase())) {
+        continue
+      }
+    }
+
+    return aliasMap
+  }
+
+  private visitSqlAstColumns(
+    node: unknown,
+    aliasMap: Map<string, { schemaName: string; tableName: string }>,
+    activeCatalog: SchemaCatalogEntry
+  ): void {
+    if (!node || typeof node !== 'object') {
+      return
+    }
+
+    const record = node as Record<string, unknown>
+
+    if (record.type === 'column_ref' && typeof record.column === 'string') {
+      const tableName = typeof record.table === 'string' ? record.table.trim().toLowerCase() : null
+      const columnName = record.column.trim().toLowerCase()
+      const resolvedTable = this.resolveCatalogTableForColumnRef(tableName, aliasMap, activeCatalog)
+
+      if (!resolvedTable) {
+        return
+      }
+
+      const catalogTable = activeCatalog.tables.find((entry) => {
+        return (
+          entry.schemaName.trim().toLowerCase() === resolvedTable.schemaName.trim().toLowerCase() &&
+          entry.tableName.trim().toLowerCase() === resolvedTable.tableName.trim().toLowerCase()
+        )
+      })
+
+      if (!catalogTable) {
+        return
+      }
+
+      const columnExists = catalogTable.columns.some((column) => column.name.trim().toLowerCase() === columnName)
+
+      if (!columnExists) {
+        throw new Error(
+          `Column [${columnName}] is not available in table [${catalogTable.schemaName}.${catalogTable.tableName}].`
+        )
+      }
+    }
+
+    for (const value of Object.values(record)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          this.visitSqlAstColumns(item, aliasMap, activeCatalog)
+        }
+        continue
+      }
+
+      if (value && typeof value === 'object') {
+        this.visitSqlAstColumns(value, aliasMap, activeCatalog)
+      }
+    }
+  }
+
+  private resolveCatalogTableForColumnRef(
+    tableAlias: string | null,
+    aliasMap: Map<string, { schemaName: string; tableName: string }>,
+    activeCatalog: SchemaCatalogEntry
+  ): { schemaName: string; tableName: string } | null {
+    if (tableAlias) {
+      return aliasMap.get(tableAlias) ?? null
+    }
+
+    const candidates = [...aliasMap.values()]
+
+    if (candidates.length === 1) {
+      return candidates[0]
+    }
+
+    const inScopeTables = activeCatalog.tables.filter((entry) => aliasMap.has(entry.tableName.trim().toLowerCase()))
+
+    if (inScopeTables.length === 1) {
+      return {
+        schemaName: inScopeTables[0].schemaName,
+        tableName: inScopeTables[0].tableName
+      }
+    }
+
+    return null
   }
 
   private buildAllowedFinancialTableRefs(activeCatalog: SchemaCatalogEntry): Set<string> {

@@ -39,6 +39,9 @@ jobs:
       - name: Run unit and integration tests
         run: npm run test
 
+      - name: Run golden prompt gate
+        run: npm run test:golden
+
       - name: Run smoke validation (fast)
         run: npm run smoke:fast
 
@@ -65,6 +68,9 @@ jobs:
 
       - name: Run unit and integration tests
         run: npm run test
+
+      - name: Run golden prompt gate
+        run: npm run test:golden
 
       - name: Run smoke validation (full)
         run: npm run smoke:full

@@ -3,8 +3,10 @@ import { test } from 'node:test'
 
 import {
   detectFinancialIntent,
+  detectSalesKpiContractCandidates,
   extractFinancialIntentSlots,
-  listFinancialIntentDefinitions
+  listFinancialIntentDefinitions,
+  listSalesKpiContracts
 } from '../../src/main/services/financialIntentRegistry'
 
 test('detectFinancialIntent maps Persian fiscal-year count prompt', () => {
@@ -128,4 +130,28 @@ test('listFinancialIntentDefinitions exposes roadmap intents including determini
   assert.ok(definitions.some((item) => item.id === 'get_cashflow_summary' && item.responseMode === 'deterministic'))
   assert.ok(definitions.some((item) => item.id === 'get_receivables_summary' && item.responseMode === 'deterministic'))
   assert.ok(definitions.some((item) => item.id === 'get_payables_summary' && item.responseMode === 'deterministic'))
+})
+
+test('listSalesKpiContracts exposes the annual sales KPI dictionary', () => {
+  const contracts = listSalesKpiContracts()
+
+  assert.ok(contracts.some((entry) => entry.id === 'gross_sales'))
+  assert.ok(contracts.some((entry) => entry.id === 'net_sales'))
+  assert.ok(contracts.some((entry) => entry.id === 'booked_sales'))
+})
+
+test('detectSalesKpiContractCandidates flags ambiguous annual sales prompts', () => {
+  const result = detectSalesKpiContractCandidates('فروش سالانه را برای سال 1403 گزارش کن')
+
+  assert.equal(result.isAmbiguous, true)
+  assert.ok(result.contractIds.includes('gross_sales'))
+  assert.ok(result.contractIds.includes('net_sales'))
+  assert.ok(result.contractIds.includes('booked_sales'))
+})
+
+test('detectSalesKpiContractCandidates keeps explicit KPI wording precise', () => {
+  const result = detectSalesKpiContractCandidates('فروش ناخالص سالانه 1403 را گزارش کن')
+
+  assert.equal(result.isAmbiguous, false)
+  assert.deepEqual(result.contractIds, ['gross_sales'])
 })

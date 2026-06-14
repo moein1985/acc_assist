@@ -29,6 +29,41 @@ export type FinancialIntentMatch = {
   confidence: number
 }
 
+export type SalesKpiContractId = 'gross_sales' | 'net_sales' | 'booked_sales'
+
+export type SalesKpiContractDefinition = {
+  id: SalesKpiContractId
+  label: string
+  description: string
+  aliases: RegExp[]
+}
+
+export type SalesKpiContractDetectionResult = {
+  contractIds: SalesKpiContractId[]
+  isAmbiguous: boolean
+}
+
+const SALES_KPI_CONTRACT_REGISTRY: SalesKpiContractDefinition[] = [
+  {
+    id: 'gross_sales',
+    label: 'فروش ناخالص',
+    description: 'فروش بدون کسر تخفیف و برگشت فروش',
+    aliases: [/فروش\s*ناخالص|gross\s*sales|gross_sales/iu, /ناخالص\s*فروش/iu]
+  },
+  {
+    id: 'net_sales',
+    label: 'فروش خالص',
+    description: 'فروش پس از کسر تخفیف و برگشت فروش',
+    aliases: [/فروش\s*خالص|net\s*sales|net_sales/iu, /خالص\s*فروش/iu]
+  },
+  {
+    id: 'booked_sales',
+    label: 'فروش دفتری',
+    description: 'فروش ثبت‌شده در اسناد حسابداری',
+    aliases: [/فروش\s*دفتری|booked\s*sales|booked_sales/iu, /دفتری\s*فروش/iu]
+  }
+]
+
 const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'count_fiscal_years',
@@ -154,6 +189,41 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
 
 export function listFinancialIntentDefinitions(): FinancialIntentDefinition[] {
   return FINANCIAL_INTENT_REGISTRY.map((entry) => ({ ...entry, patterns: [...entry.patterns] }))
+}
+
+export function listSalesKpiContracts(): SalesKpiContractDefinition[] {
+  return SALES_KPI_CONTRACT_REGISTRY.map((entry) => ({ ...entry, aliases: [...entry.aliases] }))
+}
+
+export function detectSalesKpiContractCandidates(prompt: string): SalesKpiContractDetectionResult {
+  const normalizedPrompt = normalizeFinancialIntentPrompt(prompt)
+
+  if (!normalizedPrompt) {
+    return { contractIds: [], isAmbiguous: false }
+  }
+
+  const explicitMatches = SALES_KPI_CONTRACT_REGISTRY.filter((entry) =>
+    entry.aliases.some((alias) => alias.test(normalizedPrompt))
+  )
+
+  if (explicitMatches.length > 0) {
+    return {
+      contractIds: explicitMatches.map((entry) => entry.id),
+      isAmbiguous: false
+    }
+  }
+
+  const hasSalesSignal = /(?:فروش|sales|revenue)/iu.test(normalizedPrompt)
+  const hasAnnualSignal = /(?:سالانه|annual|yearly)/iu.test(normalizedPrompt)
+
+  if (hasSalesSignal && hasAnnualSignal) {
+    return {
+      contractIds: SALES_KPI_CONTRACT_REGISTRY.map((entry) => entry.id),
+      isAmbiguous: true
+    }
+  }
+
+  return { contractIds: [], isAmbiguous: false }
 }
 
 function normalizeFinancialIntentPrompt(prompt: string): string {

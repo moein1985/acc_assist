@@ -55,7 +55,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     requestTimeoutMs: 8000,
     maxBatchSize: 25,
     maxQueueSize: 5000,
-    includeRendererErrors: true
+    includeRendererErrors: true,
+    retentionDays: 30
   },
   connectionProfile: {
     name: 'پروفایل پیش فرض',

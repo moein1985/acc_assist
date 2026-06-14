@@ -4,6 +4,91 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 
+test('telemetry ingest service can query filtered events with pagination cursors', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'acc-telemetry-query-'))
+  const queuePath = path.join(root, 'telemetry-queue.ndjson')
+  const eventLogPath = path.join(root, 'telemetry-events.ndjson')
+
+  const { TelemetryIngestService } = await import('../../src/main/services/telemetryIngestService')
+  const service = new TelemetryIngestService(queuePath, eventLogPath)
+
+  try {
+    service.capture({
+      category: 'ops.audit',
+      event: 'first',
+      process: 'main',
+      level: 'info',
+      requestId: 'req-1',
+      conversationId: 'conv-a',
+      correlationId: 'corr-1'
+    })
+    service.capture({
+      category: 'ops.audit',
+      event: 'second',
+      process: 'main',
+      level: 'info',
+      requestId: 'req-2',
+      conversationId: 'conv-a',
+      correlationId: 'corr-2'
+    })
+
+    const result = await service.queryEvents({
+      conversationId: 'conv-a',
+      category: 'ops.audit',
+      limit: 1
+    })
+
+    assert.equal(result.total, 2)
+    assert.equal(result.entries.length, 1)
+    assert.equal(result.entries[0]?.event, 'second')
+    assert.match(String(result.nextCursor ?? ''), /\|/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('telemetry ingest service preserves correlation metadata when reloading persisted events', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'acc-telemetry-reload-'))
+  const queuePath = path.join(root, 'telemetry-queue.ndjson')
+  const eventLogPath = path.join(root, 'telemetry-events.ndjson')
+
+  const { TelemetryIngestService } = await import('../../src/main/services/telemetryIngestService')
+  const service = new TelemetryIngestService(queuePath, eventLogPath)
+
+  service.configure({
+    enabled: false,
+    ingestUrl: '',
+    bearerToken: '',
+    logLevel: 'debug',
+    flushIntervalMs: 1000,
+    requestTimeoutMs: 1000,
+    maxBatchSize: 10,
+    maxQueueSize: 100,
+    includeRendererErrors: true,
+    retentionDays: 30
+  })
+
+  service.capture({
+    category: 'ops.audit',
+    event: 'reload-check',
+    process: 'main',
+    level: 'info',
+    requestId: 'req-reload',
+    conversationId: 'conv-reload',
+    correlationId: 'corr-reload'
+  })
+
+  const reloaded = new TelemetryIngestService(queuePath, eventLogPath)
+  const result = await reloaded.queryEvents({ requestId: 'req-reload' })
+
+  assert.equal(result.entries.length, 1)
+  assert.equal(result.entries[0]?.requestId, 'req-reload')
+  assert.equal(result.entries[0]?.conversationId, 'conv-reload')
+  assert.equal(result.entries[0]?.correlationId, 'corr-reload')
+
+  await rm(root, { recursive: true, force: true })
+})
+
 test('telemetry ingest service redacts sensitive values before persisting and flushing', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'acc-telemetry-redact-'))
   const queuePath = path.join(root, 'telemetry-queue.ndjson')

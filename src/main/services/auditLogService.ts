@@ -17,6 +17,8 @@ export interface AuditLogEntry {
   error?: string
   errorCode?: string
   errorCategory?: string
+  contextMode?: 'fresh' | 'refinement'
+  contextReason?: string
 }
 
 export class AuditLogService {

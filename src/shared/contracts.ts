@@ -54,6 +54,36 @@ export interface TelemetryConfig {
   maxBatchSize: number
   maxQueueSize: number
   includeRendererErrors: boolean
+  retentionDays: number
+}
+
+export interface TelemetryQueryRequest {
+  from?: string
+  to?: string
+  requestId?: string
+  conversationId?: string
+  category?: string
+  limit?: number
+  cursor?: string
+}
+
+export interface TelemetryQueryEntry {
+  id: string
+  timestamp: string
+  level: TelemetryEventLevel
+  category: string
+  event: string
+  process: 'main' | 'renderer'
+  message?: string
+  requestId?: string
+  conversationId?: string
+  correlationId?: string
+}
+
+export interface TelemetryQueryResult {
+  entries: TelemetryQueryEntry[]
+  total: number
+  nextCursor: string | null
 }
 
 export type ReleaseUpdateChannel = 'latest' | 'rc' | 'beta' | 'alpha'

@@ -107,21 +107,55 @@ plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/Cja
 
 ```powershell
 # از هر کجای شبکه
-Invoke-WebRequest -Uri "http://192.168.85.84:8081/health" -ErrorAction SilentlyContinue
+Invoke-RestMethod -Uri "http://192.168.85.84:8081/health"
 
-# مثال پاسخ
-# {"status":"healthy","events":142,"queue":0}
+# مثال پاسخ v2.0.0:
+# {"ok":true,"service":"acc-telemetry-collector","version":"2.0.0","ts":"...","storedEvents":184}
 ```
 
-### دیدن رویدادهای دریافتی:
+### دیدن رویدادهای دریافتی (v2 - فیلتردار):
+
+> نکته: کالکتور از نسخه 2.0.0 از فیلترهای پیشرفته پشتیبانی می‌کند.
+> توکن از Proxmox: `plink -P 22 -ssh -batch -pw "PROXMOX_PASS" root@192.168.85.37 "pct exec 205 -- sh -c 'cat /etc/acc-telemetry/token'"`
 
 ```powershell
-# دیدن فایل رویدادها در Proxmox
-# (نیاز به SSH به Proxmox دارد)
-ssh root@192.168.85.37 "tail -50 /var/lib/acc-telemetry/events.ndjson"
+# --- توکن را یکبار بخوانید ---
+$token = (plink -P 22 -ssh -batch -pw "Hs-co@12321#" root@192.168.85.37 "pct exec 205 -- sh -c 'cat /etc/acc-telemetry/token'").Trim()
+$h = @{ Authorization = "Bearer $token" }
 
-# یا از طریق plink
-plink -P 22 -ssh -batch -pw "PROXMOX_PASSWORD" root@192.168.85.37 "tail -50 /var/lib/acc-telemetry/events.ndjson"
+# آخرین 50 رویداد (بدون فیلتر)
+Invoke-RestMethod -Uri "http://192.168.85.84:8081/events?limit=50" -Headers $h
+
+# فیلتر بر اساس requestId خاص
+Invoke-RestMethod -Uri ("http://192.168.85.84:8081/events?limit=100&requestId=REQ-UUID-HERE") -Headers $h
+
+# فیلتر بر اساس conversationId
+Invoke-RestMethod -Uri ("http://192.168.85.84:8081/events?limit=100&conversationId=conv-UUID-HERE") -Headers $h
+
+# فیلتر بر اساس category (مثال: ipc.handler برای خطاها)
+Invoke-RestMethod -Uri "http://192.168.85.84:8081/events?limit=50&category=ipc.handler" -Headers $h
+
+# فیلتر بازه زمانی (from/to با ISO 8601)
+$from = [System.DateTime]::UtcNow.AddHours(-1).ToString("o")
+$to   = [System.DateTime]::UtcNow.ToString("o")
+Invoke-RestMethod -Uri ("http://192.168.85.84:8081/events?limit=100&from=" + [Uri]::EscapeDataString($from) + "&to=" + [Uri]::EscapeDataString($to)) -Headers $h
+
+# ترکیب چند فیلتر: category + بازه زمانی
+$from = [System.DateTime]::UtcNow.AddHours(-2).ToString("o")
+Invoke-RestMethod -Uri ("http://192.168.85.84:8081/events?limit=100&category=ipc.handler&from=" + [Uri]::EscapeDataString($from)) -Headers $h
+
+# Pagination - صفحه بعدی (cursor = nextCursor از پاسخ قبلی)
+Invoke-RestMethod -Uri "http://192.168.85.84:8081/events?limit=50&cursor=50" -Headers $h
+```
+
+### خواندن رویداد از فایل مستقیم در Proxmox (بدون توکن):
+
+```powershell
+# آخرین 50 رویداد از فایل
+plink -P 22 -ssh -batch -pw "Hs-co@12321#" root@192.168.85.37 "pct exec 205 -- sh -c 'tail -50 /var/lib/acc-telemetry/events.ndjson'"
+
+# جستجو بر اساس requestId
+plink -P 22 -ssh -batch -pw "Hs-co@12321#" root@192.168.85.37 "pct exec 205 -- sh -c 'grep REQ-UUID-HERE /var/lib/acc-telemetry/events.ndjson'"
 ```
 
 ### تشخیص مشکلات تلمتری:
@@ -279,5 +313,5 @@ plink -P 2211 -ssh administrator@192.168.85.56
 
 ---
 
-**تاریخ آپدیت:** 2026-06-13  
-**نسخه:** 1.0.0
+**تاریخ آپدیت:** 2026-06-14 (v2 Telemetry Collector با فیلتر پیشرفته deploy شد)
+**نسخه:** 2.0.0

@@ -193,6 +193,7 @@ const ui = {
   telemetryRequestTimeoutInput: getById<HTMLInputElement>('telemetryRequestTimeoutInput'),
   telemetryMaxBatchSizeInput: getById<HTMLInputElement>('telemetryMaxBatchSizeInput'),
   telemetryMaxQueueSizeInput: getById<HTMLInputElement>('telemetryMaxQueueSizeInput'),
+  telemetryRetentionDaysInput: getById<HTMLInputElement>('telemetryRetentionDaysInput'),
   telemetryIncludeRendererErrorsInput: getById<HTMLInputElement>('telemetryIncludeRendererErrorsInput'),
   releaseUpdateStatus: getById<HTMLElement>('releaseUpdateStatus'),
   releaseUpdateRefreshBtn: getById<HTMLButtonElement>('releaseUpdateRefreshBtn'),
@@ -2485,6 +2486,7 @@ function populateSettingsForm(settings: AppSettings): void {
   ui.telemetryRequestTimeoutInput.value = String(telemetry.requestTimeoutMs)
   ui.telemetryMaxBatchSizeInput.value = String(telemetry.maxBatchSize)
   ui.telemetryMaxQueueSizeInput.value = String(telemetry.maxQueueSize)
+  ui.telemetryRetentionDaysInput.value = String(telemetry.retentionDays ?? 30)
   ui.telemetryIncludeRendererErrorsInput.checked = telemetry.includeRendererErrors
 
   populateProfileSelector(settings)
@@ -2590,7 +2592,8 @@ function collectTelemetryConfigFromForm(): TelemetryConfig {
     requestTimeoutMs: toNumber(ui.telemetryRequestTimeoutInput.value, baseline.requestTimeoutMs),
     maxBatchSize: toNumber(ui.telemetryMaxBatchSizeInput.value, baseline.maxBatchSize),
     maxQueueSize: toNumber(ui.telemetryMaxQueueSizeInput.value, baseline.maxQueueSize),
-    includeRendererErrors: ui.telemetryIncludeRendererErrorsInput.checked
+    includeRendererErrors: ui.telemetryIncludeRendererErrorsInput.checked,
+    retentionDays: toNumber(ui.telemetryRetentionDaysInput?.value ?? '', baseline.retentionDays)
   }
 }
 
@@ -3782,7 +3785,8 @@ function createDefaultSettings(): AppSettings {
       requestTimeoutMs: 8000,
       maxBatchSize: 25,
       maxQueueSize: 5000,
-      includeRendererErrors: true
+      includeRendererErrors: true,
+      retentionDays: 30
     },
     sql: {
       server: '127.0.0.1',

@@ -59,9 +59,25 @@ test('golden prompt harness reports stable scoring for deterministic fiscal-year
 })
 
 test('default golden set contains a stable manager-facing suite', () => {
-  assert.ok(DEFAULT_GOLDEN_CASES.length >= 6)
+  assert.ok(DEFAULT_GOLDEN_CASES.length >= 12)
   assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'count_fiscal_years'))
   assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'get_receivables_summary'))
+  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => (item.paraphrases?.length ?? 0) >= 2))
+})
+
+test('golden harness tracks paraphrase coverage for the same intent', () => {
+  const result = evaluateGoldenPromptSet([
+    {
+      id: 'sales-paraphrase',
+      prompt: 'فروش سالانه را خلاصه کن',
+      paraphrases: ['جمع‌بندی فروش سالانه', 'خلاصه فروش سالانه'],
+      expectedIntentId: 'get_sales_summary_by_period',
+      expectedMode: 'model-assisted'
+    }
+  ])
+
+  assert.equal(result.total, 1)
+  assert.equal(result.results[0]?.paraphraseCoverage, 2)
 })
 
 test('formatSummary exposes the score for CI reporting', () => {

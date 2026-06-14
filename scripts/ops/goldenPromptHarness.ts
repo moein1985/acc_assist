@@ -8,6 +8,7 @@ import {
 export type GoldenPromptCase = {
   id: string
   prompt: string
+  paraphrases?: string[]
   expectedIntentId: string
   expectedMode?: 'deterministic' | 'model-assisted'
   expectedTools?: string[]
@@ -66,10 +67,56 @@ export const DEFAULT_GOLDEN_CASES: GoldenPromptCase[] = [
   {
     id: 'sales-summary',
     prompt: 'فروش ماهانه را با جمع و روند گزارش بده',
+    paraphrases: ['جمع‌بندی فروش ماهانه', 'خلاصه فروش ماهانه'],
     expectedIntentId: 'get_sales_summary_by_period',
     expectedMode: 'model-assisted',
     expectedTools: ['get_sales_summary_by_period'],
     expectedEvidenceKeywords: ['sales', 'فروش']
+  },
+  {
+    id: 'party-balance',
+    prompt: 'مانده طرف حساب فروشگاه را بگو',
+    paraphrases: ['تعادل حساب فروشنده', 'مانده مشتری'],
+    expectedIntentId: 'get_party_balance',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_party_balance'],
+    expectedEvidenceKeywords: ['party', 'مانده']
+  },
+  {
+    id: 'account-turnover',
+    prompt: 'گردش حساب فروش را در این بازه نشان بده',
+    paraphrases: ['نرخ گردش حساب فروش', 'گردش حساب در ماه جاری'],
+    expectedIntentId: 'get_account_turnover',
+    expectedMode: 'model-assisted',
+    expectedTools: ['get_account_turnover'],
+    expectedEvidenceKeywords: ['turnover', 'گردش']
+  },
+  {
+    id: 'recent-documents',
+    prompt: 'اسناد مشکوک اخیر را فهرست کن',
+    paraphrases: ['اسناد اخیر با ریسک بالا', 'اسناد مشکوک جدید'],
+    expectedIntentId: 'get_recent_or_suspicious_documents',
+    expectedMode: 'model-assisted',
+    expectedTools: ['get_recent_or_suspicious_documents'],
+    expectedEvidenceKeywords: ['document', 'اسناد']
+  },
+  {
+    id: 'cashflow-range',
+    prompt: 'جریان نقدی سه ماه اخیر را با شواهد نشان بده',
+    paraphrases: ['خلاصه جریان وجه سه ماه', 'نقدینگی سه ماه اخیر'],
+    expectedIntentId: 'get_cashflow_summary',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_cashflow_summary'],
+    expectedEvidenceKeywords: ['cashflow', 'جریان نقد']
+  },
+  {
+    id: 'receivables-monthly',
+    prompt: 'خلاصه بدهکاران این ماه را گزارش بده',
+    paraphrases: ['جمع دریافتی‌ها در ماه جاری', 'بدهکاران ماهانه'],
+    expectedIntentId: 'get_receivables_summary',
+    expectedMode: 'deterministic',
+    expectedTools: ['get_receivables_summary'],
+    expectedEvidenceKeywords: ['receivables', 'بدهکاران']
   }
 ]
 
@@ -82,6 +129,7 @@ export type GoldenPromptEvaluationResult = {
   results: Array<{
     id: string
     prompt: string
+    expectedIntentId: string
     intentId: string | null
     responseMode: 'deterministic' | 'model-assisted' | 'unknown'
     passed: boolean
@@ -91,6 +139,7 @@ export type GoldenPromptEvaluationResult = {
       tool: boolean
       evidence: boolean
     }
+    paraphraseCoverage: number
     score: number
   }>
 }
@@ -125,6 +174,8 @@ function getEvidenceHints(intentId: string | null): string[] {
 
 export function evaluateGoldenPromptSet(cases: GoldenPromptCase[]): GoldenPromptEvaluationResult {
   const results = cases.map((testCase) => {
+    const paraphrases = Array.from(new Set((testCase.paraphrases ?? []).filter(Boolean)))
+    const paraphraseCoverage = paraphrases.filter((candidate) => detectFinancialIntent(candidate)?.intentId === testCase.expectedIntentId).length
     const detected = detectFinancialIntent(testCase.prompt)
     const intentId = detected?.intentId ?? null
     const definitions = listFinancialIntentDefinitions()
@@ -156,10 +207,12 @@ export function evaluateGoldenPromptSet(cases: GoldenPromptCase[]): GoldenPrompt
     return {
       id: testCase.id,
       prompt: testCase.prompt,
+      expectedIntentId: testCase.expectedIntentId,
       intentId,
       responseMode,
       passed,
       checks,
+      paraphraseCoverage,
       score
     }
   })
@@ -171,7 +224,7 @@ export function evaluateGoldenPromptSet(cases: GoldenPromptCase[]): GoldenPrompt
         .filter(([_, passed]) => !passed)
         .map(([key]) => key)
         .join(', ')
-      return `Golden prompt '${entry.id}' failed (${failedChecks}): detected intent='${entry.intentId ?? 'unknown'}' prompt='${entry.prompt}'`
+      return `Golden prompt '${entry.id}' failed (${failedChecks}): expected intent='${entry.expectedIntentId ?? 'unknown'}' but detected='${entry.intentId ?? 'unknown'}'; prompt='${entry.prompt}'`
     })
 
   const score = results.reduce((total, entry) => total + entry.score, 0)

@@ -379,6 +379,85 @@ test('agent orchestrator keeps software context across multi-turn refinement', a
   assert.ok(secondTurn.finalText.includes('### Evidence'))
 })
 
+test('agent orchestrator treats fresh-topic prompts as isolated context instead of refinement mode', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+
+  gemini.enqueue(async (payload) => {
+    const runtimeSystemPrompt = payload.messages[0]?.content ?? ''
+
+    assert.ok(runtimeSystemPrompt.includes('Fresh conversation mode is active'))
+    assert.ok(!runtimeSystemPrompt.includes('Multi-turn refinement mode is active'))
+    assert.ok(!runtimeSystemPrompt.includes('Persistent conversation memory (survives trimmed history):'))
+
+    return {
+      text: '### Summary\nFresh topic handled with current prompt only.\n\n### Evidence\nNo inherited memory should be required.\n\n### Actions\nContinue with the current question.',
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async () => [],
+    executeMetadataSql: async () => [],
+    auditLog: { async write(): Promise<void> { return } }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fresh-context-1',
+    conversationId: 'integration-conversation-fresh-context-1',
+    prompt: 'What is the latest sales figure for 1403?',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(result.finalText.includes('Fresh topic handled with current prompt only.'))
+})
+
+test('agent orchestrator records fresh-context decision metadata for A5 auditability', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const auditEntries: any[] = []
+  const gemini = new QueueGeminiStub()
+
+  gemini.enqueue(async (payload) => {
+    const runtimeSystemPrompt = payload.messages[0]?.content ?? ''
+
+    assert.ok(runtimeSystemPrompt.includes('Effective history window'))
+    assert.ok(runtimeSystemPrompt.includes('Fresh conversation mode is active'))
+
+    return {
+      text: '### Summary\nContext decision metadata was recorded.\n\n### Evidence\nFresh prompt path should be auditable.\n\n### Actions\nContinue.',
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async () => [],
+    executeMetadataSql: async () => [],
+    auditLog: {
+      async write(entry: any): Promise<void> {
+        auditEntries.push(entry)
+      }
+    }
+  })
+
+  await orchestrator.sendMessage({
+    requestId: 'integration-agent-a5-audit-1',
+    conversationId: 'integration-conversation-a5-audit-1',
+    prompt: 'What is the latest sales figure for 1403?',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(auditEntries.some((entry) => entry.contextMode === 'fresh'))
+  assert.match(String(auditEntries.find((entry) => entry.contextMode === 'fresh')?.contextReason ?? ''), /fresh|new analysis/i)
+})
+
 test('agent orchestrator injects multi-scope runtime context for company, fiscal year, and branch', async () => {
   const settings = createSettingsWithScopeSignals()
   const gemini = new QueueGeminiStub()
@@ -881,6 +960,49 @@ test('agent orchestrator allows SQL when every OR branch preserves scope constra
   assert.ok(result.finalText.includes('### Summary'))
 })
 
+test('agent orchestrator asks follow-up question when KPI contract is ambiguous', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const gemini = new QueueGeminiStub()
+  const progressEvents: AgentProgressEvent[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage(
+    {
+      requestId: 'integration-agent-clarify-kpi-1',
+      conversationId: 'integration-conversation-clarify-kpi-1',
+      prompt: 'فروش سالانه را برای سال ۱۴۰۳ گزارش کن.',
+      mode: 'manual',
+      history: []
+    },
+    (event) => {
+      progressEvents.push(event)
+    }
+  )
+
+  assert.equal(result.toolCallsUsed, 0)
+  assert.equal(result.rounds, 0)
+  assert.ok(result.finalText.includes('فروش ناخالص'))
+  assert.ok(result.finalText.includes('فروش خالص'))
+  assert.ok(result.finalText.includes('فروش دفتری'))
+  assert.ok(progressEvents.some((event) => event.type === 'final'))
+  assert.ok(!progressEvents.some((event) => event.type === 'tool-start'))
+})
+
 test('agent orchestrator asks follow-up question when date range is ambiguous', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const gemini = new QueueGeminiStub()
@@ -1056,6 +1178,8 @@ test('agent orchestrator uses deterministic balance tooling when schema mapping 
   assert.ok(result.toolCallsUsed >= 1)
   assert.ok(result.finalText.includes('12500000'))
   assert.ok(result.finalText.includes('get_account_balance'))
+  assert.ok(result.finalText.includes('مسیر پاسخ: deterministic'))
+  assert.ok(result.finalText.includes('نوع KPI: مانده حساب'))
   assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
@@ -1129,6 +1253,86 @@ test('agent orchestrator uses deterministic party-balance tooling when schema ma
   assert.ok(result.toolCallsUsed >= 1)
   assert.ok(result.finalText.includes('12500000'))
   assert.ok(result.finalText.includes('get_party_balance'))
+  assert.ok(executedReadOnlyQueries.length >= 1)
+})
+
+test('agent orchestrator uses deterministic sales-growth fallback path for yearly revenue comparisons', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
+
+  if (documentsTable) {
+    documentsTable.columns = [
+      {
+        name: 'fiscal_year',
+        dataType: 'int',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['1402', '1403']
+      },
+      {
+        name: 'amount',
+        dataType: 'decimal',
+        isNullable: false,
+        maxLength: null,
+        isIdentity: false,
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: ['1000000', '1200000']
+      }
+    ]
+  }
+
+  settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: 'fallback',
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const executedReadOnlyQueries: string[] = []
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return [
+        {
+          SalesBase: 1000000,
+          SalesTarget: 1200000,
+          PercentChange: 20
+        }
+      ]
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-sales-growth-deterministic-1',
+    conversationId: 'integration-conversation-sales-growth-deterministic-1',
+    prompt: 'درصد رشد فروش ۱۴۰۳ نسبت به ۱۴۰۲ را نشان بده',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(result.finalText.includes('فروش سال 1403 نسبت به 1402'))
+  assert.ok(result.finalText.includes('20.00%'))
   assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
