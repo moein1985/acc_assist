@@ -85,6 +85,30 @@ test('keeps auto-detection while persisting manual software override', async () 
   assert.equal(catalog.detectedSoftware?.id, 'sepidar')
 })
 
+test('reuses cached catalog discovery for repeated calls within the same session', async () => {
+  let callCount = 0
+  const executeSql = async () => {
+    callCount += 1
+    return []
+  }
+
+  const service = new SchemaDiscoveryService()
+
+  await service.discoverCatalog({
+    profileId: 'profile-cache',
+    databaseName: 'SampleDb',
+    executeSql
+  })
+
+  await service.discoverCatalog({
+    profileId: 'profile-cache',
+    databaseName: 'SampleDb',
+    executeSql
+  })
+
+  assert.equal(callCount, 5)
+})
+
 test('security regression: should not expose a raw sql:query IPC handler', async () => {
   const mainProcessFile = resolve(process.cwd(), 'src/main/index.ts')
   const preloadScriptFile = resolve(process.cwd(), 'src/preload/index.ts')

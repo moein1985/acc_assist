@@ -6,11 +6,23 @@ import type {
   GeminiToolCall
 } from '../../shared/contracts'
 
-const DEFAULT_MODEL = 'gemini-2.5-pro'
+const DEFAULT_MODEL = 'gemini-2.5-flash'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.avalai.ir/v1'
-const DEFAULT_TIMEOUT_MS = 60000
-const DEFAULT_RETRY_ATTEMPTS = 2
-const DEFAULT_RETRY_BASE_DELAY_MS = 600
+
+const RESILIENCE_CONNECT_TIMEOUT_MS = 13000
+const RESILIENCE_TIME_TO_FIRST_TOKEN_MS = 8000
+const RESILIENCE_INTER_CHUNK_STALL_MS = 6000
+const RESILIENCE_OVERALL_DEADLINE_MS = 30000
+const RESILIENCE_RETRY_ATTEMPTS = 2
+const RESILIENCE_RETRY_BASE_DELAY_MS = 500
+const RESILIENCE_RETRY_MAX_DELAY_MS = 12000
+const RESILIENCE_RETRY_JITTER_RATIO = 0.35
+const RESILIENCE_FAILURE_THRESHOLD = 3
+const RESILIENCE_OPEN_COOLDOWN_MS = 60000
+const RESILIENCE_MAX_RATE_LIMIT_COOLDOWN_MS = 60000
+
+type RetryDecision = 'RETRYABLE_TRANSIENT' | 'TERMINAL_UPSTREAM' | 'TERMINAL_CLIENT' | 'CIRCUIT_OPEN' | 'USER_ABORT'
+type CircuitBreakerState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
 type OpenAiStreamOptions = {
   onTextChunk?: (chunkText: string) => void
@@ -20,21 +32,125 @@ type OpenAiStreamOptions = {
 type AbortRuntimeContext = {
   signal: AbortSignal
   didExternalAbort: () => boolean
+  onResponseHeaders: () => void
+  markChunkReceived: () => void
   dispose: () => void
 }
 
 type GeminiClientOptions = {
   retryAttempts?: number
   retryBaseDelayMs?: number
+  retryMaxDelayMs?: number
+  connectTimeoutMs?: number
+  timeToFirstTokenMs?: number
+  interChunkStallMs?: number
+  overallDeadlineMs?: number
+  openCooldownMs?: number
+  failureThreshold?: number
+  retryJitterRatio?: number
+}
+
+class CircuitBreaker {
+  private state: CircuitBreakerState = 'CLOSED'
+  private failureCount = 0
+  private openedAt = 0
+  private probeInFlight = false
+
+  constructor(
+    private readonly failureThreshold: number,
+    private readonly openCooldownMs: number
+  ) {}
+
+  snapshot() {
+    return {
+      state: this.state,
+      failureCount: this.failureCount,
+      msUntilHalfOpen: this.state === 'OPEN' ? Math.max(0, this.openedAt + this.openCooldownMs - Date.now()) : 0
+    }
+  }
+
+  beforeRequest(): { allowed: boolean; reason?: string } {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.openedAt >= this.openCooldownMs) {
+        this.state = 'HALF_OPEN'
+        this.probeInFlight = true
+        return { allowed: true }
+      }
+
+      return { allowed: false, reason: 'provider-circuit-open' }
+    }
+
+    if (this.state === 'HALF_OPEN') {
+      if (!this.probeInFlight) {
+        this.probeInFlight = true
+        return { allowed: true }
+      }
+
+      return { allowed: false, reason: 'provider-circuit-open' }
+    }
+
+    return { allowed: true }
+  }
+
+  recordSuccess(): void {
+    this.state = 'CLOSED'
+    this.failureCount = 0
+    this.probeInFlight = false
+  }
+
+  recordFailure(): void {
+    if (this.state === 'HALF_OPEN') {
+      this.state = 'OPEN'
+      this.openedAt = Date.now()
+      this.probeInFlight = false
+      this.failureCount = this.failureThreshold
+      return
+    }
+
+    this.failureCount += 1
+    if (this.failureCount >= this.failureThreshold) {
+      this.state = 'OPEN'
+      this.openedAt = Date.now()
+      this.probeInFlight = false
+    }
+  }
+}
+
+class GeminiHttpError extends Error {
+  readonly statusCode?: number
+  readonly retryAfterMs?: number
+
+  constructor(message: string, statusCode?: number, retryAfterMs?: number) {
+    super(message)
+    this.name = 'GeminiHttpError'
+    this.statusCode = statusCode
+    this.retryAfterMs = retryAfterMs
+  }
 }
 
 export class GeminiClient {
   private readonly retryAttempts: number
   private readonly retryBaseDelayMs: number
+  private readonly retryMaxDelayMs: number
+  private readonly retryJitterRatio: number
+  private readonly connectTimeoutMs: number
+  private readonly timeToFirstTokenMs: number
+  private readonly interChunkStallMs: number
+  private readonly overallDeadlineMs: number
+  private readonly circuitBreaker: CircuitBreaker
+  private rateLimitCooldownUntil = 0
+  private consecutiveRateLimitFailures = 0
 
   constructor(options?: GeminiClientOptions) {
-    this.retryAttempts = Math.max(0, options?.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS)
-    this.retryBaseDelayMs = Math.max(0, options?.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS)
+    this.retryAttempts = Math.max(0, options?.retryAttempts ?? RESILIENCE_RETRY_ATTEMPTS)
+    this.retryBaseDelayMs = Math.max(0, options?.retryBaseDelayMs ?? RESILIENCE_RETRY_BASE_DELAY_MS)
+    this.retryMaxDelayMs = Math.max(this.retryBaseDelayMs, options?.retryMaxDelayMs ?? RESILIENCE_RETRY_MAX_DELAY_MS)
+    this.retryJitterRatio = Math.max(0, options?.retryJitterRatio ?? RESILIENCE_RETRY_JITTER_RATIO)
+    this.connectTimeoutMs = Math.max(100, options?.connectTimeoutMs ?? RESILIENCE_CONNECT_TIMEOUT_MS)
+    this.timeToFirstTokenMs = Math.max(100, options?.timeToFirstTokenMs ?? RESILIENCE_TIME_TO_FIRST_TOKEN_MS)
+    this.interChunkStallMs = Math.max(100, options?.interChunkStallMs ?? RESILIENCE_INTER_CHUNK_STALL_MS)
+    this.overallDeadlineMs = Math.max(this.connectTimeoutMs, options?.overallDeadlineMs ?? RESILIENCE_OVERALL_DEADLINE_MS)
+    this.circuitBreaker = new CircuitBreaker(options?.failureThreshold ?? RESILIENCE_FAILURE_THRESHOLD, options?.openCooldownMs ?? RESILIENCE_OPEN_COOLDOWN_MS)
   }
 
   async chat(
@@ -45,8 +161,8 @@ export class GeminiClient {
     try {
       const config = this.normalizeConfig(savedConfig, payload.config)
 
-      if (!config.apiKey) {
-        throw new Error('کلید API هوش مصنوعی تنظیم نشده است. لطفاً در بخش تنظیمات آن را وارد کنید.')
+      if (!config.apiKey || config.apiKey.startsWith('accassist:enc:v1:')) {
+        throw new Error('کلید API هوش مصنوعی تنظیم نشده یا قابل خواندن نیست. لطفاً در تب تنظیمات کلید را دوباره وارد و ذخیره کنید.')
       }
 
       if (payload.messages.length === 0) {
@@ -71,6 +187,10 @@ export class GeminiClient {
     }
   }
 
+  getCircuitBreakerSnapshot() {
+    return this.circuitBreaker.snapshot()
+  }
+
   private async chatOpenAi(
     payload: GeminiChatRequest,
     config: GeminiConfig,
@@ -84,6 +204,8 @@ export class GeminiClient {
     }
 
     const url = this.buildOpenAiUrl(config.baseUrl)
+
+    this.assertCircuitClosed()
 
     const raw = await this.withRetry(
       () =>
@@ -105,7 +227,7 @@ export class GeminiClient {
               stream: false
             })
           },
-          DEFAULT_TIMEOUT_MS,
+          this.connectTimeoutMs,
           streamOptions?.signal
         ),
       'request'
@@ -129,7 +251,8 @@ export class GeminiClient {
     }
 
     const url = this.buildOpenAiUrl(config.baseUrl)
-    const abortRuntime = this.createAbortRuntimeContext(DEFAULT_TIMEOUT_MS, streamOptions.signal)
+    this.assertCircuitClosed()
+    const abortRuntime = this.createAbortRuntimeContext(this.connectTimeoutMs, this.overallDeadlineMs, streamOptions.signal)
 
     try {
       const response = await this.withRetry(
@@ -156,11 +279,13 @@ export class GeminiClient {
 
       if (!response.ok) {
         const text = await response.text()
-        const payload = this.tryJsonParse(text)
-        const requestId = response.headers.get('x-request-id') || response.headers.get('request-id')
-        const detail = this.extractProxyError(payload)
-        const requestPart = requestId ? `, requestId=${requestId}` : ''
-        throw new Error(`Gemini API request failed (${response.status}${requestPart}): ${detail}`)
+        const normalized = this.normalizeUpstreamError(response.status, response.headers, text)
+        const retryAfterMs = this.parseRetryAfterMs(response.headers.get('retry-after'))
+        throw new GeminiHttpError(
+          `Gemini API request failed (${response.status}${normalized.requestId ? `, requestId=${normalized.requestId}` : ''}): ${normalized.message}`,
+          response.status,
+          retryAfterMs
+        )
       }
 
       if (!response.body) {
@@ -168,7 +293,8 @@ export class GeminiClient {
       }
 
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
+      const decoder = new TextDecoder('utf-8', { fatal: false })
+      abortRuntime.onResponseHeaders()
       const rawChunks: unknown[] = []
       const textChunks: string[] = []
       const toolCallsByIndex = new Map<number, GeminiToolCall>()
@@ -182,7 +308,11 @@ export class GeminiClient {
           break
         }
 
-        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+        const chunkText = this.normalizeStreamText(decoder.decode(value, { stream: true }))
+        if (chunkText) {
+          abortRuntime.markChunkReceived()
+        }
+        buffer += chunkText
 
         let delimiterIndex = buffer.indexOf('\n\n')
 
@@ -210,7 +340,7 @@ export class GeminiClient {
         }
       }
 
-      buffer += decoder.decode().replace(/\r\n/g, '\n')
+      buffer += this.normalizeStreamText(decoder.decode())
 
       const trailingPayload = this.extractSseDataPayload(buffer.trim())
       if (trailingPayload) {
@@ -256,7 +386,7 @@ export class GeminiClient {
           throw new Error('درخواست هوش مصنوعی توسط کاربر لغو شد.')
         }
 
-        throw new Error(`زمان انتظار برای هوش مصنوعی به پایان رسید (${DEFAULT_TIMEOUT_MS} میلی‌ثانیه). وضعیت شبکه یا فیلترشکن خود را بررسی کنید.`)
+        throw new Error(`زمان انتظار برای هوش مصنوعی به پایان رسید (${this.overallDeadlineMs} میلی‌ثانیه). وضعیت شبکه یا فیلترشکن خود را بررسی کنید.`)
       }
 
       if (error instanceof Error) {
@@ -284,6 +414,9 @@ export class GeminiClient {
     if (lower.includes('500') || lower.includes('internal server error')) {
       return 'خطای سرور سرویس‌دهنده هوش مصنوعی.'
     }
+    if (lower.includes('503') || lower.includes('service unavailable')) {
+      return 'سرویس هوش مصنوعی موقتاً در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.'
+    }
     if (lower.includes('econnrefused') || lower.includes('enotfound')) {
       return 'خطای دسترسی به شبکه. لطفاً اتصال اینترنت یا آدرس Base URL را بررسی کنید.'
     }
@@ -292,65 +425,141 @@ export class GeminiClient {
 
   private async withRetry<T>(operation: () => Promise<T>, operationKind: 'request' | 'stream'): Promise<T> {
     let lastError: unknown
+    let lastDecision: RetryDecision | null = null
+
+    await this.waitForRateLimitCooldown()
 
     for (let attempt = 0; attempt <= this.retryAttempts; attempt += 1) {
       try {
-        return await operation()
+        const result = await operation()
+        this.circuitBreaker.recordSuccess()
+        this.consecutiveRateLimitFailures = 0
+        return result
       } catch (error) {
         lastError = error
+        lastDecision = this.classifyRetryDecision(error)
 
-        if (attempt >= this.retryAttempts || !this.isRetryableError(error)) {
+        if (this.shouldRecordCircuitFailure(error)) {
+          this.circuitBreaker.recordFailure()
+        }
+
+        if (lastDecision === 'CIRCUIT_OPEN' || lastDecision === 'USER_ABORT' || lastDecision === 'TERMINAL_CLIENT' || lastDecision === 'TERMINAL_UPSTREAM') {
           break
         }
 
-        await this.sleep(this.retryBaseDelayMs * (attempt + 1))
+        if (attempt >= this.retryAttempts) {
+          break
+        }
+
+        const retryDelayMs = this.computeRetryDelayMs(error, attempt)
+        await this.sleep(retryDelayMs)
+      }
+    }
+
+    if (this.isRateLimitedError(lastError)) {
+      this.consecutiveRateLimitFailures += 1
+      if (this.consecutiveRateLimitFailures >= 2) {
+        const cooldownMs = Math.min(
+          RESILIENCE_MAX_RATE_LIMIT_COOLDOWN_MS,
+          Math.max(this.computeRetryDelayMs(lastError, this.retryAttempts), this.retryBaseDelayMs * 4)
+        )
+        this.rateLimitCooldownUntil = Date.now() + cooldownMs
       }
     }
 
     if (lastError instanceof Error) {
-      throw new Error(
-        this.decorateRetryFailureMessage(lastError.message, operationKind)
-      )
+      throw new Error(this.decorateRetryFailureMessage(lastError.message, operationKind, lastDecision ?? undefined))
     }
 
     throw lastError
   }
 
-  private isRetryableError(error: unknown): boolean {
+  private classifyRetryDecision(error: unknown): RetryDecision {
+    if (error instanceof GeminiHttpError && typeof error.statusCode === 'number') {
+      if (error.statusCode === 429) return 'RETRYABLE_TRANSIENT'
+      if (error.statusCode >= 400 && error.statusCode < 500) return 'TERMINAL_CLIENT'
+      if (error.statusCode >= 500 && error.statusCode < 600) return 'TERMINAL_UPSTREAM'
+    }
+
+    if (!(error instanceof Error)) {
+      return 'TERMINAL_CLIENT'
+    }
+
+    const lower = error.message.toLowerCase()
+    if (lower.includes('provider-circuit-open') || lower.includes('circuit open')) {
+      return 'CIRCUIT_OPEN'
+    }
+    if (lower.includes('cancel') || lower.includes('user abort')) {
+      return 'USER_ABORT'
+    }
+    if (lower.includes('429') || lower.includes('too many requests') || lower.includes('rate limit')) {
+      return 'RETRYABLE_TRANSIENT'
+    }
+    if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('timeout') || lower.includes('network') || lower.includes('fetch failed') || lower.includes('ehostunreach') || lower.includes('econnrefused')) {
+      return 'RETRYABLE_TRANSIENT'
+    }
+    if (lower.includes('500') || lower.includes('502') || lower.includes('503') || lower.includes('504')) {
+      return 'TERMINAL_UPSTREAM'
+    }
+    return 'TERMINAL_CLIENT'
+  }
+
+  private shouldRecordCircuitFailure(error: unknown): boolean {
+    if (error instanceof GeminiHttpError && typeof error.statusCode === 'number') {
+      if (error.statusCode === 429) {
+        return false
+      }
+      return error.statusCode >= 500
+    }
+
+    if (!(error instanceof Error)) return false
+    const lower = error.message.toLowerCase()
+    return lower.includes('502') || lower.includes('503') || lower.includes('504') || lower.includes('econnreset') || lower.includes('ehostunreach') || lower.includes('fetch failed') || lower.includes('timeout') || lower.includes('ttft') || lower.includes('stall') || lower.includes('deadline')
+  }
+
+  private computeRetryDelayMs(error: unknown, attempt: number): number {
+    if (error instanceof GeminiHttpError && typeof error.retryAfterMs === 'number' && error.retryAfterMs > 0) {
+      return Math.min(this.retryMaxDelayMs, error.retryAfterMs)
+    }
+
+    const base = this.retryBaseDelayMs * Math.pow(2, attempt)
+    const jitterFactor = 1 + (Math.random() * 2 - 1) * this.retryJitterRatio
+    return Math.min(this.retryMaxDelayMs, Math.max(0, Math.floor(base * jitterFactor)))
+  }
+
+  private isRateLimitedError(error: unknown): boolean {
+    if (error instanceof GeminiHttpError && error.statusCode === 429) {
+      return true
+    }
+
     if (!(error instanceof Error)) {
       return false
     }
 
     const lower = error.message.toLowerCase()
-    // Fast-fail for 5xx server errors: do not retry upstream failures
-    if (lower.includes('(500') || lower.includes('(502') || lower.includes('(503') || lower.includes('(504')) {
-      return false
-    }
-
-    return (
-      lower.includes('(429') ||
-      lower.includes('too many requests') ||
-      lower.includes('econnreset') ||
-      lower.includes('etimedout') ||
-      lower.includes('timeout') ||
-      lower.includes('network') ||
-      lower.includes('fetch failed') ||
-      lower.includes('ehostunreach') ||
-      lower.includes('econnrefused')
-    )
+    return lower.includes('(429') || lower.includes('too many requests') || lower.includes('rate limit')
   }
 
-  private decorateRetryFailureMessage(message: string, operationKind: 'request' | 'stream'): string {
+  private async waitForRateLimitCooldown(): Promise<void> {
+    const cooldownRemainingMs = this.rateLimitCooldownUntil - Date.now()
+    if (cooldownRemainingMs > 0) {
+      await this.sleep(cooldownRemainingMs)
+    }
+  }
+
+  private decorateRetryFailureMessage(message: string, operationKind: 'request' | 'stream', failureClass?: RetryDecision): string {
     const suffix =
       this.retryAttempts > 0
         ? ` پس از ${this.retryAttempts + 1} تلاش ناموفق`
         : ''
 
+    const classSuffix = failureClass ? ` [${failureClass}]` : ''
+
     if (operationKind === 'stream') {
-      return `خطای ارتباط با هوش مصنوعی (stream): ${message}${suffix}`
+      return `خطای ارتباط با هوش مصنوعی (stream): ${message}${classSuffix}${suffix}`
     }
 
-    return `خطای ارتباط با هوش مصنوعی: ${message}${suffix}`
+    return `خطای ارتباط با هوش مصنوعی: ${message}${classSuffix}${suffix}`
   }
 
   private async sleep(ms: number): Promise<void> {
@@ -361,6 +570,14 @@ export class GeminiClient {
     await new Promise<void>((resolve) => {
       setTimeout(resolve, ms)
     })
+  }
+
+  private normalizeStreamText(text: string): string {
+    return text
+      .replace(/\uFEFF/g, '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\u0000/g, '')
+      .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, ' ')
   }
 
   private extractOpenAiText(raw: unknown): string {
@@ -659,13 +876,57 @@ export class GeminiClient {
     }
   }
 
+  private assertCircuitClosed(): void {
+    const gate = this.circuitBreaker.beforeRequest()
+    if (!gate.allowed) {
+      throw new Error('سرویس هوش مصنوعی موقتاً در دسترس نیست؛ چند لحظه دیگر تلاش کنید.')
+    }
+  }
+
+  private normalizeUpstreamError(status: number, headers: Headers, rawBody: string): { message: string; requestId?: string; contentType?: string } {
+    const requestId = headers.get('x-request-id') || headers.get('request-id') || undefined
+    const contentType = headers.get('content-type') || undefined
+    const trimmed = rawBody.trim()
+
+    try {
+      if (contentType?.includes('application/json') || (trimmed.startsWith('{') || trimmed.startsWith('['))) {
+        const parsed = this.tryJsonParse(rawBody)
+        if (parsed && typeof parsed === 'object') {
+          const data = parsed as { error?: { message?: unknown }; message?: unknown; detail?: unknown }
+          const extracted = typeof data.error?.message === 'string' ? data.error.message : typeof data.message === 'string' ? data.message : typeof data.detail === 'string' ? data.detail : ''
+          if (extracted) {
+            return { message: extracted.slice(0, 200), requestId, contentType }
+          }
+        }
+      }
+
+      if (trimmed.startsWith('<') || contentType?.includes('text/html')) {
+        return { message: `upstream-html-error status=${status}${requestId ? ` requestId=${requestId}` : ''}`, requestId, contentType }
+      }
+
+      const fallback = this.sanitizeErrorText(rawBody)
+      return { message: fallback || `upstream-error status=${status}`, requestId, contentType }
+    } catch {
+      return { message: `upstream-error status=${status}${requestId ? ` requestId=${requestId}` : ''}`, requestId, contentType }
+    }
+  }
+
+  private sanitizeErrorText(text: string): string {
+    return text
+      .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200)
+  }
+
   private async requestJson(
     url: string,
     init: RequestInit,
     timeoutMs: number,
     externalSignal?: AbortSignal
   ): Promise<unknown> {
-    const abortRuntime = this.createAbortRuntimeContext(timeoutMs, externalSignal)
+    const abortRuntime = this.createAbortRuntimeContext(timeoutMs, this.overallDeadlineMs, externalSignal)
 
     try {
       const response = await fetch(url, {
@@ -677,10 +938,13 @@ export class GeminiClient {
       const payload = this.tryJsonParse(text)
 
       if (!response.ok) {
-        const requestId = response.headers.get('x-request-id') || response.headers.get('request-id')
-        const detail = this.extractProxyError(payload)
-        const requestPart = requestId ? `, requestId=${requestId}` : ''
-        throw new Error(`Gemini API request failed (${response.status}${requestPart}): ${detail}`)
+        const normalized = this.normalizeUpstreamError(response.status, response.headers, text)
+        const retryAfterMs = this.parseRetryAfterMs(response.headers.get('retry-after'))
+        throw new GeminiHttpError(
+          `Gemini API request failed (${response.status}${normalized.requestId ? `, requestId=${normalized.requestId}` : ''}): ${normalized.message}`,
+          response.status,
+          retryAfterMs
+        )
       }
 
       return payload
@@ -703,14 +967,21 @@ export class GeminiClient {
     }
   }
 
-  private createAbortRuntimeContext(timeoutMs: number, externalSignal?: AbortSignal): AbortRuntimeContext {
+  private createAbortRuntimeContext(connectTimeoutMs: number, overallDeadlineMs: number, externalSignal?: AbortSignal): AbortRuntimeContext {
     const controller = new AbortController()
-    let didTimeout = false
     let didExternalAbort = false
+    let connectTimer: ReturnType<typeof setTimeout> | undefined
+    let ttftTimer: ReturnType<typeof setTimeout> | undefined
+    let interChunkTimer: ReturnType<typeof setTimeout> | undefined
+    let firstChunkSeen = false
+
+    const abortWithReason = (reason: string): void => {
+      controller.abort(reason)
+    }
 
     const onExternalAbort = (): void => {
       didExternalAbort = true
-      controller.abort(externalSignal?.reason)
+      abortWithReason('user-abort')
     }
 
     if (externalSignal) {
@@ -721,66 +992,41 @@ export class GeminiClient {
       }
     }
 
-    const timeout = setTimeout(() => {
-      didTimeout = true
-      controller.abort()
-    }, timeoutMs)
+    connectTimer = setTimeout(() => abortWithReason('connect-timeout'), connectTimeoutMs)
+    const overallTimer = setTimeout(() => abortWithReason('deadline-timeout'), overallDeadlineMs)
 
     return {
       signal: controller.signal,
-      didExternalAbort: () => didExternalAbort && !didTimeout,
-      dispose: () => {
-        clearTimeout(timeout)
+      didExternalAbort: () => didExternalAbort,
+      onResponseHeaders: () => {
+        if (ttftTimer) return
+        ttftTimer = setTimeout(() => abortWithReason('ttft-timeout'), this.timeToFirstTokenMs)
+      },
+      markChunkReceived: () => {
+        if (!firstChunkSeen) {
+          firstChunkSeen = true
+          if (ttftTimer) {
+            clearTimeout(ttftTimer)
+            ttftTimer = undefined
+          }
+        }
 
+        if (interChunkTimer) {
+          clearTimeout(interChunkTimer)
+        }
+
+        interChunkTimer = setTimeout(() => abortWithReason('stall-timeout'), this.interChunkStallMs)
+      },
+      dispose: () => {
+        if (connectTimer) clearTimeout(connectTimer)
+        if (ttftTimer) clearTimeout(ttftTimer)
+        if (interChunkTimer) clearTimeout(interChunkTimer)
+        clearTimeout(overallTimer)
         if (externalSignal) {
           externalSignal.removeEventListener('abort', onExternalAbort)
         }
       }
     }
-  }
-
-  private extractProxyError(payload: unknown): string {
-    if (typeof payload === 'string') {
-      return payload
-    }
-
-    if (!payload || typeof payload !== 'object') {
-      return 'Unknown proxy error'
-    }
-
-    const data = payload as {
-      message?: unknown
-      detail?: unknown
-      error?: unknown
-    }
-
-    if (typeof data.message === 'string') {
-      return data.message
-    }
-
-    if (typeof data.detail === 'string') {
-      return data.detail
-    }
-
-    if (typeof data.error === 'string') {
-      return data.error
-    }
-
-    if (data.error && typeof data.error === 'object') {
-      const nested = data.error as {
-        message?: unknown
-        code?: unknown
-      }
-
-      const message = typeof nested.message === 'string' ? nested.message : ''
-      const code = typeof nested.code === 'string' ? ` (${nested.code})` : ''
-
-      if (message) {
-        return `${message}${code}`
-      }
-    }
-
-    return JSON.stringify(payload)
   }
 
   private tryJsonParse(text: string): unknown {
@@ -803,6 +1049,29 @@ export class GeminiClient {
     }
 
     return `${normalized}/chat/completions`
+  }
+
+  private parseRetryAfterMs(headerValue: string | null): number | undefined {
+    if (!headerValue) {
+      return undefined
+    }
+
+    const trimmed = headerValue.trim()
+    if (!trimmed) {
+      return undefined
+    }
+
+    const seconds = Number.parseInt(trimmed, 10)
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000
+    }
+
+    const retryAt = Date.parse(trimmed)
+    if (Number.isNaN(retryAt)) {
+      return undefined
+    }
+
+    return Math.max(0, retryAt - Date.now())
   }
 
 }

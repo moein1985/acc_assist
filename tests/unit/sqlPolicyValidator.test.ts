@@ -3,9 +3,13 @@ import { test } from 'node:test'
 
 import { SqlConnectionManager, SqlPolicyViolationError } from '../../src/main/services/sqlConnectionManager'
 
-function validateReadOnlyQuery(query: string, scope: 'generic' | 'agent-data' | 'metadata' | 'discovery'): string {
+function validateReadOnlyQuery(
+  query: string,
+  scope: 'generic' | 'agent-data' | 'metadata' | 'discovery',
+  options?: Record<string, unknown>
+): string {
   const manager = new SqlConnectionManager()
-  return (manager as any).validateReadOnlyQuery(query, scope) as string
+  return (manager as any).validateReadOnlyQuery(query, scope, options) as string
 }
 
 test('accepts aggregated SELECT without TOP', () => {
@@ -125,6 +129,55 @@ test('rejects multiple SQL statements', () => {
     (error: unknown) => {
       assert.ok(error instanceof SqlPolicyViolationError)
       assert.equal(error.code, 'SQL_POLICY_MULTI_STATEMENT')
+      return true
+    }
+  )
+})
+
+test('accepts Golden 5 fast-path SQL without invoking the parser', () => {
+  const manager = new SqlConnectionManager()
+  const originalAstify = (manager as any).sqlParser.astify.bind((manager as any).sqlParser)
+  ;(manager as any).sqlParser.astify = () => {
+    throw new Error('parser should not be called for Golden 5 fast path')
+  }
+
+  try {
+    const validated = validateReadOnlyQuery(
+      'SELECT fiscal_year FROM documents WHERE fiscal_year = 1403 ORDER BY fiscal_year',
+      'agent-data',
+      {
+        goldenFastPathMeta: {
+          id: 'count_fiscal_years',
+          targetTables: ['documents'],
+          requiredScopeFilters: ['fiscal_year'],
+          aggregate: 'COUNT(DISTINCT fiscal_year)',
+          projection: ['fiscal_year']
+        }
+      }
+    )
+
+    assert.equal(validated, 'SELECT fiscal_year FROM documents WHERE fiscal_year = 1403 ORDER BY fiscal_year')
+  } finally {
+    ;(manager as any).sqlParser.astify = originalAstify
+  }
+})
+
+test('rejects Golden 5 fast-path SQL that misses the mandatory scope filter', () => {
+  assert.throws(
+    () => {
+      validateReadOnlyQuery('SELECT fiscal_year FROM documents ORDER BY fiscal_year', 'agent-data', {
+        goldenFastPathMeta: {
+          id: 'count_fiscal_years',
+          targetTables: ['documents'],
+          requiredScopeFilters: ['fiscal_year'],
+          aggregate: 'COUNT(DISTINCT fiscal_year)',
+          projection: ['fiscal_year']
+        }
+      })
+    },
+    (error: unknown) => {
+      assert.ok(error instanceof SqlPolicyViolationError)
+      assert.equal(error.code, 'SQL_POLICY_SCOPE_FILTER_MISSING')
       return true
     }
   )

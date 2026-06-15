@@ -355,6 +355,16 @@ export interface AgentSendMessageResult {
   toolCallsUsed: number
 }
 
+export type AgentProgressPhase =
+  | 'planning'
+  | 'tool-running'
+  | 'evidence-ready'
+  | 'answer'
+  | 'network-degraded'
+  | 'provider-circuit-open'
+  | 'loop-aborted'
+  | 'cancelled'
+
 export type AgentProgressEventType =
   | 'thinking'
   | 'response-chunk'
@@ -363,6 +373,13 @@ export type AgentProgressEventType =
   | 'tool-success'
   | 'tool-error'
   | 'final'
+  | 'planning'
+  | 'tool-running'
+  | 'evidence-ready'
+  | 'answer'
+  | 'network-degraded'
+  | 'provider-circuit-open'
+  | 'loop-aborted'
 
 export interface AgentEvidencePreview {
   queryPreview?: string
@@ -374,14 +391,19 @@ export interface AgentEvidencePreview {
 
 export interface AgentProgressEvent {
   type: AgentProgressEventType
+  phase?: AgentProgressPhase
   message: string
   toolName?: string
   toolCallId?: string
   args?: Record<string, unknown>
   rowCount?: number
   evidencePreview?: AgentEvidencePreview
+  evidence?: AgentEvidencePreview
   errorCode?: string
   errorCategory?: string
+  recoverable?: boolean
+  suggestedActions?: string[]
+  msUntilRetry?: number
 }
 
 export interface AgentProgressEnvelope {

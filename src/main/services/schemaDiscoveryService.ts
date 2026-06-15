@@ -20,6 +20,7 @@ const SAMPLE_ROW_LIMIT = 3
 const MAX_SUGGESTION_COUNT_PER_CONCEPT = 5
 const MAX_DATE_EVIDENCE_ITEMS = 6
 const MAX_DISCOVERY_SCHEMA_ROWS = MAX_TABLES * MAX_COLUMNS_PER_TABLE
+const SCHEMA_DISCOVERY_CACHE_TTL_MS = 15 * 60 * 1000
 
 type SqlExecutor = (query: string) => Promise<SqlQueryRow[]>
 
@@ -133,6 +134,9 @@ INNER JOIN sys.columns rc
 ORDER BY ps.name, pt.name, fkc.constraint_column_id`
 
 export class SchemaDiscoveryService {
+  private readonly catalogCache = new Map<string, { catalog: SchemaCatalogEntry; fetchedAt: number }>()
+  private readonly inFlightCatalogRequests = new Map<string, Promise<SchemaCatalogEntry>>()
+
   async discoverCatalog(params: {
     profileId: string
     databaseName: string
@@ -147,6 +151,45 @@ export class SchemaDiscoveryService {
     if (!profileId) {
       throw new Error('شناسه پروفایل (Profile ID) برای کشف ساختار الزامی است.')
     }
+
+    const cacheKey = this.buildCatalogCacheKey(profileId, params.databaseName, softwareOverrideId)
+    const cached = this.catalogCache.get(cacheKey)
+    if (cached && Date.now() - cached.fetchedAt < SCHEMA_DISCOVERY_CACHE_TTL_MS) {
+      return cached.catalog
+    }
+
+    const inflight = this.inFlightCatalogRequests.get(cacheKey)
+    if (inflight) {
+      return inflight
+    }
+
+    const request = this.discoverCatalogInternal({
+      profileId,
+      databaseName: params.databaseName,
+      softwareOverrideId,
+      previousSelectedMappings: params.previousSelectedMappings,
+      executeSql
+    }).finally(() => {
+      this.inFlightCatalogRequests.delete(cacheKey)
+    })
+
+    this.inFlightCatalogRequests.set(cacheKey, request)
+
+    const catalog = await request
+    this.catalogCache.set(cacheKey, { catalog, fetchedAt: Date.now() })
+    return catalog
+  }
+
+  private async discoverCatalogInternal(params: {
+    profileId: string
+    databaseName: string
+    softwareOverrideId?: AccountingSoftwareId | null
+    previousSelectedMappings?: SchemaConceptSelections
+    executeSql: SqlExecutor
+  }): Promise<SchemaCatalogEntry> {
+    const profileId = params.profileId.trim()
+    const softwareOverrideId = this.normalizeSoftwareId(params.softwareOverrideId)
+    const executeSql = params.executeSql
 
     const serverInfoRows = await executeSql(SERVER_INFO_QUERY)
     const serverInfo = serverInfoRows[0] ?? {}
@@ -695,6 +738,14 @@ export class SchemaDiscoveryService {
     }
 
     return text
+  }
+
+  private buildCatalogCacheKey(
+    profileId: string,
+    databaseName: string,
+    softwareOverrideId: AccountingSoftwareId | null
+  ): string {
+    return `${profileId.trim().toLowerCase()}::${databaseName.trim().toLowerCase()}::${softwareOverrideId ?? 'auto'}`
   }
 
   private normalizeSoftwareId(value: unknown): AccountingSoftwareId | null {

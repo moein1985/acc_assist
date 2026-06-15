@@ -67,9 +67,11 @@ const SYSTEM_PROMPT = [
   RESPONSE_POLICY_GUIDE
 ].join('\n\n')
 
-const MAX_TOOL_CALL_ROUNDS = 8
+// Budget arithmetic: 4 rounds × 4 calls/round = 16 possible tool calls, but the
+// MVP path keeps the real execution cap at 8 total tool calls to avoid runaway token bleed.
+const MAX_TOOL_CALL_ROUNDS = 4
 const MAX_TOOL_CALLS_PER_ROUND = 4
-const MAX_TOTAL_TOOL_CALLS = 15
+const MAX_TOTAL_TOOL_CALLS = 8
 const MAX_CHAT_HISTORY = 28
 const MAX_HISTORY_SUMMARY_USERS = 6
 const MAX_HISTORY_SUMMARY_ASSISTANT = 4
@@ -442,7 +444,8 @@ export class AgentOrchestrator {
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
   private readonly schemaCacheByTableKey = new Map<string, { schema: SchemaColumnCatalogItem[]; timestamp: number }>()
-  private readonly SCHEMA_CACHE_TTL_MS = 60000
+  private readonly schemaTableListCache = new Map<string, { rows: SqlQueryRow[]; timestamp: number }>()
+  private readonly SCHEMA_CACHE_TTL_MS = 900000
 
   constructor(deps: AgentOrchestratorDeps) {
     this.geminiClient = deps.geminiClient
@@ -801,11 +804,16 @@ export class AgentOrchestrator {
       for (let round = 0; round < MAX_TOOL_CALL_ROUNDS; round += 1) {
         this.throwIfRequestCanceled(execution.abortController.signal)
 
+        const isFinalRound = round === MAX_TOOL_CALL_ROUNDS - 1
+        const finalRoundPrompt = isFinalRound
+          ? `${runtimeSystemPrompt}\n\nThis is the final tool round. If the required data is still missing, answer with the best partial result and explicitly state what is missing.`
+          : runtimeSystemPrompt
+
         const response = await this.geminiClient.chat(
           {
-            messages: [{ role: 'system', content: runtimeSystemPrompt }, ...workingHistory],
+            messages: [{ role: 'system', content: finalRoundPrompt }, ...workingHistory],
             temperature: 0.2,
-            tools: FINANCIAL_TOOLS
+            tools: isFinalRound ? undefined : FINANCIAL_TOOLS
           },
           settings.gemini,
           {
@@ -936,6 +944,16 @@ export class AgentOrchestrator {
           }
         }
 
+        if (isFinalRound) {
+          this.emitProgress(onProgress, {
+            type: 'tool-error',
+            message: '⚠️ این آخرین دور ابزار است؛ خروجی فعلی به‌عنوان نتیجه جزئی بازگردانده می‌شود.',
+            errorCode: 'AGENT_LOOP_BUDGET_EXHAUSTED',
+            errorCategory: 'orchestration-control'
+          })
+          break
+        }
+
         this.emitProgress(onProgress, {
           type: 'thinking',
           message: 'هوش مصنوعی در حال استخراج داده از دیتابیس است...'
@@ -963,7 +981,39 @@ export class AgentOrchestrator {
         workingHistory = this.compactHistory([...workingHistory, ...toolExecution.toolMessages], conversationMemory)
       }
 
-      throw new Error('Tool-call loop exceeded limit. Try a simpler question or narrower date range.')
+      const finalText = this.buildExhaustionFallbackAnswer(prompt, workingHistory, totalToolCallCount, totalSuccessfulDataFetches)
+      this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+      const finalHistory = this.compactHistory([ ...workingHistory, { role: 'assistant', content: finalText } ], conversationMemory)
+
+      this.emitProgress(onProgress, {
+        type: 'tool-error',
+        message: '⚠️ محدودیت دورهای ابزار به پایان رسید؛ پاسخ جزئی با جزئیات موجود بازگردانده شد.',
+        errorCode: 'AGENT_LOOP_BUDGET_EXHAUSTED',
+        errorCategory: 'orchestration-control'
+      })
+
+      await this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId,
+        conversationId,
+        stage: 'error',
+        durationMs: Date.now() - startedAt,
+        error: 'AGENT_LOOP_BUDGET_EXHAUSTED',
+        errorCode: 'AGENT_LOOP_BUDGET_EXHAUSTED',
+        errorCategory: 'orchestration-control'
+      })
+
+      this.emitProgress(onProgress, {
+        type: 'final',
+        message: finalText
+      })
+
+      return {
+        history: finalHistory,
+        finalText,
+        rounds: MAX_TOOL_CALL_ROUNDS,
+        toolCallsUsed: totalToolCallCount
+      }
     } catch (error) {
       const resolvedError = this.resolveCancellationError(error, execution.abortController.signal)
       const errorInfo = this.toErrorInfo(resolvedError)
@@ -1046,8 +1096,9 @@ export class AgentOrchestrator {
       try {
         if (toolName === 'list_database_tables') {
           const tablePattern = this.readOptionalStringArg(args, 'table_pattern', 256)
+          const cachedRows = this.getCachedTableList(tablePattern)
           const sqlQuery = this.buildListDatabaseTablesQuery(tablePattern)
-          const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
+          const rows = cachedRows ?? await this.fetchTableListWithCache(sqlQuery, abortSignal)
           this.throwIfRequestCanceled(abortSignal)
           this.rememberToolTrace(
             conversationMemory,
@@ -1096,8 +1147,9 @@ export class AgentOrchestrator {
 
         if (toolName === 'fetch_financial_data') {
           const sqlQuery = this.readRequiredStringArg(args, 'sql_query', 16000)
-          this.ensureFinancialQueryAllowed(sqlQuery, settings, conversationMemory)
-          const rows = await this.executeReadOnlySql(sqlQuery, abortSignal)
+          const prevalidatedSql = this.prevalidateFinancialQuery(sqlQuery, settings)
+          this.ensureFinancialQueryAllowed(prevalidatedSql, settings, conversationMemory)
+          const rows = await this.executeReadOnlySql(prevalidatedSql, abortSignal)
           successfulDataFetches += 1
           this.throwIfRequestCanceled(abortSignal)
           this.rememberToolTrace(
@@ -1117,7 +1169,7 @@ export class AgentOrchestrator {
               ? ' | خروجی برای مدل خلاصه شد.'
               : ''
           const evidencePreview = this.createEvidencePreview(
-            sqlQuery,
+            prevalidatedSql,
             limitedRows.rows,
             rows.length,
             outputTruncated
@@ -1210,10 +1262,10 @@ export class AgentOrchestrator {
           }
           
           const sqlQuery = this.buildDatabaseSchemaQuery(tableName, schemaName)
-          const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
+          const cachedSchema = await this.getCachedSchemaSnapshot(cacheKey, sqlQuery, abortSignal)
+          const rows = cachedSchema.rows
           this.throwIfRequestCanceled(abortSignal)
-          
-          // Cache the schema columns for this table
+
           const schemaColumns: SchemaColumnCatalogItem[] = rows.map((row) => {
             const colName = row['column_name']
             const dataType = row['data_type']
@@ -2503,6 +2555,216 @@ export class AgentOrchestrator {
     return tableRef.trim().toLowerCase()
   }
 
+  private toStringValue(value: unknown, fallback = ''): string {
+    if (typeof value === 'string') {
+      return value
+    }
+
+    if (value == null) {
+      return fallback
+    }
+
+    return String(value)
+  }
+
+  private getCachedTableList(tablePattern?: string | null): SqlQueryRow[] | null {
+    const entry = this.schemaTableListCache.get('all')
+
+    if (!entry || Date.now() - entry.timestamp > this.SCHEMA_CACHE_TTL_MS) {
+      return null
+    }
+
+    const pattern = (tablePattern ?? '').trim().toLowerCase()
+
+    if (!pattern) {
+      return [...entry.rows]
+    }
+
+    return entry.rows.filter((row) => {
+      const tableName = this.toStringValue(row['table_name'], this.toStringValue(row['name'], ''))
+      return tableName.toLowerCase().includes(pattern)
+    })
+  }
+
+  private async fetchTableListWithCache(sqlQuery: string, abortSignal: AbortSignal): Promise<SqlQueryRow[]> {
+    const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
+    this.schemaTableListCache.set('all', { rows, timestamp: Date.now() })
+    return rows
+  }
+
+  private prevalidateFinancialQuery(sqlQuery: string, settings: AppSettings): string {
+    const activeCatalog = this.findActiveSchemaCatalog(settings)
+
+    if (!activeCatalog) {
+      return sqlQuery
+    }
+
+    let rewritten = sqlQuery
+
+    const identifierPattern = /\b(?:\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\b/g
+
+    for (const table of activeCatalog.tables) {
+      const tableName = table.tableName.trim()
+      const schemaName = table.schemaName.trim()
+      const cacheKey = `${schemaName || 'dbo'}.${tableName}`
+      const cachedColumnList = this.schemaCacheByTableKey.get(cacheKey)
+      const availableColumns = cachedColumnList?.schema.length
+        ? cachedColumnList.schema.map((column) => column.name.trim()).filter(Boolean)
+        : table.columns.map((column) => column.name.trim()).filter(Boolean)
+
+      if (availableColumns.length === 0) {
+        continue
+      }
+
+      const normalizedTableRef = this.normalizeTableReference(`${schemaName}.${tableName}`)
+      const tableRefPattern = new RegExp(`\\b(?:\\[${schemaName}\\]\\.|${schemaName}\\.)?\\[?${tableName}\\]?\\b`, 'gi')
+
+      rewritten = rewritten.replace(tableRefPattern, (match) => match)
+      rewritten = rewritten.replace(identifierPattern, (match) => {
+        const rawName = match.replace(/\[|\]|`/g, '')
+        const canonical = this.resolveColumnNameAlias(rawName, availableColumns)
+
+        if (!canonical || canonical.trim().toLowerCase() === rawName.trim().toLowerCase()) {
+          return match
+        }
+
+        const candidate = canonical.trim().toLowerCase()
+        const normalizedMatch = rawName.trim().toLowerCase()
+
+        if (normalizedMatch === candidate) {
+          return canonical
+        }
+
+        if (availableColumns.some((column) => column.trim().toLowerCase() === normalizedMatch)) {
+          return canonical
+        }
+
+        return match
+      })
+
+      const canonicalTableToken = availableColumns.some((column) => column.toLowerCase() === normalizedTableRef)
+      if (canonicalTableToken) {
+        rewritten = rewritten.replace(new RegExp(`\\b${tableName}\\b`, 'gi'), tableName)
+      }
+    }
+
+    return rewritten
+  }
+
+  private async getCachedSchemaSnapshot(cacheKey: string, sqlQuery: string, abortSignal: AbortSignal): Promise<{ rows: SqlQueryRow[] }> {
+    const cached = this.schemaCacheByTableKey.get(cacheKey)
+
+    if (cached && Date.now() - cached.timestamp < this.SCHEMA_CACHE_TTL_MS) {
+      return {
+        rows: cached.schema.map((col, idx) => ({
+          table_schema: cacheKey.split('.').slice(0, -1).join('.') || 'dbo',
+          table_name: cacheKey.split('.').pop() || '',
+          ordinal_position: String(idx + 1),
+          column_name: col.name,
+          data_type: col.dataType,
+          character_maximum_length: null,
+          numeric_precision: null,
+          numeric_scale: null,
+          datetime_precision: null,
+          is_nullable: col.isNullable ? 1 : 0,
+          is_identity: col.isIdentity ? 1 : 0
+        }))
+      }
+    }
+
+    const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
+    const schemaColumns: SchemaColumnCatalogItem[] = rows.map((row) => {
+      const colName = row['column_name']
+      const dataType = row['data_type']
+      const maxLen = row['character_maximum_length']
+      const isNullable = row['is_nullable']
+      const isIdentity = row['is_identity']
+      return {
+        name: typeof colName === 'string' ? colName : String(colName || ''),
+        dataType: typeof dataType === 'string' ? dataType : 'unknown',
+        isNullable: Boolean(isNullable),
+        maxLength: typeof maxLen === 'number' && maxLen > 0 ? maxLen : null,
+        isIdentity: Boolean(isIdentity),
+        isPrimaryKey: false,
+        hasForeignKey: false,
+        sampleValues: []
+      }
+    })
+
+    this.schemaCacheByTableKey.set(cacheKey, { schema: schemaColumns, timestamp: Date.now() })
+
+    return { rows }
+  }
+
+  normalizeTableReference(tableRef: string): string {
+    return this.normalizeTableRef(tableRef)
+      .replace(/\[|\]|`|"/g, '')
+      .replace(/\s+/g, '')
+  }
+
+  resolveColumnNameAlias(columnName: string, availableColumns: string[]): string {
+    const normalizedTarget = columnName.trim().toLowerCase()
+    const normalizedAvailable = availableColumns.map((entry) => entry.trim().toLowerCase())
+
+    if (normalizedAvailable.includes(normalizedTarget)) {
+      return availableColumns[normalizedAvailable.indexOf(normalizedTarget)]
+    }
+
+    const aliasMap: Record<string, string> = {
+      name: 'Title',
+      title: 'Title',
+      date: 'DocDate',
+      docdate: 'DocDate',
+      doc_date: 'DocDate',
+      documentdate: 'DocDate',
+      document_date: 'DocDate'
+    }
+
+    const alias = aliasMap[normalizedTarget]
+    if (alias && normalizedAvailable.includes(alias.toLowerCase())) {
+      return alias
+    }
+
+    const fuzzy = availableColumns.find((entry) => entry.trim().toLowerCase() === normalizedTarget)
+    if (fuzzy) {
+      return fuzzy
+    }
+
+    return columnName
+  }
+
+  getLoopBudgetSummary(): { maxRounds: number; maxCallsPerRound: number; maxTotalCalls: number } {
+    return {
+      maxRounds: MAX_TOOL_CALL_ROUNDS,
+      maxCallsPerRound: MAX_TOOL_CALLS_PER_ROUND,
+      maxTotalCalls: MAX_TOTAL_TOOL_CALLS
+    }
+  }
+
+  private buildExhaustionFallbackAnswer(
+    prompt: string,
+    _history: GeminiMessage[],
+    toolCallsUsed: number,
+    successfulDataFetches: number
+  ): string {
+    return [
+      '### Summary',
+      'در این دور ابزار، محدودیت ابزار به پایان رسید و پاسخ جزئی بازگردانده شد.',
+      '',
+      '### Findings',
+      `تعداد ابزارهای استفاده‌شده ${toolCallsUsed} و داده‌های موفق استخراج‌شده ${successfulDataFetches} مورد ثبت شد.`,
+      '',
+      '### Evidence',
+      `پرسش کاربر: ${this.compactText(prompt, 220)}`,
+      '',
+      '### Assumptions',
+      'برای ادامه، لازم است پرسش را محدودتر یا با جدول/ستون دقیق‌تر بازفرموله کنید.',
+      '',
+      '### Actions',
+      'پرسش را با نام جدول/ستون دقیق‌تر یا دامنه زمانی محدودتر ارسال کنید.'
+    ].join('\n')
+  }
+
   private buildRuntimeScopeHintLines(activeCatalog: SchemaCatalogEntry): string[] {
     const candidates = this.collectRuntimeScopeColumnCandidates(activeCatalog)
 
@@ -3761,6 +4023,7 @@ ORDER BY fiscal_year DESC`
     const appearsFinancialClaim = this.appearsToContainFinancialClaim(narrative)
     const hasRequiredContractSections = this.hasRequiredFinancialResponseSections(sections)
     const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
+    const requiresStrictFinancialFetch = this.requiresStrictFinancialDataFetch(prompt, narrative)
     const requiresStrictQuantResult = this.requiresStrictQuantitativeDataFetch(prompt)
     const hasQuantitativeResult = this.hasQuantitativeResultSignal(narrative)
     const statesNoData = this.appearsToBeNoDataResult(narrative)
@@ -3786,6 +4049,13 @@ ORDER BY fiscal_year DESC`
       )
     }
 
+    if (requiresStrictFinancialFetch && successfulDataFetchCount === 0) {
+      return this.buildEvidenceContractFailureResponse(
+        'برای پاسخ عددی/مقایسه ای مالی، اجرای موفق fetch_financial_data الزامی است و مسیرهای بدون آن معتبر نیستند.',
+        prompt
+      )
+    }
+
     if (requiresStrictQuantResult && successfulDataFetchCount === 0) {
       return this.buildEvidenceContractFailureResponse(
         'برای سوال درصد رشد/کاهش، پاسخ نهایی بدون اجرای موفق fetch_financial_data مجاز نیست.',
@@ -3801,6 +4071,24 @@ ORDER BY fiscal_year DESC`
     }
 
     return finalText
+  }
+
+  private requiresStrictFinancialDataFetch(prompt: string, narrative: string): boolean {
+    const normalizedPrompt = this.normalizePersianDigits(prompt)
+    const normalizedNarrative = this.normalizePersianDigits(narrative)
+    const hasFinancialContext =
+      this.appearsToContainFinancialClaim(normalizedPrompt) || this.appearsToContainFinancialClaim(normalizedNarrative)
+
+    if (!hasFinancialContext) {
+      return false
+    }
+
+    const hasQuantOrComparativeSignal =
+      /(?:درصد|percent|percentage|رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه|year\s*over\s*year|yoy|total|sum|avg|average|min|max|top|rank|count|تعداد|جمع|مجموع|میانگین|حداقل|حداکثر|بیشترین|کمترین|چه\s*قدر|چقدر|how\s*much)/iu.test(
+        normalizedPrompt
+      ) || /(?:\b\d[\d,.]*\b|[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد)/iu.test(normalizedNarrative)
+
+    return hasQuantOrComparativeSignal
   }
 
   private requiresStrictQuantitativeDataFetch(prompt: string): boolean {
@@ -4279,6 +4567,29 @@ ORDER BY fiscal_year DESC`
       if (scopeRequirements.length > 0) {
         this.ensureRuntimeScopeFilters(sqlQuery, scopeRequirements)
       }
+    }
+
+    this.ensurePersonNameSearchPolicy(sqlQuery)
+  }
+
+  private ensurePersonNameSearchPolicy(sqlQuery: string): void {
+    const normalizedQuery = this.normalizePersianDigits(sqlQuery)
+    const personNameColumnSignal =
+      /(?:\bLastName\b|\bFirstName\b|\bFullName\b|\bPartyName\b|\bPersonName\b|\bCustomerName\b|\bSurname\b|\bFamilyName\b|\bName\b|نام(?:\s*خانوادگی)?|طرف\s*حساب)/iu.test(
+        normalizedQuery
+      )
+
+    if (!personNameColumnSignal) {
+      return
+    }
+
+    const exactNameEqualityPattern =
+      /(?:\b(?:LastName|FirstName|FullName|PartyName|PersonName|CustomerName|Surname|FamilyName|Name)\b\s*=\s*N?'[^']+'|N?'[^']+'\s*=\s*\b(?:LastName|FirstName|FullName|PartyName|PersonName|CustomerName|Surname|FamilyName|Name)\b)/iu
+
+    if (exactNameEqualityPattern.test(normalizedQuery)) {
+      throw new Error(
+        'Exact equality on person name/surname is not allowed. Use robust token-based matching with LIKE and proper Unicode prefixes (N\'...\') for compound names.'
+      )
     }
   }
 

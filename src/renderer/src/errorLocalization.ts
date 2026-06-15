@@ -1,3 +1,29 @@
+import type { AgentProgressEvent } from '../../shared/contracts'
+
+export function localizeAgentFallbackMessage(event: AgentProgressEvent): string {
+  if (event.type === 'network-degraded') {
+    return 'اتصال کند است، در حال تلاش مجدد…'
+  }
+
+  if (event.type === 'provider-circuit-open') {
+    const countdown = typeof event.msUntilRetry === 'number' && event.msUntilRetry > 0
+      ? ` شمارش معکوس ${Math.ceil(event.msUntilRetry / 1000)} ثانیه‌ای تا تلاش مجدد فعال می‌شود.`
+      : ''
+
+    return `سرویس هوش مصنوعی موقتاً در دسترس نیست.${countdown}`
+  }
+
+  if (event.type === 'loop-aborted') {
+    return 'حدود ابزار به پایان رسید. جزئیات موجود را بررسی کنید و در صورت نیاز سؤال را ساده‌تر کنید.'
+  }
+
+  if (event.type === 'cancelled') {
+    return 'درخواست توسط کاربر متوقف شد.'
+  }
+
+  return event.message || 'خطای غیرمنتظره‌ای رخ داد.'
+}
+
 export function localizeInfraErrorFa(error: string): string {
   const normalized = error.toLowerCase()
 

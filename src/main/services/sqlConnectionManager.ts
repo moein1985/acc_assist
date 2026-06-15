@@ -37,6 +37,7 @@ export type SqlPolicyViolationCategory = 'read-only-policy' | 'security-policy'
 
 export type SqlPolicyViolationCode =
   | 'SQL_POLICY_EMPTY_QUERY'
+  | 'SQL_POLICY_SCOPE_FILTER_MISSING'
   | 'SQL_POLICY_NOT_SELECT'
   | 'SQL_POLICY_FORBIDDEN_KEYWORD'
   | 'SQL_POLICY_FORBIDDEN_HINT'
@@ -103,6 +104,8 @@ export class SqlPolicyViolationError extends Error {
         return 'تعداد ردیف‌های خروجی بیش از سقف مجاز برای این عملیات است.'
       case 'SQL_POLICY_REQUIRE_READONLY_LOGIN':
         return 'این عملیات مستلزم استفاده از یک دسترسی فقط-خواندنی (Read-Only) واقعی در سطح بانک اطلاعاتی است.'
+      case 'SQL_POLICY_SCOPE_FILTER_MISSING':
+        return 'کوئری Golden 5 فاقد فیلتر الزامی دامنه/سال مالی است.'
       case 'SQL_POLICY_FORBIDDEN_SYSTEM_PROC':
         return 'فراخوانی توابع و پروسیجرهای سیستمی (xp_*/sp_*) مجاز نیست.'
       case 'SQL_POLICY_FORBIDDEN_BATCH_COMMAND':
@@ -423,9 +426,23 @@ SELECT
   private validateReadOnlyQuery(
     query: string,
     scope: ReadOnlyQueryScope,
-    options?: ReadOnlyExecutionOptions
+    options?: ReadOnlyExecutionOptions & { goldenFastPathMeta?: { id: string; targetTables: string[]; requiredScopeFilters: string[]; aggregate?: string; projection?: string[] } }
   ): string {
     const trimmed = query.trim()
+
+    if (options?.goldenFastPathMeta) {
+      const fastPathResult = this.validateGoldenFastPathQuery(trimmed, options.goldenFastPathMeta)
+      if (fastPathResult.reason === 'scope-filter-missing') {
+        throw new SqlPolicyViolationError(
+          'SQL_POLICY_SCOPE_FILTER_MISSING',
+          'read-only-policy',
+          'Golden 5 query is missing the mandatory scope filter.'
+        )
+      }
+      if (fastPathResult.accepted) {
+        return trimmed
+      }
+    }
 
     if (!trimmed) {
       throw new SqlPolicyViolationError('SQL_POLICY_EMPTY_QUERY', 'read-only-policy', 'SQL query is empty.')
@@ -635,6 +652,42 @@ SELECT
     }
 
     return trimmed
+  }
+
+  private validateGoldenFastPathQuery(
+    query: string,
+    meta: { id: string; targetTables: string[]; requiredScopeFilters: string[]; aggregate?: string; projection?: string[] }
+  ): { accepted: boolean; reason?: string } {
+    const normalized = this.stripSqlCommentsAndLiterals(query).replace(/\s+/g, ' ').trim()
+    const commentsOnly = query.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--.*$/gm, ' ').replace(/\s+/g, ' ').trim()
+
+    if (!/^SELECT\b/i.test(normalized)) {
+      return { accepted: false }
+    }
+
+    if (normalized.includes(';')) {
+      return { accepted: false }
+    }
+
+    if (/\b(INSERT|UPDATE|DELETE|MERGE|EXEC|EXECUTE|ALTER|DROP|CREATE|TRUNCATE|GRANT|REVOKE|DENY|INTO|UNION|PIVOT|UNPIVOT|OVER|ROW_NUMBER|DENSE_RANK|RANK)\b/i.test(normalized)) {
+      return { accepted: false }
+    }
+
+    const fromMatch = normalized.match(/\bFROM\b\s+([A-Za-z_][\w\.]*)/i)
+    const tables = fromMatch ? [fromMatch[1].split('.').pop() ?? fromMatch[1]] : []
+    if (tables.some((table) => !meta.targetTables.includes(table))) {
+      return { accepted: false }
+    }
+
+    const hasScopeFilter = meta.requiredScopeFilters.some((filter) => {
+      const scopePattern = new RegExp(`\\bWHERE\\b[\\s\\S]*?\\b${filter}\\b\\s*(?:=|<>|!=|>=|<=|>|<)`, 'i')
+      return scopePattern.test(commentsOnly)
+    })
+    if (!hasScopeFilter) {
+      return { accepted: true, reason: 'scope-filter-missing' }
+    }
+
+    return { accepted: true }
   }
 
   private extractNumericResultLimit(sql: string): number | null {

@@ -132,6 +132,18 @@ test('listFinancialIntentDefinitions exposes roadmap intents including determini
   assert.ok(definitions.some((item) => item.id === 'get_payables_summary' && item.responseMode === 'deterministic'))
 })
 
+test('Golden 5 intents carry fast-path metadata and target scope', () => {
+  const definitions = listFinancialIntentDefinitions()
+  const goldenFive = definitions.filter((item) => item.isGoldenFastPath)
+
+  assert.equal(goldenFive.length, 5)
+  assert.ok(goldenFive.some((item) => item.id === 'count_fiscal_years' && item.targetTables?.length))
+  assert.ok(goldenFive.some((item) => item.id === 'list_fiscal_years' && item.requiredScopeFilters?.includes('fiscal_year')))
+  assert.ok(goldenFive.some((item) => item.id === 'get_account_balance' && item.requiredScopeFilters?.length))
+  assert.ok(goldenFive.some((item) => item.id === 'get_receivables_summary' && item.aggregate))
+  assert.ok(goldenFive.some((item) => item.id === 'get_payables_summary' && item.projection?.length))
+})
+
 test('listSalesKpiContracts exposes the annual sales KPI dictionary', () => {
   const contracts = listSalesKpiContracts()
 

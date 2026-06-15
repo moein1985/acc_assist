@@ -27,8 +27,13 @@ import type {
   SshTunnelConfig,
   SshTunnelStatus
 } from '../../shared/contracts'
-import { localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
-import { buildManagerKpiCards, buildQualityDashboardCards } from './managerUx'
+import { localizeAgentFallbackMessage, localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
+import {
+  buildAgentRecoverySummary,
+  buildManagerKpiCards,
+  buildQualityDashboardCards,
+  resolveAgentStatusState
+} from './managerUx'
 
 const DRY_RUN_PROMPT =
   'یک تحلیل اجمالی از وضعیت سیستم حسابداری ما بده. مرحله ۱: ابتدا حتما list_database_tables را اجرا کن تا همه جدول‌ها را ببینی. مرحله ۲: جدول‌های مالی مهم را انتخاب کن و با get_database_schema ساختار حساب‌ها/اسناد/گردش‌ها را بررسی کن. مرحله ۳: با fetch_financial_data چند ردیف نمونه واقعی بگیر و تحلیل کوتاه شامل ریسک‌ها، نکات کلیدی و اقدامات پیشنهادی ارائه بده.'
@@ -1481,7 +1486,12 @@ function handleAgentProgressEvent(payload: AgentProgressEnvelope): void {
 
   const { event } = payload
 
-  if (event.type === 'thinking') {
+  if (event.type === 'thinking' || event.type === 'planning') {
+    setChatToolState(true, event.message)
+    return
+  }
+
+  if (event.type === 'tool-running') {
     setChatToolState(true, event.message)
     return
   }
@@ -1514,6 +1524,29 @@ function handleAgentProgressEvent(payload: AgentProgressEnvelope): void {
     return
   }
 
+  if (event.type === 'evidence-ready') {
+    setAppNotice(event.message, 'success')
+    return
+  }
+
+  if (event.type === 'network-degraded' || event.type === 'provider-circuit-open' || event.type === 'loop-aborted') {
+    const statusState = resolveAgentStatusState(event)
+    const fallbackMessage = localizeAgentFallbackMessage(event)
+    state.activeRequestHasFinalEvent = true
+
+    setChatToolState(false, fallbackMessage)
+    setAppNotice(fallbackMessage, statusState === 'circuit-open' ? 'error' : 'info')
+
+    if (event.type === 'loop-aborted') {
+      const recoverySummary = buildAgentRecoverySummary(event)
+      renderFinalAssistantMessage(recoverySummary)
+    } else {
+      renderFinalAssistantMessage(fallbackMessage)
+    }
+
+    return
+  }
+
   if (event.type === 'tool-success' || event.type === 'tool-error') {
     const existingRow = event.toolCallId ? state.toolRowsByCallId.get(event.toolCallId) : undefined
     const targetRow = existingRow ?? appendToolStatusRow(event.toolName ?? 'unknown_tool', event.args ?? {})
@@ -1533,7 +1566,7 @@ function handleAgentProgressEvent(payload: AgentProgressEnvelope): void {
     return
   }
 
-  if (event.type === 'final') {
+  if (event.type === 'answer' || event.type === 'final') {
     state.activeRequestHasFinalEvent = true
     renderFinalAssistantMessage(event.message)
     setChatToolState(false)
@@ -3774,7 +3807,7 @@ function createDefaultSettings(): AppSettings {
       apiKey: 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
       baseUrl: 'https://api.avalai.ir/v1',
       mode: 'openai',
-      model: 'gemini-2.5-pro'
+      model: 'gemini-2.5-flash'
     },
     telemetry: {
       enabled: false,

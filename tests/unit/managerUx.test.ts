@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import type { ReportExportEvidenceItem } from '../../src/shared/contracts'
-import { buildManagerKpiCards, buildQualityDashboardCards } from '../../src/renderer/src/managerUx'
+import type { AgentProgressEvent, ReportExportEvidenceItem } from '../../src/shared/contracts'
+import {
+  buildAgentRecoverySummary,
+  buildManagerKpiCards,
+  buildQualityDashboardCards,
+  resolveAgentStatusState
+} from '../../src/renderer/src/managerUx'
 
 const evidence: ReportExportEvidenceItem[] = [
   {
@@ -36,4 +41,35 @@ test('buildQualityDashboardCards derives quality metrics from audit entries', ()
   assert.ok(cards.some((card) => card.label === 'نرخ موفقیت ابزارها'))
   assert.ok(cards.some((card) => card.label === 'ابزار موفق'))
   assert.ok(cards.some((card) => card.label === 'میانگین زمان (ms)'))
+})
+
+test('resolveAgentStatusState maps terminal CFO events to renderer states', () => {
+  const degraded: AgentProgressEvent = {
+    type: 'network-degraded',
+    phase: 'network-degraded',
+    message: 'اتصال کند است',
+    recoverable: true,
+    suggestedActions: ['retry']
+  }
+
+  assert.equal(resolveAgentStatusState(degraded), 'degraded')
+  assert.equal(resolveAgentStatusState({ type: 'provider-circuit-open', phase: 'provider-circuit-open', message: 'circuit', recoverable: false } as AgentProgressEvent), 'circuit-open')
+  assert.equal(resolveAgentStatusState({ type: 'loop-aborted', phase: 'loop-aborted', message: 'aborted', recoverable: true } as AgentProgressEvent), 'aborted')
+})
+
+test('buildAgentRecoverySummary keeps partial evidence actionable', () => {
+  const event: AgentProgressEvent = {
+    type: 'loop-aborted',
+    phase: 'loop-aborted',
+    message: 'حدود ابزار به پایان رسید',
+    recoverable: true,
+    suggestedActions: ['retry', 'narrow-scope', 'view-partial'],
+    evidence: { rows: [{ amount: 1200 }], columns: ['amount'], rowCount: 1, truncated: false }
+  }
+
+  const summary = buildAgentRecoverySummary(event)
+
+  assert.match(summary, /جزئیات موجود/)
+  assert.match(summary, /تلاش مجدد/)
+  assert.match(summary, /محدوده را کوچک‌تر/)
 })

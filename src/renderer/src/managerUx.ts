@@ -1,4 +1,9 @@
-import type { AuditLogViewerEntry, ReportExportEvidenceItem, SqlQueryRow } from '../../shared/contracts'
+import type {
+  AgentProgressEvent,
+  AuditLogViewerEntry,
+  ReportExportEvidenceItem,
+  SqlQueryRow
+} from '../../shared/contracts'
 
 export interface ManagerKpiCardModel {
   label: string
@@ -161,6 +166,56 @@ function toChartNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
+}
+
+export type AgentStatusState = 'idle' | 'thinking' | 'running-tool' | 'answered' | 'degraded' | 'circuit-open' | 'aborted'
+
+export function resolveAgentStatusState(event: AgentProgressEvent): AgentStatusState {
+  switch (event.type) {
+    case 'thinking':
+    case 'planning':
+      return 'thinking'
+    case 'tool-start':
+    case 'tool-running':
+      return 'running-tool'
+    case 'answer':
+    case 'final':
+      return 'answered'
+    case 'network-degraded':
+      return 'degraded'
+    case 'provider-circuit-open':
+      return 'circuit-open'
+    case 'loop-aborted':
+      return 'aborted'
+    default:
+      return 'idle'
+  }
+}
+
+export function buildAgentRecoverySummary(event: AgentProgressEvent): string {
+  const evidenceRows = Array.isArray(event.evidence?.rows) ? event.evidence.rows.length : 0
+  const partialText = evidenceRows > 0
+    ? `تا این مرحله ${evidenceRows} ردیف شواهد جمع‌آوری شد. جزئیات موجود را بررسی کنید.`
+    : 'تا این مرحله شواهد قابل استنادی در دسترس نیست.'
+
+  const actions = (event.suggestedActions ?? []).map((action) => {
+    switch (action) {
+      case 'retry':
+        return 'تلاش مجدد'
+      case 'narrow-scope':
+        return 'محدوده را کوچک‌تر کنید'
+      case 'simplify':
+        return 'سؤال را ساده‌تر بپرسید'
+      case 'view-partial':
+        return 'مشاهده جزئیات موجود'
+      default:
+        return action
+    }
+  })
+
+  const actionText = actions.length > 0 ? ` اقدام‌های پیشنهادی: ${actions.join(' • ')}` : ''
+
+  return `${event.message || 'درخواست به‌دلیل مشکل شبکه متوقف شد.'}${actionText}\n${partialText}`
 }
 
 function formatKpiNumber(value: number): string {

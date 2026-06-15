@@ -51,6 +51,37 @@ test('GeminiClient retries transient 429 failures before succeeding', async () =
   }
 })
 
+test('GeminiClient streaming path preserves Persian text without mojibake markers', async () => {
+  const client = new GeminiClient({ retryAttempts: 0, retryBaseDelayMs: 0, connectTimeoutMs: 1000, overallDeadlineMs: 2000 })
+  const originalFetch = globalThis.fetch
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"سلام"}}]}\n\n'))
+      controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":" عزیز"}}]}\n\n'))
+      controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+      controller.close()
+    }
+  })
+
+  globalThis.fetch = (async () => {
+    return new Response(stream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream; charset=utf-8' }
+    })
+  }) as typeof fetch
+
+  try {
+    const result = await client.chat(baseRequest, baseConfig, {
+      onTextChunk: () => undefined
+    })
+
+    assert.equal(result.text, 'سلام عزیز')
+    assert.ok(!result.text.includes('�'))
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('GeminiClient surfaces localized error after retry exhaustion', async () => {
   const client = new GeminiClient({ retryAttempts: 1, retryBaseDelayMs: 0 })
   const originalFetch = globalThis.fetch

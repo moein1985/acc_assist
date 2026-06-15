@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { localizeChatErrorFa, localizeInfraErrorFa } from '../../src/renderer/src/errorLocalization'
+import {
+  localizeAgentFallbackMessage,
+  localizeChatErrorFa,
+  localizeInfraErrorFa
+} from '../../src/renderer/src/errorLocalization'
 
 test('localizeInfraErrorFa maps SQL auth error', () => {
   const message = localizeInfraErrorFa('Login failed for user damavand')
@@ -31,4 +35,25 @@ test('localizeChatErrorFa maps 404 provider route/model', () => {
 test('localizeChatErrorFa maps network reachability issues', () => {
   const message = localizeChatErrorFa('connect EHOSTUNREACH 192.168.1.20:443')
   assert.match(message, /اتصال به سرویس هوش مصنوعی برقرار نشد/)
+})
+
+test('localizeAgentFallbackMessage localizes CFO recovery states', () => {
+  const degraded = localizeAgentFallbackMessage({
+    type: 'network-degraded',
+    phase: 'network-degraded',
+    message: 'provider is slow',
+    recoverable: true,
+    suggestedActions: ['retry']
+  } as any)
+
+  const circuit = localizeAgentFallbackMessage({
+    type: 'provider-circuit-open',
+    phase: 'provider-circuit-open',
+    message: 'circuit open',
+    recoverable: false,
+    msUntilRetry: 60000
+  } as any)
+
+  assert.match(degraded, /اتصال کند است|در حال تلاش مجدد/)
+  assert.match(circuit, /سرویس هوش مصنوعی موقتاً در دسترس نیست|شمارش معکوس/)
 })

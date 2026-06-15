@@ -20,6 +20,11 @@ export type FinancialIntentDefinition = {
   responseMode: FinancialIntentResponseMode
   requiredSlots: FinancialIntentSlot[]
   patterns: RegExp[]
+  isGoldenFastPath?: boolean
+  targetTables?: string[]
+  requiredScopeFilters?: string[]
+  aggregate?: string
+  projection?: string[]
 }
 
 export type FinancialIntentSlotHints = Partial<Record<FinancialIntentSlot, string>>
@@ -70,6 +75,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Count distinct fiscal years in the active database.',
     responseMode: 'deterministic',
     requiredSlots: [],
+    isGoldenFastPath: true,
+    targetTables: ['documents'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'COUNT(DISTINCT fiscal_year)',
+    projection: ['fiscal_year'],
     patterns: [
       /\bhow\s+many\s+fiscal\s+years\b/iu,
       /\bfiscal\s+year\s+count\b/iu,
@@ -85,6 +95,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'List fiscal years in the active database.',
     responseMode: 'deterministic',
     requiredSlots: [],
+    isGoldenFastPath: true,
+    targetTables: ['documents'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'COUNT(DISTINCT fiscal_year)',
+    projection: ['fiscal_year'],
     patterns: [
       /\b(?:list|show|display|find)\s+(?:the\s+)?(?:of\s+)?(?:available\s+)?fiscal\s+years\b/iu,
       /\bfiscal\s+years?\s+(?:available|list|show|display)\b/iu,
@@ -116,6 +131,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return balance for an account/chart item.',
     responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
+    isGoldenFastPath: true,
+    targetTables: ['accounts', 'ledger_lines'],
+    requiredScopeFilters: ['account_id', 'fiscal_year'],
+    aggregate: 'SUM(balance)',
+    projection: ['account_code', 'account_name', 'balance'],
     patterns: [
       /مانده\s*(?:حساب|سرفصل|تنخواه|معین|تفضیلی)/iu,
       /\baccount\s+balance\b/iu,
@@ -143,6 +163,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return receivables summary.',
     responseMode: 'deterministic',
     requiredSlots: [],
+    isGoldenFastPath: true,
+    targetTables: ['accounts', 'documents'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'SUM(balance)',
+    projection: ['account_name', 'balance'],
     patterns: [
       /\breceivables\b/iu,
       /\b(?:accounts?\s*receivable|debtors?)\b/iu,
@@ -156,6 +181,11 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     description: 'Return payables summary.',
     responseMode: 'deterministic',
     requiredSlots: [],
+    isGoldenFastPath: true,
+    targetTables: ['accounts', 'documents'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'SUM(balance)',
+    projection: ['account_name', 'balance'],
     patterns: [
       /\bpayables\b/iu,
       /\b(?:accounts?\s*payable|creditors?)\b/iu,

@@ -14,32 +14,34 @@ import { isTruthyEnvValue } from './agentDebugConfig'
 
 const ENCRYPTED_PREFIX = 'accassist:enc:v1:'
 
-function isDemoProfileEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return isTruthyEnvValue(env.ACC_ENABLE_DEMO_PROFILE)
-}
-
-function resolveDemoSqlProfile(env: NodeJS.ProcessEnv = process.env) {
-  const port = Number.parseInt(env.ACC_DEMO_SQL_PORT ?? '58033', 10)
+function resolveForcedTestSqlProfile(env: NodeJS.ProcessEnv = process.env) {
+  const port = Number.parseInt(env.ACC_SQL_PORT ?? env.ACC_DEMO_SQL_PORT ?? '58033', 10)
 
   return {
-    server: env.ACC_DEMO_SQL_SERVER ?? '127.0.0.1',
+    server: env.ACC_SQL_SERVER ?? env.ACC_DEMO_SQL_SERVER ?? '127.0.0.1',
     port: Number.isFinite(port) ? port : 58033,
-    database: env.ACC_DEMO_SQL_DATABASE ?? '',
-    user: env.ACC_DEMO_SQL_USER ?? '',
-    password: env.ACC_DEMO_SQL_PASSWORD ?? '',
-    encrypt: isTruthyEnvValue(env.ACC_DEMO_SQL_ENCRYPT),
-    trustServerCertificate: isTruthyEnvValue(env.ACC_DEMO_SQL_TRUST_SERVER_CERTIFICATE)
+    database: env.ACC_SQL_DATABASE ?? env.ACC_DEMO_SQL_DATABASE ?? 'Sepidar01',
+    user: env.ACC_SQL_USER ?? env.ACC_DEMO_SQL_USER ?? 'damavand',
+    password: env.ACC_SQL_PASSWORD ?? env.ACC_DEMO_SQL_PASSWORD ?? 'damavand',
+    encrypt:
+      env.ACC_SQL_ENCRYPT !== undefined
+        ? isTruthyEnvValue(env.ACC_SQL_ENCRYPT)
+        : isTruthyEnvValue(env.ACC_DEMO_SQL_ENCRYPT),
+    trustServerCertificate:
+      env.ACC_SQL_TRUST_SERVER_CERTIFICATE !== undefined
+        ? isTruthyEnvValue(env.ACC_SQL_TRUST_SERVER_CERTIFICATE)
+        : isTruthyEnvValue(env.ACC_DEMO_SQL_TRUST_SERVER_CERTIFICATE)
   }
 }
 
-function resolveDemoGeminiProfile(env: NodeJS.ProcessEnv = process.env) {
+function resolveForcedTestGeminiProfile(env: NodeJS.ProcessEnv = process.env) {
   const mode: ApiMode = env.ACC_DEMO_GEMINI_MODE === 'google' ? 'google' : 'openai'
 
   return {
-    apiKey: env.ACC_DEMO_GEMINI_API_KEY ?? '',
+    apiKey: env.ACC_DEMO_GEMINI_API_KEY ?? 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI',
     baseUrl: env.ACC_DEMO_GEMINI_BASE_URL ?? 'https://api.avalai.ir/v1',
     mode,
-    model: env.ACC_DEMO_GEMINI_MODEL ?? 'gemini-2.5-pro'
+    model: env.ACC_DEMO_GEMINI_MODEL ?? 'gemini-2.5-flash'
   }
 }
 
@@ -86,12 +88,8 @@ export class SettingsStore {
   }
 
   private applyForcedTestSqlProfile(settings: AppSettings): AppSettings {
-    if (!isDemoProfileEnabled()) {
-      return settings
-    }
-
-    const demoSqlProfile = resolveDemoSqlProfile()
-    const demoGeminiProfile = resolveDemoGeminiProfile()
+    const demoSqlProfile = resolveForcedTestSqlProfile()
+    const demoGeminiProfile = resolveForcedTestGeminiProfile()
 
     return {
       ...settings,
@@ -387,7 +385,12 @@ export class SettingsStore {
       return ''
     }
 
-    if (!safeStorage.isEncryptionAvailable()) {
+    // If the value is already encrypted, return it as-is to avoid double-encryption.
+    if (value.startsWith(ENCRYPTED_PREFIX)) {
+      return value
+    }
+
+    if (!this.isSafeStorageEncryptionAvailable()) {
       this.warnEncryptionUnavailable()
       return value
     }
@@ -410,9 +413,11 @@ export class SettingsStore {
       return value
     }
 
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!this.isSafeStorageEncryptionAvailable()) {
       this.warnEncryptionUnavailable()
-      return ''
+      // Cannot decrypt — return raw value so callers can at least surface a meaningful error
+      // rather than silently using an empty key.
+      return value
     }
 
     try {
@@ -434,5 +439,17 @@ export class SettingsStore {
     console.warn(
       '[SettingsStore] safeStorage encryption is unavailable on this system. Sensitive values will be stored as plain text.'
     )
+  }
+
+  private isSafeStorageEncryptionAvailable(): boolean {
+    if (!safeStorage || typeof safeStorage.isEncryptionAvailable !== 'function') {
+      return false
+    }
+
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
   }
 }
