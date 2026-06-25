@@ -48,6 +48,7 @@ import { classifyDeterministicIntent, isRelaxedExploratoryIntent } from './agent
 import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
 import { MAX_FINANCIAL_RECOVERY_ATTEMPTS, mapRecoveryErrorHint } from './agentOrchestrator/recovery'
 import { SYSTEM_PROMPT } from './agentOrchestrator/prompts'
+import { resolveDeterministicFinancialTool } from './agentOrchestrator/deterministicTools'
 
 // Budget arithmetic for the capped tool loop used by the production MVP path.
 // The runtime policy keeps the loop small to avoid runaway token bleed and noisy retries.
@@ -250,7 +251,7 @@ type RuntimeScopeFilterRequirement = {
   candidateColumnNames: string[]
 }
 
-type ConversationMemoryState = {
+export type ConversationMemoryState = {
   conversationId: string
   notes: string[]
   facts: ConversationMemoryFacts
@@ -284,7 +285,7 @@ type FiscalYearFallbackResult = {
   toolCallsUsed: number
 }
 
-type DeterministicFinancialToolResult = {
+export type DeterministicFinancialToolResult = {
   intentId: DeterministicFinancialIntent
   value: number | null
   tableRef: string
@@ -4513,7 +4514,7 @@ ORDER BY fiscal_year DESC`
     }
   }
 
-  private async tryResolveDeterministicFinancialTool(
+  private tryResolveDeterministicFinancialTool(
     deterministicIntent: DeterministicFinancialIntent,
     settings: AppSettings,
     conversationMemory: ConversationMemoryState,
@@ -4521,493 +4522,27 @@ ORDER BY fiscal_year DESC`
     onProgress?: (event: AgentProgressEvent) => void,
     prompt?: string
   ): Promise<DeterministicFinancialToolResult | null> {
-    const activeCatalog = this.findActiveSchemaCatalog(settings)
-
-    // Hardcoded fallback mappings when no schema catalog is available
-    const hardcodedMappings: Partial<Record<DeterministicFinancialIntent, { tableRef: string; columnName: string }>> = {
-      get_purchase_summary: { tableRef: 'INV.InventoryReceipt', columnName: 'TotalPrice' },
-      get_account_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit,Credit' },
-      get_party_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit,Credit' },
-      get_cashflow_summary: { tableRef: 'RPA.CashBalance', columnName: 'Balance' },
-      get_receivables_summary: { tableRef: 'ACC.VoucherItem', columnName: 'Debit' },
-      get_payables_summary: { tableRef: 'ACC.VoucherItem', columnName: 'Credit' },
-      get_cash_bank_balance: { tableRef: 'RPA.CashBalance', columnName: 'Balance' },
-      get_trial_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit' }
-    }
-
-    let mapping: { tableRef: string; source: string } | null = null
-
-    if (activeCatalog) {
-      const conceptKey =
-        deterministicIntent === 'get_account_balance'
-          ? 'accounts'
-          : deterministicIntent === 'get_party_balance'
-            ? 'counterparties'
-            : deterministicIntent === 'get_cashflow_summary'
-              ? 'cashTransactions'
-              : deterministicIntent === 'get_purchase_summary'
-                ? 'documents'
-                : deterministicIntent === 'get_receivables_summary' || deterministicIntent === 'get_payables_summary'
-                  ? 'documents'
-                  : 'documents'
-      mapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
-    } else {
-      // Use hardcoded fallback when no catalog
-      const hardcoded = hardcodedMappings[deterministicIntent]
-      if (hardcoded) {
-        mapping = { tableRef: hardcoded.tableRef, source: 'hardcoded' }
-      }
-    }
-
-    if (!mapping) {
-      return null
-    }
-
-    const tableRef = this.parseSqlTableReference(mapping.tableRef)
-
-    if (!tableRef?.schemaName || !tableRef.tableName) {
-      return null
-    }
-
-    const schemaName = tableRef.schemaName.trim().toLowerCase()
-    const tableName = tableRef.tableName.trim().toLowerCase()
-
-    let column: { name: string; dataType: string } | null = null
-
-    if (activeCatalog) {
-      const catalogTable = activeCatalog.tables.find((entry) => {
-        return (
-          entry.schemaName.trim().toLowerCase() === schemaName &&
-          entry.tableName.trim().toLowerCase() === tableName
-        )
-      })
-
-      const candidateColumns = (catalogTable?.columns ?? []).filter((col) => {
-        const columnName = col.name.toLowerCase()
-        const dataType = col.dataType.toLowerCase()
-        return /(?:amount|balance|debit|credit|total|sum|net|value)/iu.test(columnName) && /(?:int|decimal|numeric|money|float|real)/iu.test(dataType)
-      })
-
-      column = this.selectDeterministicToolColumn(deterministicIntent, candidateColumns) ?? catalogTable?.columns[0] ?? null
-    } else {
-      // Use hardcoded column name when no catalog
-      const hardcoded = hardcodedMappings[deterministicIntent]
-      if (hardcoded) {
-        const columnNames = hardcoded.columnName.split(',')
-        column = { name: columnNames[0].trim(), dataType: 'decimal' }
-      }
-    }
-
-    if (!column) {
-      return null
-    }
-
-    const schemaIdentifier = this.quoteSqlIdentifier(schemaName)
-    const tableIdentifier = this.quoteSqlIdentifier(tableName)
-    const columnIdentifier = this.quoteSqlIdentifier(column.name)
-    
-    // Purchase intent fallback: try POM.PurchaseInvoice first, then INV.InventoryReceipt
-    let query: string
-    let actualTableRef = mapping.tableRef
-    let actualColumnName = column.name
-    let toolCallsUsed = 1
-
-    if (deterministicIntent === 'get_purchase_summary') {
-      // First check COUNT on POM.PurchaseInvoice
-      const pomSchema = this.quoteSqlIdentifier('POM')
-      const pomTable = this.quoteSqlIdentifier('PurchaseInvoice')
-      const countQuery = `SELECT COUNT(*) AS row_count FROM ${pomSchema}.${pomTable}`
-      
-      try {
-        const countRows = await this.executeReadOnlySql(countQuery, signal)
-        const rowCount = Number(countRows[0]?.['row_count']) || 0
-        
-        // If POM.PurchaseInvoice has rows, try SUM
-        if (rowCount > 0) {
-          const primaryQuery = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
-          const primaryRows = await this.executeReadOnlySql(primaryQuery, signal)
-          const primaryValue = this.toOptionalFiniteInteger(primaryRows[0]?.['result_value'])
-          
-          if (primaryValue !== null && primaryValue > 0) {
-            query = primaryQuery
-            const value = primaryValue
-            toolCallsUsed = 2
-            
-            this.rememberToolTrace(
-              conversationMemory,
-              `tool:${deterministicIntent} table=${actualTableRef} column=${actualColumnName} value=${value} source=pom_purchase_invoice`
-            )
-            
-            this.emitProgress(onProgress, {
-              type: 'tool-success',
-              message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ${actualTableRef}.${actualColumnName}`,
-              toolName: deterministicIntent,
-              rowCount: 1
-            })
-            
-            return {
-              intentId: deterministicIntent,
-              value,
-              tableRef: actualTableRef,
-              columnName: actualColumnName,
-              query,
-              toolCallsUsed
-            }
-          }
-        }
-        
-        // Fallback to INV.InventoryReceipt (POM empty or SUM null)
-        const invSchema = this.quoteSqlIdentifier('INV')
-        const invTable = this.quoteSqlIdentifier('InventoryReceipt')
-        const invColumn = this.quoteSqlIdentifier('TotalPrice')
-        const fallbackQuery = `SELECT SUM(CAST(${invColumn} AS decimal(18,2))) AS result_value FROM ${invSchema}.${invTable} WHERE IsReturn = 0`
-        
-        const fallbackRows = await this.executeReadOnlySql(fallbackQuery, signal)
-        const fallbackValue = this.toOptionalFiniteInteger(fallbackRows[0]?.['result_value'])
-        
-        if (fallbackValue !== null && fallbackValue > 0) {
-          query = fallbackQuery
-          actualTableRef = 'INV.InventoryReceipt'
-          actualColumnName = 'TotalPrice'
-          toolCallsUsed = rowCount > 0 ? 3 : 2
-          
-          this.rememberToolTrace(
-            conversationMemory,
-            `tool:${deterministicIntent} table=${actualTableRef} column=${actualColumnName} value=${fallbackValue} source=inventory_receipt_fallback`
-          )
-          
-          this.emitProgress(onProgress, {
-            type: 'tool-success',
-            message: `✅ ابزار ${deterministicIntent} اجرا شد: ${fallbackValue} در ${actualTableRef}.${actualColumnName} (fallback)`,
-            toolName: deterministicIntent,
-            rowCount: 1
-          })
-          
-          return {
-            intentId: deterministicIntent,
-            value: fallbackValue,
-            tableRef: actualTableRef,
-            columnName: actualColumnName,
-            query,
-            toolCallsUsed
-          }
-        }
-        
-        // Both sources empty
-        return null
-      } catch (error) {
-        await this.safeAuditWrite({
-          timestamp: new Date().toISOString(),
-          requestId: conversationMemory.conversationId,
-          stage: 'tool-error',
-          toolName: deterministicIntent,
-          error: error instanceof Error ? error.message : String(error),
-          errorCategory: 'deterministic-tool-failure'
-        })
-        return null
-      }
-    }
-    
-    // Account balance specific logic: SUM(Debit) - SUM(Credit) with fiscal year filtering
-    if (deterministicIntent === 'get_account_balance') {
-      // Use Debit and Credit columns from ACC.VoucherItem
-      const debitColumn = this.quoteSqlIdentifier('Debit')
-      const creditColumn = this.quoteSqlIdentifier('Credit')
-      const voucherTable = this.quoteSqlTableRef('ACC.Voucher')
-      const voucherItemTable = this.quoteSqlTableRef('ACC.VoucherItem')
-      const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
-      const accountTable = this.quoteSqlTableRef('ACC.Account')
-
-      // Extract account name from prompt if present
-      const accountNameMatch = prompt?.match(/(?:حساب|سرفصل)\s*([^\s]+)/iu)
-      const accountName = accountNameMatch ? accountNameMatch[1] : null
-
-      // Extract fiscal year from prompt (normalize Persian digits first)
-      const normalizedPrompt = this.normalizePersianDigits(prompt || '')
-      const fiscalYearMatch = normalizedPrompt.match(/(?:سال|سال\s+)?(\d{4})/iu)
-      const fiscalYear = fiscalYearMatch ? fiscalYearMatch[1] : null
-
-      // Build query with fiscal year join and optional account filter
-      let whereClause = ''
-      if (fiscalYear) {
-        whereClause = ` AND fy.Title = N'${fiscalYear}'`
-      }
-      if (accountName) {
-        whereClause += ` AND a.Title LIKE N'%${accountName}%'`
-        query = `SELECT SUM(CAST(vi.${debitColumn} AS decimal(18,2))) - SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS result_value
-                 FROM ${voucherItemTable} vi
-                 JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
-                 JOIN ${accountTable} a ON vi.AccountSLRef = a.AccountId
-                 JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
-                 WHERE 1=1${whereClause}`
-      } else {
-        query = `SELECT SUM(CAST(vi.${debitColumn} AS decimal(18,2))) - SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS result_value
-                 FROM ${voucherItemTable} vi
-                 JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
-                 JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
-                 WHERE 1=1${whereClause}`
-      }
-
-      try {
-        const rows = await this.executeReadOnlySql(query, signal)
-        const row = rows[0] as SqlQueryRow | undefined
-        const value = this.toOptionalFiniteInteger(row?.['result_value'])
-
-        if (value === null) {
-          return null
-        }
-
-        this.rememberToolTrace(
-          conversationMemory,
-          `tool:${deterministicIntent} table=ACC.VoucherItem column=Debit,Credit value=${value}${accountName ? ` account=${accountName}` : ''}`
-        )
-
-        this.emitProgress(onProgress, {
-          type: 'tool-success',
-          message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ACC.VoucherItem (Debit-Credit)${accountName ? ` برای حساب ${accountName}` : ''}`,
-          toolName: deterministicIntent,
-          rowCount: 1
-        })
-
-        return {
-          intentId: deterministicIntent,
-          value,
-          tableRef: 'ACC.VoucherItem',
-          columnName: 'Debit,Credit',
-          query,
-          toolCallsUsed
-        }
-      } catch (error) {
-        await this.safeAuditWrite({
-          timestamp: new Date().toISOString(),
-          requestId: conversationMemory.conversationId,
-          stage: 'tool-error',
-          toolName: deterministicIntent,
-          error: error instanceof Error ? error.message : String(error),
-          errorCategory: 'deterministic-tool-failure'
-        })
-        return null
-      }
-    }
-    
-    // Trial balance specific logic: SUM(Debit), SUM(Credit) by account
-    if (deterministicIntent === 'get_trial_balance') {
-      const debitColumn = this.quoteSqlIdentifier('Debit')
-      const creditColumn = this.quoteSqlIdentifier('Credit')
-      const accountTable = this.quoteSqlTableRef('ACC.Account')
-      const voucherTable = this.quoteSqlTableRef('ACC.Voucher')
-      const voucherItemTable = this.quoteSqlTableRef('ACC.VoucherItem')
-      const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
-
-      // Extract fiscal year from prompt
-      const fiscalYearMatch = prompt?.match(/(?:سال|سال\s+)?(\d{4})/iu)
-      const fiscalYear = fiscalYearMatch ? fiscalYearMatch[1] : null
-
-      let whereClause = ''
-      if (fiscalYear) {
-        whereClause = ` AND fy.Title = N'${fiscalYear}'`
-      }
-
-      query = `SELECT TOP (200) a.Title AS AccountTitle,
-               SUM(CAST(vi.${debitColumn} AS decimal(18,2))) AS TotalDebit,
-               SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS TotalCredit
-               FROM ${voucherItemTable} vi
-               JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
-               JOIN ${accountTable} a ON vi.AccountSLRef = a.AccountId
-               JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
-               WHERE 1=1${whereClause}
-               GROUP BY a.Title`
-      
-      try {
-        const rows = await this.executeReadOnlySql(query, signal)
-        
-        if (rows.length === 0) {
-          return null
-        }
-        
-        const totalDebit = rows.reduce((sum, row) => sum + (Number(row['TotalDebit']) || 0), 0)
-        const totalCredit = rows.reduce((sum, row) => sum + (Number(row['TotalCredit']) || 0), 0)
-        const value = totalDebit // Return total debit as representative value
-
-        this.rememberToolTrace(
-          conversationMemory,
-          `tool:${deterministicIntent} table=ACC.VoucherItem column=Debit,Credit rows=${rows.length} totalDebit=${totalDebit} totalCredit=${totalCredit}`
-        )
-
-        this.emitProgress(onProgress, {
-          type: 'tool-success',
-          message: `✅ ابزار ${deterministicIntent} اجرا شد: ${rows.length} حساب، بدهکار=${totalDebit}، بستانکار=${totalCredit}`,
-          toolName: deterministicIntent,
-          rowCount: rows.length
-        })
-
-        return {
-          intentId: deterministicIntent,
-          value,
-          tableRef: 'ACC.VoucherItem',
-          columnName: 'Debit,Credit',
-          query,
-          toolCallsUsed
-        }
-      } catch (error) {
-        await this.safeAuditWrite({
-          timestamp: new Date().toISOString(),
-          requestId: conversationMemory.conversationId,
-          stage: 'tool-error',
-          toolName: deterministicIntent,
-          error: error instanceof Error ? error.message : String(error),
-          errorCategory: 'deterministic-tool-failure'
-        })
-        return null
-      }
-    }
-    
-    // Cash and bank balance specific logic
-    if (deterministicIntent === 'get_cash_bank_balance') {
-      const cashTable = this.quoteSqlTableRef('RPA.CashBalance')
-      const bankTable = this.quoteSqlTableRef('RPA.BankAccountBalance')
-      const balanceColumn = this.quoteSqlIdentifier('Balance')
-      
-      const cashQuery = `SELECT SUM(CAST(${balanceColumn} AS decimal(18,2))) AS result_value FROM ${cashTable}`
-      const bankQuery = `SELECT SUM(CAST(${balanceColumn} AS decimal(18,2))) AS result_value FROM ${bankTable}`
-      
-      try {
-        const cashRows = await this.executeReadOnlySql(cashQuery, signal)
-        const bankRows = await this.executeReadOnlySql(bankQuery, signal)
-        
-        const cashValue = this.toOptionalFiniteInteger(cashRows[0]?.['result_value']) || 0
-        const bankValue = this.toOptionalFiniteInteger(bankRows[0]?.['result_value']) || 0
-        const totalValue = cashValue + bankValue
-        
-        if (totalValue === 0) {
-          return null
-        }
-        
-        query = `${cashQuery}; ${bankQuery}`
-        toolCallsUsed = 2
-
-        this.rememberToolTrace(
-          conversationMemory,
-          `tool:${deterministicIntent} cash=${cashValue} bank=${bankValue} total=${totalValue}`
-        )
-
-        this.emitProgress(onProgress, {
-          type: 'tool-success',
-          message: `✅ ابزار ${deterministicIntent} اجرا شد: نقد=${cashValue}، بانک=${bankValue}، مجموع=${totalValue}`,
-          toolName: deterministicIntent,
-          rowCount: 2
-        })
-
-        return {
-          intentId: deterministicIntent,
-          value: totalValue,
-          tableRef: 'RPA.CashBalance,RPA.BankAccountBalance',
-          columnName: 'Balance',
-          query,
-          toolCallsUsed
-        }
-      } catch (error) {
-        await this.safeAuditWrite({
-          timestamp: new Date().toISOString(),
-          requestId: conversationMemory.conversationId,
-          stage: 'tool-error',
-          toolName: deterministicIntent,
-          error: error instanceof Error ? error.message : String(error),
-          errorCategory: 'deterministic-tool-failure'
-        })
-        return null
-      }
-    }
-    
-    // Default query for other intents
-    query = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
-
-    try {
-      const rows = await this.executeReadOnlySql(query, signal)
-      const row = rows[0] as SqlQueryRow | undefined
-      const value = this.toOptionalFiniteInteger(row?.['result_value'])
-
-      if (value === null) {
-        return null
-      }
-
-      this.rememberToolTrace(
-        conversationMemory,
-        `tool:${deterministicIntent} table=${mapping.tableRef} column=${column.name} value=${value}`
-      )
-
-      this.emitProgress(onProgress, {
-        type: 'tool-success',
-        message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ${mapping.tableRef}.${column.name}`,
-        toolName: deterministicIntent,
-        rowCount: 1
-      })
-
-      return {
-        intentId: deterministicIntent,
-        value,
-        tableRef: mapping.tableRef,
-        columnName: column.name,
-        query,
-        toolCallsUsed
-      }
-    } catch (error) {
-      await this.safeAuditWrite({
-        timestamp: new Date().toISOString(),
-        requestId: conversationMemory.conversationId,
-        stage: 'tool-error',
-        toolName: deterministicIntent,
-        error: error instanceof Error ? error.message : String(error),
-        errorCategory: 'deterministic-tool-failure'
-      })
-      return null
-    }
-  }
-
-  private selectDeterministicToolColumn(
-    deterministicIntent: DeterministicFinancialIntent,
-    candidateColumns: SchemaColumnCatalogItem[]
-  ): SchemaColumnCatalogItem | null {
-    if (candidateColumns.length === 0) {
-      return null
-    }
-
-    const intentSpecificOrder = this.buildDeterministicToolColumnPreference(deterministicIntent)
-
-    if (intentSpecificOrder.length === 0) {
-      return candidateColumns[0] ?? null
-    }
-
-    const normalizedCandidates = candidateColumns.map((column) => ({
-      column,
-      name: column.name.toLowerCase()
-    }))
-
-    for (const preferredPattern of intentSpecificOrder) {
-      const match = normalizedCandidates.find((entry) => preferredPattern.test(entry.name))
-      if (match) {
-        return match.column
-      }
-    }
-
-    return candidateColumns[0] ?? null
-  }
-
-  private buildDeterministicToolColumnPreference(
-    deterministicIntent: DeterministicFinancialIntent
-  ): Array<RegExp> {
-    switch (deterministicIntent) {
-      case 'get_receivables_summary':
-        return [/credit_amount|receivable|debt|bedehkar|debtor/i, /amount|balance|total/i]
-      case 'get_payables_summary':
-        return [/debit_amount|payable|bedehkar|creditor|bastankar/i, /amount|balance|total/i]
-      case 'get_cashflow_summary':
-        return [/cash_amount|cash|flow|jaryan/i, /amount|balance|total/i]
-      case 'get_account_balance':
-      case 'get_party_balance':
-      default:
-        return [/balance|amount|total|sum|net|value/i]
-    }
+    return resolveDeterministicFinancialTool(
+      {
+        findActiveSchemaCatalog: (catalogSettings) => this.findActiveSchemaCatalog(catalogSettings),
+        resolvePreferredMapping: (catalog, conceptKey, mappingPrompt) =>
+          this.resolvePreferredMapping(catalog, conceptKey, mappingPrompt),
+        parseSqlTableReference: (rawRef) => this.parseSqlTableReference(rawRef),
+        executeReadOnlySql: (sqlQuery, sqlSignal) => this.executeReadOnlySql(sqlQuery, sqlSignal),
+        quoteSqlIdentifier: (value) => this.quoteSqlIdentifier(value),
+        quoteSqlTableRef: (ref) => this.quoteSqlTableRef(ref),
+        toOptionalFiniteInteger: (value) => this.toOptionalFiniteInteger(value),
+        rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
+        emitProgress: (progressCallback, event) => this.emitProgress(progressCallback, event),
+        safeAuditWrite: (entry) => this.safeAuditWrite(entry)
+      },
+      deterministicIntent,
+      settings,
+      conversationMemory,
+      signal,
+      onProgress,
+      prompt
+    )
   }
 
   private composeDeterministicFinancialToolMarkdown(
