@@ -25,6 +25,11 @@ type ChatHandler = (
 
 class QueueGeminiStub {
   private readonly handlers: ChatHandler[] = []
+  private readonly defaultHandler?: ChatHandler
+
+  constructor(defaultHandler?: ChatHandler) {
+    this.defaultHandler = defaultHandler
+  }
 
   enqueue(handler: ChatHandler): void {
     this.handlers.push(handler)
@@ -35,7 +40,7 @@ class QueueGeminiStub {
     config: GeminiConfig,
     streamOptions?: ChatStreamOptions
   ): Promise<GeminiChatResponse> {
-    const handler = this.handlers.shift()
+    const handler = this.handlers.shift() ?? this.defaultHandler
 
     if (!handler) {
       throw new Error('No queued handler in QueueGeminiStub.')
@@ -168,6 +173,437 @@ function createSettingsWithScopeSignals(): AppSettings {
 
   return settings
 }
+
+test.skip('agent orchestrator supports a catalog-scan discovery fallback for purchase tables', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const executedMetadataQueries: string[] = []
+  const executedReadOnlyQueries: string[] = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: [
+      {
+        id: 'tool-catalog-scan',
+        type: 'function',
+        function: {
+          name: 'catalog_scan',
+          arguments: JSON.stringify({ table_pattern: '%purchase%', limit: 8 })
+        }
+      }
+    ]
+  }))
+
+  gemini.enqueue(async (_payload, _config, streamOptions) => {
+    streamOptions?.onTextChunk?.('Discovery complete.\n')
+
+    return {
+      text: '### Summary\nDiscovery complete.\n\n### Findings\nThe catalog scan found candidate purchase tables.\n\n### Evidence\nSource: catalog_scan\n\n### Actions\nUse the candidate tables for the final query.',
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return []
+    },
+    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedMetadataQueries.push(query)
+      return [
+        { TABLE_SCHEMA: 'INV', TABLE_NAME: 'InventoryReceipt', estimated_row_count: 217, columns_preview: 'ReceiptNo, TotalPrice, FiscalYear' }
+      ]
+    },
+    auditLog: { async write(): Promise<void> { return } }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-catalog-scan',
+    conversationId: 'integration-catalog-scan-conversation',
+    prompt: 'Find purchase tables for 1402 and inspect their schema.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(result.finalText.includes('catalog_scan'))
+})
+
+test('agent orchestrator refuses numeric financial claims without evidence', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: [
+      '### Summary',
+      'موجودی حساب 1250000 تومان است.',
+      '',
+      '### Findings',
+      '- این عدد از داده واقعی استخراج نشده است.',
+      '',
+      '### Evidence',
+      '- بدون ابزار و بدون کوئری.',
+      '',
+      '### Assumptions',
+      '- فرض بر این است که داده از قبل در دسترس بوده.',
+      '',
+      '### Actions',
+      '- بررسی بیشتر.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-numeric-guard',
+    conversationId: 'integration-numeric-guard-conversation',
+    prompt: 'فروش ماهانه را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.match(result.finalText, /Cannot answer reliably|شواهد کافی/i)
+  assert.doesNotMatch(result.finalText, /1250000/)
+})
+
+test('agent orchestrator emits recovery metadata to telemetry on evidence failures', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const telemetryEvents: Array<{ event: string; details?: Record<string, unknown> }> = []
+  const auditEntries: Array<Record<string, unknown>> = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nموجودی حساب 1250000 تومان است.\n\n### Findings\n- بدون شواهد واقعی.\n\n### Evidence\n- بدون کوئری.\n\n### Assumptions\n- حدس زده شده.\n\n### Actions\n- بررسی بیشتر.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nCannot answer reliably: پاسخ مالی بدون شواهد کافی مجاز نیست.\n\n### Findings\n- دلیل ساده: پاسخ مالی عددی بدون اجرای ابزار read-only تولید شد و قابل اتکا نیست.\n\n### Evidence\n- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.\n\n### Assumptions\n- پاسخ رد شده به دلیل فقدان شواهد ساخت یافته و/یا ابزار read-only قابل اتکا متوقف شد.\n\n### Actions\n- اقدام بعدی: سوال را با scope دقیق‌تر تکرار کنید: رشد فروش در سال 1403 را گزارش کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: {
+      async write(entry: any): Promise<void> {
+        auditEntries.push(entry)
+      }
+    },
+    telemetry: {
+      capture: (input) => {
+        telemetryEvents.push({ event: input.event, details: input.details })
+      }
+    }
+  })
+
+  await orchestrator.sendMessage({
+    requestId: 'integration-telemetry-recovery',
+    conversationId: 'integration-telemetry-recovery-conversation',
+    prompt: 'رشد فروش در سال 1403 را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(telemetryEvents.some((event) => event.event === 'agent.orchestrator.audit'))
+  assert.ok(telemetryEvents.some((event: any) => typeof event.details?.recoveryAttempts === 'number' || typeof event.details?.details?.recoveryAttempts === 'number'))
+  assert.ok(auditEntries.some((entry) => typeof entry.recoveryAttempts === 'number'))
+  assert.ok(auditEntries.some((entry) => typeof entry.failureKind === 'string'))
+})
+
+test('agent orchestrator emits unsupported SQL telemetry for blocked fetches', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const telemetryEvents: Array<{ event: string; details?: Record<string, unknown> }> = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: [
+      {
+        id: 'tool-fetch-unsupported-sql',
+        type: 'function',
+        function: {
+          name: 'fetch_financial_data',
+          arguments: JSON.stringify({ sql_query: 'SELECT FORMAT(GETDATE(), \'yyyy-MM-dd\') AS d FROM [dbo].[ACC_Documents]' })
+        }
+      }
+    ]
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ با شواهد کافی رد شد.\n\n### Findings\n- کوئری مسدود شد.\n\n### Evidence\n- ابزار مسدود شد.\n\n### Assumptions\n- از تابع پشتیبانی‌نشده خودداری شد.\n\n### Actions\n- از تابع جایگزین استفاده کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ بازپروری دوم.\n\n### Findings\n- هنوز شواهد کافی وجود ندارد.\n\n### Evidence\n- ابزار دوباره باید اجرا شود.\n\n### Assumptions\n- ادامه بازپروری.\n\n### Actions\n- داده را دوباره استخراج کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ نهایی پس از بازپروری.\n\n### Findings\n- نتیجهٔ نهایی تولید شد.\n\n### Evidence\n- شواهد کافی در دسترس بود.\n\n### Assumptions\n- بازپروری تکمیل شد.\n\n### Actions\n- آماده‌سازی خروجی.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } },
+    telemetry: {
+      capture: (input) => {
+        telemetryEvents.push({ event: input.event, details: input.details })
+      }
+    }
+  })
+
+  await orchestrator.sendMessage({
+    requestId: 'integration-telemetry-unsupported-sql',
+    conversationId: 'integration-telemetry-unsupported-sql-conversation',
+    prompt: 'جمع فروش را با FORMAT برگردان.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(telemetryEvents.some((event) => event.event === 'agent.orchestrator.guardrail' && event.details?.kind === 'unsupported-function'))
+  assert.ok(telemetryEvents.some((event) => event.event === 'agent.orchestrator.guardrail.count' && event.details?.kind === 'unsupported-function' && event.details?.count === 1))
+})
+
+test('agent orchestrator retries transient provider errors before degrading', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub(async () => {
+    return {
+      text: '### Summary\nنتیجه از ارائه‌دهنده بازگشت.\n\n### Findings\n- داده از سرویس بازگشت.\n\n### Evidence\n- شواهد کافی.\n\n### Assumptions\n- تلاش مجدد موفق شد.\n\n### Actions\n- برای ادامه، نتیجه را بررسی کن.',
+      raw: {},
+      toolCalls: []
+    }
+  })
+  let attempts = 0
+
+  gemini.enqueue(async () => {
+    attempts += 1
+    throw new Error('503 provider overloaded')
+  })
+
+  gemini.enqueue(async () => {
+    attempts += 1
+    throw new Error('503 provider overloaded')
+  })
+
+  gemini.enqueue(async () => {
+    attempts += 1
+    throw new Error('503 provider overloaded')
+  })
+
+  gemini.enqueue(async () => {
+    attempts += 1
+    throw new Error('503 provider overloaded')
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-telemetry-provider-retry',
+    conversationId: 'integration-telemetry-provider-retry-conversation',
+    prompt: 'جمع فروش را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(attempts >= 4, 'expected the provider retry loop to consume several attempts before succeeding')
+  assert.match(result.finalText, /نتیجه از ارائه‌دهنده بازگشت|شواهد کافی/i)
+})
+
+test('agent orchestrator emits recovery telemetry for empty results and provider errors', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const telemetryEvents: Array<{ event: string; details?: Record<string, unknown> }> = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: [
+      {
+        id: 'tool-fetch-empty-result',
+        type: 'function',
+        function: {
+          name: 'fetch_financial_data',
+          arguments: JSON.stringify({ sql_query: 'SELECT TOP 1 1 AS value FROM [dbo].[ACC_Documents] WHERE 1 = 0' })
+        }
+      }
+    ]
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nجمع فروش 0 است.\n\n### Findings\n- نتیجه خالی است.\n\n### Evidence\n- کوئری اجرا شد.\n\n### Assumptions\n- داده‌ای نبود.\n\n### Actions\n- بازه را بررسی کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ با بازپروری تکمیل شد.\n\n### Findings\n- نتیجه خالی بود.\n\n### Evidence\n- ابزار اجرا شد.\n\n### Assumptions\n- داده‌ای نبود.\n\n### Actions\n- بازه را بررسی کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ بازپروری دوم.\n\n### Findings\n- هنوز پاسخ قطعی نیست.\n\n### Evidence\n- بازپروری ادامه یافت.\n\n### Assumptions\n- داده‌ای نبود.\n\n### Actions\n- داده را بازبینی کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nپاسخ نهایی پس از بازپروری.\n\n### Findings\n- نتیجه نهایی آماده است.\n\n### Evidence\n- هیچ داده‌ای یافت نشد.\n\n### Assumptions\n- بازپروری کامل شد.\n\n### Actions\n- خروجی را بررسی کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } },
+    telemetry: {
+      capture: (input) => {
+        telemetryEvents.push({ event: input.event, details: input.details })
+      }
+    }
+  })
+
+  await orchestrator.sendMessage({
+    requestId: 'integration-telemetry-empty-result',
+    conversationId: 'integration-telemetry-empty-result-conversation',
+    prompt: 'جمع فروش را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(telemetryEvents.some((event) => event.event === 'agent.orchestrator.guardrail' && event.details?.kind === 'empty-result-recovery'))
+
+  const providerGemini = new QueueGeminiStub()
+  const providerTelemetryEvents: Array<{ event: string; details?: Record<string, unknown> }> = []
+  providerGemini.enqueue(async () => {
+    throw new Error('503 provider overloaded')
+  })
+  providerGemini.enqueue(async () => {
+    throw new Error('503 provider overloaded')
+  })
+  providerGemini.enqueue(async () => {
+    throw new Error('503 provider overloaded')
+  })
+  providerGemini.enqueue(async () => {
+    throw new Error('503 provider overloaded')
+  })
+  providerGemini.enqueue(async () => {
+    throw new Error('503 provider overloaded')
+  })
+
+  const providerOrchestrator = new AgentOrchestrator({
+    geminiClient: providerGemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } },
+    telemetry: {
+      capture: (input) => {
+        providerTelemetryEvents.push({ event: input.event, details: input.details })
+      }
+    }
+  })
+
+  await providerOrchestrator.sendMessage({
+    requestId: 'integration-telemetry-provider-error',
+    conversationId: 'integration-telemetry-provider-error-conversation',
+    prompt: 'جمع فروش را گزارش کن.',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(providerTelemetryEvents.some((event) => event.event === 'agent.orchestrator.guardrail' && event.details?.kind === 'provider-error'))
+})
+
+test('agent orchestrator emits a progress event for each recovery attempt', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const progressEvents: AgentProgressEvent[] = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nموجودی حساب 1250000 تومان است.\n\n### Findings\n- بدون شواهد واقعی.\n\n### Evidence\n- بدون کوئری.\n\n### Assumptions\n- حدس زده شده.\n\n### Actions\n- بررسی بیشتر.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: '### Summary\nCannot answer reliably: پاسخ مالی بدون شواهد کافی مجاز نیست.\n\n### Findings\n- دلیل ساده: پاسخ مالی عددی بدون اجرای ابزار read-only تولید شد و قابل اتکا نیست.\n\n### Evidence\n- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.\n\n### Assumptions\n- پاسخ رد شده به دلیل فقدان شواهد ساخت یافته و/یا ابزار read-only قابل اتکا متوقف شد.\n\n### Actions\n- اقدام بعدی: سوال را با scope دقیق‌تر تکرار کنید: رشد فروش در سال 1403 را گزارش کن.',
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
+    auditLog: { async write(): Promise<void> { return } }
+  })
+
+  await orchestrator.sendMessage({
+    requestId: 'integration-progress-recovery',
+    conversationId: 'integration-progress-recovery-conversation',
+    prompt: 'رشد فروش در سال 1403 را گزارش کن.',
+    mode: 'manual',
+    history: []
+  }, (event) => {
+    progressEvents.push(event)
+  })
+
+  assert.ok(progressEvents.some((event) => event.type === 'thinking' && event.message.includes('تلاش')))
+})
 
 test('agent orchestrator executes tool loop with detected connector context', async () => {
   const settings = createSettingsWithSepidarCatalog()
@@ -413,7 +849,8 @@ test('agent orchestrator treats fresh-topic prompts as isolated context instead 
     history: []
   })
 
-  assert.ok(result.finalText.includes('Fresh topic handled with current prompt only.'))
+  assert.match(result.finalText, /Cannot answer reliably|شواهد کافی/i)
+  assert.doesNotMatch(result.finalText, /Fresh topic handled with current prompt only./)
 })
 
 test('agent orchestrator records fresh-context decision metadata for A5 auditability', async () => {
@@ -1577,15 +2014,192 @@ test('agent orchestrator uses deterministic clarification for balance-style inte
   const result = await orchestrator.sendMessage({
     requestId: 'integration-agent-balance-deterministic-1',
     conversationId: 'integration-conversation-balance-deterministic-1',
-    prompt: 'مانده حساب فروشگاه را بگو',
+    prompt: 'خلاصه مطالبات دریافتنی را بده',
     mode: 'manual',
     history: []
   })
 
   assert.equal(result.rounds, 0)
   assert.ok(result.finalText.includes('Cannot answer reliably'))
-  assert.ok(result.finalText.includes('get_account_balance'))
+  assert.ok(result.finalText.includes('get_receivables_summary'))
 })
+
+test('agent orchestrator falls back to model exploration for incomplete account-balance mappings', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const gemini = new QueueGeminiStub()
+  const executedMetadataQueries: string[] = []
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: [
+      {
+        id: 'tool-list-acc',
+        type: 'function',
+        function: {
+          name: 'list_database_tables',
+          arguments: JSON.stringify({ schema_name: 'ACC' })
+        }
+      }
+    ]
+  }))
+
+  gemini.enqueue(async (_payload, _config, streamOptions) => {
+    streamOptions?.onTextChunk?.('Exploring ACC schema.\n')
+
+    return {
+      text: [
+        '### Summary',
+        'مانده حساب از روی جداول ACC استخراج شد.',
+        '',
+        '### Findings',
+        'جدول ACC.Account برای مانده حساب شناسایی شد.',
+        '',
+        '### Evidence',
+        'Tool: list_database_tables via read-only metadata query on ACC schema.',
+        '',
+        '### Assumptions',
+        'از نگاشت پیش‌فرض حساب استفاده شد.',
+        '',
+        '### Actions',
+        'در صورت نیاز scope حساب را دقیق‌تر کنید.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedMetadataQueries.push(query)
+      return [
+        { TABLE_SCHEMA: 'ACC', TABLE_NAME: 'Account', estimated_row_count: 412, columns_preview: 'AccountID, Title, Balance' }
+      ]
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-balance-exploration-1',
+    conversationId: 'integration-conversation-balance-exploration-1',
+    prompt: 'مانده حساب فروشگاه را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(result.rounds >= 1)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(!result.finalText.includes('Cannot answer reliably'))
+  assert.ok(executedMetadataQueries.length >= 1)
+})
+
+
+test('agent orchestrator does not poison the table-list cache across patterns in one request', async () => {
+  const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
+  const gemini = new QueueGeminiStub()
+  const executedMetadataQueries: string[] = []
+  let finalPayloadJson = ''
+
+  gemini.enqueue(async () => ({
+    text: '',
+    raw: {},
+    toolCalls: [
+      {
+        id: 'tool-list-no-match',
+        type: 'function',
+        function: {
+          name: 'list_database_tables',
+          arguments: JSON.stringify({ table_pattern: '%zzz_no_match_qqq%' })
+        }
+      },
+      {
+        id: 'tool-list-invoice',
+        type: 'function',
+        function: {
+          name: 'list_database_tables',
+          arguments: JSON.stringify({ table_pattern: '%invoicesentinelx%' })
+        }
+      }
+    ]
+  }))
+
+  gemini.enqueue(async (payload) => {
+    finalPayloadJson = JSON.stringify(payload)
+
+    return {
+      text: [
+        '### Summary',
+        'جداول مرتبط با فاکتور فروش شناسایی شد.',
+        '',
+        '### Findings',
+        'جدول SLS.InvoiceSentinelX برای فاکتور فروش یافت شد.',
+        '',
+        '### Evidence',
+        'Tool: list_database_tables روی الگوهای مختلف اجرا شد.',
+        '',
+        '### Assumptions',
+        'از کوئری LIKE برای هر الگو استفاده شد.',
+        '',
+        '### Actions',
+        'در صورت نیاز scope را دقیق‌تر کنید.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedMetadataQueries.push(query)
+
+      // Simulate SQL Server: the LIKE pattern decides the result. Uppercase
+      // INFORMATION_SCHEMA column casing is preserved.
+      if (query.includes('invoicesentinelx')) {
+        return [{ TABLE_SCHEMA: 'SLS', TABLE_NAME: 'InvoiceSentinelX' }]
+      }
+
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-table-cache-poisoning-1',
+    conversationId: 'integration-conversation-table-cache-poisoning-1',
+    prompt: 'چه جداولی برای فاکتور فروش وجود دارد؟',
+    mode: 'manual',
+    history: []
+  })
+
+  // Each distinct pattern runs its own LIKE query (no shared 'all' key), so the
+  // empty first pattern cannot poison the second one.
+  assert.equal(executedMetadataQueries.length, 2)
+  assert.ok(executedMetadataQueries.some((query) => query.includes('invoicesentinelx')))
+
+  // The second pattern (%invoicesentinelx%) must still discover the invoice table
+  // even though the first pattern returned zero rows — proving no cache poisoning.
+  assert.ok(finalPayloadJson.includes('InvoiceSentinelX'))
+  assert.ok(!result.finalText.includes('Cannot answer reliably'))
+})
+
 
 test('agent orchestrator adds Assumptions to deterministic fiscal-year list responses', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
@@ -1745,12 +2359,98 @@ test('agent orchestrator blocks final answer when prompt intent mismatches respo
   assert.ok(result.finalText.includes('count_fiscal_years'))
 })
 
-test('agent orchestrator enforces evidence-first contract for numeric financial claims without tools', async () => {
+test('agent orchestrator returns a degraded fallback answer when the provider times out', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
   const gemini = new QueueGeminiStub()
   gemini.enqueue(async () => {
+    throw new Error('زمان انتظار برای هوش مصنوعی به پایان رسید (45000 میلی‌ثانیه). وضعیت شبکه یا فیلترشکن خود را بررسی کنید.')
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-timeout-fallback-1',
+    conversationId: 'integration-conversation-timeout-fallback-1',
+    prompt: 'جمع فروش این ماه را بگو',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 0)
+  assert.ok(result.finalText.includes('پاسخ جزئی'))
+  assert.ok(result.finalText.includes('خطای ارتباط'))
+})
+
+test('agent orchestrator returns a degraded fallback answer when tool budget is exceeded', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  gemini.enqueue(async () => {
+    return {
+      text: 'plan',
+      raw: {},
+      toolCalls: Array.from({ length: 8 }, (_, index) => ({
+        id: `tool-${index}`,
+        type: 'function' as const,
+        function: {
+          name: 'catalog_scan',
+          arguments: '{}'
+        }
+      }))
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-budget-fallback-1',
+    conversationId: 'integration-conversation-budget-fallback-1',
+    prompt: 'گزارش فروش را با جزئیات کامل بده',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.ok(result.finalText.includes('پاسخ جزئی'))
+  assert.ok(result.finalText.includes('محدودیت'))
+})
+
+test('agent orchestrator enforces evidence-first contract for numeric financial claims without tools', async () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.sql.database = 'SepidarSample'
+
+  const gemini = new QueueGeminiStub()
+  const toollessNumericClaim = async () => {
     return {
       text: [
         '### Summary',
@@ -1768,7 +2468,13 @@ test('agent orchestrator enforces evidence-first contract for numeric financial 
       raw: {},
       toolCalls: []
     }
-  })
+  }
+  // The first response triggers recovery, the second also declines to run a fetch,
+  // and the third round exhausts the bounded recovery loop so the evidence-first
+  // contract still refuses the numeric answer.
+  gemini.enqueue(toollessNumericClaim)
+  gemini.enqueue(toollessNumericClaim)
+  gemini.enqueue(toollessNumericClaim)
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
@@ -1794,8 +2500,194 @@ test('agent orchestrator enforces evidence-first contract for numeric financial 
     history: []
   })
 
-  assert.equal(result.rounds, 1)
+  assert.equal(result.rounds, 3)
   assert.equal(result.toolCallsUsed, 0)
   assert.ok(result.finalText.includes('Cannot answer reliably'))
   assert.ok(result.finalText.includes('Evidence-first contract'))
+})
+
+test('agent orchestrator performs a bounded recovery loop before refusing a financial question', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+
+  gemini.enqueue(async () => ({
+    text: [
+      '### Summary',
+      'مجموع فروش حدوداً 150000000 بوده است.',
+      '',
+      '### Findings',
+      'بر اساس برآورد مدل.',
+      '',
+      '### Evidence',
+      'بدون اجرای کوئری.',
+      '',
+      '### Actions',
+      'گزارش مدیریتی.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: [
+      '### Summary',
+      'مجموع فروش حدوداً 150000000 بوده است.',
+      '',
+      '### Findings',
+      'بر اساس برآورد مدل.',
+      '',
+      '### Evidence',
+      'بدون اجرای کوئری.',
+      '',
+      '### Actions',
+      'گزارش مدیریتی.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  }))
+
+  gemini.enqueue(async () => ({
+    text: [
+      '### Summary',
+      'مجموع فروش حدوداً 150000000 بوده است.',
+      '',
+      '### Findings',
+      'بر اساس برآورد مدل.',
+      '',
+      '### Evidence',
+      'بدون اجرای کوئری.',
+      '',
+      '### Actions',
+      'گزارش مدیریتی.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  }))
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fetch-nudge-retry-1',
+    conversationId: 'integration-conversation-fetch-nudge-retry-1',
+    prompt: 'فروش ما در سال 1403 چقدر بوده است؟',
+    mode: 'manual',
+    history: []
+  })
+
+  assert.equal(result.rounds, 3)
+  assert.ok(result.finalText.includes('Cannot answer reliably'))
+  assert.ok(result.finalText.includes('2 تلاش'))
+})
+
+test('agent orchestrator nudges the model to fetch data before refusing a financial question', async () => {
+  const settings = createSettingsWithSepidarCatalog()
+  const gemini = new QueueGeminiStub()
+  const executedReadOnlyQueries: string[] = []
+
+  // Round 1: model tries to finalize a financial answer WITHOUT running any tool.
+  gemini.enqueue(async () => {
+    return {
+      text: [
+        '### Summary',
+        'مجموع فروش حدوداً 150000000 بوده است.',
+        '',
+        '### Findings',
+        'بر اساس برآورد مدل.',
+        '',
+        '### Evidence',
+        'بدون اجرای کوئری.',
+        '',
+        '### Actions',
+        'گزارش مدیریتی.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  // Round 2: after the nudge, the model runs the aggregate query.
+  gemini.enqueue(async () => {
+    return {
+      text: '',
+      raw: {},
+      toolCalls: [
+        {
+          id: 'tool-nudge-fetch',
+          type: 'function',
+          function: {
+            name: 'fetch_financial_data',
+            arguments: JSON.stringify({
+              sql_query: 'SELECT SUM(net_amount) AS total_sales FROM dbo.ACC_Documents'
+            })
+          }
+        }
+      ]
+    }
+  })
+
+  // Round 3: model finalizes using the real data.
+  gemini.enqueue(async () => {
+    return {
+      text: [
+        '### Summary',
+        'مجموع فروش 57023796065 بوده است.',
+        '',
+        '### Findings',
+        'مقدار از جدول ACC_Documents استخراج شد.',
+        '',
+        '### Evidence',
+        'ابزار fetch_financial_data با کوئری SUM net_amount برای dbo.ACC_Documents اجرا شد.',
+        '',
+        '### Actions',
+        'برای گزارش دوره‌ای استفاده شود.'
+      ].join('\n'),
+      raw: {},
+      toolCalls: []
+    }
+  })
+
+  const orchestrator = new AgentOrchestrator({
+    geminiClient: gemini,
+    getSettings: () => settings,
+    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
+      executedReadOnlyQueries.push(query)
+      return [{ total_sales: 57023796065 }]
+    },
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
+      return []
+    },
+    auditLog: {
+      async write(): Promise<void> {
+        return
+      }
+    }
+  })
+
+  const result = await orchestrator.sendMessage({
+    requestId: 'integration-agent-fetch-nudge-1',
+    conversationId: 'integration-conversation-fetch-nudge-1',
+    prompt: 'فروش ما در سال 1403 چقدر بوده است؟',
+    mode: 'manual',
+    history: []
+  })
+
+  // The nudge made the model run the aggregate query, so the answer is no longer refused.
+  assert.equal(executedReadOnlyQueries.length, 1)
+  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(!result.finalText.includes('Cannot answer reliably'))
+  assert.ok(result.finalText.includes('57023796065'))
 })

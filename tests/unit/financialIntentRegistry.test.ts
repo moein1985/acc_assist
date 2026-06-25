@@ -132,16 +132,18 @@ test('listFinancialIntentDefinitions exposes roadmap intents including determini
   assert.ok(definitions.some((item) => item.id === 'get_payables_summary' && item.responseMode === 'deterministic'))
 })
 
-test('Golden 5 intents carry fast-path metadata and target scope', () => {
+test('Golden 7 intents carry fast-path metadata and target scope', () => {
   const definitions = listFinancialIntentDefinitions()
-  const goldenFive = definitions.filter((item) => item.isGoldenFastPath)
+  const goldenSeven = definitions.filter((item) => item.isGoldenFastPath)
 
-  assert.equal(goldenFive.length, 5)
-  assert.ok(goldenFive.some((item) => item.id === 'count_fiscal_years' && item.targetTables?.length))
-  assert.ok(goldenFive.some((item) => item.id === 'list_fiscal_years' && item.requiredScopeFilters?.includes('fiscal_year')))
-  assert.ok(goldenFive.some((item) => item.id === 'get_account_balance' && item.requiredScopeFilters?.length))
-  assert.ok(goldenFive.some((item) => item.id === 'get_receivables_summary' && item.aggregate))
-  assert.ok(goldenFive.some((item) => item.id === 'get_payables_summary' && item.projection?.length))
+  assert.equal(goldenSeven.length, 8)
+  assert.ok(goldenSeven.some((item) => item.id === 'count_fiscal_years' && item.targetTables?.length))
+  assert.ok(goldenSeven.some((item) => item.id === 'list_fiscal_years' && item.requiredScopeFilters?.includes('fiscal_year')))
+  assert.ok(goldenSeven.some((item) => item.id === 'get_account_balance' && item.requiredScopeFilters?.length))
+  assert.ok(goldenSeven.some((item) => item.id === 'get_cash_bank_balance' && item.targetTables?.length))
+  assert.ok(goldenSeven.some((item) => item.id === 'get_trial_balance' && item.targetTables?.length))
+  assert.ok(goldenSeven.some((item) => item.id === 'get_receivables_summary' && item.aggregate))
+  assert.ok(goldenSeven.some((item) => item.id === 'get_payables_summary' && item.projection?.length))
 })
 
 test('listSalesKpiContracts exposes the annual sales KPI dictionary', () => {
@@ -166,4 +168,54 @@ test('detectSalesKpiContractCandidates keeps explicit KPI wording precise', () =
 
   assert.equal(result.isAmbiguous, false)
   assert.deepEqual(result.contractIds, ['gross_sales'])
+})
+
+test('detectFinancialIntent maps Persian purchase summary prompt', () => {
+  const result = detectFinancialIntent('خرید کل سال ۱۴۰۲ را بگو')
+
+  assert.ok(result)
+  assert.equal(result?.intentId, 'get_purchase_summary')
+})
+
+test('get_purchase_summary intent has deterministic response mode', () => {
+  const definitions = listFinancialIntentDefinitions()
+  const purchaseIntent = definitions.find((item) => item.id === 'get_purchase_summary')
+
+  assert.ok(purchaseIntent)
+  assert.equal(purchaseIntent?.responseMode, 'deterministic')
+  assert.ok(purchaseIntent?.targetTables?.includes('POM.PurchaseInvoice'))
+  assert.ok(purchaseIntent?.targetTables?.includes('INV.InventoryReceipt'))
+})
+
+test('get_account_balance intent has deterministic response mode and required slots', () => {
+  const definitions = listFinancialIntentDefinitions()
+  const accountBalanceIntent = definitions.find((item) => item.id === 'get_account_balance')
+
+  assert.ok(accountBalanceIntent)
+  assert.equal(accountBalanceIntent?.responseMode, 'deterministic')
+  assert.ok(accountBalanceIntent?.isGoldenFastPath)
+  assert.ok(accountBalanceIntent?.targetTables?.includes('ACC.Voucher'))
+  assert.ok(accountBalanceIntent?.targetTables?.includes('ACC.VoucherItem'))
+  assert.ok(accountBalanceIntent?.requiredSlots?.includes('accountCodeOrName'))
+  assert.equal(accountBalanceIntent?.aggregate, 'SUM(Debit) - SUM(Credit)')
+})
+
+test('intent definitions have correct targetTables for intent-table guard validation', () => {
+  const definitions = listFinancialIntentDefinitions()
+
+  // Verify purchase intent targets purchase-related tables
+  const purchaseIntent = definitions.find((item) => item.id === 'get_purchase_summary')
+  assert.ok(purchaseIntent?.targetTables?.some((t) => t.includes('Purchase') || t.includes('InventoryReceipt')))
+
+  // Verify account balance intent targets account-related tables
+  const accountBalanceIntent = definitions.find((item) => item.id === 'get_account_balance')
+  assert.ok(accountBalanceIntent?.targetTables?.some((t) => t.includes('Voucher')))
+
+  // Verify sales intent targets sales-related tables
+  const salesIntent = definitions.find((item) => item.id === 'get_sales_summary_by_period')
+  assert.ok(salesIntent?.targetTables?.some((t) => t.includes('Invoice') || t.includes('Sale')))
+
+  // Verify cash/bank intent targets cash/bank tables
+  const cashBankIntent = definitions.find((item) => item.id === 'get_cash_bank_balance')
+  assert.ok(cashBankIntent?.targetTables?.some((t) => t.includes('Cash') || t.includes('Bank')))
 })

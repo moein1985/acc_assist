@@ -14,12 +14,36 @@ type AgentDebugServerOptions = {
 
 type AskPayload = {
   prompt?: string
+  promptBase64?: string
   requestId?: string
   conversationId?: string
   mode?: 'manual' | 'dry-run'
 }
 
 const STOP_TIMEOUT_MS = 1500
+
+/**
+ * Decodes an incoming prompt, forcing UTF-8 semantics regardless of the
+ * SSH/console codepage used by the caller. When `promptBase64` is supplied it is
+ * the authoritative source (base64 of UTF-8 bytes) and is preferred over the
+ * plain `prompt` field, which can be mangled by intermediate single-byte
+ * codepages. Returns the trimmed prompt or an empty string when absent/invalid.
+ */
+export function resolveUtf8Prompt(payload: AskPayload): string {
+  const base64 = payload.promptBase64?.trim()
+  if (base64) {
+    try {
+      const decoded = Buffer.from(base64, 'base64').toString('utf8').trim()
+      if (decoded) {
+        return decoded
+      }
+    } catch {
+      // Fall back to the plain prompt field below.
+    }
+  }
+
+  return payload.prompt?.trim() ?? ''
+}
 
 export class AgentDebugServer {
   private server: ReturnType<typeof createServer> | null = null
@@ -41,7 +65,7 @@ export class AgentDebugServer {
 
         if (req.method === 'POST' && req.url === '/ask') {
           const payload = (await this.readJsonBody(req)) as AskPayload
-          const prompt = payload.prompt?.trim()
+          const prompt = resolveUtf8Prompt(payload)
 
           if (!prompt) {
             this.json(res, 400, { error: 'prompt is required' })

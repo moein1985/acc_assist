@@ -11,6 +11,7 @@ import type {
 } from '../../shared/contracts'
 import { detectAccountingSoftware, scoreTableForSoftwareConcept } from './accountingConnectorProfiles'
 import { buildConnectorReadinessSummary, buildConnectorSchemaFingerprint, buildMappingCoverageSummary } from './connectorSdk'
+import { buildCatalogCacheKey, toSampleValue } from './schemaDiscoveryUtils'
 
 const MAX_TABLES = 220
 const MAX_COLUMNS_PER_TABLE = 120
@@ -152,7 +153,7 @@ export class SchemaDiscoveryService {
       throw new Error('شناسه پروفایل (Profile ID) برای کشف ساختار الزامی است.')
     }
 
-    const cacheKey = this.buildCatalogCacheKey(profileId, params.databaseName, softwareOverrideId)
+    const cacheKey = buildCatalogCacheKey(profileId, params.databaseName, softwareOverrideId)
     const cached = this.catalogCache.get(cacheKey)
     if (cached && Date.now() - cached.fetchedAt < SCHEMA_DISCOVERY_CACHE_TTL_MS) {
       return cached.catalog
@@ -587,7 +588,7 @@ export class SchemaDiscoveryService {
           continue
         }
 
-        const sampleValue = this.toSampleValue(rawValue)
+        const sampleValue = toSampleValue(rawValue)
         if (!sampleValue) {
           continue
         }
@@ -706,46 +707,6 @@ export class SchemaDiscoveryService {
     }
 
     return false
-  }
-
-  private toSampleValue(value: unknown): string | null {
-    if (value === null || value === undefined) {
-      return null
-    }
-
-    let text: string
-
-    if (typeof value === 'string') {
-      text = value.trim()
-    } else if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
-      text = String(value)
-    } else if (value instanceof Date) {
-      text = value.toISOString()
-    } else {
-      try {
-        text = JSON.stringify(value)
-      } catch {
-        text = String(value)
-      }
-    }
-
-    if (!text) {
-      return null
-    }
-
-    if (text.length > 90) {
-      return `${text.slice(0, 87)}...`
-    }
-
-    return text
-  }
-
-  private buildCatalogCacheKey(
-    profileId: string,
-    databaseName: string,
-    softwareOverrideId: AccountingSoftwareId | null
-  ): string {
-    return `${profileId.trim().toLowerCase()}::${databaseName.trim().toLowerCase()}::${softwareOverrideId ?? 'auto'}`
   }
 
   private normalizeSoftwareId(value: unknown): AccountingSoftwareId | null {

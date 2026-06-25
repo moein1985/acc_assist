@@ -1,0 +1,399 @@
+[
+  {
+    "id": "reject-no-evidence",
+    "prompt": "موجودی حساب را نشان بده",
+    "finalText": "### Summary\nموجودی حساب 1250000 تومان است.\n\n### Findings\nاین عدد از داده واقعی استخراج نشده است.\n\n### Evidence\nTool: fetch_financial_data via read-only query on ACC_Accounts.\n\n### Assumptions\nاین پاسخ با حدس ساخته شده است.\n\n### Actions\nداده واقعی را دوباره بررسی کن.",
+    "expected": "reject"
+  },
+  {
+    "id": "accept-with-trace",
+    "prompt": "موجودی حساب را نشان بده",
+    "finalText": "### Summary\nموجودی حساب 1250000 تومان است.\n\n### Findings\nاین مقدار از اجرای کوئری read-only استخراج شد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on ACC_Accounts.\n\n### Assumptions\nاز نتیجه‌ی کوئری اجرا شده در scope استفاده شد.\n\n### Actions\nبرای تایید نهایی، بازه را بررسی کن.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(balance) AS total FROM ACC_Accounts"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-valid-empty",
+    "prompt": "در سال 1403 فروش ثبت نشده‌ای وجود دارد؟",
+    "finalText": "### Summary\nداده‌ای برای این بازه یافت نشد.\n\n### Findings\nپاسخ بر اساس اجرای کوئری read-only و نتیجه خالی است.\n\n### Evidence\nTool: fetch_financial_data via read-only query on SLS.Invoice with fiscal year filter.\n\n### Assumptions\nبرای این بازه در دیتابیس فعلی رکوردی ثبت نشده است.\n\n### Actions\nاگر داده‌ای وجود دارد، scope را دقیق‌تر کنید.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 0,
+          "nonNullValue": false,
+          "scopeApplied": true,
+          "query": "SELECT TOP 1 1 FROM SLS.Invoice WHERE FiscalYearRef = 1"
+        }
+      ]
+    },
+    "expected": "valid-empty"
+  },
+  {
+    "id": "accept-monthly-sales-comparison",
+    "prompt": "جمع فروش ماهانه 1402 و 1403 را نشان بده",
+    "finalText": "### Summary\nجمع فروش ماهانه 1402 و 1403 از اجرای کوئری read-only استخراج شد.\n\n### Findings\nبرای هر ماه نتیجه‌ی واقعی از دیتابیس بازیابی شده است.\n\n### Evidence\nTool: fetch_financial_data via read-only query on SLS.Invoice with date grouping.\n\n### Assumptions\nبرای این سناریو از بازه‌های میلادی و ستون NetPriceInBaseCurrency استفاده شد.\n\n### Actions\nنتیجه را برای گزارش مقایسه‌ای آماده کن.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 24,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT MONTH(Date) AS month, SUM(NetPriceInBaseCurrency) FROM SLS.Invoice GROUP BY MONTH(Date)"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "reject-debt-total-without-clarification",
+    "prompt": "بدهی کل 1402 را نشان بده",
+    "finalText": "### Summary\nبدهی کل 1402 را بدون مشخص کردن نوع بدهی و حساب هدف نمی‌توان با اطمینان پاسخ داد.\n\n### Findings\nپاسخ بدون شواهد کافی برای یک عدد مالی از دیتابیس رد می‌شود.\n\n### Evidence\nTool: fetch_financial_data was not executed.\n\n### Assumptions\nنوع بدهی و جدول مبدا هنوز روشن نیست.\n\n### Actions\nنوع بدهی، حساب یا دفتر کل را مشخص کن.",
+    "expected": "reject"
+  },
+  {
+    "id": "accept-uppercase-table-name",
+    "prompt": "جمع فروش در جدول SLS.Invoice را نشان بده",
+    "finalText": "### Summary\nجمع فروش از جدول SLS.Invoice با اجرای کوئری read-only استخراج شد.\n\n### Findings\nاین نتیجه بر اساس داده واقعی و scope معتبر است.\n\n### Evidence\nTool: fetch_financial_data via read-only query on SLS.Invoice.\n\n### Assumptions\nنام جدول با حروف بزرگ وارد شده و در trace معتبر ثبت شده است.\n\n### Actions\nبرای ادامه، بازه زمانی را دقیق‌تر کن.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-purchase-total-year-1402",
+    "prompt": "خرید کل سال 1402 چقدر بوده؟",
+    "finalText": "### Summary\nجمع خرید سال 1402 از دیتابیس با یک مقدار عددی واقعی استخراج شد.\n\n### Findings\nخرید کل سال 1402 با ستون خرید تأییدشده و مقدار عددی غیرصفر بازگردانده شد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on purchase tables with fiscal-year join.\n\n### Assumptions\nبرای این سناریو از ستون خرید تأییدشده استفاده شد.\n\n### Actions\nنتیجه را برای گزارش مالی آماده کن.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(PriceInBaseCurrency) AS TotalPurchase FROM POM.PurchaseInvoice pi JOIN FMK.FiscalYear fy ON pi.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1402'"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-empty-purchase-honest",
+    "prompt": "خرید کل سال 1403 چقدر بوده؟",
+    "finalText": "### Summary\nداده‌ای برای این بازه یافت نشد.\n\n### Findings\nکوئری SUM(PriceInBaseCurrency) روی POM.PurchaseInvoice با FiscalYearRef = 1403 اجرا شد و مقدار NULL برگرداند.\n\n### Evidence\nTool: fetch_financial_data via read-only query on POM.PurchaseInvoice — 1 row, aggregate NULL.\n\n### Assumptions\nبرای این بازه در دیتابیس فعلی رکوردی ثبت نشده است.\n\n### Actions\nدر صورت نیاز scope را به جدول جایگزین یا دوره دیگر تغییر دهید.",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": false,
+          "scopeApplied": true,
+          "query": "SELECT SUM(PriceInBaseCurrency) AS total FROM POM.PurchaseInvoice WHERE FiscalYearRef = 1403"
+        }
+      ]
+    },
+    "expected": "valid-empty"
+  },
+  {
+    "id": "accept-purchase-inventory-fallback",
+    "prompt": "خرید کل سال 1403 چقدر بوده؟",
+    "finalText": "### Summary\nفاکتور خرید رسمی ثبت نشده؛ بر اساس رسید انبار (غیرمرجوعی)، خلاصه خرید محاسبه شد: 850000000 تومان.\n\n### Findings\nمسیر پاسخ: deterministic\nintent قطعی: get_purchase_summary\nجدول/ستون مبنا: INV.InventoryReceipt.TotalPrice\n\n### Evidence\nابزار قطعی get_purchase_summary با 2 کوئری read-only اجرا شد.\nquery: SELECT SUM(CAST(TotalPrice AS decimal(18,2))) AS result_value FROM INV.InventoryReceipt WHERE IsReturn = 0\n\n### Assumptions\nمبلغ از رسید انبار `TotalPrice` با `IsReturn=0` است، نه فاکتور خرید رسمی.\n\n### Actions\nاگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 2,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": false,
+          "scopeApplied": true,
+          "query": "SELECT SUM(PriceInBaseCurrency) AS total FROM POM.PurchaseInvoice WHERE FiscalYearRef = 1403"
+        },
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(CAST(TotalPrice AS decimal(18,2))) AS result_value FROM INV.InventoryReceipt WHERE IsReturn = 0"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-account-balance-deterministic",
+    "prompt": "مانده حساب 1001 چقدر است؟",
+    "finalText": "### Summary\nمانده حساب بر اساس داده‌های read-only و mapping schema محاسبه شد: 1250000 (نوع KPI: مانده حساب)\n\n### Findings\nمسیر پاسخ: deterministic\nintent قطعی: get_account_balance\nجدول/ستون مبنا: ACC.VoucherItem.Debit,Credit\n\n### Evidence\nابزار قطعی get_account_balance با 1 کوئری read-only اجرا شد.\nquery: SELECT SUM(CAST(vi.Debit AS decimal(18,2))) - SUM(CAST(vi.Credit AS decimal(18,2))) AS result_value FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId\n\n### Assumptions\nاز mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.\n\n### Actions\nاگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.",
+    "executionTrace": {
+      "intentId": "get_account_balance",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(CAST(vi.Debit AS decimal(18,2))) - SUM(CAST(vi.Credit AS decimal(18,2))) AS result_value FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId WHERE vi.AccountSLRef = 1001"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "reject-purchase-mismatch-to-sales",
+    "prompt": "خرید کل سال 1403 چقدر بوده؟",
+    "finalText": "### Summary\nتطابق intent و جدول برقرار نیست: Intent mismatch: detected intent \"get_purchase_summary\" but query uses tables not in the allowed set [INV.InventoryReceipt, INV.InventoryReceiptItem, POM.PurchaseInvoice, Inv.Voucher]. Query: SELECT SUM(Amount) FROM SLS.Invoice WHERE FiscalYear = 1403",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(Amount) FROM SLS.Invoice WHERE FiscalYear = 1403"
+        }
+      ]
+    },
+    "expected": "reject"
+  },
+  {
+    "id": "accept-trial-balance-deterministic",
+    "prompt": "تراز آزمایشی سال 1403 را نشان بده",
+    "finalText": "### Summary\nخلاصه خرید بر اساس داده‌های read-only و mapping schema محاسبه شد: 450000000 (نوع KPI: خلاصه خرید)\n\n### Findings\nمسیر پاسخ: deterministic\nintent قطعی: get_trial_balance\nجدول/ستون مبنا: ACC.VoucherItem.Debit,Credit\n\n### Evidence\nابزار قطعی get_trial_balance با 1 کوئری read-only اجرا شد.\nquery: SELECT TOP (200) a.Title AS AccountTitle, SUM(CAST(vi.Debit AS decimal(18,2))) AS TotalDebit, SUM(CAST(vi.Credit AS decimal(18,2))) AS TotalCredit FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId GROUP BY a.Title\n\n### Assumptions\nاز mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.\n\n### Actions\nاگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.",
+    "executionTrace": {
+      "intentId": "get_trial_balance",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 150,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT TOP (200) a.Title AS AccountTitle, SUM(CAST(vi.Debit AS decimal(18,2))) AS TotalDebit, SUM(CAST(vi.Credit AS decimal(18,2))) AS TotalCredit FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId GROUP BY a.Title"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-cash-bank-balance-deterministic",
+    "prompt": "موجودی نقد و بانک چقدر است؟",
+    "finalText": "### Summary\nخلاصه خرید بر اساس داده‌های read-only و mapping schema محاسبه شد: 320000000 (نوع KPI: خلاصه خرید)\n\n### Findings\nمسیر پاسخ: deterministic\nintent قطعی: get_cash_bank_balance\nجدول/ستون مبنا: RPA.CashBalance,RPA.BankAccountBalance.Balance\n\n### Evidence\nابزار قطعی get_cash_bank_balance با 2 کوئری read-only اجرا شد.\nquery: SELECT SUM(CAST(Balance AS decimal(18,2))) AS result_value FROM RPA.CashBalance; SELECT SUM(CAST(Balance AS decimal(18,2))) AS result_value FROM RPA.BankAccountBalance\n\n### Assumptions\nاز mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.\n\n### Actions\nاگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.",
+    "executionTrace": {
+      "intentId": "get_cash_bank_balance",
+      "toolCallsUsed": 2,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(CAST(Balance AS decimal(18,2))) AS result_value FROM RPA.CashBalance"
+        },
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(CAST(Balance AS decimal(18,2))) AS result_value FROM RPA.BankAccountBalance"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-multi-period-sales-comparison",
+    "prompt": "مقایسهٔ فروش 1403 با 1402 را نشان بده",
+    "finalText": "### Summary\nفروش 1403 نسبت به 1402 به میزان 15.5% رشد داشته است.\n\n### Findings\nجمع فروش سال 1403 برابر 2500000000 تومان و سال 1402 برابر 2164500000 تومان است؛ نسبت تغییر از اعداد واقعی trace محاسبه شد.\n\n### Evidence\nTool: fetch_financial_data via read-only queries on SLS.Invoice JOIN FMK.FiscalYear for Title=1403 and Title=1402.\n\n### Assumptions\nاز ستون NetPriceInBaseCurrency و فیلتر FMK.FiscalYear.Title استفاده شد.\n\n### Actions\nنتیجه برای گزارش مقایسه‌ای آماده است.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 2,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(i.NetPriceInBaseCurrency) AS TotalSales FROM SLS.Invoice i JOIN FMK.FiscalYear fy ON i.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1403'"
+        },
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(i.NetPriceInBaseCurrency) AS TotalSales FROM SLS.Invoice i JOIN FMK.FiscalYear fy ON i.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1402'"
+        }
+      ],
+      "metadata": {
+        "comparativeMultiPeriod": true,
+        "successfulFetches": 2
+      }
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-account-balance-voucher",
+    "prompt": "ماندهٔ حساب فروش در سال 1402 چقدر است؟",
+    "finalText": "### Summary\nماندهٔ حساب فروش در سال 1402 با اجرای SUM(Debit) - SUM(Credit) روی ACC.VoucherItem به‌دست آمد.\n\n### Findings\nنتیجه از داده واقعی دیتابیس استخراج و در scope سال مالی 1402 محاسبه شد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on ACC.Voucher JOIN ACC.VoucherItem with FMK.FiscalYear.Title = N'1402'.\n\n### Assumptions\nستون‌های Debit/Credit پس از بررسی با get_database_schema قطعی شدند.\n\n### Actions\nگزارش مانده برای حساب‌های دیگر در صورت نیاز قابل اجرا است.",
+    "executionTrace": {
+      "intentId": "get_account_balance",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(vi.Debit) - SUM(vi.Credit) AS Balance FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1402' AND vi.AccountRef = @SalesAccountId"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-purchase-from-inventory-receipt",
+    "prompt": "خرید کل سال 1402 چقدر بوده؟",
+    "finalText": "### Summary\nجمع خرید سال 1402 از دیتابیس با یک مقدار عددی واقعی استخراج شد.\n\n### Findings\nخرید کل سال 1402 با ستون خرید تأییدشده و مقدار عددی غیرصفر بازگردانده شد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on INV.InventoryReceipt with fiscal-year join.\n\n### Assumptions\nبرای این سناریو از ستون خرید تأییدشده استفاده شد.\n\n### Actions\nنتیجه را برای گزارش مالی آماده کن.",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(ir.TotalPrice) AS TotalPurchase FROM INV.InventoryReceipt ir JOIN FMK.FiscalYear fy ON ir.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1402'"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "accept-empty-filtered-vs-empty-table",
+    "prompt": "خرید سال 1404 چقدر بوده؟",
+    "finalText": "### Summary\nداده‌ای برای این بازه یافت نشد.\n\n### Findings\nجدول INV.InventoryReceipt داده دارد، اما برای فیلتر سال/دامنه انتخابی رکوردی یافت نشد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on INV.InventoryReceipt — 0 rows returned.\n\n### Assumptions\nبرای این بازه در دیتابیس فعلی رکوردی ثبت نشده است.\n\n### Actions\nدر صورت نیاز scope را به دوره دیگر تغییر دهید.",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 0,
+          "nonNullValue": false,
+          "scopeApplied": true,
+          "query": "SELECT SUM(TotalPrice) FROM INV.InventoryReceipt WHERE FiscalYearRef = 1404"
+        }
+      ]
+    },
+    "expected": "valid-empty"
+  },
+  {
+    "id": "accept-top-customer-sales",
+    "prompt": "مشتری برتر فروش در سال 1402 کیست؟",
+    "finalText": "### Summary\nمشتری برتر فروش در سال 1402 با اجرای GROUP BY روی SLS.Invoice به‌دست آمد.\n\n### Findings\nنتیجه از داده واقعی دیتابیس استخراج و در scope سال مالی 1402 محاسبه شد.\n\n### Evidence\nTool: fetch_financial_data via read-only query on SLS.Invoice JOIN GNR.Party with FMK.FiscalYear.Title = N'1402'.\n\n### Assumptions\nستون‌های PartyRef و NetPriceInBaseCurrency پس از بررسی با get_database_schema قطعی شدند.\n\n### Actions\nگزارش مشتری برتر برای دوره‌های دیگر در صورت نیاز قابل اجرا است.",
+    "executionTrace": {
+      "intentId": null,
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 1,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT TOP 1 p.Name AS CustomerName, SUM(i.NetPriceInBaseCurrency) AS TotalSales FROM SLS.Invoice i JOIN GNR.Party p ON i.PartyRef = p.PartyId JOIN FMK.FiscalYear fy ON i.FiscalYearRef = fy.FiscalYearId WHERE fy.Title = N'1402' GROUP BY p.Name ORDER BY TotalSales DESC"
+        }
+      ]
+    },
+    "expected": "accept"
+  },
+  {
+    "id": "reject-purchase-mismatch-to-sales",
+    "prompt": "خرید کل سال 1402 چقدر بوده؟",
+    "finalText": "### Summary\nتطابق intent و جدول برقرار نیست: Intent mismatch: detected intent \"get_purchase_summary\" but query uses tables not in the allowed set [INV.InventoryReceipt, INV.InventoryReceiptItem, POM.PurchaseInvoice, Inv.Voucher]. Query: SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef = 1402\n\n### Findings\nپاسخ مالی فاقد بلوک‌های قرارداد استاندارد Summary/Findings/Evidence/Assumptions/Actions بود.\n\n### Evidence\nTool: fetch_financial_data was not executed.\n\n### Assumptions\nبرای ادامه، لازم است پرسش را محدودتر یا با جدول/ستون دقیق‌تر بازفرموله کنید.\n\n### Actions\nپرسش را دوباره با دامنه زمانی محدودتر یا شرح دقیق‌تر ارسال کنید.",
+    "executionTrace": {
+      "intentId": "get_purchase_summary",
+      "toolCallsUsed": 1,
+      "rounds": 1,
+      "evidence": [
+        {
+          "tool": "fetch_financial_data",
+          "status": "ok",
+          "rowsReturned": 100,
+          "nonNullValue": true,
+          "scopeApplied": true,
+          "query": "SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef = 1402"
+        }
+      ]
+    },
+    "expected": "reject"
+  }
+]

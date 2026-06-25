@@ -14,27 +14,63 @@ import { isTruthyEnvValue } from './agentDebugConfig'
 
 const ENCRYPTED_PREFIX = 'accassist:enc:v1:'
 
-function resolveForcedTestSqlProfile(env: NodeJS.ProcessEnv = process.env) {
-  const port = Number.parseInt(env.ACC_SQL_PORT ?? env.ACC_DEMO_SQL_PORT ?? '58033', 10)
-
-  return {
-    server: env.ACC_SQL_SERVER ?? env.ACC_DEMO_SQL_SERVER ?? '127.0.0.1',
-    port: Number.isFinite(port) ? port : 58033,
-    database: env.ACC_SQL_DATABASE ?? env.ACC_DEMO_SQL_DATABASE ?? 'Sepidar01',
-    user: env.ACC_SQL_USER ?? env.ACC_DEMO_SQL_USER ?? 'damavand',
-    password: env.ACC_SQL_PASSWORD ?? env.ACC_DEMO_SQL_PASSWORD ?? 'damavand',
-    encrypt:
-      env.ACC_SQL_ENCRYPT !== undefined
-        ? isTruthyEnvValue(env.ACC_SQL_ENCRYPT)
-        : isTruthyEnvValue(env.ACC_DEMO_SQL_ENCRYPT),
-    trustServerCertificate:
-      env.ACC_SQL_TRUST_SERVER_CERTIFICATE !== undefined
-        ? isTruthyEnvValue(env.ACC_SQL_TRUST_SERVER_CERTIFICATE)
-        : isTruthyEnvValue(env.ACC_DEMO_SQL_TRUST_SERVER_CERTIFICATE)
-  }
+function isDemoProfileEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isTruthyEnvValue(env.ACC_ENABLE_DEMO_PROFILE)
 }
 
-function resolveForcedTestGeminiProfile(env: NodeJS.ProcessEnv = process.env) {
+// Resolves a SQL override only when it is explicitly requested:
+// - Explicit ACC_SQL_* env vars are ALWAYS honored (production routing override).
+// - Demo defaults (loopback Sepidar01) are applied ONLY when ACC_ENABLE_DEMO_PROFILE is truthy.
+// Returns null when neither source is present so real UI/persisted settings are preserved.
+function resolveForcedSqlOverride(env: NodeJS.ProcessEnv = process.env): Partial<AppSettings['sql']> | null {
+  const override: Partial<AppSettings['sql']> = {}
+
+  if (isDemoProfileEnabled(env)) {
+    const demoPort = Number.parseInt(env.ACC_DEMO_SQL_PORT ?? '58033', 10)
+    override.server = env.ACC_DEMO_SQL_SERVER ?? '127.0.0.1'
+    override.port = Number.isFinite(demoPort) ? demoPort : 58033
+    override.database = env.ACC_DEMO_SQL_DATABASE ?? 'Sepidar01'
+    override.user = env.ACC_DEMO_SQL_USER ?? 'damavand'
+    override.password = env.ACC_DEMO_SQL_PASSWORD ?? 'damavand'
+    override.encrypt = isTruthyEnvValue(env.ACC_DEMO_SQL_ENCRYPT)
+    override.trustServerCertificate = isTruthyEnvValue(env.ACC_DEMO_SQL_TRUST_SERVER_CERTIFICATE)
+  }
+
+  if (env.ACC_SQL_SERVER !== undefined) {
+    override.server = env.ACC_SQL_SERVER
+  }
+  if (env.ACC_SQL_PORT !== undefined) {
+    const explicitPort = Number.parseInt(env.ACC_SQL_PORT, 10)
+    if (Number.isFinite(explicitPort)) {
+      override.port = explicitPort
+    }
+  }
+  if (env.ACC_SQL_DATABASE !== undefined) {
+    override.database = env.ACC_SQL_DATABASE
+  }
+  if (env.ACC_SQL_USER !== undefined) {
+    override.user = env.ACC_SQL_USER
+  }
+  if (env.ACC_SQL_PASSWORD !== undefined) {
+    override.password = env.ACC_SQL_PASSWORD
+  }
+  if (env.ACC_SQL_ENCRYPT !== undefined) {
+    override.encrypt = isTruthyEnvValue(env.ACC_SQL_ENCRYPT)
+  }
+  if (env.ACC_SQL_TRUST_SERVER_CERTIFICATE !== undefined) {
+    override.trustServerCertificate = isTruthyEnvValue(env.ACC_SQL_TRUST_SERVER_CERTIFICATE)
+  }
+
+  return Object.keys(override).length > 0 ? override : null
+}
+
+// Demo Gemini credentials are injected ONLY when the demo profile is explicitly enabled.
+// In production the real Gemini config from the UI/persisted settings is preserved.
+function resolveForcedGeminiOverride(env: NodeJS.ProcessEnv = process.env): Partial<AppSettings['gemini']> | null {
+  if (!isDemoProfileEnabled(env)) {
+    return null
+  }
+
   const mode: ApiMode = env.ACC_DEMO_GEMINI_MODE === 'google' ? 'google' : 'openai'
 
   return {
@@ -88,30 +124,45 @@ export class SettingsStore {
   }
 
   private applyForcedTestSqlProfile(settings: AppSettings): AppSettings {
-    const demoSqlProfile = resolveForcedTestSqlProfile()
-    const demoGeminiProfile = resolveForcedTestGeminiProfile()
+    const sqlOverride = resolveForcedSqlOverride()
+    const geminiOverride = resolveForcedGeminiOverride()
+    const demoEnabled = isDemoProfileEnabled()
+
+    // Production path: no demo flag and no explicit ACC_SQL_* override -> preserve
+    // the real UI/persisted settings instead of pinning them to the loopback demo DB.
+    if (!sqlOverride && !geminiOverride) {
+      return settings
+    }
 
     return {
       ...settings,
-      gemini: {
-        ...settings.gemini,
-        ...demoGeminiProfile
-      },
-      sql: {
-        ...settings.sql,
-        ...demoSqlProfile
-      },
-      sqlSecurity: {
-        ...settings.sqlSecurity,
-        enforceReadOnlyLogin: false
-      },
-      connectionProfiles: settings.connectionProfiles.map((profile) => ({
-        ...profile,
-        sql: {
-          ...profile.sql,
-          ...demoSqlProfile
-        }
-      }))
+      gemini: geminiOverride
+        ? {
+            ...settings.gemini,
+            ...geminiOverride
+          }
+        : settings.gemini,
+      sql: sqlOverride
+        ? {
+            ...settings.sql,
+            ...sqlOverride
+          }
+        : settings.sql,
+      sqlSecurity: demoEnabled
+        ? {
+            ...settings.sqlSecurity,
+            enforceReadOnlyLogin: false
+          }
+        : settings.sqlSecurity,
+      connectionProfiles: sqlOverride
+        ? settings.connectionProfiles.map((profile) => ({
+            ...profile,
+            sql: {
+              ...profile.sql,
+              ...sqlOverride
+            }
+          }))
+        : settings.connectionProfiles
     }
   }
 

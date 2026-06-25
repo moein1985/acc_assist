@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { SqlConnectionManager, SqlPolicyViolationError } from '../../src/main/services/sqlConnectionManager'
+import { detectUnsupportedSqlFunctions } from '../../src/main/services/sqlPolicyValidator'
 
 function validateReadOnlyQuery(
   query: string,
@@ -181,4 +182,14 @@ test('rejects Golden 5 fast-path SQL that misses the mandatory scope filter', ()
       return true
     }
   )
+})
+
+test('detectUnsupportedSqlFunctions rejects FORMAT and ignores YEAR/MONTH alternatives', () => {
+  const blocked = detectUnsupportedSqlFunctions("SELECT FORMAT(OrderDate, 'yyyy-MM') AS month_bucket FROM Sales")
+  assert.equal(blocked.found, true)
+  assert.equal(blocked.functionName, 'FORMAT')
+  assert.match(blocked.correction ?? '', /YEAR\(col\)|MONTH\(col\)|DATEPART/i)
+
+  const allowed = detectUnsupportedSqlFunctions('SELECT YEAR(OrderDate) AS year_value, MONTH(OrderDate) AS month_value FROM Sales')
+  assert.equal(allowed.found, false)
 })

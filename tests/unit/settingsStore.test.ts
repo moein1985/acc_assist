@@ -59,8 +59,8 @@ test('SettingsStore prefers ACC_SQL_* override values for SQL routing', async ()
   }
 })
 
-test('SettingsStore always applies forced test SQL and API values', async () => {
-  delete process.env.ACC_ENABLE_DEMO_PROFILE
+test('SettingsStore applies forced demo profile only when ACC_ENABLE_DEMO_PROFILE is enabled', async () => {
+  process.env.ACC_ENABLE_DEMO_PROFILE = '1'
 
   const tempDir = await mkdtemp(join(tmpdir(), 'acc-assist-settings-store-'))
 
@@ -76,6 +76,43 @@ test('SettingsStore always applies forced test SQL and API values', async () => 
     assert.equal(settings.sql.user, 'damavand')
     assert.equal(settings.sql.password, 'damavand')
     assert.equal(settings.gemini.apiKey, 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI')
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('SettingsStore preserves persisted SQL settings when no demo flag or ACC_SQL_* override is set', async () => {
+  delete process.env.ACC_ENABLE_DEMO_PROFILE
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith('ACC_SQL_') || key.startsWith('ACC_DEMO_')) {
+      delete process.env[key]
+    }
+  }
+
+  const tempDir = await mkdtemp(join(tmpdir(), 'acc-assist-settings-store-'))
+
+  try {
+    const store = new SettingsStore(join(tempDir, 'settings.json'))
+
+    await store.load()
+    await store.save({
+      sql: {
+        ...store.get().sql,
+        server: '10.20.30.40',
+        port: 1433,
+        database: 'ProductionAccounting',
+        user: 'app_reader',
+        password: 'prod-secret'
+      }
+    })
+
+    const settings = store.get()
+
+    assert.equal(settings.sql.server, '10.20.30.40')
+    assert.equal(settings.sql.port, 1433)
+    assert.equal(settings.sql.database, 'ProductionAccounting')
+    assert.equal(settings.sql.user, 'app_reader')
+    assert.equal(settings.sql.password, 'prod-secret')
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }

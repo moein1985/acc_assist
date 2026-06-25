@@ -19,6 +19,8 @@ export interface AuditLogEntry {
   errorCategory?: string
   contextMode?: 'fresh' | 'refinement'
   contextReason?: string
+  recoveryAttempts?: number
+  failureKind?: string
 }
 
 export class AuditLogService {

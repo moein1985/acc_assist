@@ -1,10 +1,15 @@
+import { normalizePersianText } from './textNormalization'
+
 export type FinancialIntentId =
   | 'count_fiscal_years'
   | 'list_fiscal_years'
   | 'get_party_balance'
   | 'get_account_balance'
   | 'get_account_turnover'
+  | 'get_cash_bank_balance'
+  | 'get_trial_balance'
   | 'get_sales_summary_by_period'
+  | 'get_purchase_summary'
   | 'get_receivables_summary'
   | 'get_payables_summary'
   | 'get_cashflow_summary'
@@ -12,7 +17,22 @@ export type FinancialIntentId =
 
 type FinancialIntentResponseMode = 'deterministic' | 'model-assisted'
 
-type FinancialIntentSlot = 'partyName' | 'accountCodeOrName' | 'dateRange' | 'fiscalYear' | 'period'
+export type FinancialIntentSlot =
+  | 'partyName'
+  | 'accountCodeOrName'
+  | 'dateRange'
+  | 'fiscalYear'
+  | 'period'
+
+/**
+ * A single weighted detection signal. The weight expresses how strongly a match
+ * contributes to an intent's absolute score (anchors are intent-defining, support
+ * signals are weak corroboration).
+ */
+export type WeightedSignal = {
+  pattern: RegExp
+  weight: number
+}
 
 export type FinancialIntentDefinition = {
   id: FinancialIntentId
@@ -20,6 +40,14 @@ export type FinancialIntentDefinition = {
   responseMode: FinancialIntentResponseMode
   requiredSlots: FinancialIntentSlot[]
   patterns: RegExp[]
+  /** Strong, intent-defining signals. When omitted, `patterns` are used as weight-1 anchors. */
+  anchors?: WeightedSignal[]
+  /** Weak corroborating signals that boost confidence but do not gate selection on their own. */
+  support?: WeightedSignal[]
+  /** Hard negative guards. Any match forces the intent score to 0 (disambiguation). */
+  exclude?: RegExp[]
+  /** Absolute acceptance threshold for the weighted engine. Defaults to 1 when omitted. */
+  minScore?: number
   isGoldenFastPath?: boolean
   targetTables?: string[]
   requiredScopeFilters?: string[]
@@ -128,14 +156,14 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_account_balance',
-    description: 'Return balance for an account/chart item.',
+    description: 'Return balance for an account/chart item from ACC.Voucher/ACC.VoucherItem.',
     responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
     isGoldenFastPath: true,
-    targetTables: ['accounts', 'ledger_lines'],
+    targetTables: ['ACC.Voucher', 'ACC.VoucherItem'],
     requiredScopeFilters: ['account_id', 'fiscal_year'],
-    aggregate: 'SUM(balance)',
-    projection: ['account_code', 'account_name', 'balance'],
+    aggregate: 'SUM(Debit) - SUM(Credit)',
+    projection: ['AccountRef', 'AccountSLRef', 'Debit', 'Credit'],
     patterns: [
       /مانده\s*(?:حساب|سرفصل|تنخواه|معین|تفضیلی)/iu,
       /\baccount\s+balance\b/iu,
@@ -152,11 +180,75 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     patterns: [/گردش\s*حساب/iu, /\baccount\s+turnover\b/iu]
   },
   {
+    id: 'get_cash_bank_balance',
+    description: 'Return cash and bank account balances from RPA.CashBalance and RPA.BankAccountBalance.',
+    responseMode: 'deterministic',
+    requiredSlots: ['fiscalYear'],
+    isGoldenFastPath: true,
+    targetTables: ['RPA.CashBalance', 'RPA.BankAccountBalance'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'SUM(Balance)',
+    projection: ['Balance', 'FiscalYearRef'],
+    patterns: [
+      /مانده\s*(?:نقد|صندوق|کش|کیش|بانک|حساب\s*بانکی)/iu,
+      /\b(?:cash|bank)\s+balance\b/iu,
+      /\bbalance\s+(?:of\s+)?(?:cash|bank)\b/iu
+    ]
+  },
+  {
+    id: 'get_trial_balance',
+    description: 'Return trial balance (sum of debit/credit by account) from ACC.VoucherItem.',
+    responseMode: 'deterministic',
+    requiredSlots: ['fiscalYear'],
+    isGoldenFastPath: true,
+    targetTables: ['ACC.Voucher', 'ACC.VoucherItem'],
+    requiredScopeFilters: ['fiscal_year'],
+    aggregate: 'SUM(Debit), SUM(Credit)',
+    projection: ['AccountRef', 'AccountSLRef', 'Debit', 'Credit'],
+    patterns: [
+      /تراز\s*آزمایشی/iu,
+      /\btrial\s+balance\b/iu,
+      /بدهکار\s*بستانکار\s*حساب‌ها/iu
+    ]
+  },
+  {
     id: 'get_sales_summary_by_period',
-    description: 'Return monthly/quarterly/yearly sales summary.',
+    description: 'Return monthly/quarterly/yearly sales summary from the sales facts table.',
     responseMode: 'model-assisted',
     requiredSlots: ['period'],
-    patterns: [/فروش\s*(?:ماهانه|فصلی|سالانه)/iu, /\bsales\s+summary\b/iu]
+    targetTables: ['MRP.SaleFacts'],
+    patterns: [/فروش\s*(?:ماهانه|فصلی|سالانه)/iu, /\bsales\s+summary\b/iu],
+    anchors: [
+      // Standalone فروش (sales), but NOT the compound words فروشگاه (store) or فروشنده/فروشندگان (seller).
+      { pattern: /فروش(?!گاه|نده|ند)/iu, weight: 3 },
+      { pattern: /\bsales\b|\brevenue\b/iu, weight: 3 },
+      { pattern: /فاکتور\s*فروش|\bsale\s+invoice\b/iu, weight: 2 }
+    ],
+    support: [{ pattern: /(?:ماهانه|فصلی|سالانه|monthly|quarterly|yearly)/iu, weight: 1 }],
+    exclude: [/برگشت\s*از\s*فروش/iu, /\bsales\s+returns?\b/iu],
+    minScore: 3
+  },
+  {
+    id: 'get_purchase_summary',
+    description:
+      'Return purchase summary. Fallback from POM.PurchaseInvoice to INV.InventoryReceipt (non-returns).',
+    responseMode: 'deterministic',
+    requiredSlots: ['period'],
+    isGoldenFastPath: true,
+    targetTables: ['POM.PurchaseInvoice', 'INV.InventoryReceipt'],
+    requiredScopeFilters: ['fiscal_year'],
+    patterns: [/خرید(?!ار)/iu, /\bpurchase\b/iu, /رسید\s*انبار/iu],
+    anchors: [
+      // Standalone خرید (purchase), but NOT خریدار/خریداران (buyer).
+      { pattern: /خرید(?!ار)/iu, weight: 3 },
+      { pattern: /\bpurchase\b|\bprocurement\b/iu, weight: 3 },
+      // Inventory receipt vouchers ARE the purchase signal in this business process.
+      { pattern: /رسید\s*انبار|\bgoods?\s*receipts?\b/iu, weight: 3 },
+      { pattern: /فاکتور\s*خرید|\bpurchase\s+invoice\b/iu, weight: 2 }
+    ],
+    support: [{ pattern: /(?:ماهانه|فصلی|سالانه|monthly|quarterly|yearly)/iu, weight: 1 }],
+    exclude: [/برگشت\s*از\s*خرید/iu, /\bpurchase\s+returns?\b/iu],
+    minScore: 3
   },
   {
     id: 'get_receivables_summary',
@@ -218,7 +310,19 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
 ]
 
 export function listFinancialIntentDefinitions(): FinancialIntentDefinition[] {
-  return FINANCIAL_INTENT_REGISTRY.map((entry) => ({ ...entry, patterns: [...entry.patterns] }))
+  return FINANCIAL_INTENT_REGISTRY.map((entry) => {
+    const copy: FinancialIntentDefinition = { ...entry, patterns: [...entry.patterns] }
+    if (entry.anchors) {
+      copy.anchors = entry.anchors.map((signal) => ({ ...signal }))
+    }
+    if (entry.support) {
+      copy.support = entry.support.map((signal) => ({ ...signal }))
+    }
+    if (entry.exclude) {
+      copy.exclude = [...entry.exclude]
+    }
+    return copy
+  })
 }
 
 export function listSalesKpiContracts(): SalesKpiContractDefinition[] {
@@ -257,13 +361,7 @@ export function detectSalesKpiContractCandidates(prompt: string): SalesKpiContra
 }
 
 function normalizeFinancialIntentPrompt(prompt: string): string {
-  return normalizePersianDigits(prompt)
-    .normalize('NFKC')
-    .replace(/[\u064a\u0649]/g, 'ی')
-    .replace(/[\u0643]/g, 'ک')
-    .replace(/\u200c/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return normalizePersianText(prompt)
 }
 
 export function extractFinancialIntentSlots(prompt: string): FinancialIntentSlotHints {
@@ -293,59 +391,102 @@ export function extractFinancialIntentSlots(prompt: string): FinancialIntentSlot
   return slots
 }
 
-export function detectFinancialIntent(prompt: string): FinancialIntentMatch | null {
+function resolveIntentAnchors(definition: FinancialIntentDefinition): WeightedSignal[] {
+  if (definition.anchors && definition.anchors.length > 0) {
+    return definition.anchors
+  }
+
+  // Backward-compatible fallback: treat each legacy pattern as a weight-1 anchor.
+  return definition.patterns.map((pattern) => ({ pattern, weight: 1 }))
+}
+
+function resolveIntentMinScore(definition: FinancialIntentDefinition): number {
+  if (typeof definition.minScore === 'number' && definition.minScore > 0) {
+    return definition.minScore
+  }
+
+  return 1
+}
+
+/**
+ * Absolute, additive intent scorer. A hard negative guard (`exclude`) short-circuits
+ * the score to 0; otherwise anchor and support weights are summed. This is the core
+ * fix for the ratio penalty: the score is an absolute sum, never divided by the number
+ * of patterns, so well-specified intents are no longer penalized for having many signals.
+ *
+ * Expects already-normalized text (see `normalizePersianText`).
+ */
+export function scoreIntent(normalizedText: string, definition: FinancialIntentDefinition): number {
+  if (!normalizedText) {
+    return 0
+  }
+
+  if (definition.exclude?.some((pattern) => pattern.test(normalizedText))) {
+    return 0
+  }
+
+  let anchorScore = 0
+
+  for (const { pattern, weight } of resolveIntentAnchors(definition)) {
+    if (pattern.test(normalizedText)) {
+      anchorScore += weight
+    }
+  }
+
+  // Support signals are weak corroboration only; they never stand in for an anchor.
+  // Without at least one anchor hit the intent is not a candidate, so support is ignored.
+  if (anchorScore === 0) {
+    return 0
+  }
+
+  let score = anchorScore
+
+  for (const { pattern, weight } of definition.support ?? []) {
+    if (pattern.test(normalizedText)) {
+      score += weight
+    }
+  }
+
+  return score
+}
+
+/**
+ * Score every registered intent against the prompt and return all candidates that clear
+ * their acceptance threshold, ranked by confidence (descending). Ties preserve registry
+ * order because `Array.prototype.sort` is stable, so the first element is always the
+ * deterministic winner — exactly what `detectFinancialIntent` returns. The FSM uses the
+ * full ranked list to detect genuine ambiguity (two distinct intents tied at the top).
+ *
+ * The weighted engine is the single source of truth; the legacy ratio engine and its
+ * `ACC_INTENT_SCORING` A/B flag were retired once the golden fixtures were green.
+ */
+export function scoreFinancialIntentCandidates(prompt: string): FinancialIntentMatch[] {
   const normalizedPrompt = normalizeFinancialIntentPrompt(prompt)
 
   if (!normalizedPrompt) {
-    return null
+    return []
   }
 
-  let bestMatch: FinancialIntentMatch | null = null
+  const matches: FinancialIntentMatch[] = []
 
   for (const intent of FINANCIAL_INTENT_REGISTRY) {
-    let matchedPatterns = 0
+    const rawScore = scoreIntent(normalizedPrompt, intent)
+    const minScore = resolveIntentMinScore(intent)
 
-    for (const pattern of intent.patterns) {
-      if (pattern.test(normalizedPrompt)) {
-        matchedPatterns += 1
-      }
-    }
-
-    if (matchedPatterns === 0) {
+    if (rawScore < minScore) {
       continue
     }
 
-    const confidence = matchedPatterns / intent.patterns.length
-
-    if (!bestMatch || confidence > bestMatch.confidence) {
-      bestMatch = {
-        intentId: intent.id,
-        confidence
-      }
-    }
+    // Squash the unbounded additive score into a comparable 0..1 confidence.
+    matches.push({
+      intentId: intent.id,
+      confidence: 1 - Math.exp(-rawScore / minScore)
+    })
   }
 
-  return bestMatch
+  return matches.sort((a, b) => b.confidence - a.confidence)
 }
 
-function normalizePersianDigits(value: string): string {
-  const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹']
-  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩']
-
-  return value
-    .split('')
-    .map((char) => {
-      const persianIndex = persianDigits.indexOf(char)
-      if (persianIndex >= 0) {
-        return String(persianIndex)
-      }
-
-      const arabicIndex = arabicDigits.indexOf(char)
-      if (arabicIndex >= 0) {
-        return String(arabicIndex)
-      }
-
-      return char
-    })
-    .join('')
+export function detectFinancialIntent(prompt: string): FinancialIntentMatch | null {
+  return scoreFinancialIntentCandidates(prompt)[0] ?? null
 }

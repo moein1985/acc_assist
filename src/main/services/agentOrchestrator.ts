@@ -18,60 +18,42 @@ import type {
 } from '../../shared/contracts'
 import type { AuditLogEntry } from './auditLogService'
 import {
+  classifyToolFailure,
+  evaluateEvidence,
+  type ExecutionTrace,
+  type ToolEvidence,
+  type ToolFailureKind
+} from './evidenceContract'
+import {
   detectFinancialIntent,
   detectSalesKpiContractCandidates,
   listFinancialIntentDefinitions,
   type FinancialIntentId
 } from './financialIntentRegistry'
+import { transition, type RouteState } from './intentFsm'
 import { SqlPolicyViolationError } from './sqlConnectionManager'
+import {
+  buildDatabaseSchemaQuery,
+  escapeSqlStringLiteral,
+  normalizeTablePattern,
+  parseToolArguments,
+  readOptionalNumberArg,
+  readOptionalStringArg,
+  readRequiredStringArg
+} from './agentToolArgumentUtils'
+import { normalizePersianDigits, normalizePersianText } from './textNormalization'
+import { detectUnsupportedSqlFunctions } from './sqlPolicyValidator'
+import { renderValidEmptyFinancialAnswer, buildEvidenceContractFailureResponse } from './agentOrchestrator/responseBuilder'
+import { classifyDeterministicIntent, isRelaxedExploratoryIntent } from './agentOrchestrator/intentRouting'
+import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
+import { MAX_FINANCIAL_RECOVERY_ATTEMPTS, mapRecoveryErrorHint } from './agentOrchestrator/recovery'
+import { SYSTEM_PROMPT } from './agentOrchestrator/prompts'
 
-const FINANCIAL_SCHEMA_GUIDE = [
-  'Database schema context (logical map; verify actual tables and columns before final SELECT):',
-  '- Accounts / Chart of Accounts: account_id, account_code (کل/معین/تفضیلی), account_name, account_type, parent_account_id, is_active',
-  '- Documents / Voucher Headers: document_id, document_no, document_date, fiscal_year, branch_id, status',
-  '- Ledger / Journal Lines: line_id, document_id, account_id, debit_amount, credit_amount, line_description, cost_center_id',
-  '- Transactions / Cashflow: transaction_id, transaction_date, amount, direction, account_id, counterparty_id, reference_no',
-  '- Parties / Counterparties: party_id, party_code, party_name, category, national_id',
-  '- Optional dimensions: project_id, cost_center_id, currency_code, exchange_rate, tax_amount',
-  'Date and type handling policy:',
-  '- Always identify if dates are Gregorian (DATE/DATETIME) or Shamsi/Persian text values before filtering.',
-  '- For Shamsi text dates (e.g. 1403/01/15), keep format-consistent comparisons and avoid unsafe casts.',
-  '- For Gregorian datetime columns, use precise range predicates and explicit ORDER BY.',
-  '- Validate numeric/text code types (especially account codes) before joins or predicates.'
-].join('\n')
-
-const RESPONSE_POLICY_GUIDE = [
-  'Tool usage and reporting policy:',
-  '- Always use tools when data is required. Never invent rows, totals, or schema fields.',
-  '- The financial schema map is a logical guide, not a guaranteed physical schema for every customer database.',
-  '- Discovery strategy for unknown databases: Step 1) call list_database_tables, Step 2) call get_database_schema, Step 3) write final SELECT with fetch_financial_data.',
-  '- Tool-call budget: maximum 4 tool calls per round and maximum 12 tool calls per request.',
-  '- For fetch_financial_data, use in-scope financial catalog tables from current database only; cross-database/server references are blocked.',
-  '- If unsure about columns or table names, never guess; discover metadata with tools first.',
-  '- If the user specifies multiple companies/fiscal years/branches, preserve all scopes in SQL filters and keep scope labels visible in the output.',
-  '- Analyze tool responses carefully before writing conclusions or recommendations.',
-  '- Sensitive identifiers (national ID, mobile, account/card/IBAN values) may be redacted in tool outputs for privacy.',
-  '- Return final answers in clean Markdown with sections: Summary, Findings, Evidence, Actions.',
-  '- When trend data exists, include a compact text chart (ASCII) plus a short interpretation.',
-  '- Explicitly state assumptions about date format, account-code level, and currency.'
-].join('\n')
-
-const SYSTEM_PROMPT = [
-  'You are ACC Assist, an enterprise financial analyst assistant specialized in SQL Server financial databases.',
-  'You can use these tools: list_database_tables(table_pattern?), get_database_schema(table_name, schema_name?), and fetch_financial_data(sql_query).',
-  'Use only read-only SELECT/CTE SELECT queries. Never request UPDATE/DELETE/INSERT/DDL statements.',
-  'Treat FINANCIAL_SCHEMA_GUIDE as a logical reference only; real table names may differ across databases.',
-  'If the database is unknown, follow this strategy strictly: Step 1 list_database_tables, Step 2 get_database_schema, Step 3 fetch_financial_data.',
-  'Before generating SQL, reason about data types, date calendar format (Shamsi vs Gregorian), and account code hierarchy.',
-  FINANCIAL_SCHEMA_GUIDE,
-  RESPONSE_POLICY_GUIDE
-].join('\n\n')
-
-// Budget arithmetic: 4 rounds × 4 calls/round = 16 possible tool calls, but the
-// MVP path keeps the real execution cap at 8 total tool calls to avoid runaway token bleed.
+// Budget arithmetic for the capped tool loop used by the production MVP path.
+// The runtime policy keeps the loop small to avoid runaway token bleed and noisy retries.
 const MAX_TOOL_CALL_ROUNDS = 4
-const MAX_TOOL_CALLS_PER_ROUND = 4
-const MAX_TOTAL_TOOL_CALLS = 8
+const MAX_TOOL_CALLS_PER_ROUND = 7
+const MAX_TOTAL_TOOL_CALLS = 14
 const MAX_CHAT_HISTORY = 28
 const MAX_HISTORY_SUMMARY_USERS = 6
 const MAX_HISTORY_SUMMARY_ASSISTANT = 4
@@ -157,9 +139,37 @@ const SCHEMA_CONTEXT_CONCEPT_LABELS: Record<AccountingConceptKey, string> = {
   pettyCash: 'Petty cash'
 }
 
+const FINANCIAL_INTENT_FA_LABELS: Record<FinancialIntentId, string> = {
+  count_fiscal_years: 'تعداد سال‌های مالی',
+  list_fiscal_years: 'فهرست سال‌های مالی',
+  get_party_balance: 'مانده طرف حساب',
+  get_account_balance: 'مانده حساب',
+  get_account_turnover: 'گردش حساب',
+  get_cash_bank_balance: 'مانده نقد و بانک',
+  get_trial_balance: 'تراز آزمایشی',
+  get_sales_summary_by_period: 'خلاصه فروش',
+  get_purchase_summary: 'خلاصه خرید',
+  get_receivables_summary: 'خلاصه دریافتنی‌ها',
+  get_payables_summary: 'خلاصه پرداختنی‌ها',
+  get_cashflow_summary: 'خلاصه جریان نقد',
+  get_recent_or_suspicious_documents: 'اسناد اخیر یا مشکوک'
+}
+
 const PROMPT_INTENT_SYNONYMS: Record<AccountingConceptKey, RegExp[]> = {
   accounts: [/حساب/iu, /سرفصل/iu, /معین/iu, /تفضیلی/iu, /\baccount(s)?\b/i, /\bledger\b/i],
-  documents: [/سند/iu, /دفتر\s*روزنامه/iu, /\bdocument(s)?\b/i, /\bvoucher(s)?\b/i, /\bjournal\b/i],
+  documents: [
+    /سند/iu,
+    /دفتر\s*روزنامه/iu,
+    /خرید/iu,
+    /فروش/iu,
+    /\bdocument(s)?\b/i,
+    /\bvoucher(s)?\b/i,
+    /\bjournal\b/i,
+    /\bpurchase(s)?\b/i,
+    /\bsale(s)?\b/i,
+    /\binvoice(s)?\b/i,
+    /\breceipt(s)?\b/i
+  ],
   documentLines: [/آرتیکل/iu, /ردیف/iu, /جزئیات/iu, /\bline(s)?\b/i, /\bdetail(s)?\b/i],
   counterparties: [
     /طرف\s*حساب/iu,
@@ -264,19 +274,6 @@ type ActiveAgentExecution = {
   abortController: AbortController
 }
 
-type DeterministicFinancialIntent = Extract<
-  FinancialIntentId,
-  | 'count_fiscal_years'
-  | 'list_fiscal_years'
-  | 'get_party_balance'
-  | 'get_account_balance'
-  | 'get_account_turnover'
-  | 'get_sales_summary_by_period'
-  | 'get_receivables_summary'
-  | 'get_payables_summary'
-  | 'get_cashflow_summary'
->
-
 type FiscalYearFallbackResult = {
   count: number
   years: number[]
@@ -342,6 +339,28 @@ const SENSITIVE_IDENTIFIER_FIELD_TOKENS_FA = [
 ]
 
 const FINANCIAL_TOOLS: GeminiToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'catalog_scan',
+      description:
+        'Run a low-cost read-only catalog scan for candidate financial or purchase tables, including estimated row counts and sample columns for discovery.',
+      parameters: {
+        type: 'object',
+        properties: {
+          table_pattern: {
+            type: 'string',
+            description: "Optional LIKE pattern such as '%purchase%' or '%receipt%'."
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of candidate tables to return. Default is 8.'
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  },
   {
     type: 'function',
     function: {
@@ -428,6 +447,19 @@ interface AgentOrchestratorDeps {
   auditLog: {
     write: (entry: AuditLogEntry) => Promise<void>
   }
+  telemetry?: {
+    capture: (input: {
+      event: string
+      category: string
+      level?: 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+      process?: 'main' | 'renderer'
+      message?: string
+      details?: Record<string, unknown>
+      requestId?: string
+      conversationId?: string
+      correlationId?: string
+    }) => void
+  }
   mobileBridge?: {
     broadcast: (message: any) => void
   }
@@ -440,6 +472,7 @@ export class AgentOrchestrator {
   private readonly executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   private readonly executeMetadataSql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   private readonly auditLog: AgentOrchestratorDeps['auditLog']
+  private readonly telemetry?: AgentOrchestratorDeps['telemetry']
   private readonly mobileBridge?: AgentOrchestratorDeps['mobileBridge']
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
@@ -453,6 +486,7 @@ export class AgentOrchestrator {
     this.executeReadOnlySql = deps.executeReadOnlySql
     this.executeMetadataSql = deps.executeMetadataSql
     this.auditLog = deps.auditLog
+    this.telemetry = deps.telemetry
     this.mobileBridge = deps.mobileBridge
   }
 
@@ -480,6 +514,15 @@ export class AgentOrchestrator {
       requestId,
       conversationId,
       abortController: new AbortController()
+    }
+
+    const requestTelemetrySummary: Record<string, unknown> = {
+      intentId: null,
+      confidence: null,
+      verdictKind: null,
+      recoveryAttempts: 0,
+      failureKind: null,
+      roundsUsed: 0
     }
     this.activeExecutions.set(requestId, execution)
     const conversationMemory = this.getOrCreateConversationMemory(conversationId)
@@ -528,22 +571,15 @@ export class AgentOrchestrator {
       )
       let totalToolCallCount = 0
       let totalSuccessfulDataFetches = 0
+      let financialRecoveryAttempts = 0
+      let discoveryWithoutFetchCount = 0
+      let lastToolErrorCode: string | null = null
+      let lastToolErrorMessage: string | null = null
+      const executionEvidence: ToolEvidence[] = []
       const deterministicIntent =
         payload.mode === 'dry-run' ? null : this.detectDeterministicFinancialIntent(prompt)
-      const deterministicFiscalIntent =
-        deterministicIntent && ['count_fiscal_years', 'list_fiscal_years'].includes(deterministicIntent)
-          ? deterministicIntent
-          : null
-      const deterministicToolIntent =
-        deterministicIntent &&
-        ['get_account_balance', 'get_party_balance', 'get_cashflow_summary', 'get_receivables_summary', 'get_payables_summary'].includes(
-          deterministicIntent
-        )
-          ? deterministicIntent
-          : null
-      const deterministicNonFiscalIntent = deterministicIntent && !deterministicFiscalIntent && !deterministicToolIntent
-        ? deterministicIntent
-        : null
+      const { fiscalIntent: deterministicFiscalIntent, toolIntent: deterministicToolIntent, nonFiscalIntent: deterministicNonFiscalIntent } =
+        classifyDeterministicIntent(deterministicIntent)
 
       const clarificationResponse =
         payload.mode === 'manual'
@@ -556,7 +592,8 @@ export class AgentOrchestrator {
           settings,
           conversationMemory,
           execution.abortController.signal,
-          onProgress
+          onProgress,
+          prompt
         )
 
         if (toolResult) {
@@ -596,32 +633,40 @@ export class AgentOrchestrator {
           }
         }
 
-        const finalText = this.buildDeterministicIntentClarificationResponse(deterministicToolIntent)
-        this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
-        const finalHistory = this.compactHistory(
-          [...workingHistory, { role: 'assistant', content: finalText }],
-          conversationMemory
-        )
+        // Issue 4 (intent over-refusal relaxation): when the deterministic
+        // account-balance mapping is incomplete we no longer emit a hard,
+        // pre-emptive refusal. Instead we fall through to the model-driven tool
+        // loop so the agent can take a safe exploration path (e.g.
+        // list_database_tables on the ACC schema) and still attempt real data
+        // delivery. Other deterministic tool intents keep the strict refusal.
+        if (!isRelaxedExploratoryIntent(deterministicToolIntent)) {
+          const finalText = this.buildDeterministicIntentClarificationResponse(deterministicToolIntent)
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
 
-        await this.safeAuditWrite({
-          timestamp: new Date().toISOString(),
-          requestId,
-          conversationId,
-          stage: 'final',
-          durationMs: Date.now() - startedAt,
-          round: 0
-        })
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'final',
+            durationMs: Date.now() - startedAt,
+            round: 0
+          })
 
-        this.emitProgress(onProgress, {
-          type: 'final',
-          message: finalText
-        })
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
 
-        return {
-          history: finalHistory,
-          finalText,
-          rounds: 0,
-          toolCallsUsed: 0
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: 0,
+            toolCallsUsed: 0
+          }
         }
       }
 
@@ -809,49 +854,199 @@ export class AgentOrchestrator {
           ? `${runtimeSystemPrompt}\n\nThis is the final tool round. If the required data is still missing, answer with the best partial result and explicitly state what is missing.`
           : runtimeSystemPrompt
 
-        const response = await this.geminiClient.chat(
-          {
-            messages: [{ role: 'system', content: finalRoundPrompt }, ...workingHistory],
-            temperature: 0.2,
-            tools: isFinalRound ? undefined : FINANCIAL_TOOLS
-          },
-          settings.gemini,
-          {
-            onTextChunk: (chunkText) => {
-              if (!chunkText) {
-                return
-              }
+        let response: GeminiChatResponse
 
-              this.emitProgress(onProgress, {
-                type: 'response-chunk',
-                message: chunkText
-              })
+        try {
+          response = await this.callGeminiWithProviderRetry(
+            {
+              messages: [{ role: 'system', content: finalRoundPrompt }, ...workingHistory],
+              temperature: 0.2,
+              tools: isFinalRound ? undefined : FINANCIAL_TOOLS
             },
-            signal: execution.abortController.signal
+            settings.gemini,
+            execution.abortController.signal,
+            onProgress
+          )
+        } catch (error) {
+          const errorInfo = this.toErrorInfo(error)
+
+          if (this.shouldReturnDegradedFallback(error)) {
+            this.emitGuardrailTelemetry(
+              'provider-error',
+              requestId,
+              conversationId,
+              {
+                errorCode: errorInfo.code ?? 'AGENT_PROVIDER_FAILURE_DEGRADED',
+                errorMessage: errorInfo.message
+              }
+            )
+            this.emitGuardrailCounterTelemetry('provider-error', requestId, conversationId, 1)
+
+            const finalText = this.buildRuntimeFailureFallbackAnswer(
+              prompt,
+              errorInfo.message,
+              totalToolCallCount,
+              totalSuccessfulDataFetches
+            )
+            this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+            const finalHistory = this.compactHistory(
+              [...workingHistory, { role: 'assistant', content: finalText }],
+              conversationMemory
+            )
+
+            this.emitProgress(onProgress, {
+              type: 'tool-error',
+              message: '⚠️ پاسخ جزئی بازگردانده شد زیرا خطای ارتباط یا زمان‌بندی در مسیر هوش مصنوعی رخ داد.',
+              errorCode: 'AGENT_PROVIDER_FAILURE_DEGRADED',
+              errorCategory: 'orchestration-runtime'
+            })
+
+            await this.safeAuditWrite({
+              timestamp: new Date().toISOString(),
+              requestId,
+              conversationId,
+              stage: 'error',
+              durationMs: Date.now() - startedAt,
+              error: errorInfo.message,
+              errorCode: 'AGENT_PROVIDER_FAILURE_DEGRADED',
+              errorCategory: 'orchestration-runtime'
+            })
+
+            this.emitProgress(onProgress, {
+              type: 'final',
+              message: finalText
+            })
+
+            return {
+              history: finalHistory,
+              finalText,
+              rounds: 0,
+              toolCallsUsed: totalToolCallCount
+            }
           }
-        )
+
+          throw error
+        }
 
         this.throwIfRequestCanceled(execution.abortController.signal)
 
         const toolCalls = this.extractToolCallsFromResponse(response)
 
         if (toolCalls.length > MAX_TOOL_CALLS_PER_ROUND) {
-          throw this.createAgentPolicyError(
-            'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED',
-            `Tool-call budget exceeded: this round requested ${toolCalls.length} calls (max ${MAX_TOOL_CALLS_PER_ROUND}).`
+          const finalText = this.buildRuntimeFailureFallbackAnswer(
+            prompt,
+            `محدودیت ابزارها: این دور ${toolCalls.length} ابزار درخواست کرد در حالی که حد مجاز ${MAX_TOOL_CALLS_PER_ROUND} است.`,
+            totalToolCallCount,
+            totalSuccessfulDataFetches,
+            'budget'
           )
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
+
+          this.emitProgress(onProgress, {
+            type: 'tool-error',
+            message: '⚠️ پاسخ جزئی بازگردانده شد زیرا محدودیت ابزارهای هر دور از حد مجاز عبور کرد.',
+            errorCode: 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED',
+            errorCategory: 'orchestration-policy'
+          })
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'error',
+            durationMs: Date.now() - startedAt,
+            error: 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED',
+            errorCode: 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED',
+            errorCategory: 'orchestration-policy'
+          })
+
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
+
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: round + 1,
+            toolCallsUsed: totalToolCallCount
+          }
         }
 
         const projectedTotalToolCalls = totalToolCallCount + toolCalls.length
 
         if (projectedTotalToolCalls > MAX_TOTAL_TOOL_CALLS) {
-          throw this.createAgentPolicyError(
-            'AGENT_TOTAL_TOOL_CALLS_EXCEEDED',
-            `Tool-call budget exceeded: total requested ${projectedTotalToolCalls} calls (max ${MAX_TOTAL_TOOL_CALLS}).`
+          const finalText = this.buildRuntimeFailureFallbackAnswer(
+            prompt,
+            `محدودیت ابزارها: در کل ${projectedTotalToolCalls} ابزار درخواست شد در حالی که حد مجاز ${MAX_TOTAL_TOOL_CALLS} است.`,
+            totalToolCallCount,
+            totalSuccessfulDataFetches,
+            'budget'
           )
+          this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
+          const finalHistory = this.compactHistory(
+            [...workingHistory, { role: 'assistant', content: finalText }],
+            conversationMemory
+          )
+
+          this.emitProgress(onProgress, {
+            type: 'tool-error',
+            message: '⚠️ پاسخ جزئی بازگردانده شد زیرا محدودیت ابزارهای کل درخواست از حد مجاز عبور کرد.',
+            errorCode: 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED',
+            errorCategory: 'orchestration-policy'
+          })
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            conversationId,
+            stage: 'error',
+            durationMs: Date.now() - startedAt,
+            error: 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED',
+            errorCode: 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED',
+            errorCategory: 'orchestration-policy'
+          })
+
+          this.emitProgress(onProgress, {
+            type: 'final',
+            message: finalText
+          })
+
+          return {
+            history: finalHistory,
+            finalText,
+            rounds: round + 1,
+            toolCallsUsed: totalToolCallCount
+          }
         }
 
         if (toolCalls.length === 0) {
+          const failureKind = classifyToolFailure(
+            executionEvidence,
+            lastToolErrorCode ?? undefined,
+            lastToolErrorMessage ?? undefined
+          )
+          const numericFinancialQuestion = this.requiresStrictFinancialDataFetch(prompt, response.text)
+          const shouldRecoverEmptyResult = failureKind === 'EMPTY_RESULT' && numericFinancialQuestion
+          const shouldForceFetchAfterDiscovery =
+            discoveryWithoutFetchCount >= 2 &&
+            totalSuccessfulDataFetches === 0 &&
+            !isFinalRound &&
+            !this.isLikelyRefinementPrompt(conversationMemory, prompt)
+          // H3: for multi-period comparative prompts (e.g. "فروش 1403 vs 1402"),
+          // demand at least one successful fetch per period — a single fetch is
+          // not enough for an honest comparison.
+          const isComparativeMultiPeriod = this.isComparativeMultiPeriodPrompt(prompt)
+          const shouldForceComparativeFetch =
+            isComparativeMultiPeriod &&
+            totalSuccessfulDataFetches < 2 &&
+            !isFinalRound &&
+            !this.isLikelyRefinementPrompt(conversationMemory, prompt)
+
           if (deterministicFiscalIntent && totalToolCallCount === 0) {
             this.emitProgress(onProgress, {
               type: 'thinking',
@@ -890,7 +1085,9 @@ export class AgentOrchestrator {
                 conversationId,
                 stage: 'final',
                 durationMs: Date.now() - startedAt,
-                round: round + 1
+                round: round + 1,
+                recoveryAttempts: financialRecoveryAttempts,
+                failureKind
               })
 
               this.emitProgress(onProgress, {
@@ -908,14 +1105,97 @@ export class AgentOrchestrator {
           }
 
           const rawFinalText = response.text.trim() || 'Model returned an empty response.'
+
+          // Completion-reliability guard: if the user asked a strict financial/quant
+          // question but the model is about to finalize WITHOUT ever running
+          // fetch_financial_data, nudge it once to execute the query (it has usually
+          // already discovered the schema) instead of letting the evidence-first
+          // contract refuse with "Cannot answer reliably". This is gated by the same
+          // requiresStrictFinancialDataFetch predicate the contract uses, so it only
+          // fires for questions that would otherwise be refused for missing data.
+          const shouldAttemptRecovery =
+            financialRecoveryAttempts < MAX_FINANCIAL_RECOVERY_ATTEMPTS &&
+            !isFinalRound &&
+            totalToolCallCount < MAX_TOTAL_TOOL_CALLS &&
+            (shouldRecoverEmptyResult ||
+              (totalSuccessfulDataFetches === 0 &&
+                this.requiresStrictFinancialDataFetch(prompt, rawFinalText) &&
+                !this.isLikelyRefinementPrompt(conversationMemory, prompt)) ||
+              shouldForceFetchAfterDiscovery ||
+              shouldForceComparativeFetch)
+
+          if (shouldAttemptRecovery) {
+            financialRecoveryAttempts += 1
+            const recoveryHint = this.buildRecoveryHint(
+              failureKind,
+              lastToolErrorCode ?? undefined,
+              lastToolErrorMessage ?? undefined,
+              executionEvidence,
+              {
+                comparativeMultiPeriod: isComparativeMultiPeriod,
+                successfulFetches: totalSuccessfulDataFetches
+              },
+              prompt
+            )
+
+            if (failureKind === 'EMPTY_RESULT' && this.requiresStrictFinancialDataFetch(prompt, rawFinalText)) {
+              this.emitGuardrailTelemetry(
+                'empty-result-recovery',
+                requestId,
+                conversationId,
+                {
+                  recoveryAttempts: financialRecoveryAttempts,
+                  failureKind,
+                  hint: recoveryHint
+                }
+              )
+              this.emitGuardrailCounterTelemetry('empty-result-recovery', requestId, conversationId, financialRecoveryAttempts)
+            }
+
+            workingHistory = this.compactHistory(
+              [
+                ...workingHistory,
+                { role: 'assistant', content: rawFinalText },
+                {
+                  role: 'user',
+                  content:
+                    `برای پاسخ مالی نهایی باید عددِ خواسته‌شده را مستقیماً از دیتابیس استخراج کنی. ` +
+                    `این ${financialRecoveryAttempts} از ${MAX_FINANCIAL_RECOVERY_ATTEMPTS} تلاش بازپروری است. ` +
+                    `${recoveryHint} ` +
+                    'سپس بر اساس نتیجهٔ واقعی پاسخ نهایی بده. بدون اجرای fetch_financial_data پاسخ نده.'
+                }
+              ],
+              conversationMemory
+            )
+
+            this.emitProgress(onProgress, {
+              type: 'thinking',
+              message: `در حال امتحان روش دیگر برای استخراج داده... (تلاش ${financialRecoveryAttempts} از ${MAX_FINANCIAL_RECOVERY_ATTEMPTS})`
+            })
+
+            continue
+          }
+
           const finalText = this.finalizeFinancialResponse(
             prompt,
             rawFinalText,
             conversationMemory,
             totalToolCallCount,
             totalSuccessfulDataFetches,
-            'model-assisted'
+            'model-assisted',
+            {
+              intentId: deterministicIntent ?? null,
+              toolCallsUsed: totalToolCallCount,
+              rounds: round + 1,
+              evidence: executionEvidence
+            },
+            { attempts: financialRecoveryAttempts }
           )
+          requestTelemetrySummary.intentId = deterministicIntent ?? null
+          requestTelemetrySummary.confidence = deterministicIntent ? 1 : 0.5
+          requestTelemetrySummary.recoveryAttempts = financialRecoveryAttempts
+          requestTelemetrySummary.failureKind = failureKind ?? null
+          requestTelemetrySummary.roundsUsed = round + 1
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
             [...workingHistory, { role: 'assistant', content: finalText }],
@@ -928,7 +1208,9 @@ export class AgentOrchestrator {
             conversationId,
             stage: 'final',
             durationMs: Date.now() - startedAt,
-            round: round + 1
+            round: round + 1,
+            recoveryAttempts: financialRecoveryAttempts,
+            failureKind
           })
 
           this.emitProgress(onProgress, {
@@ -967,6 +1249,7 @@ export class AgentOrchestrator {
 
         const toolExecution = await this.executeFinancialToolCalls({
           requestId,
+          conversationId,
           round: round + 1,
           toolCalls,
           settings,
@@ -977,6 +1260,21 @@ export class AgentOrchestrator {
 
         totalToolCallCount = projectedTotalToolCalls
         totalSuccessfulDataFetches += toolExecution.successfulDataFetches
+        executionEvidence.push(...toolExecution.evidence)
+
+        const discoveryToolsUsed = toolExecution.evidence.filter((entry) => entry.tool === 'catalog_scan' || entry.tool === 'list_database_tables')
+        if (discoveryToolsUsed.some((entry) => entry.status === 'ok')) {
+          const hadFetchInRound = toolExecution.evidence.some((entry) => entry.tool === 'fetch_financial_data' && entry.status === 'ok')
+          if (!hadFetchInRound) {
+            discoveryWithoutFetchCount += 1
+          }
+        }
+
+        const lastToolEvidence = toolExecution.evidence.filter((entry) => entry.status === 'error').at(-1)
+        if (lastToolEvidence) {
+          lastToolErrorCode = lastToolEvidence.errorCode ?? (lastToolEvidence.query ? 'TOOL_ERROR' : null)
+          lastToolErrorMessage = lastToolEvidence.errorMessage ?? null
+        }
 
         workingHistory = this.compactHistory([...workingHistory, ...toolExecution.toolMessages], conversationMemory)
       }
@@ -1001,6 +1299,22 @@ export class AgentOrchestrator {
         error: 'AGENT_LOOP_BUDGET_EXHAUSTED',
         errorCode: 'AGENT_LOOP_BUDGET_EXHAUSTED',
         errorCategory: 'orchestration-control'
+      })
+
+      this.telemetry?.capture({
+        event: 'agent.orchestrator.request-summary',
+        category: 'agent.orchestrator',
+        level: 'warn',
+        process: 'main',
+        message: 'request-complete',
+        details: {
+          ...requestTelemetrySummary,
+          requestId,
+          conversationId,
+          stage: 'error'
+        },
+        requestId,
+        conversationId
       })
 
       this.emitProgress(onProgress, {
@@ -1036,6 +1350,22 @@ export class AgentOrchestrator {
         errorCategory: errorInfo.category
       })
 
+      this.telemetry?.capture({
+        event: 'agent.orchestrator.request-summary',
+        category: 'agent.orchestrator',
+        level: 'warn',
+        process: 'main',
+        message: 'request-complete',
+        details: {
+          ...requestTelemetrySummary,
+          requestId,
+          conversationId,
+          stage: 'error'
+        },
+        requestId,
+        conversationId
+      })
+
       throw resolvedError
     } finally {
       this.activeExecutions.delete(requestId)
@@ -1059,22 +1389,24 @@ export class AgentOrchestrator {
 
   private async executeFinancialToolCalls(params: {
     requestId: string
+    conversationId: string
     round: number
     toolCalls: GeminiToolCall[]
     settings: AppSettings
     conversationMemory: ConversationMemoryState
     onProgress?: (event: AgentProgressEvent) => void
     abortSignal: AbortSignal
-  }): Promise<{ toolMessages: GeminiMessage[]; successfulDataFetches: number }> {
-    const { requestId, round, toolCalls, settings, conversationMemory, onProgress, abortSignal } = params
+  }): Promise<{ toolMessages: GeminiMessage[]; successfulDataFetches: number; evidence: ToolEvidence[] }> {
+    const { requestId, conversationId, round, toolCalls, settings, conversationMemory, onProgress, abortSignal } = params
     const toolMessages: GeminiMessage[] = []
+    const evidence: ToolEvidence[] = []
     let successfulDataFetches = 0
 
     for (const toolCall of toolCalls) {
       this.throwIfRequestCanceled(abortSignal)
 
       const toolName = toolCall.function.name
-      const args = this.parseToolArguments(toolCall.function.arguments)
+      const args = parseToolArguments(toolCall.function.arguments)
       const pendingMessage = this.buildPendingToolStatusText(toolName, args)
 
       this.emitProgress(onProgress, {
@@ -1094,16 +1426,75 @@ export class AgentOrchestrator {
       })
 
       try {
+        if (toolName === 'catalog_scan') {
+          const tablePattern = readOptionalStringArg(args, 'table_pattern', 256)
+          const limit = readOptionalNumberArg(args, 'limit', { min: 1, max: 24, fallback: 8 })
+          const sqlQuery = this.buildCatalogScanQuery(tablePattern, limit)
+          const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
+          this.throwIfRequestCanceled(abortSignal)
+          this.rememberToolTrace(
+            conversationMemory,
+            `catalog_scan rows=${rows.length} pattern=${tablePattern ?? '*'} limit=${limit}`
+          )
+
+          evidence.push({
+            tool: 'catalog_scan',
+            status: 'ok',
+            rowsReturned: rows.length,
+            nonNullValue: rows.length > 0,
+            scopeApplied: false
+          })
+
+          const boundedRows = rows.slice(0, MAX_TABLE_LIST_ROWS)
+          const limitedRows = this.limitRowsForModel(boundedRows)
+
+          this.emitProgress(onProgress, {
+            type: 'tool-success',
+            message: `✅ فهرست کاندیدهای کشف‌شده با ${rows.length} جدول بازگردانده شد.`,
+            toolName,
+            toolCallId: toolCall.id,
+            args,
+            rowCount: rows.length
+          })
+
+          await this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId,
+            stage: 'tool-success',
+            toolName,
+            sqlQuery,
+            rowCount: rows.length,
+            round
+          })
+
+          toolMessages.push(
+            this.createToolResponseMessage(toolCall, {
+              ok: true,
+              table_pattern: tablePattern,
+              limit,
+              row_count: rows.length,
+              rows: limitedRows.rows
+            })
+          )
+          continue
+        }
+
         if (toolName === 'list_database_tables') {
-          const tablePattern = this.readOptionalStringArg(args, 'table_pattern', 256)
-          const cachedRows = this.getCachedTableList(tablePattern)
+          const tablePattern = readOptionalStringArg(args, 'table_pattern', 256)
           const sqlQuery = this.buildListDatabaseTablesQuery(tablePattern)
-          const rows = cachedRows ?? await this.fetchTableListWithCache(sqlQuery, abortSignal)
+          const rows = await this.fetchTableListCached(tablePattern, sqlQuery, abortSignal)
           this.throwIfRequestCanceled(abortSignal)
           this.rememberToolTrace(
             conversationMemory,
             `list_database_tables rows=${rows.length} pattern=${tablePattern ?? '*'}`
           )
+          evidence.push({
+            tool: 'list_database_tables',
+            status: 'ok',
+            rowsReturned: rows.length,
+            nonNullValue: rows.length > 0,
+            scopeApplied: false
+          })
           const boundedRows = rows.slice(0, MAX_TABLE_LIST_ROWS)
           const limitedRows = this.limitRowsForModel(boundedRows)
           const outputTruncated = rows.length > boundedRows.length || limitedRows.payloadTruncated
@@ -1146,9 +1537,53 @@ export class AgentOrchestrator {
         }
 
         if (toolName === 'fetch_financial_data') {
-          const sqlQuery = this.readRequiredStringArg(args, 'sql_query', 16000)
+          const sqlQuery = readRequiredStringArg(args, 'sql_query', 16000)
+          const unsupportedSql = detectUnsupportedSqlFunctions(sqlQuery)
+          if (unsupportedSql.found) {
+            const correctionMessage = unsupportedSql.correction ?? 'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
+            this.emitGuardrailTelemetry(
+              'unsupported-function',
+              requestId,
+              conversationId,
+              {
+                functionName: unsupportedSql.functionName ?? 'unknown',
+                correction: correctionMessage,
+                sqlQuery: this.compactText(sqlQuery.replace(/\s+/g, ' '), 400)
+              }
+            )
+            this.emitGuardrailCounterTelemetry('unsupported-function', requestId, conversationId, 1)
+            const guardedError = this.createAgentPolicyError(
+              'AGENT_UNSUPPORTED_SQL_FUNCTION',
+              correctionMessage
+            )
+            guardedError.message = correctionMessage
+            throw guardedError
+          }
+
           const prevalidatedSql = this.prevalidateFinancialQuery(sqlQuery, settings)
           this.ensureFinancialQueryAllowed(prevalidatedSql, settings, conversationMemory)
+
+          const unsupportedSqlAfterPrevalidation = detectUnsupportedSqlFunctions(prevalidatedSql)
+          if (unsupportedSqlAfterPrevalidation.found) {
+            const correctionMessage = unsupportedSqlAfterPrevalidation.correction ?? 'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
+            this.emitGuardrailTelemetry(
+              'unsupported-function',
+              requestId,
+              conversationId,
+              {
+                functionName: unsupportedSqlAfterPrevalidation.functionName ?? 'unknown',
+                correction: correctionMessage,
+                sqlQuery: this.compactText(prevalidatedSql.replace(/\s+/g, ' '), 400)
+              }
+            )
+            const guardedError = this.createAgentPolicyError(
+              'AGENT_UNSUPPORTED_SQL_FUNCTION',
+              correctionMessage
+            )
+            guardedError.message = correctionMessage
+            throw guardedError
+          }
+
           const rows = await this.executeReadOnlySql(prevalidatedSql, abortSignal)
           successfulDataFetches += 1
           this.throwIfRequestCanceled(abortSignal)
@@ -1156,6 +1591,14 @@ export class AgentOrchestrator {
             conversationMemory,
             `fetch_financial_data rows=${rows.length} sql=${this.compactText(sqlQuery.replace(/\s+/g, ' '), 180)}`
           )
+          evidence.push({
+            tool: 'fetch_financial_data',
+            status: 'ok',
+            rowsReturned: rows.length,
+            nonNullValue: this.rowsContainNonNullValue(rows),
+            scopeApplied: true,
+            query: this.compactText(prevalidatedSql.replace(/\s+/g, ' '), 400)
+          })
           const redacted = this.redactSensitiveIdentifiers(rows)
           const boundedRows = redacted.rows.slice(0, MAX_TOOL_ROWS)
           const limitedRows = this.limitRowsForModel(boundedRows)
@@ -1210,8 +1653,8 @@ export class AgentOrchestrator {
         }
 
         if (toolName === 'get_database_schema') {
-          const tableName = this.readRequiredStringArg(args, 'table_name', 128)
-          const schemaName = this.readOptionalStringArg(args, 'schema_name', 128)
+          const tableName = readRequiredStringArg(args, 'table_name', 128)
+          const schemaName = readOptionalStringArg(args, 'schema_name', 128)
           const cacheKey = `${schemaName || 'dbo'}.${tableName}`
           
           // Try schema cache first (INTENT fix: avoid redundant schema lookups)
@@ -1235,6 +1678,14 @@ export class AgentOrchestrator {
               conversationMemory,
               `get_database_schema rows=${rows.length} table=${cacheKey} (cached)`
             )
+
+            evidence.push({
+              tool: 'get_database_schema',
+              status: 'ok',
+              rowsReturned: rows.length,
+              nonNullValue: rows.length > 0,
+              scopeApplied: false
+            })
             
             toolMessages.push(
               this.createToolResponseMessage(toolCall, {
@@ -1288,6 +1739,13 @@ export class AgentOrchestrator {
             conversationMemory,
             `get_database_schema rows=${rows.length} table=${schemaName ? `${schemaName}.` : ''}${tableName}`
           )
+          evidence.push({
+            tool: 'get_database_schema',
+            status: 'ok',
+            rowsReturned: rows.length,
+            nonNullValue: rows.length > 0,
+            scopeApplied: false
+          })
           const boundedRows = rows.slice(0, MAX_SCHEMA_ROWS)
           const limitedRows = this.limitRowsForModel(boundedRows)
           const outputTruncated = rows.length > boundedRows.length || limitedRows.payloadTruncated
@@ -1333,6 +1791,16 @@ export class AgentOrchestrator {
         const unsupportedToolError = `Unsupported tool requested: ${toolName}`
         const unsupportedToolCode = 'AGENT_UNSUPPORTED_TOOL'
 
+        evidence.push({
+          tool: toolName,
+          status: 'error',
+          rowsReturned: 0,
+          nonNullValue: false,
+          scopeApplied: false,
+          errorCode: unsupportedToolCode,
+          errorMessage: unsupportedToolError
+        })
+
         this.emitProgress(onProgress, {
           type: 'tool-error',
           message: `❌ ابزار ناشناخته: ${toolName}`,
@@ -1368,6 +1836,16 @@ export class AgentOrchestrator {
 
         const errorInfo = this.toErrorInfo(error)
 
+        evidence.push({
+          tool: toolName,
+          status: 'error',
+          rowsReturned: 0,
+          nonNullValue: false,
+          scopeApplied: false,
+          errorCode: errorInfo.code,
+          errorMessage: errorInfo.message
+        })
+
         this.emitProgress(onProgress, {
           type: 'tool-error',
           message: `❌ خطا در اجرای ابزار ${toolName}: ${errorInfo.message}`,
@@ -1401,8 +1879,15 @@ export class AgentOrchestrator {
 
     return {
       toolMessages,
-      successfulDataFetches
+      successfulDataFetches,
+      evidence
     }
+  }
+
+  private rowsContainNonNullValue(rows: SqlQueryRow[]): boolean {
+    return rows.some((row) =>
+      Object.values(row).some((value) => value !== null && value !== undefined && value !== '')
+    )
   }
 
   private emitProgress(
@@ -1424,6 +1909,25 @@ export class AgentOrchestrator {
   private async safeAuditWrite(entry: AuditLogEntry): Promise<void> {
     try {
       await this.auditLog.write(entry)
+      this.telemetry?.capture({
+        event: 'agent.orchestrator.audit',
+        category: 'agent.orchestrator',
+        level: 'info',
+        process: 'main',
+        message: entry.stage,
+        details: {
+          requestId: entry.requestId,
+          conversationId: entry.conversationId,
+          stage: entry.stage,
+          round: entry.round,
+          recoveryAttempts: entry.recoveryAttempts,
+          failureKind: entry.failureKind,
+          errorCode: entry.errorCode,
+          errorCategory: entry.errorCategory
+        },
+        requestId: entry.requestId,
+        conversationId: entry.conversationId
+      })
     } catch (error) {
       console.warn('[AgentOrchestrator] Failed to write audit log:', error)
     }
@@ -1829,9 +2333,7 @@ export class AgentOrchestrator {
   }
 
   private normalizePersianDigits(value: string): string {
-    return value
-      .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776))
-      .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
+    return normalizePersianDigits(value)
   }
 
   private updateConversationMemoryFromAssistant(memory: ConversationMemoryState, finalText: string): void {
@@ -2232,7 +2734,7 @@ export class AgentOrchestrator {
     let hasPreferredMapping = false
 
     for (const conceptKey of detectedConcepts) {
-      const preferredMapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
+      const preferredMapping = this.resolvePreferredMapping(activeCatalog, conceptKey, prompt)
 
       if (!preferredMapping) {
         lines.push(`  - ${SCHEMA_CONTEXT_CONCEPT_LABELS[conceptKey]}: no mapped table available.`)
@@ -2277,12 +2779,49 @@ export class AgentOrchestrator {
     prompt: string,
     conversationMemory: ConversationMemoryState
   ): string | null {
-    const salesKpiClarification = this.buildSalesKpiClarificationResponseIfNeeded(prompt)
+    // Drive clarification off the explicit slot/clarification FSM. The orchestrator now
+    // consumes the terminal RouteState instead of re-deriving the same checks inline.
+    const memorySnapshot = this.createConversationMemorySnapshot(conversationMemory)
+    const routeState = transition(prompt, memorySnapshot)
 
-    if (salesKpiClarification) {
-      return salesKpiClarification
+    const intentClarification = this.buildRouteStateClarification(prompt, routeState)
+
+    if (intentClarification) {
+      return intentClarification
     }
 
+    // Schema-readiness clarifications depend on runtime catalog state (mappings / ambiguous
+    // date range), not pure intent slots, so they remain a distinct fallback layer.
+    return this.buildSchemaReadinessClarificationIfNeeded(settings, prompt, conversationMemory)
+  }
+
+  /**
+   * Map a terminal FSM state to a clarification message (or null to proceed). This folds the
+   * previously scattered intent-level clarification checks into one explicit switch.
+   */
+  private buildRouteStateClarification(prompt: string, routeState: RouteState): string | null {
+    switch (routeState.kind) {
+      case 'ambiguous':
+        return this.buildAmbiguousIntentClarificationResponse(routeState.candidates)
+      case 'classified':
+        // Finer-grained disambiguation for annual sales (gross / net / booked KPI variants),
+        // which live below the FinancialIntentId granularity.
+        if (routeState.intentId === 'get_sales_summary_by_period') {
+          return this.buildSalesKpiClarificationResponseIfNeeded(prompt)
+        }
+        return null
+      case 'need-slot':
+      case 'unroutable':
+      default:
+        return null
+    }
+  }
+
+  private buildSchemaReadinessClarificationIfNeeded(
+    settings: AppSettings,
+    prompt: string,
+    conversationMemory: ConversationMemoryState
+  ): string | null {
     const detectedConcepts = this.detectPromptConcepts(prompt)
 
     if (detectedConcepts.length === 0) {
@@ -2295,8 +2834,19 @@ export class AgentOrchestrator {
       return null
     }
 
+    // Relaxed exploratory intents (e.g. get_account_balance) must not be halted
+    // at Round 0 by a missing-mappings clarification: even when the discovered
+    // catalog lacks an explicit accounts/schema mapping, we let the request fall
+    // through to the model exploration tool-loop so the agent can self-discover
+    // the relevant tables (list_database_tables on the ACC schema) and still
+    // deliver data instead of pre-emptively asking for a mapping.
+    const detectedExploratoryIntent = this.detectDeterministicFinancialIntent(prompt)
+    if (detectedExploratoryIntent && isRelaxedExploratoryIntent(detectedExploratoryIntent)) {
+      return null
+    }
+
     const missingConceptMappings = detectedConcepts.filter(
-      (conceptKey) => !this.resolvePreferredMapping(activeCatalog, conceptKey)
+      (conceptKey) => !this.resolvePreferredMapping(activeCatalog, conceptKey, prompt)
     )
 
     if (missingConceptMappings.length > 0) {
@@ -2316,6 +2866,24 @@ export class AgentOrchestrator {
     }
 
     return null
+  }
+
+  private buildAmbiguousIntentClarificationResponse(candidates: FinancialIntentId[]): string {
+    const optionLabels = candidates.map((intentId) => FINANCIAL_INTENT_FA_LABELS[intentId] ?? intentId)
+
+    return [
+      '### Summary',
+      'پرسش شما به بیش از یک گزارش مالی هم‌رده اشاره دارد و باید یکی را انتخاب کنید.',
+      '',
+      '### Findings',
+      `- گزینه‌های محتمل: ${optionLabels.join('، ')}.`,
+      '',
+      '### Evidence',
+      '- موتور وزنی تشخیص نیت این گزینه‌ها را با امتیاز یکسان و هم‌رده تشخیص داد.',
+      '',
+      '### Actions',
+      '- لطفا مشخص کنید کدام‌یک از گزارش‌های بالا مدنظر شماست تا همان مسیر اجرا شود.'
+    ].join('\n')
   }
 
   private buildSalesKpiClarificationResponseIfNeeded(prompt: string): string | null {
@@ -2393,8 +2961,15 @@ export class AgentOrchestrator {
 
   private resolvePreferredMapping(
     activeCatalog: SchemaCatalogEntry,
-    conceptKey: AccountingConceptKey
+    conceptKey: AccountingConceptKey,
+    prompt?: string
   ): PreferredMapping | null {
+    const semanticOverride = this.resolvePromptSemanticMappingOverride(activeCatalog, conceptKey, prompt)
+
+    if (semanticOverride) {
+      return semanticOverride
+    }
+
     const selectedTable = activeCatalog.selectedMappings[conceptKey]?.trim() ?? ''
 
     if (selectedTable) {
@@ -2410,6 +2985,50 @@ export class AgentOrchestrator {
       return {
         tableRef: suggestedTable,
         source: 'suggested'
+      }
+    }
+
+    return null
+  }
+
+  private resolvePromptSemanticMappingOverride(
+    activeCatalog: SchemaCatalogEntry,
+    conceptKey: AccountingConceptKey,
+    prompt?: string
+  ): PreferredMapping | null {
+    if (conceptKey !== 'documents' || !prompt) {
+      return null
+    }
+
+    const normalizedPrompt = this.normalizePersianDigits(prompt).trim().toLowerCase()
+    const purchaseSignals = /(خرید|purchase|purchases|buy|procure|procurement|supplier|vendors?|receipts?|رسید|انبار|inventory|voucher|purchaseinvoice)/iu
+    const salesSignals = /(فروش|sale|sales|revenue|customer|salefacts)/iu
+
+    const candidates = (activeCatalog.suggestedMappings[conceptKey] ?? [])
+      .map((tableRef) => tableRef?.trim() ?? '')
+      .filter(Boolean)
+
+    if (purchaseSignals.test(normalizedPrompt)) {
+      const purchaseCandidate = candidates.find((tableRef) =>
+        /(voucher|receipt|inventory|purchase|buy|procure|supplier|vendor|item)/iu.test(tableRef)
+      )
+
+      if (purchaseCandidate) {
+        return {
+          tableRef: purchaseCandidate,
+          source: 'suggested'
+        }
+      }
+    }
+
+    if (salesSignals.test(normalizedPrompt)) {
+      const salesCandidate = candidates.find((tableRef) => /(sale|sales|revenue|mrp)/iu.test(tableRef))
+
+      if (salesCandidate) {
+        return {
+          tableRef: salesCandidate,
+          source: 'suggested'
+        }
       }
     }
 
@@ -2555,40 +3174,37 @@ export class AgentOrchestrator {
     return tableRef.trim().toLowerCase()
   }
 
-  private toStringValue(value: unknown, fallback = ''): string {
-    if (typeof value === 'string') {
-      return value
+  /**
+   * Fetches the table list for a given pattern, caching the result under a
+   * PATTERN-SPECIFIC key.
+   *
+   * The earlier implementation cached every pattern's result under one global
+   * 'all' key, so the first call with a narrow/Persian/typo pattern (e.g. %فروش%
+   * → 0 rows) poisoned the cache and every later pattern (%invoice%, %sales%)
+   * returned 0 — making the sales/invoice tables undiscoverable and forcing a
+   * false "insufficient evidence" refusal.
+   *
+   * The actual SQL LIKE query is executed per distinct pattern, which (a) avoids
+   * poisoning, (b) honors `%` wildcards correctly (a JS substring filter cannot),
+   * and (c) never truncates a specific pattern's matches the way a single
+   * TOP-capped full-table list would on a database with > MAX_TABLE_LIST_ROWS
+   * tables.
+   */
+  private async fetchTableListCached(
+    tablePattern: string | null,
+    sqlQuery: string,
+    abortSignal: AbortSignal
+  ): Promise<SqlQueryRow[]> {
+    const normalized = (tablePattern ?? '').trim().toLowerCase()
+    const cacheKey = normalized ? `pattern:${normalized}` : 'all'
+
+    const cached = this.schemaTableListCache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp <= this.SCHEMA_CACHE_TTL_MS) {
+      return [...cached.rows]
     }
 
-    if (value == null) {
-      return fallback
-    }
-
-    return String(value)
-  }
-
-  private getCachedTableList(tablePattern?: string | null): SqlQueryRow[] | null {
-    const entry = this.schemaTableListCache.get('all')
-
-    if (!entry || Date.now() - entry.timestamp > this.SCHEMA_CACHE_TTL_MS) {
-      return null
-    }
-
-    const pattern = (tablePattern ?? '').trim().toLowerCase()
-
-    if (!pattern) {
-      return [...entry.rows]
-    }
-
-    return entry.rows.filter((row) => {
-      const tableName = this.toStringValue(row['table_name'], this.toStringValue(row['name'], ''))
-      return tableName.toLowerCase().includes(pattern)
-    })
-  }
-
-  private async fetchTableListWithCache(sqlQuery: string, abortSignal: AbortSignal): Promise<SqlQueryRow[]> {
     const rows = await this.executeMetadataSql(sqlQuery, abortSignal)
-    this.schemaTableListCache.set('all', { rows, timestamp: Date.now() })
+    this.schemaTableListCache.set(cacheKey, { rows, timestamp: Date.now() })
     return rows
   }
 
@@ -2763,6 +3379,217 @@ export class AgentOrchestrator {
       '### Actions',
       'پرسش را با نام جدول/ستون دقیق‌تر یا دامنه زمانی محدودتر ارسال کنید.'
     ].join('\n')
+  }
+
+  private async callGeminiWithProviderRetry(
+    payload: {
+      messages: GeminiMessage[]
+      temperature?: number
+      maxOutputTokens?: number
+      tools?: GeminiToolDefinition[]
+    },
+    savedConfig: AppSettings['gemini'],
+    abortSignal: AbortSignal,
+    onProgress?: (event: AgentProgressEvent) => void
+  ): Promise<GeminiChatResponse> {
+    const maxAttempts = 5
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.geminiClient.chat(
+          payload,
+          savedConfig,
+          {
+            onTextChunk: (chunkText) => {
+              if (!chunkText) {
+                return
+              }
+
+              this.emitProgress(onProgress, {
+                type: 'response-chunk',
+                message: chunkText
+              })
+            },
+            signal: abortSignal
+          }
+        )
+      } catch (error) {
+        const errorInfo = this.toErrorInfo(error)
+        const message = (errorInfo.message || '').toLowerCase()
+        const transient =
+          message.includes('provider') ||
+          message.includes('overloaded') ||
+          message.includes('unavailable') ||
+          message.includes('service unavailable') ||
+          message.includes('bad gateway') ||
+          message.includes('gateway timeout') ||
+          message.includes('timeout') ||
+          message.includes('connect') ||
+          message.includes('network') ||
+          /\b(4\d\d|5\d\d)\b/.test(message)
+
+        if (!transient || attempt >= maxAttempts) {
+          throw error
+        }
+
+        const delayMs = 250 * attempt + Math.floor(Math.random() * 150)
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+
+    throw new Error('Provider request failed after retries.')
+  }
+
+  private shouldReturnDegradedFallback(error: unknown): boolean {
+    const errorInfo = this.toErrorInfo(error)
+    const message = (errorInfo.message || '').toLowerCase()
+
+    if (errorInfo.code === 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED' || errorInfo.code === 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED') {
+      return true
+    }
+
+    return (
+      message.includes('خطای ارتباط') ||
+      message.includes('زمان انتظار برای هوش مصنوعی') ||
+      message.includes('timeout') ||
+      message.includes('connect') ||
+      message.includes('network') ||
+      message.includes('provider') ||
+      message.includes('overloaded') ||
+      message.includes('unavailable') ||
+      message.includes('service unavailable') ||
+      message.includes('bad gateway') ||
+      message.includes('gateway timeout') ||
+      /\b(4\d\d|5\d\d)\b/.test(message)
+    )
+  }
+
+  private buildRuntimeFailureFallbackAnswer(
+    prompt: string,
+    detail: string,
+    toolCallsUsed: number,
+    successfulDataFetches: number,
+    kind: 'provider' | 'budget' = 'provider'
+  ): string {
+    const summary =
+      kind === 'budget'
+        ? 'پاسخ جزئی بازگردانده شد زیرا محدودیت ابزارها از حد مجاز عبور کرد.'
+        : 'پاسخ جزئی بازگردانده شد زیرا خطای ارتباط یا زمان‌بندی در مسیر هوش مصنوعی رخ داد.'
+
+    const findings =
+      kind === 'budget'
+        ? `محدودیت ابزارهای این درخواست باعث توقف قبل از تکمیل تحلیل شد. تعداد ابزارهای استفاده‌شده ${toolCallsUsed} و داده‌های موفق استخراج‌شده ${successfulDataFetches} مورد ثبت شد.`
+        : `خطای ارتباط یا زمان‌بندی باعث توقف قبل از تکمیل تحلیل شد. تعداد ابزارهای استفاده‌شده ${toolCallsUsed} و داده‌های موفق استخراج‌شده ${successfulDataFetches} مورد ثبت شد.`
+
+    return [
+      '### Summary',
+      summary,
+      '',
+      '### Findings',
+      findings,
+      '',
+      '### Evidence',
+      `جزئیات خطا: ${this.compactText(detail, 240)}`,
+      `پرسش کاربر: ${this.compactText(prompt, 220)}`,
+      '',
+      '### Assumptions',
+      'برای ادامه، لازم است پرسش را محدودتر یا با جدول/ستون دقیق‌تر بازفرموله کنید.',
+      '',
+      '### Actions',
+      'پرسش را دوباره با دامنه زمانی محدودتر یا شرح دقیق‌تر ارسال کنید.'
+    ].join('\n')
+  }
+
+  /**
+   * S5: Validates that the detected intent matches the tables used in fetch queries.
+   * This is a deterministic guard to prevent intent-table mismatches (e.g., purchase intent using sales tables).
+   * Returns null if validation passes, or an error message if there's a mismatch.
+   */
+  private validateIntentTableMatch(intentId: string | undefined, evidence: ToolEvidence[]): string | null {
+    if (!intentId) return null
+
+    // Define intent-to-table mapping for deterministic validation
+    const intentTableMap: Record<string, string[]> = {
+      get_purchase_summary: ['INV.InventoryReceipt', 'INV.InventoryReceiptItem', 'POM.PurchaseInvoice', 'Inv.Voucher'],
+      get_sales_summary_by_period: ['SLS.Invoice', 'MRP.SaleFacts'],
+      get_account_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear', 'ACC.Account'],
+      get_cash_bank_balance: ['RPA.CashBalance', 'RPA.BankAccountBalance'],
+      get_trial_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear', 'ACC.Account'],
+      get_party_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear'],
+      get_receivables_summary: ['accounts', 'documents'],
+      get_payables_summary: ['accounts', 'documents']
+    }
+
+    const allowedTables = intentTableMap[intentId]
+    if (!allowedTables) return null // Intent not in mapping, skip validation
+
+    // Check all fetch_financial_data queries
+    for (const entry of evidence) {
+      if (entry.tool === 'fetch_financial_data' && entry.query) {
+        const query = entry.query
+        // Check if any allowed table appears in the query
+        const usesAllowedTable = allowedTables.some((table) => query.includes(table))
+        if (!usesAllowedTable) {
+          // Found a query that doesn't use any allowed table for this intent
+          return `Intent mismatch: detected intent "${intentId}" but query uses tables not in the allowed set [${allowedTables.join(', ')}]. Query: ${query}`
+        }
+      }
+    }
+
+    return null
+  }
+
+  private buildRecoveryHint(
+    failureKind: ToolFailureKind,
+    lastErrorCode?: string,
+    lastErrorMessage?: string,
+    evidence: ToolEvidence[] = [],
+    context?: { comparativeMultiPeriod?: boolean; successfulFetches?: number },
+    prompt?: string
+  ): string {
+    void lastErrorMessage
+    const discoveryOnly = evidence.length > 0 && evidence.every((entry) => entry.tool !== 'fetch_financial_data')
+
+    // H3: comparative multi-period override — must run one fetch per period.
+    if (context?.comparativeMultiPeriod && (context.successfulFetches ?? 0) < 2) {
+      const remaining = Math.max(0, 2 - (context.successfulFetches ?? 0))
+      return (
+        'این یک سوال مقایسه‌ای چنددوره‌ای است: برای هر دوره/سال یک fetch_financial_data جداگانه با ' +
+        'یک SELECT SUM/COUNT/AVG و فیلتر FiscalYearRef متفاوت اجرا کن (مثلاً WHERE FiscalYearRef = <Title1> ' +
+        `و یک کوئری دوم WHERE FiscalYearRef = <Title2>). حداقل ${remaining} fetch موفق دیگر لازم است.`
+      )
+    }
+
+    // S1: purchase data-source fallback — if POM.PurchaseInvoice is empty, try INV.InventoryReceipt
+    const isPurchaseIntent = prompt && /خرید|purchase/iu.test(prompt)
+    const usedPurchaseInvoice = evidence.some(
+      (entry) => entry.tool === 'fetch_financial_data' && entry.query?.includes('POM.PurchaseInvoice')
+    )
+
+    switch (failureKind) {
+      case 'NO_FETCH':
+        return discoveryOnly
+          ? 'تو فقط جدول‌ها را دیدی ولی عدد نگرفتی. حالا حتماً fetch_financial_data را با یک SELECT SUM/COUNT/AVG روی جدول پیدا شده اجرا کن و نتیجه را از دیتابیس بگیر.'
+          : 'برای پاسخ عددی باید fetch_financial_data را با یک کوئری SUM/COUNT/AVG اجرا کنی.'
+      case 'EMPTY_RESULT':
+        if (isPurchaseIntent && usedPurchaseInvoice) {
+          return 'POM.PurchaseInvoice خالی است. برای این فرآیند کسب‌وکار، خرید در INV.InventoryReceipt ثبت می‌شود. INV.InventoryReceipt را با ستون TotalPrice بررسی کن (فقط ردیف‌های غیر مرجوعی با IsReturn = 0 یا Type = خرید). اگر داده یافت شد، در پاسخ صریحاً ذکر کن که مبلغ از رسید انبار است نه فاکتور خرید.'
+        }
+        return 'مجموع NULL شد. ممکن است ستون مبلغ اشتباه باشد. ستون‌های عددی جایگزین جدول را با get_database_schema بررسی کن (مثلاً PriceInBaseCurrency در برابر NetPriceInBaseCurrency) یا جدول مرتبط دیگر (مثل POM.PurchaseCost) را امتحان کن.'
+      case 'NOT_IN_CATALOG':
+        return 'جدول مجاز نیست. اول با list_database_tables و get_database_schema جدول درست را پیدا کن.'
+      case 'UNKNOWN_OBJECT':
+        return 'نام جدول/ستون وجود ندارد. اول با list_database_tables و get_database_schema نام دقیق را پیدا کن، بعد کوئری بزن و نام را از خودت نساز.'
+      case 'UNSUPPORTED_FUNCTION':
+        return 'این SQL Server توابع FORMAT و dbo.GregorianToShamsi را پشتیبانی نمی‌کند. برای ماه از MONTH(Date) و YEAR(Date) یا بازهٔ تاریخ میلادی صریح استفاده کن.'
+      case 'POLICY_ERROR':
+        return `${mapRecoveryErrorHint(lastErrorCode)} کوئری را اصلاح کن و دوباره اجرا کن.`
+      case 'PROVIDER_ERROR':
+        return 'دوباره با همان مسیر تلاش کن.'
+      case 'NONE':
+      default:
+        return 'برای پاسخ عددی باید fetch_financial_data را با یک کوئری SUM/COUNT/AVG اجرا کنی.'
+    }
   }
 
   private buildRuntimeScopeHintLines(activeCatalog: SchemaCatalogEntry): string[] {
@@ -3001,6 +3828,10 @@ export class AgentOrchestrator {
       contextLines.splice(4, 0, '- Accounting software detection: no reliable software profile detected yet.')
     }
 
+    if (effectiveSoftwareId === 'sepidar') {
+      contextLines.splice(5, 0, ...this.buildSepidarSchemaHintLines())
+    }
+
     const detectedDateMode = this.normalizeSchemaDateMode(activeCatalog.detectedDateMode) ?? 'unknown'
     const selectedDateMode = this.normalizeSchemaDateMode(activeCatalog.selectedDateMode)
     const effectiveDateMode = selectedDateMode ?? detectedDateMode
@@ -3047,6 +3878,20 @@ export class AgentOrchestrator {
     return contextLines.join('\n')
   }
 
+  private buildSepidarSchemaHintLines(): string[] {
+    return [
+      '- Sepidar schema-prefix map (discovery tools filter TABLE_NAME only \u2014 search lowercase table-name tokens, never the schema name; the schema is returned in the TABLE_SCHEMA column):',
+      "  - Sales (فروش / فاکتور فروش / فاکتورهای فروش): table-name tokens '%invoice%' (Invoice, InvoiceItem); schema = SLS. Then get_database_schema(table_name 'Invoice', schema_name 'SLS').",
+      "  - Purchases (خرید / فاکتور خرید / هزینه خرید): table-name tokens '%purchase%' (PurchaseInvoice, PurchaseCost, PurchaseCostItem); schema = POM.",
+      "  - Accounts / Chart of accounts (حساب / سرفصل / دفتر کل): table-name token '%account%' (Account); schema = ACC.",
+      "  - Accounting vouchers / ledger lines (مانده حساب / گردش حساب / بدهکار / بستانکار / سند حسابداری): table-name tokens '%voucher%' / '%voucheritem%' (Voucher, VoucherItem); schema = ACC. For balance use SUM(Debit) - SUM(Credit) on ACC.VoucherItem grouped by AccountRef, JOIN ACC.Voucher header for fiscal-year scope. Always read the actual debit/credit column names with get_database_schema before writing the SELECT — do not guess between Debit/DebitAmount/DebitBaseCurrency.",
+      "  - Cash and bank (نقد / بانک / موجودی): table-name tokens '%cash%' / '%bank%' (CashBalance, BankAccountBalance); schema = RPA.",
+      "  - Inventory receipts / vouchers (انبار / رسید کالا): table-name token '%voucher%' (Voucher); schema = Inv. (Note: distinct from ACC vouchers.)",
+      '  - Fiscal-year columns (e.g. FiscalYearRef) may be surrogate keys, not the literal Shamsi year; if a year filter returns 0 rows, inspect the fiscal-year lookup table to resolve the correct ref id before concluding no data exists.',
+      '  - Prefer the schema-qualified domain table (e.g. SLS.Invoice) over generic dbo tables for sales/purchase summaries.'
+    ]
+  }
+
   private toAccountingSoftwareDisplayName(softwareId: string): string {
     switch (softwareId) {
       case 'sepidar':
@@ -3087,38 +3932,8 @@ export class AgentOrchestrator {
   }
 
   private detectDeterministicFinancialIntent(prompt: string): DeterministicFinancialIntent | null {
-    const normalizedPrompt = this.normalizePersianDigits(prompt)
-      .normalize('NFKC')
-      .replace(/[\u064a\u0649]/g, 'ی')
-      .replace(/[\u0643]/g, 'ک')
-      .replace(/\u200c/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    const compactPrompt = normalizedPrompt.replace(/\s+/g, '')
-
-    // Fast path for frequent fiscal-year intents so we do not fall back to generic schema-exploration loops.
-    if (/(?:تعداد|چند)\s*سال\s*مالی|سال\s*مالی\s*(?:چند|تعداد)|how\s+many\s+fiscal\s+years?|fiscal\s+year\s+count/iu.test(normalizedPrompt)) {
-      return 'count_fiscal_years'
-    }
-
-    if (
-      /(سال\s*مالی|fiscal\s*year)/iu.test(normalizedPrompt) &&
-      /(?:چند|تعداد|وجود|count|how\s+many)/iu.test(normalizedPrompt)
-    ) {
-      return 'count_fiscal_years'
-    }
-
-    if (
-      /(سالمالی|fiscalyear)/iu.test(compactPrompt) &&
-      /(?:چند|تعداد|وجود|count|howmany)/iu.test(compactPrompt)
-    ) {
-      return 'count_fiscal_years'
-    }
-
-    if (/(?:لیست|فهرست|نمایش)\s*(?:سال(?:\s|\u200c)?های?|سال)\s*مالی|سال(?:\s|\u200c)?های?\s*مالی\s*را\s*(?:لیست|فهرست|نمایش)|list\s+(?:the\s+)?(?:available\s+)?fiscal\s+years?/iu.test(normalizedPrompt)) {
-      return 'list_fiscal_years'
-    }
-
+    // Thin adapter: routing is fully data-driven through the weighted intent registry.
+    // The deterministic gate simply honors intents whose responseMode is 'deterministic'.
     const matchedIntent = detectFinancialIntent(prompt)
 
     if (!matchedIntent) {
@@ -3134,31 +3949,47 @@ export class AgentOrchestrator {
     return null
   }
 
+  /**
+   * H3: detect a multi-period comparative financial intent — e.g.
+   * "فروش 1403 در مقابل 1402" or "مقایسه خرید سال X و Y" — even when no percent
+   * is requested. The orchestrator must run at least one `fetch_financial_data`
+   * per period; exiting with fewer than 2 successful fetches is a NO_FETCH-grade
+   * defect for such prompts.
+   */
+  private isComparativeMultiPeriodPrompt(prompt: string): boolean {
+    const normalizedPrompt = normalizePersianText(prompt)
+    const years = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
+    const uniqueYears = new Set(years)
+    if (uniqueYears.size < 2) {
+      return false
+    }
+    const hasComparativeKeyword =
+      /(?:نسبت\s*به|در\s*مقابل|مقایسه|قیاس|رشد|کاهش|افزایش|افت|change|growth|decline|versus|\bvs\.?\b|year\s*over\s*year|yoy)/iu.test(
+        normalizedPrompt
+      )
+    const hasFinancialContext =
+      this.appearsToContainFinancialClaim(normalizedPrompt) || /(?:خرید|purchase|sales|درآمد|revenue)/iu.test(normalizedPrompt)
+    return hasComparativeKeyword && hasFinancialContext
+  }
+
   private isSalesGrowthPercentPrompt(prompt: string): boolean {
-    const normalizedPrompt = this.normalizePersianDigits(prompt)
-      .normalize('NFKC')
-      .replace(/[\u064a\u0649]/g, 'ی')
-      .replace(/[\u0643]/g, 'ک')
-      .replace(/\u200c/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const normalizedPrompt = normalizePersianText(prompt)
 
     const hasSalesSignal = /(?:فروش|sales|revenue)/iu.test(normalizedPrompt)
     const hasPercentSignal = /(?:درصد|percent|percentage|%)/iu.test(normalizedPrompt)
     const hasChangeSignal = /(?:رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه)/iu.test(normalizedPrompt)
     const yearMatches = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
 
-    return hasSalesSignal && hasPercentSignal && hasChangeSignal && yearMatches.length >= 2
+    // Also trigger for comparative multi-period prompts (e.g., "فروش 1403 در مقابل 1402")
+    // even without explicit '%' keyword, as comparison implies percentage change
+    const isComparativeMultiPeriod = this.isComparativeMultiPeriodPrompt(prompt)
+
+    return (hasSalesSignal && hasPercentSignal && hasChangeSignal && yearMatches.length >= 2) ||
+           (isComparativeMultiPeriod && hasSalesSignal && yearMatches.length >= 2)
   }
 
   private extractYearComparison(prompt: string): { targetYear: number; baseYear: number } | null {
-    const normalizedPrompt = this.normalizePersianDigits(prompt)
-      .normalize('NFKC')
-      .replace(/[\u064a\u0649]/g, 'ی')
-      .replace(/[\u0643]/g, 'ک')
-      .replace(/\u200c/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const normalizedPrompt = normalizePersianText(prompt)
 
     const explicitMatch = normalizedPrompt.match(/\b((?:13|14|19|20)\d{2})\b.{0,40}?نسبت\s*به.{0,40}?\b((?:13|14|19|20)\d{2})\b/iu)
     if (explicitMatch) {
@@ -3687,25 +4518,46 @@ ORDER BY fiscal_year DESC`
     settings: AppSettings,
     conversationMemory: ConversationMemoryState,
     signal: AbortSignal,
-    onProgress?: (event: AgentProgressEvent) => void
+    onProgress?: (event: AgentProgressEvent) => void,
+    prompt?: string
   ): Promise<DeterministicFinancialToolResult | null> {
     const activeCatalog = this.findActiveSchemaCatalog(settings)
 
-    if (!activeCatalog) {
-      return null
+    // Hardcoded fallback mappings when no schema catalog is available
+    const hardcodedMappings: Partial<Record<DeterministicFinancialIntent, { tableRef: string; columnName: string }>> = {
+      get_purchase_summary: { tableRef: 'INV.InventoryReceipt', columnName: 'TotalPrice' },
+      get_account_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit,Credit' },
+      get_party_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit,Credit' },
+      get_cashflow_summary: { tableRef: 'RPA.CashBalance', columnName: 'Balance' },
+      get_receivables_summary: { tableRef: 'ACC.VoucherItem', columnName: 'Debit' },
+      get_payables_summary: { tableRef: 'ACC.VoucherItem', columnName: 'Credit' },
+      get_cash_bank_balance: { tableRef: 'RPA.CashBalance', columnName: 'Balance' },
+      get_trial_balance: { tableRef: 'ACC.VoucherItem', columnName: 'Debit' }
     }
 
-    const conceptKey =
-      deterministicIntent === 'get_account_balance'
-        ? 'accounts'
-        : deterministicIntent === 'get_party_balance'
-          ? 'counterparties'
-          : deterministicIntent === 'get_cashflow_summary'
-            ? 'cashTransactions'
-            : deterministicIntent === 'get_receivables_summary' || deterministicIntent === 'get_payables_summary'
-              ? 'documents'
-              : 'documents'
-    const mapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
+    let mapping: { tableRef: string; source: string } | null = null
+
+    if (activeCatalog) {
+      const conceptKey =
+        deterministicIntent === 'get_account_balance'
+          ? 'accounts'
+          : deterministicIntent === 'get_party_balance'
+            ? 'counterparties'
+            : deterministicIntent === 'get_cashflow_summary'
+              ? 'cashTransactions'
+              : deterministicIntent === 'get_purchase_summary'
+                ? 'documents'
+                : deterministicIntent === 'get_receivables_summary' || deterministicIntent === 'get_payables_summary'
+                  ? 'documents'
+                  : 'documents'
+      mapping = this.resolvePreferredMapping(activeCatalog, conceptKey)
+    } else {
+      // Use hardcoded fallback when no catalog
+      const hardcoded = hardcodedMappings[deterministicIntent]
+      if (hardcoded) {
+        mapping = { tableRef: hardcoded.tableRef, source: 'hardcoded' }
+      }
+    }
 
     if (!mapping) {
       return null
@@ -3720,20 +4572,31 @@ ORDER BY fiscal_year DESC`
     const schemaName = tableRef.schemaName.trim().toLowerCase()
     const tableName = tableRef.tableName.trim().toLowerCase()
 
-    const catalogTable = activeCatalog.tables.find((entry) => {
-      return (
-        entry.schemaName.trim().toLowerCase() === schemaName &&
-        entry.tableName.trim().toLowerCase() === tableName
-      )
-    })
+    let column: { name: string; dataType: string } | null = null
 
-    const candidateColumns = (catalogTable?.columns ?? []).filter((column) => {
-      const columnName = column.name.toLowerCase()
-      const dataType = column.dataType.toLowerCase()
-      return /(?:amount|balance|debit|credit|total|sum|net|value)/iu.test(columnName) && /(?:int|decimal|numeric|money|float|real)/iu.test(dataType)
-    })
+    if (activeCatalog) {
+      const catalogTable = activeCatalog.tables.find((entry) => {
+        return (
+          entry.schemaName.trim().toLowerCase() === schemaName &&
+          entry.tableName.trim().toLowerCase() === tableName
+        )
+      })
 
-    const column = this.selectDeterministicToolColumn(deterministicIntent, candidateColumns) ?? catalogTable?.columns[0]
+      const candidateColumns = (catalogTable?.columns ?? []).filter((col) => {
+        const columnName = col.name.toLowerCase()
+        const dataType = col.dataType.toLowerCase()
+        return /(?:amount|balance|debit|credit|total|sum|net|value)/iu.test(columnName) && /(?:int|decimal|numeric|money|float|real)/iu.test(dataType)
+      })
+
+      column = this.selectDeterministicToolColumn(deterministicIntent, candidateColumns) ?? catalogTable?.columns[0] ?? null
+    } else {
+      // Use hardcoded column name when no catalog
+      const hardcoded = hardcodedMappings[deterministicIntent]
+      if (hardcoded) {
+        const columnNames = hardcoded.columnName.split(',')
+        column = { name: columnNames[0].trim(), dataType: 'decimal' }
+      }
+    }
 
     if (!column) {
       return null
@@ -3742,7 +4605,322 @@ ORDER BY fiscal_year DESC`
     const schemaIdentifier = this.quoteSqlIdentifier(schemaName)
     const tableIdentifier = this.quoteSqlIdentifier(tableName)
     const columnIdentifier = this.quoteSqlIdentifier(column.name)
-    const query = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
+    
+    // Purchase intent fallback: try POM.PurchaseInvoice first, then INV.InventoryReceipt
+    let query: string
+    let actualTableRef = mapping.tableRef
+    let actualColumnName = column.name
+    let toolCallsUsed = 1
+
+    if (deterministicIntent === 'get_purchase_summary') {
+      // First check COUNT on POM.PurchaseInvoice
+      const pomSchema = this.quoteSqlIdentifier('POM')
+      const pomTable = this.quoteSqlIdentifier('PurchaseInvoice')
+      const countQuery = `SELECT COUNT(*) AS row_count FROM ${pomSchema}.${pomTable}`
+      
+      try {
+        const countRows = await this.executeReadOnlySql(countQuery, signal)
+        const rowCount = Number(countRows[0]?.['row_count']) || 0
+        
+        // If POM.PurchaseInvoice has rows, try SUM
+        if (rowCount > 0) {
+          const primaryQuery = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
+          const primaryRows = await this.executeReadOnlySql(primaryQuery, signal)
+          const primaryValue = this.toOptionalFiniteInteger(primaryRows[0]?.['result_value'])
+          
+          if (primaryValue !== null && primaryValue > 0) {
+            query = primaryQuery
+            const value = primaryValue
+            toolCallsUsed = 2
+            
+            this.rememberToolTrace(
+              conversationMemory,
+              `tool:${deterministicIntent} table=${actualTableRef} column=${actualColumnName} value=${value} source=pom_purchase_invoice`
+            )
+            
+            this.emitProgress(onProgress, {
+              type: 'tool-success',
+              message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ${actualTableRef}.${actualColumnName}`,
+              toolName: deterministicIntent,
+              rowCount: 1
+            })
+            
+            return {
+              intentId: deterministicIntent,
+              value,
+              tableRef: actualTableRef,
+              columnName: actualColumnName,
+              query,
+              toolCallsUsed
+            }
+          }
+        }
+        
+        // Fallback to INV.InventoryReceipt (POM empty or SUM null)
+        const invSchema = this.quoteSqlIdentifier('INV')
+        const invTable = this.quoteSqlIdentifier('InventoryReceipt')
+        const invColumn = this.quoteSqlIdentifier('TotalPrice')
+        const fallbackQuery = `SELECT SUM(CAST(${invColumn} AS decimal(18,2))) AS result_value FROM ${invSchema}.${invTable} WHERE IsReturn = 0`
+        
+        const fallbackRows = await this.executeReadOnlySql(fallbackQuery, signal)
+        const fallbackValue = this.toOptionalFiniteInteger(fallbackRows[0]?.['result_value'])
+        
+        if (fallbackValue !== null && fallbackValue > 0) {
+          query = fallbackQuery
+          actualTableRef = 'INV.InventoryReceipt'
+          actualColumnName = 'TotalPrice'
+          toolCallsUsed = rowCount > 0 ? 3 : 2
+          
+          this.rememberToolTrace(
+            conversationMemory,
+            `tool:${deterministicIntent} table=${actualTableRef} column=${actualColumnName} value=${fallbackValue} source=inventory_receipt_fallback`
+          )
+          
+          this.emitProgress(onProgress, {
+            type: 'tool-success',
+            message: `✅ ابزار ${deterministicIntent} اجرا شد: ${fallbackValue} در ${actualTableRef}.${actualColumnName} (fallback)`,
+            toolName: deterministicIntent,
+            rowCount: 1
+          })
+          
+          return {
+            intentId: deterministicIntent,
+            value: fallbackValue,
+            tableRef: actualTableRef,
+            columnName: actualColumnName,
+            query,
+            toolCallsUsed
+          }
+        }
+        
+        // Both sources empty
+        return null
+      } catch (error) {
+        await this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: conversationMemory.conversationId,
+          stage: 'tool-error',
+          toolName: deterministicIntent,
+          error: error instanceof Error ? error.message : String(error),
+          errorCategory: 'deterministic-tool-failure'
+        })
+        return null
+      }
+    }
+    
+    // Account balance specific logic: SUM(Debit) - SUM(Credit) with fiscal year filtering
+    if (deterministicIntent === 'get_account_balance') {
+      // Use Debit and Credit columns from ACC.VoucherItem
+      const debitColumn = this.quoteSqlIdentifier('Debit')
+      const creditColumn = this.quoteSqlIdentifier('Credit')
+      const voucherTable = this.quoteSqlTableRef('ACC.Voucher')
+      const voucherItemTable = this.quoteSqlTableRef('ACC.VoucherItem')
+      const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
+      const accountTable = this.quoteSqlTableRef('ACC.Account')
+
+      // Extract account name from prompt if present
+      const accountNameMatch = prompt?.match(/(?:حساب|سرفصل)\s*([^\s]+)/iu)
+      const accountName = accountNameMatch ? accountNameMatch[1] : null
+
+      // Extract fiscal year from prompt (normalize Persian digits first)
+      const normalizedPrompt = this.normalizePersianDigits(prompt || '')
+      const fiscalYearMatch = normalizedPrompt.match(/(?:سال|سال\s+)?(\d{4})/iu)
+      const fiscalYear = fiscalYearMatch ? fiscalYearMatch[1] : null
+
+      // Build query with fiscal year join and optional account filter
+      let whereClause = ''
+      if (fiscalYear) {
+        whereClause = ` AND fy.Title = N'${fiscalYear}'`
+      }
+      if (accountName) {
+        whereClause += ` AND a.Title LIKE N'%${accountName}%'`
+        query = `SELECT SUM(CAST(vi.${debitColumn} AS decimal(18,2))) - SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS result_value
+                 FROM ${voucherItemTable} vi
+                 JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
+                 JOIN ${accountTable} a ON vi.AccountSLRef = a.AccountId
+                 JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
+                 WHERE 1=1${whereClause}`
+      } else {
+        query = `SELECT SUM(CAST(vi.${debitColumn} AS decimal(18,2))) - SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS result_value
+                 FROM ${voucherItemTable} vi
+                 JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
+                 JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
+                 WHERE 1=1${whereClause}`
+      }
+
+      try {
+        const rows = await this.executeReadOnlySql(query, signal)
+        const row = rows[0] as SqlQueryRow | undefined
+        const value = this.toOptionalFiniteInteger(row?.['result_value'])
+
+        if (value === null) {
+          return null
+        }
+
+        this.rememberToolTrace(
+          conversationMemory,
+          `tool:${deterministicIntent} table=ACC.VoucherItem column=Debit,Credit value=${value}${accountName ? ` account=${accountName}` : ''}`
+        )
+
+        this.emitProgress(onProgress, {
+          type: 'tool-success',
+          message: `✅ ابزار ${deterministicIntent} اجرا شد: ${value} در ACC.VoucherItem (Debit-Credit)${accountName ? ` برای حساب ${accountName}` : ''}`,
+          toolName: deterministicIntent,
+          rowCount: 1
+        })
+
+        return {
+          intentId: deterministicIntent,
+          value,
+          tableRef: 'ACC.VoucherItem',
+          columnName: 'Debit,Credit',
+          query,
+          toolCallsUsed
+        }
+      } catch (error) {
+        await this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: conversationMemory.conversationId,
+          stage: 'tool-error',
+          toolName: deterministicIntent,
+          error: error instanceof Error ? error.message : String(error),
+          errorCategory: 'deterministic-tool-failure'
+        })
+        return null
+      }
+    }
+    
+    // Trial balance specific logic: SUM(Debit), SUM(Credit) by account
+    if (deterministicIntent === 'get_trial_balance') {
+      const debitColumn = this.quoteSqlIdentifier('Debit')
+      const creditColumn = this.quoteSqlIdentifier('Credit')
+      const accountTable = this.quoteSqlTableRef('ACC.Account')
+      const voucherTable = this.quoteSqlTableRef('ACC.Voucher')
+      const voucherItemTable = this.quoteSqlTableRef('ACC.VoucherItem')
+      const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
+
+      // Extract fiscal year from prompt
+      const fiscalYearMatch = prompt?.match(/(?:سال|سال\s+)?(\d{4})/iu)
+      const fiscalYear = fiscalYearMatch ? fiscalYearMatch[1] : null
+
+      let whereClause = ''
+      if (fiscalYear) {
+        whereClause = ` AND fy.Title = N'${fiscalYear}'`
+      }
+
+      query = `SELECT TOP (200) a.Title AS AccountTitle,
+               SUM(CAST(vi.${debitColumn} AS decimal(18,2))) AS TotalDebit,
+               SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS TotalCredit
+               FROM ${voucherItemTable} vi
+               JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId
+               JOIN ${accountTable} a ON vi.AccountSLRef = a.AccountId
+               JOIN ${fiscalYearTable} fy ON v.FiscalYearRef = fy.FiscalYearId
+               WHERE 1=1${whereClause}
+               GROUP BY a.Title`
+      
+      try {
+        const rows = await this.executeReadOnlySql(query, signal)
+        
+        if (rows.length === 0) {
+          return null
+        }
+        
+        const totalDebit = rows.reduce((sum, row) => sum + (Number(row['TotalDebit']) || 0), 0)
+        const totalCredit = rows.reduce((sum, row) => sum + (Number(row['TotalCredit']) || 0), 0)
+        const value = totalDebit // Return total debit as representative value
+
+        this.rememberToolTrace(
+          conversationMemory,
+          `tool:${deterministicIntent} table=ACC.VoucherItem column=Debit,Credit rows=${rows.length} totalDebit=${totalDebit} totalCredit=${totalCredit}`
+        )
+
+        this.emitProgress(onProgress, {
+          type: 'tool-success',
+          message: `✅ ابزار ${deterministicIntent} اجرا شد: ${rows.length} حساب، بدهکار=${totalDebit}، بستانکار=${totalCredit}`,
+          toolName: deterministicIntent,
+          rowCount: rows.length
+        })
+
+        return {
+          intentId: deterministicIntent,
+          value,
+          tableRef: 'ACC.VoucherItem',
+          columnName: 'Debit,Credit',
+          query,
+          toolCallsUsed
+        }
+      } catch (error) {
+        await this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: conversationMemory.conversationId,
+          stage: 'tool-error',
+          toolName: deterministicIntent,
+          error: error instanceof Error ? error.message : String(error),
+          errorCategory: 'deterministic-tool-failure'
+        })
+        return null
+      }
+    }
+    
+    // Cash and bank balance specific logic
+    if (deterministicIntent === 'get_cash_bank_balance') {
+      const cashTable = this.quoteSqlTableRef('RPA.CashBalance')
+      const bankTable = this.quoteSqlTableRef('RPA.BankAccountBalance')
+      const balanceColumn = this.quoteSqlIdentifier('Balance')
+      
+      const cashQuery = `SELECT SUM(CAST(${balanceColumn} AS decimal(18,2))) AS result_value FROM ${cashTable}`
+      const bankQuery = `SELECT SUM(CAST(${balanceColumn} AS decimal(18,2))) AS result_value FROM ${bankTable}`
+      
+      try {
+        const cashRows = await this.executeReadOnlySql(cashQuery, signal)
+        const bankRows = await this.executeReadOnlySql(bankQuery, signal)
+        
+        const cashValue = this.toOptionalFiniteInteger(cashRows[0]?.['result_value']) || 0
+        const bankValue = this.toOptionalFiniteInteger(bankRows[0]?.['result_value']) || 0
+        const totalValue = cashValue + bankValue
+        
+        if (totalValue === 0) {
+          return null
+        }
+        
+        query = `${cashQuery}; ${bankQuery}`
+        toolCallsUsed = 2
+
+        this.rememberToolTrace(
+          conversationMemory,
+          `tool:${deterministicIntent} cash=${cashValue} bank=${bankValue} total=${totalValue}`
+        )
+
+        this.emitProgress(onProgress, {
+          type: 'tool-success',
+          message: `✅ ابزار ${deterministicIntent} اجرا شد: نقد=${cashValue}، بانک=${bankValue}، مجموع=${totalValue}`,
+          toolName: deterministicIntent,
+          rowCount: 2
+        })
+
+        return {
+          intentId: deterministicIntent,
+          value: totalValue,
+          tableRef: 'RPA.CashBalance,RPA.BankAccountBalance',
+          columnName: 'Balance',
+          query,
+          toolCallsUsed
+        }
+      } catch (error) {
+        await this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: conversationMemory.conversationId,
+          stage: 'tool-error',
+          toolName: deterministicIntent,
+          error: error instanceof Error ? error.message : String(error),
+          errorCategory: 'deterministic-tool-failure'
+        })
+        return null
+      }
+    }
+    
+    // Default query for other intents
+    query = `SELECT SUM(CAST(${columnIdentifier} AS decimal(18,2))) AS result_value FROM ${schemaIdentifier}.${tableIdentifier}`
 
     try {
       const rows = await this.executeReadOnlySql(query, signal)
@@ -3771,9 +4949,17 @@ ORDER BY fiscal_year DESC`
         tableRef: mapping.tableRef,
         columnName: column.name,
         query,
-        toolCallsUsed: 1
+        toolCallsUsed
       }
-    } catch {
+    } catch (error) {
+      await this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: conversationMemory.conversationId,
+        stage: 'tool-error',
+        toolName: deterministicIntent,
+        error: error instanceof Error ? error.message : String(error),
+        errorCategory: 'deterministic-tool-failure'
+      })
       return null
     }
   }
@@ -3833,15 +5019,30 @@ ORDER BY fiscal_year DESC`
         ? 'مانده حساب'
         : deterministicIntent === 'get_party_balance'
           ? 'مانده طرف حساب'
-          : deterministicIntent === 'get_receivables_summary'
-            ? 'خلاصه بدهکاران'
-            : deterministicIntent === 'get_payables_summary'
-              ? 'خلاصه بستانکاران'
-              : 'خلاصه جریان نقد'
+          : deterministicIntent === 'get_purchase_summary'
+            ? 'خلاصه خرید'
+            : deterministicIntent === 'get_receivables_summary'
+              ? 'خلاصه بدهکاران'
+              : deterministicIntent === 'get_payables_summary'
+                ? 'خلاصه بستانکاران'
+                : 'خلاصه جریان نقد'
+
+    const isPurchaseFromInventory = deterministicIntent === 'get_purchase_summary' && result.tableRef === 'INV.InventoryReceipt'
+    const hasNoData = result.value === null || result.value === 0
+
+    const summaryText = hasNoData
+      ? `این گزارش با داده‌های موجود قابل تولید نیست. ${label} در جدول ${result.tableRef} خالی است.`
+      : isPurchaseFromInventory
+        ? `فاکتور خرید رسمی ثبت نشده؛ بر اساس رسید انبار (غیرمرجوعی)، ${label} محاسبه شد: ${result.value}`
+        : `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value} (نوع KPI: ${label})`
+
+    const assumptionsText = isPurchaseFromInventory
+      ? '- مبلغ از رسید انبار `TotalPrice` با `IsReturn=0` است، نه فاکتور خرید رسمی.'
+      : '- از mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.'
 
     return [
       '### Summary',
-      `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value ?? 'نامشخص'} (نوع KPI: ${label})`,
+      summaryText,
       '',
       '### Findings',
       `- مسیر پاسخ: deterministic`,
@@ -3853,7 +5054,7 @@ ORDER BY fiscal_year DESC`
       `- query: ${result.query}`,
       '',
       '### Assumptions',
-      '- از mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.',
+      assumptionsText,
       '',
       '### Actions',
       '- اگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.'
@@ -3956,17 +5157,26 @@ ORDER BY fiscal_year DESC`
     conversationMemory: ConversationMemoryState,
     totalToolCallCount: number,
     successfulDataFetchCount: number,
-    routeMode: 'deterministic' | 'model-assisted' | 'clarification' = 'model-assisted'
+    routeMode: 'deterministic' | 'model-assisted' | 'clarification' = 'model-assisted',
+    executionTrace?: ExecutionTrace,
+    recoveryContext?: { attempts: number },
+    requestId?: string
   ): string {
     const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
     const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
     const routedText = this.annotateManagerUx(alignedText, routeMode)
-    return this.enforceEvidenceFirstContract(
+    const finalizedText = this.enforceEvidenceFirstContract(
       prompt,
       routedText,
       totalToolCallCount,
-      successfulDataFetchCount
+      successfulDataFetchCount,
+      executionTrace,
+      recoveryContext,
+      requestId,
+      conversationMemory.conversationId
     )
+
+    return finalizedText
   }
 
   private annotateManagerUx(rawText: string, routeMode: 'deterministic' | 'model-assisted' | 'clarification'): string {
@@ -4000,7 +5210,11 @@ ORDER BY fiscal_year DESC`
     prompt: string,
     finalText: string,
     totalToolCallCount: number,
-    successfulDataFetchCount: number
+    successfulDataFetchCount: number,
+    executionTrace?: ExecutionTrace,
+    recoveryContext?: { attempts: number },
+    requestId?: string,
+    conversationId?: string
   ): string {
     const normalizedText = this.normalizePersianDigits(finalText)
 
@@ -4008,10 +5222,25 @@ ORDER BY fiscal_year DESC`
       return finalText
     }
 
+    // S5: Validate intent-table match before proceeding
+    if (executionTrace && executionTrace.intentId) {
+      const intentMismatch = this.validateIntentTableMatch(executionTrace.intentId, executionTrace.evidence)
+      if (intentMismatch) {
+        const failureText = this.buildEvidenceContractFailureResponse(
+          `تطابق intent و جدول برقرار نیست: ${intentMismatch}`,
+          prompt,
+          recoveryContext?.attempts
+        )
+        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+        return failureText
+      }
+    }
+
+    const hasFinancialNumericClaimInResponse = /(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b(?:تومان|ریال|مبلغ|موجودی|مانده|جمع|مجموع|تعداد|سهم|نسبت|amount|balance|total|count)\b)/iu.test(normalizedText)
     const isClarificationOnlyResponse =
-      /برای\s+پاسخ\s+دقیق|برای\s+جلوگیری\s+از\s+حدس\s+زدن|برای\s+جلوگیری\s+از\s+تحلیل\s+اشتباه|لطفا\s+یکی\s+از\s+این\s+گزینه‌ها|سال\s+مالی\s+دقیق|تاریخ\s+شروع\s+و\s+پایان/i.test(
+      /برای\s+پاسخ\s+دقیق|برای\s+جلوگیری\s+از\s+حدس\s+زدن|برای\s+جلوگیری\s+از\s+تحلیل\s+اشتباه|لطفا\s+یکی\s+از\s+این\s+گزینه‌ها|سال\s+مالی\s+دقیق|تاریخ\s+شروع\s+و\s+پایان|درخواست\s+صرفاً\s+استعلامی/i.test(
         normalizedText
-      )
+      ) && !hasFinancialNumericClaimInResponse
 
     if (isClarificationOnlyResponse) {
       return finalText
@@ -4020,57 +5249,155 @@ ORDER BY fiscal_year DESC`
     const sections = this.parseFinancialTemplateSections(finalText)
     const narrative = `${sections.summary}\n${sections.findings}`.trim()
     const evidence = sections.evidence
-    const appearsFinancialClaim = this.appearsToContainFinancialClaim(narrative)
+    const appearsFinancialClaim = this.appearsToContainFinancialClaim(prompt) || this.appearsToContainFinancialClaim(narrative)
     const hasRequiredContractSections = this.hasRequiredFinancialResponseSections(sections)
     const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
     const requiresStrictFinancialFetch = this.requiresStrictFinancialDataFetch(prompt, narrative)
     const requiresStrictQuantResult = this.requiresStrictQuantitativeDataFetch(prompt)
     const hasQuantitativeResult = this.hasQuantitativeResultSignal(narrative)
     const statesNoData = this.appearsToBeNoDataResult(narrative)
+    const numericClaims = this.extractNumericClaims(narrative)
+    const needsStrictData = requiresStrictFinancialFetch || requiresStrictQuantResult
 
+    // Structural guards apply regardless of structured-trace availability.
     if (appearsFinancialClaim && !hasRequiredContractSections) {
-      return this.buildEvidenceContractFailureResponse(
+      const failureText = this.buildEvidenceContractFailureResponse(
         'پاسخ مالی فاقد بلوک‌های قرارداد استاندارد Summary/Findings/Evidence/Assumptions/Actions بود.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
-    if (totalToolCallCount === 0 && appearsFinancialClaim) {
-      return this.buildEvidenceContractFailureResponse(
+    if (totalToolCallCount === 0 && appearsFinancialClaim && !statesNoData) {
+      const failureText = this.buildEvidenceContractFailureResponse(
         'پاسخ مالی عددی بدون اجرای ابزار read-only تولید شد و قابل اتکا نیست.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
-    if (totalToolCallCount > 0 && !hasStructuredEvidence) {
-      return this.buildEvidenceContractFailureResponse(
+    if (this.containsUnsupportedNumericClaim(narrative, evidence, sections)) {
+      const failureText = this.buildEvidenceContractFailureResponse(
+        'پاسخ شامل ادعای عددی/درصدی بدون شواهد ساخت‌یافته و بدون داده‌ی اجرا شده بود.',
+        prompt,
+        recoveryContext?.attempts
+      )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
+    }
+
+    // H1: only reject when the response contains a currency/percent-marked
+    // financial claim — bare scope numbers (e.g. fiscal years like "1403" in
+    // Findings) are diagnostic, not claims, and must not trip the guard on an
+    // honest VALID_EMPTY response.
+    const hasFinancialMarkedClaim = this.containsFinancialMarkedNumericClaim(narrative)
+    if (executionTrace && numericClaims.length > 0 && hasFinancialMarkedClaim && !statesNoData && (appearsFinancialClaim || needsStrictData)) {
+      if (!this.traceSupportsNumericClaim(executionTrace)) {
+        const failureText = this.buildEvidenceContractFailureResponse(
+          'پاسخ شامل عدد/درصدی است که در trace اجرای واقعی وجود ندارد و بنابراین به‌عنوان ادعای بی‌شاهد رد می‌شود. برای پذیرش، عدد باید از اجرای واقعی و شواهد trace پشتیبانی شود.',
+          prompt,
+          recoveryContext?.attempts
+        )
+        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+        return failureText
+      }
+    }
+
+    if (totalToolCallCount > 0 && !hasStructuredEvidence && (appearsFinancialClaim || needsStrictData || hasQuantitativeResult)) {
+      const failureText = this.buildEvidenceContractFailureResponse(
         'پاسخ مالی فاقد شواهد ساخت یافته کافی (ابزار/کوئری/جدول/ردیف) بود.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
-    if (requiresStrictFinancialFetch && successfulDataFetchCount === 0) {
-      return this.buildEvidenceContractFailureResponse(
+    // When a structured execution trace is available, the tri-state verdict — not
+    // rendered prose — is the authority for data sufficiency. This is the core
+    // defect fix: a query that ran within scope but returned 0 rows / NULL
+    // (VALID_EMPTY) is a legitimate, answerable fact and must NOT be conflated
+    // with a never-run/errored query (INSUFFICIENT).
+    if (executionTrace && needsStrictData) {
+      const verdict = evaluateEvidence(executionTrace)
+
+      if (verdict.kind === 'INSUFFICIENT') {
+        const failureText = this.buildEvidenceContractFailureResponse(
+          'برای پاسخ عددی/مقایسه ای مالی، اجرای موفق و scope دار fetch_financial_data الزامی است و مسیرهای بدون آن معتبر نیستند.',
+          prompt,
+          recoveryContext?.attempts
+        )
+        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+        return failureText
+      }
+
+      if (verdict.kind === 'VALID_EMPTY') {
+        return this.renderValidEmptyFinancialAnswer(finalText, sections, statesNoData)
+      }
+
+      // POSITIVE_DATA: a percent-style question must still surface a numeric result.
+      if (requiresStrictQuantResult && !hasQuantitativeResult && !statesNoData) {
+        const failureText = this.buildEvidenceContractFailureResponse(
+          'برای سوال درصد رشد/کاهش، پاسخ نهایی باید عدد درصد معتبر (+x% یا -x%) یا پیام صریح نبود داده داشته باشد.',
+          prompt
+        )
+        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+        return failureText
+      }
+
+      return finalText
+    }
+
+    // Legacy heuristic path (no structured trace available).
+    if (requiresStrictFinancialFetch && successfulDataFetchCount === 0 && !statesNoData) {
+      const failureText = this.buildEvidenceContractFailureResponse(
         'برای پاسخ عددی/مقایسه ای مالی، اجرای موفق fetch_financial_data الزامی است و مسیرهای بدون آن معتبر نیستند.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
-    if (requiresStrictQuantResult && successfulDataFetchCount === 0) {
-      return this.buildEvidenceContractFailureResponse(
+    if (requiresStrictQuantResult && successfulDataFetchCount === 0 && !statesNoData) {
+      const failureText = this.buildEvidenceContractFailureResponse(
         'برای سوال درصد رشد/کاهش، پاسخ نهایی بدون اجرای موفق fetch_financial_data مجاز نیست.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
     if (requiresStrictQuantResult && !hasQuantitativeResult && !statesNoData) {
-      return this.buildEvidenceContractFailureResponse(
+      const failureText = this.buildEvidenceContractFailureResponse(
         'برای سوال درصد رشد/کاهش، پاسخ نهایی باید عدد درصد معتبر (+x% یا -x%) یا پیام صریح نبود داده داشته باشد.',
-        prompt
+        prompt,
+        recoveryContext?.attempts
       )
+      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
+      return failureText
     }
 
     return finalText
+  }
+
+  /**
+   * Renders a first-class affirmative "no records" answer for a VALID_EMPTY
+   * verdict. A scoped query executed cleanly but returned 0 rows / NULL, which is
+   * a real fact — not an evidence shortfall — so the response is preserved and,
+   * if it does not already say so, an explicit no-records statement is injected.
+   */
+  private renderValidEmptyFinancialAnswer(
+    finalText: string,
+    sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>,
+    statesNoData: boolean
+  ): string {
+    return renderValidEmptyFinancialAnswer(finalText, sections, statesNoData)
   }
 
   private requiresStrictFinancialDataFetch(prompt: string, narrative: string): boolean {
@@ -4108,19 +5435,22 @@ ORDER BY fiscal_year DESC`
   private appearsToBeNoDataResult(text: string): boolean {
     const normalized = this.normalizePersianDigits(text)
 
-    return /(?:داده(?:\s*ای)?\s*یافت\s*نشد|بدون\s*داده|اطلاعات\s*کافی\s*وجود\s*ندارد|no\s*data|insufficient\s*data)/iu.test(
+    return /(?:یافت\s*نشد|داده(?:\s*ای)?\s*وجود\s*ندارد|اطلاعات\s*کافی\s*وجود\s*ندارد|نتیجه\s*خالی|رکوردی\s*ثبت\s*نشده|هیچ\s*داده(?:\s*ای)?|no\s*data|insufficient\s*data|no\s+records)/iu.test(
       normalized
     )
   }
 
   private appearsToContainFinancialClaim(text: string): boolean {
     const normalized = this.normalizePersianDigits(text)
-    const hasFinancialSignal =
-      /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار)/iu.test(
+    const strongFinancialSignal =
+      /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|موجودی|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار|account|جریان\s*نقد|حساب|ledger|voucher|invoice)/iu.test(
         normalized
       )
+    const fiscalYearSignal =
+      /(?:سال\s*مالی|fiscal\s*year|financial\s*year)/iu.test(normalized) &&
+      /(?:چند|تعداد|لیست|فهرست|کدام|وجود|قرار|دارد|count|list|year)/iu.test(normalized)
 
-    return hasFinancialSignal
+    return strongFinancialSignal || fiscalYearSignal
   }
 
   private hasRequiredFinancialResponseSections(sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>): boolean {
@@ -4136,29 +5466,154 @@ ORDER BY fiscal_year DESC`
   private hasStructuredEvidence(evidenceSection: string): boolean {
     const normalized = this.normalizePersianDigits(evidenceSection)
 
-    return /(?:query|tool|read-only|table|column|row|runtime\s*scope|fetch_financial_data|count_fiscal_years|list_fiscal_years|کوئری|ابزار|جدول|ستون|ردیف|شواهد|شاهد)/iu.test(
+    return /(?:query|tool|read-only|table|column|row|runtime\s*scope|catalog_scan|list_database_tables|get_database_schema|fetch_financial_data|count_fiscal_years|list_fiscal_years|کوئری|ابزار|جدول|ستون|ردیف|شواهد|شاهد)/iu.test(
       normalized
     )
   }
 
-  private buildEvidenceContractFailureResponse(reason: string, prompt: string): string {
-    return [
-      '### Summary',
-      'Cannot answer reliably: پاسخ مالی بدون شواهد کافی مجاز نیست.',
-      '',
-      '### Findings',
-      `- دلیل ساده: ${reason}`,
-      '',
-      '### Evidence',
-      '- Evidence-first contract فعال شد و از ارائه پاسخ مالی غیرقابل اتکا جلوگیری کرد.',
-      '',
-      '### Assumptions',
-      '- پاسخ رد شده به دلیل فقدان شواهد ساخت یافته و/یا ابزار read-only قابل اتکا متوقف شد.',
-      '',
-      '### Actions',
-      `- اقدام بعدی: سوال را با scope دقیق‌تر تکرار کنید: ${this.compactText(prompt, 180)}`,
-      '- اگر داده‌ای وجود ندارد، بازه زمانی/سال مالی/شرکت/شعبه را مشخص کنید تا ابزارها بتوانند پاسخ قابل اتکا تولید کنند.'
-    ].join('\n')
+  private containsUnsupportedNumericClaim(
+    narrative: string,
+    evidence: string,
+    sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>
+  ): boolean {
+    const normalizedNarrative = this.normalizePersianDigits(narrative)
+    const normalizedEvidence = this.normalizePersianDigits(evidence)
+    const hasNumericSignal = /(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/u.test(normalizedNarrative)
+    const hasPositiveEvidenceSignal = /(?:tool:|read-only\s+query|query\s+executed|query\s+used|scope\s+applied|table\s+name|column\s+name|row\s+count|schema\s+check|via\s+read-only|via\s+query|ابزار\s+اجرایی|کوئری\s+اجرا|کوئری\s+read-only|executed|used)/iu.test(
+      normalizedEvidence
+    )
+    const hasExplicitNoEvidenceSignal = /(?:بدون\s+(?:اجرای|استفاده\s+از|شواهد|کوئری|ابزار|داده|تأیید)|without\s+(?:evidence|tool|query|data)|no\s+(?:evidence|tool|query|data|financial\s+data\s+fetch)|هیچ\s+(?:fetch_financial_data|کوئری|ابزار|داده|شواهد)|not\s+executed|didn['’]?t\s+run|not\s+run|حدس|برآورد|model\s+assumption|assumption)/iu.test(
+      normalizedEvidence
+    )
+    const hasExplicitNoData = this.appearsToBeNoDataResult(normalizedNarrative)
+    const hasRequiredSections = this.hasRequiredFinancialResponseSections(sections)
+
+    return Boolean(
+      hasNumericSignal && !hasPositiveEvidenceSignal && (hasExplicitNoEvidenceSignal || !normalizedEvidence.trim()) && !hasExplicitNoData && hasRequiredSections
+    )
+  }
+
+  /**
+   * H1: detect whether the narrative contains a *financial* numeric claim —
+   * a number paired with a currency marker (تومان/ریال/$/IRR), a percent sign,
+   * or a financial keyword (مبلغ/موجودی/مانده/جمع/...). Bare scope numbers like
+   * fiscal years (e.g. "FiscalYearRef = 1403") must not count, so an honest
+   * VALID_EMPTY response that merely echoes the queried scope is not rejected.
+   */
+  private containsFinancialMarkedNumericClaim(narrative: string): boolean {
+    const normalized = this.normalizePersianDigits(narrative)
+
+    if (/[+-]?\d+(?:[.,]\d+)?\s*(?:%|درصد)/iu.test(normalized)) {
+      return true
+    }
+
+    if (/\d[\d,]*\s*(?:تومان|ریال|IRR|USD|EUR|\$)/iu.test(normalized)) {
+      return true
+    }
+
+    // Number adjacent to a financial noun (within ~3 words on either side).
+    const financialNoun = '(?:مبلغ|موجودی|مانده|جمع|مجموع|سهم|نسبت|amount|balance|total)'
+    const adjacencyPattern = new RegExp(
+      `(?:${financialNoun}[^\\n]{0,40}?\\d[\\d,]*(?:[.,]\\d+)?|\\d[\\d,]*(?:[.,]\\d+)?[^\\n]{0,40}?${financialNoun})`,
+      'iu'
+    )
+    return adjacencyPattern.test(normalized)
+  }
+
+  private extractNumericClaims(text: string): string[] {
+    const normalized = this.normalizePersianDigits(text)
+    const matches = normalized.match(/(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/gu) ?? []
+
+    return matches.map((value) => value.trim())
+  }
+
+  private traceSupportsNumericClaim(trace: ExecutionTrace | undefined): boolean {
+    if (!trace) {
+      return false
+    }
+
+    // VALID_EMPTY (scoped query returned 0 rows / NULL aggregate) is a legitimate
+    // basis only for an honest "no records" answer — never for a fabricated
+    // numeric claim. Per H1, the safety guard must NOT accept numbers backed by
+    // an empty trace.
+    const verdict = evaluateEvidence(trace)
+    return verdict.kind === 'POSITIVE_DATA'
+  }
+
+  private emitEvidenceContractTelemetry(
+    requestId: string | undefined,
+    conversationId: string | undefined,
+    finalText: string,
+    recoveryAttempts?: number
+  ): void {
+    const effectiveRecoveryAttempts = recoveryAttempts ?? 0
+
+    this.telemetry?.capture({
+      event: 'agent.orchestrator.audit',
+      category: 'agent.orchestrator',
+      level: 'warn',
+      process: 'main',
+      message: 'evidence-contract-failure',
+      details: {
+        failureKind: 'evidence_contract',
+        recoveryAttempts: effectiveRecoveryAttempts,
+        finalText,
+        requestId,
+        conversationId
+      },
+      requestId,
+      conversationId
+    })
+  }
+
+  private emitGuardrailTelemetry(
+    kind: 'unsupported-function' | 'empty-result-recovery' | 'provider-error',
+    requestId: string | undefined,
+    conversationId: string | undefined,
+    details?: Record<string, unknown>
+  ): void {
+    this.telemetry?.capture({
+      event: 'agent.orchestrator.guardrail',
+      category: 'agent.orchestrator',
+      level: 'warn',
+      process: 'main',
+      message: kind,
+      details: {
+        kind,
+        requestId,
+        conversationId,
+        ...details
+      },
+      requestId,
+      conversationId
+    })
+  }
+
+  private emitGuardrailCounterTelemetry(
+    kind: 'unsupported-function' | 'empty-result-recovery' | 'provider-error',
+    requestId: string | undefined,
+    conversationId: string | undefined,
+    count: number
+  ): void {
+    this.telemetry?.capture({
+      event: 'agent.orchestrator.guardrail.count',
+      category: 'agent.orchestrator',
+      level: 'info',
+      process: 'main',
+      message: kind,
+      details: {
+        kind,
+        count,
+        requestId,
+        conversationId
+      },
+      requestId,
+      conversationId
+    })
+  }
+
+  private buildEvidenceContractFailureResponse(reason: string, prompt: string, recoveryAttempts?: number): string {
+    return buildEvidenceContractFailureResponse(reason, this.compactText(prompt, 180), recoveryAttempts)
   }
 
   private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
@@ -4213,6 +5668,16 @@ ORDER BY fiscal_year DESC`
 
   private quoteSqlIdentifier(value: string): string {
     return `[${value.replace(/\]/g, ']]')}]`
+  }
+
+  private quoteSqlTableRef(ref: string): string {
+    const dotIndex = ref.indexOf('.')
+    if (dotIndex === -1) {
+      return this.quoteSqlIdentifier(ref)
+    }
+    const schema = ref.slice(0, dotIndex)
+    const table = ref.slice(dotIndex + 1)
+    return `${this.quoteSqlIdentifier(schema)}.${this.quoteSqlIdentifier(table)}`
   }
 
   private toFiniteInteger(value: unknown): number {
@@ -5466,10 +6931,35 @@ ORDER BY fiscal_year DESC`
     return SENSITIVE_IDENTIFIER_FIELD_TOKENS_FA.some((token) => normalizedFa.includes(token))
   }
 
-  private buildListDatabaseTablesQuery(tablePattern: string | null): string {
-    const normalizedPattern = this.normalizeTablePattern(tablePattern)
+  private buildCatalogScanQuery(tablePattern: string | null, limit: number): string {
+    const normalizedPattern = normalizeTablePattern(tablePattern)
     const patternFilter = normalizedPattern
-      ? `\n  AND TABLE_NAME LIKE N'${this.escapeSqlStringLiteral(normalizedPattern)}'`
+      ? `AND LOWER(t.TABLE_NAME) LIKE LOWER(N'${escapeSqlStringLiteral(normalizedPattern)}')`
+      : ''
+
+    // NOTE: column previews are intentionally omitted. The classic STUFF(... FOR XML PATH ...)
+    // concatenation is rejected by the read-only SQL policy (SQL_POLICY_FORBIDDEN_EXPORT_CLAUSE),
+    // and STRING_AGG is unavailable on legacy Sepidar SQL Server (2008 R2). Column details are
+    // available on demand via get_database_schema, so catalog_scan only returns table identity + size.
+    return `SELECT TOP (${Math.max(1, Math.min(limit, 24))})
+  t.TABLE_SCHEMA,
+  t.TABLE_NAME,
+  CAST(COALESCE(SUM(p.rows), 0) AS bigint) AS estimated_row_count
+FROM INFORMATION_SCHEMA.TABLES t
+LEFT JOIN sys.partitions p
+  ON p.object_id = OBJECT_ID(QUOTENAME(t.TABLE_SCHEMA) + '.' + QUOTENAME(t.TABLE_NAME))
+ AND p.index_id IN (0, 1)
+WHERE t.TABLE_TYPE = 'BASE TABLE'
+  ${patternFilter}
+  AND t.TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'sys')
+GROUP BY t.TABLE_SCHEMA, t.TABLE_NAME
+ORDER BY estimated_row_count DESC, t.TABLE_SCHEMA, t.TABLE_NAME`
+  }
+
+  private buildListDatabaseTablesQuery(tablePattern: string | null): string {
+    const normalizedPattern = normalizeTablePattern(tablePattern)
+    const patternFilter = normalizedPattern
+      ? `\n  AND LOWER(TABLE_NAME) LIKE LOWER(N'${escapeSqlStringLiteral(normalizedPattern)}')`
       : ''
 
     return `SELECT TOP (${MAX_TABLE_LIST_ROWS}) TABLE_SCHEMA, TABLE_NAME
@@ -5479,97 +6969,6 @@ ORDER BY TABLE_SCHEMA, TABLE_NAME`
   }
 
   private buildDatabaseSchemaQuery(tableName: string, schemaName: string | null): string {
-    const tableValue = this.escapeSqlStringLiteral(tableName)
-    const schemaFilter = schemaName
-      ? `  AND c.TABLE_SCHEMA = N'${this.escapeSqlStringLiteral(schemaName)}'\n`
-      : ''
-
-    return `SELECT TOP (${MAX_SCHEMA_ROWS})
-  c.TABLE_SCHEMA AS table_schema,
-  c.TABLE_NAME AS table_name,
-  c.ORDINAL_POSITION AS ordinal_position,
-  c.COLUMN_NAME AS column_name,
-  c.DATA_TYPE AS data_type,
-  c.CHARACTER_MAXIMUM_LENGTH AS character_maximum_length,
-  c.NUMERIC_PRECISION AS numeric_precision,
-  c.NUMERIC_SCALE AS numeric_scale,
-  c.DATETIME_PRECISION AS datetime_precision,
-  c.IS_NULLABLE AS is_nullable,
-  COLUMNPROPERTY(OBJECT_ID(QUOTENAME(c.TABLE_SCHEMA) + '.' + QUOTENAME(c.TABLE_NAME)), c.COLUMN_NAME, 'IsIdentity') AS is_identity
-FROM INFORMATION_SCHEMA.COLUMNS c
-WHERE c.TABLE_NAME = N'${tableValue}'
-${schemaFilter}ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`
-  }
-
-  private escapeSqlStringLiteral(value: string): string {
-    return value.replace(/'/g, "''")
-  }
-
-  private normalizeTablePattern(value: string | null): string | null {
-    if (!value) {
-      return null
-    }
-
-    return value.replace(/\*/g, '%')
-  }
-
-  private readRequiredStringArg(args: Record<string, unknown>, key: string, maxLength: number): string {
-    const value = args[key]
-
-    if (typeof value !== 'string') {
-      throw new Error(`Missing required argument: ${key}`)
-    }
-
-    const trimmed = value.trim()
-    if (!trimmed) {
-      throw new Error(`Missing required argument: ${key}`)
-    }
-
-    if (trimmed.length > maxLength) {
-      throw new Error(`Argument ${key} exceeds max length (${maxLength}).`)
-    }
-
-    return trimmed
-  }
-
-  private readOptionalStringArg(args: Record<string, unknown>, key: string, maxLength: number): string | null {
-    const value = args[key]
-
-    if (value === undefined || value === null) {
-      return null
-    }
-
-    if (typeof value !== 'string') {
-      throw new Error(`Argument ${key} must be a string when provided.`)
-    }
-
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return null
-    }
-
-    if (trimmed.length > maxLength) {
-      throw new Error(`Argument ${key} exceeds max length (${maxLength}).`)
-    }
-
-    return trimmed
-  }
-
-  private parseToolArguments(argumentText: string): Record<string, unknown> {
-    if (!argumentText.trim()) {
-      return {}
-    }
-
-    try {
-      const parsed = JSON.parse(argumentText) as unknown
-
-      if (parsed && typeof parsed === 'object') {
-        return parsed as Record<string, unknown>
-      }
-
-      return {}
-    } catch {
-      return {}
-    }
+    return buildDatabaseSchemaQuery(tableName, schemaName, MAX_SCHEMA_ROWS)
   }
 }
