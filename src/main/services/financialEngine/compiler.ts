@@ -33,6 +33,9 @@ function buildMeasureExpr(
       const credit = deps.quoteSqlIdentifier(measure.creditColumn)
       return `SUM(${alias}.${debit}) - SUM(${alias}.${credit})`
     }
+    case 'list': {
+      return measure.columns.map((c) => `${alias}.${deps.quoteSqlIdentifier(c)}`).join(', ')
+    }
   }
 }
 
@@ -145,6 +148,10 @@ function buildWhereClauses(
     const labelCol = resolveLabelColumn(dim)
     if (pf.op === 'eq') {
       where.push(`${labelCol} = ${formatFilterValue(pf.values[0], dim.labelType)}`)
+    } else if (pf.op === 'between') {
+      const from = formatFilterValue(pf.values[0], dim.labelType)
+      const to = formatFilterValue(pf.values[1], dim.labelType)
+      where.push(`${labelCol} BETWEEN ${from} AND ${to}`)
     } else {
       const formatted = pf.values.map((v) => formatFilterValue(v, dim.labelType))
       where.push(`${labelCol} IN (${formatted.join(', ')})`)
@@ -227,8 +234,9 @@ function buildStandardQuery(
   const joins = buildJoinClauses(definition, plan, deps)
   const where = buildWhereClauses(definition, plan, deps)
 
+  const isList = measure.kind === 'list'
   const groupByCols: string[] = []
-  const selectCols: string[] = [`${measureExpr} AS result_value`]
+  const selectCols: string[] = isList ? [measureExpr] : [`${measureExpr} AS result_value`]
 
   if (plan.grain !== 'total') {
     const dim = findDimension(definition, plan.grain)
@@ -239,12 +247,16 @@ function buildStandardQuery(
     }
   }
 
+  const topN = plan.topN
+  const selectClause = topN ? `SELECT TOP(${topN}) ${selectCols.join(', ')}` : `SELECT ${selectCols.join(', ')}`
+
   const sql = [
-    `SELECT ${selectCols.join(', ')}`,
+    selectClause,
     `FROM ${table} ${alias}`,
     joins.length > 0 ? joins.join('\n') : null,
     where.length > 0 ? `WHERE ${where.join(' AND ')}` : null,
-    groupByCols.length > 0 ? `GROUP BY ${groupByCols.join(', ')}` : null
+    groupByCols.length > 0 ? `GROUP BY ${groupByCols.join(', ')}` : null,
+    definition.orderBy ? `ORDER BY ${definition.orderBy.column} ${definition.orderBy.direction}` : null
   ]
     .filter((line) => line !== null)
     .join('\n')

@@ -212,3 +212,71 @@ test('compileMetricPlan: purchases produces SUM(TotalPrice) from INV.InventoryRe
   assert.ok(sql.includes('FROM [INV].[InventoryReceipt] src'), 'should use INV.InventoryReceipt')
   assert.ok(sql.includes('src.IsReturn = 0'), 'should filter IsReturn = 0')
 })
+
+test('compileMetricPlan: fiscal_year_count produces COUNT(*) from FMK.FiscalYear', () => {
+  const def = findMetricById('fiscal_year_count')!
+  const plan: MetricPlan = {
+    metricId: 'fiscal_year_count',
+    grain: 'total',
+    filters: [],
+    confidence: 1.0
+  }
+  const { sql } = compileMetricPlan(plan, def, deps)
+
+  assert.ok(sql.includes('COUNT(*)'), 'should have COUNT(*) measure')
+  assert.ok(sql.includes('FROM [FMK].[FiscalYear] fy'), 'should use FMK.FiscalYear')
+  assert.ok(!sql.includes('GROUP BY'), 'should NOT have GROUP BY for count')
+})
+
+test('compileMetricPlan: fiscal_year_list produces SELECT columns with ORDER BY and topN', () => {
+  const def = findMetricById('fiscal_year_list')!
+  const plan: MetricPlan = {
+    metricId: 'fiscal_year_list',
+    grain: 'total',
+    filters: [],
+    topN: 100,
+    confidence: 1.0
+  }
+  const { sql } = compileMetricPlan(plan, def, deps)
+
+  assert.ok(sql.includes('TOP(100)'), 'should have TOP(100)')
+  assert.ok(sql.includes('fy.[FiscalYearId]'), 'should select FiscalYearId')
+  assert.ok(sql.includes('fy.[Title]'), 'should select Title')
+  assert.ok(!sql.includes('AS result_value'), 'should NOT have result_value alias for list')
+  assert.ok(!sql.includes('GROUP BY'), 'should NOT have GROUP BY for list')
+  assert.ok(sql.includes('ORDER BY fy.Title DESC'), 'should have ORDER BY')
+})
+
+test('compileMetricPlan: between operator produces BETWEEN clause', () => {
+  const def: MetricDefinition = {
+    id: 'account_turnover',
+    titleFa: 'گردش حساب',
+    anchors: ['گردش'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'v' },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: []
+  }
+  const plan: MetricPlan = {
+    metricId: 'account_turnover',
+    grain: 'total',
+    filters: [{ dimension: 'by_year', op: 'between', values: ['1402', '1403'] }],
+    confidence: 1.0
+  }
+  const { sql } = compileMetricPlan(plan, def, deps)
+
+  assert.ok(sql.includes("BETWEEN N'1402' AND N'1403'"), 'should have BETWEEN clause')
+})

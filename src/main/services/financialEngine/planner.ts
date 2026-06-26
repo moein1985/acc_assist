@@ -17,11 +17,29 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   const yearMatches = normalized.match(/(\d{4})/g)
   if (yearMatches && yearMatches.length > 0) {
     const years = [...new Set(yearMatches)]
-    if (years.length >= 2 && def.grainSupported.includes('by_year')) {
+    const rangePattern = /از\s*(\d{4})\s*تا\s*(\d{4})/u.test(normalized)
+    if (
+      years.length >= 2 &&
+      def.grainSupported.includes('by_year') &&
+      !rangePattern
+    ) {
       comparison = {
         dimension: 'by_year',
         baseValue: years[0],
         targetValue: years[1]
+      }
+    } else if (
+      years.length >= 2 &&
+      def.grainSupported.includes('by_year') &&
+      rangePattern
+    ) {
+      const rangeMatch = normalized.match(/از\s*(\d{4})\s*تا\s*(\d{4})/u)
+      if (rangeMatch) {
+        filters.push({
+          dimension: 'by_year',
+          op: 'between',
+          values: [rangeMatch[1], rangeMatch[2]]
+        })
       }
     } else if (years.length === 1 && def.grainSupported.includes('by_year')) {
       filters.push({ dimension: 'by_year', op: 'eq', values: [years[0]] })
@@ -39,6 +57,11 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   ) {
     grain = 'by_month'
   } else if (
+    /به تفکیک\s*فصل|فصلی|در هر فصل|سه ماهه/u.test(normalized) &&
+    def.grainSupported.includes('by_quarter')
+  ) {
+    grain = 'by_quarter'
+  } else if (
     /به تفکیک\s*حساب|در هر حساب|به تفکیک\s*سرفصل/u.test(normalized) &&
     def.grainSupported.includes('by_account')
   ) {
@@ -46,9 +69,24 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   }
 
   if (def.entityNameMatch) {
+    const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)
+    const partyMatch = normalized.match(/(?:طرف\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\s+([\u0600-\u06FF]+)/u)
     const accountMatch = normalized.match(/(?:حساب|سرفصل|معین|تفضیلی)\s+([\u0600-\u06FF]+)/u)
-    if (accountMatch) {
+    if (personMatch) {
+      entityName = personMatch[1]
+    } else if (partyMatch) {
+      entityName = partyMatch[1]
+    } else if (accountMatch) {
       entityName = accountMatch[1]
+    }
+  }
+
+  let topN: number | undefined
+  const topNMatch = normalized.match(/(?:آخرین|اخیر|تعداد)\s*(\d+)|(\d+)\s*(?:سند|اسناد|رکورد)/u)
+  if (topNMatch) {
+    const n = Number(topNMatch[1] ?? topNMatch[2])
+    if (Number.isFinite(n) && n > 0) {
+      topN = n
     }
   }
 
@@ -62,6 +100,7 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     filters,
     comparison,
     entityName,
+    topN,
     confidence: 1.0
   }
 }

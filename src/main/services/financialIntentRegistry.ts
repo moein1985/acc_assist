@@ -100,7 +100,7 @@ const SALES_KPI_CONTRACT_REGISTRY: SalesKpiContractDefinition[] = [
 const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'count_fiscal_years',
-    description: 'Count distinct fiscal years in the active database.',
+    description: 'Count distinct fiscal years in the active database. [DEPRECATED: superseded by FRE metric fiscal_year_count — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: [],
     isGoldenFastPath: true,
@@ -120,7 +120,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'list_fiscal_years',
-    description: 'List fiscal years in the active database.',
+    description: 'List fiscal years in the active database. [DEPRECATED: superseded by FRE metric fiscal_year_list — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: [],
     isGoldenFastPath: true,
@@ -142,7 +142,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_party_balance',
-    description: 'Return balance for a person/counterparty.',
+    description: 'Return balance for a person/counterparty. [DEPRECATED: superseded by FRE metric party_balance — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['partyName'],
     patterns: [
@@ -174,7 +174,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_account_turnover',
-    description: 'Return account turnover in a date range.',
+    description: 'Return account turnover in a date range. [DEPRECATED: superseded by FRE metric account_turnover — retained as rollback safety net]',
     responseMode: 'model-assisted',
     requiredSlots: ['accountCodeOrName', 'dateRange'],
     patterns: [/گردش\s*حساب/iu, /\baccount\s+turnover\b/iu]
@@ -213,7 +213,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_sales_summary_by_period',
-    description: 'Return monthly/quarterly/yearly sales summary from the sales facts table.',
+    description: 'Return monthly/quarterly/yearly sales summary from the sales facts table. [DEPRECATED: superseded by FRE metric sales_by_period — retained as rollback safety net]',
     responseMode: 'model-assisted',
     requiredSlots: ['period'],
     targetTables: ['MRP.SaleFacts'],
@@ -252,7 +252,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_receivables_summary',
-    description: 'Return receivables summary.',
+    description: 'Return receivables summary. [DEPRECATED: superseded by FRE metric receivables — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: [],
     isGoldenFastPath: true,
@@ -270,7 +270,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_payables_summary',
-    description: 'Return payables summary.',
+    description: 'Return payables summary. [DEPRECATED: superseded by FRE metric payables — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: [],
     isGoldenFastPath: true,
@@ -288,7 +288,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_cashflow_summary',
-    description: 'Return cashflow summary.',
+    description: 'Return cashflow summary. [DEPRECATED: superseded by FRE metric cashflow — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['dateRange'],
     patterns: [
@@ -302,7 +302,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_recent_or_suspicious_documents',
-    description: 'Return recent or suspicious accounting documents.',
+    description: 'Return recent or suspicious accounting documents. [DEPRECATED: superseded by FRE metric recent_documents — retained as rollback safety net]',
     responseMode: 'model-assisted',
     requiredSlots: [],
     patterns: [/اسناد\s*(?:اخیر|مشکوک)/iu, /\b(?:recent|suspicious)\s+documents\b/iu]

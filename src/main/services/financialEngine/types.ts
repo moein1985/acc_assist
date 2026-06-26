@@ -7,13 +7,30 @@ export type MetricId =
   | 'trial_balance'
   | 'cash_bank_balance'
   | 'sales_count'
+  | 'fiscal_year_count'
+  | 'fiscal_year_list'
+  | 'party_balance'
+  | 'receivables'
+  | 'payables'
+  | 'cashflow'
+  | 'sales_by_period'
+  | 'account_turnover'
+  | 'recent_documents'
 
-export type Grain = 'total' | 'by_year' | 'by_month' | 'by_account' | 'by_branch' | 'by_customer'
+export type Grain =
+  | 'total'
+  | 'by_year'
+  | 'by_month'
+  | 'by_quarter'
+  | 'by_account'
+  | 'by_branch'
+  | 'by_customer'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }
   | { kind: 'count' }
   | { kind: 'debit_minus_credit'; debitColumn: string; creditColumn: string }
+  | { kind: 'list'; columns: string[] }
 
 export interface MetricSource {
   primaryTable: string
@@ -80,11 +97,12 @@ export interface MetricDefinition {
     column: string
     foldPersian: boolean
   }
+  orderBy?: { column: string; direction: 'ASC' | 'DESC' }
 }
 
 export interface PlanFilter {
   dimension: Grain
-  op: 'eq' | 'in'
+  op: 'eq' | 'in' | 'between'
   values: string[]
 }
 
@@ -98,6 +116,7 @@ export interface MetricPlan {
     targetValue: string
   }
   entityName?: string
+  topN?: number
   confidence: number
 }
 
@@ -127,7 +146,8 @@ const aggregateKindSchema = z.union([
     kind: z.literal('debit_minus_credit'),
     debitColumn: z.string(),
     creditColumn: z.string()
-  })
+  }),
+  z.object({ kind: z.literal('list'), columns: z.array(z.string()) })
 ])
 
 const metricFilterSchema = z.object({
@@ -136,7 +156,15 @@ const metricFilterSchema = z.object({
 })
 
 const dimensionBindingSchema = z.object({
-  dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+  dimension: z.enum([
+    'total',
+    'by_year',
+    'by_month',
+    'by_quarter',
+    'by_account',
+    'by_branch',
+    'by_customer'
+  ]),
   join: z
     .object({
       table: z.string(),
@@ -194,26 +222,61 @@ const reconciliationRuleSchema = z.object({
 })
 
 export const metricDefinitionSchema = z.object({
-  id: z.enum(['net_sales', 'purchases', 'account_balance', 'trial_balance', 'cash_bank_balance']),
+  id: z.enum([
+    'net_sales',
+    'purchases',
+    'account_balance',
+    'trial_balance',
+    'cash_bank_balance',
+    'sales_count',
+    'fiscal_year_count',
+    'fiscal_year_list',
+    'party_balance',
+    'receivables',
+    'payables',
+    'cashflow',
+    'sales_by_period',
+    'account_turnover',
+    'recent_documents'
+  ]),
   titleFa: z.string(),
   anchors: z.array(z.string()),
   supportSignals: z.array(z.string()).optional(),
   excludeSignals: z.array(z.string()).optional(),
   softwareId: z.enum(['sepidar', 'mahak', 'generic']),
   grainSupported: z.array(
-    z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer'])
+    z.enum([
+      'total',
+      'by_year',
+      'by_month',
+      'by_quarter',
+      'by_account',
+      'by_branch',
+      'by_customer'
+    ])
   ),
   source: metricSourceSchema,
   measure: aggregateKindSchema,
   dimensions: z.array(dimensionBindingSchema),
   mandatoryFilters: z.array(metricFilterSchema),
   reconciliations: z.array(reconciliationRuleSchema).optional(),
-  entityNameMatch: z.object({ column: z.string(), foldPersian: z.boolean() }).optional()
+  entityNameMatch: z.object({ column: z.string(), foldPersian: z.boolean() }).optional(),
+  orderBy: z
+    .object({ column: z.string(), direction: z.enum(['ASC', 'DESC']) })
+    .optional()
 })
 
 const planFilterSchema = z.object({
-  dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
-  op: z.enum(['eq', 'in']),
+  dimension: z.enum([
+    'total',
+    'by_year',
+    'by_month',
+    'by_quarter',
+    'by_account',
+    'by_branch',
+    'by_customer'
+  ]),
+  op: z.enum(['eq', 'in', 'between']),
   values: z.array(z.string())
 })
 
@@ -224,17 +287,43 @@ export const metricPlanSchema = z.object({
     'account_balance',
     'trial_balance',
     'cash_bank_balance',
-    'sales_count'
+    'sales_count',
+    'fiscal_year_count',
+    'fiscal_year_list',
+    'party_balance',
+    'receivables',
+    'payables',
+    'cashflow',
+    'sales_by_period',
+    'account_turnover',
+    'recent_documents'
   ]),
-  grain: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+  grain: z.enum([
+    'total',
+    'by_year',
+    'by_month',
+    'by_quarter',
+    'by_account',
+    'by_branch',
+    'by_customer'
+  ]),
   filters: z.array(planFilterSchema),
   comparison: z
     .object({
-      dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+      dimension: z.enum([
+        'total',
+        'by_year',
+        'by_month',
+        'by_quarter',
+        'by_account',
+        'by_branch',
+        'by_customer'
+      ]),
       baseValue: z.string(),
       targetValue: z.string()
     })
     .optional(),
   entityName: z.string().optional(),
+  topN: z.number().optional(),
   confidence: z.number()
 })

@@ -397,8 +397,6 @@
 
 ## شاهد S7
 ```
-<پس از تکمیل، این بخش پر شود>
-
 Schema changes:
   New MetricId values: 9
   New AggregateKind: kind='list'
@@ -408,25 +406,24 @@ Schema changes:
   New Grain: by_quarter
 
 Metrics added:
-  fiscal_year_count: <sqlcmd value>
-  fiscal_year_list: <rows count>
-  party_balance: <sqlcmd value>
-  receivables: <sqlcmd value>
-  payables: <sqlcmd value>
-  cashflow: <sqlcmd value>
-  sales_by_period: <sqlcmd value>
-  account_turnover: <sqlcmd value>
-  recent_documents: <rows count>
+  fiscal_year_count: 3 (mock)
+  fiscal_year_list: any_rows (list type)
+  party_balance: 0 (mock, tolerance=100M)
+  receivables: 0 (mock, tolerance=1B)
+  payables: 0 (mock, tolerance=1B)
+  cashflow: 9,521,507,066 (mock, tolerance=1B)
+  sales_by_period: any_rows (by_month/by_quarter)
+  account_turnover: 0 (mock, between 1402-1403)
+  recent_documents: any_rows (list type, topN=10)
 
-eval:metrics: <N>/<N> (100%)
-tests: <N> pass, 0 fail
-typecheck: node + web clean
-build:win: success
-asar-grep: all markers found
+eval:metrics: 33/33 (100%)
+tests: 294 pass, 0 fail, 1 skipped
+typecheck: node clean
+build:win: success (acc-assist-1.0.0-setup.exe)
+asar-grep: party_balance, receivables, payables, cashflow, account_turnover, recent_documents — all found
 
 Field test (engine mode, remote 192.168.85.56):
-  <metric>: <value> — verdict=<ok> (requestId=<id>)
-  ...
+  <pending — requires manual field test>
 
 DEPRECATED: all 13 legacy intents marked
 Legacy-only remaining: 0

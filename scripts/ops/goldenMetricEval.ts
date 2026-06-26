@@ -25,8 +25,9 @@ interface GoldenMetricCase {
   prompt: string
   expectedMetricId: string
   expectedGrain: string
-  expectedValue: number
-  tolerance: number
+  expectedValue?: number
+  tolerance?: number
+  expect?: 'any_rows' | 'any_number'
 }
 
 interface GoldenNegativeCase {
@@ -160,7 +161,8 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
     const compiled = compileMetricPlan(plan, def, compilerDeps)
 
     // Mock execution
-    const mockExec = makeMockExecutor(case_.expectedValue)
+    const mockValue = case_.expectedValue ?? 1
+    const mockExec = makeMockExecutor(mockValue)
     const rows = await mockExec(compiled.sql)
 
     const result: EngineResult = { rows, plan, compiled }
@@ -174,6 +176,31 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
         reason: `verifier failed: ${verdict.reason ?? 'unknown'}`,
         metricId: route.metricId,
         expectedMetricId: case_.expectedMetricId
+      }
+    }
+
+    // For list-type metrics (expect: 'any_rows'), skip numeric value check
+    if (case_.expect === 'any_rows') {
+      // Check explainer produces markdown
+      const markdown = composeEngineResponseMarkdown(result, verdict, case_.prompt)
+      if (!markdown.includes('### Summary') || !markdown.includes('### Evidence')) {
+        return {
+          id: case_.id,
+          prompt: case_.prompt,
+          passed: false,
+          reason: 'explainer output missing required sections',
+          metricId: route.metricId,
+          expectedMetricId: case_.expectedMetricId
+        }
+      }
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: true,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId,
+        grain: plan.grain,
+        expectedGrain: case_.expectedGrain
       }
     }
 
@@ -193,8 +220,10 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
       }
     }
 
-    const diff = Math.abs(value - case_.expectedValue)
-    if (diff > case_.tolerance) {
+    const expectedVal = case_.expectedValue ?? 0
+    const tolerance = case_.tolerance ?? 0
+    const diff = Math.abs(value - expectedVal)
+    if (diff > tolerance) {
       return {
         id: case_.id,
         prompt: case_.prompt,

@@ -65,10 +65,19 @@ export async function resolveDeterministicFinancialTool(
   // rollback safety nets. When ACC_FINANCIAL_ENGINE_MODE=engine, the engine
   // serves these metrics first; this legacy handler runs only in legacy mode
   // or when the engine degrades.
-  //   get_purchase_summary  → FRE metric: purchases
-  //   get_account_balance   → FRE metric: account_balance
-  //   get_trial_balance     → FRE metric: trial_balance
-  //   get_cash_bank_balance → FRE metric: cash_bank_balance
+  //   get_purchase_summary           → FRE metric: purchases
+  //   get_account_balance            → FRE metric: account_balance
+  //   get_trial_balance              → FRE metric: trial_balance
+  //   get_cash_bank_balance          → FRE metric: cash_bank_balance
+  //   count_fiscal_years             → FRE metric: fiscal_year_count
+  //   list_fiscal_years              → FRE metric: fiscal_year_list
+  //   get_party_balance              → FRE metric: party_balance
+  //   get_receivables_summary        → FRE metric: receivables
+  //   get_payables_summary           → FRE metric: payables
+  //   get_cashflow_summary           → FRE metric: cashflow
+  //   get_sales_summary_by_period    → FRE metric: sales_by_period
+  //   get_account_turnover           → FRE metric: account_turnover
+  //   get_recent_or_suspicious_documents → FRE metric: recent_documents
   const activeCatalog = deps.findActiveSchemaCatalog(settings)
 
   // Hardcoded fallback mappings when no schema catalog is available

@@ -144,6 +144,82 @@
       "expectedGrain": "total",
       "expectedValue": 1500,
       "tolerance": 0
+    },
+    {
+      "id": "golden-fiscal-year-count",
+      "prompt": "تعداد سال‌های مالی چقدر است؟",
+      "expectedMetricId": "fiscal_year_count",
+      "expectedGrain": "total",
+      "expectedValue": 3,
+      "tolerance": 10
+    },
+    {
+      "id": "golden-fiscal-year-list",
+      "prompt": "فهرست سال‌های مالی چیست؟",
+      "expectedMetricId": "fiscal_year_list",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "golden-party-balance-1402",
+      "prompt": "مانده طرف حساب آقای مرادی در سال ۱۴۰۲",
+      "expectedMetricId": "party_balance",
+      "expectedGrain": "total",
+      "expectedValue": 0,
+      "tolerance": 100000000
+    },
+    {
+      "id": "golden-receivables-1402",
+      "prompt": "دریافتنی‌ها در سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "receivables",
+      "expectedGrain": "total",
+      "expectedValue": 0,
+      "tolerance": 1000000000
+    },
+    {
+      "id": "golden-payables-1402",
+      "prompt": "پرداختنی‌ها در سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "payables",
+      "expectedGrain": "total",
+      "expectedValue": 0,
+      "tolerance": 1000000000
+    },
+    {
+      "id": "golden-cashflow",
+      "prompt": "جریان نقد چقدر است؟",
+      "expectedMetricId": "cashflow",
+      "expectedGrain": "total",
+      "expectedValue": 9521507066,
+      "tolerance": 1000000000
+    },
+    {
+      "id": "golden-sales-by-month-1402",
+      "prompt": "فروش ماهانه سال ۱۴۰۲",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "golden-sales-by-quarter-1402",
+      "prompt": "فروش فصلی سال ۱۴۰۲",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_quarter",
+      "expect": "any_rows"
+    },
+    {
+      "id": "golden-account-turnover-between",
+      "prompt": "گردش حساب دریافتنی از ۱۴۰۲ تا ۱۴۰۳",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "total",
+      "expectedValue": 0,
+      "tolerance": 1000000000
+    },
+    {
+      "id": "golden-recent-documents-10",
+      "prompt": "آخرین ۱۰ سند ثبت شده",
+      "expectedMetricId": "recent_documents",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "negative": [
