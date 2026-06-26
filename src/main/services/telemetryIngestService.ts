@@ -564,6 +564,7 @@ export class TelemetryIngestService {
     this.flushTimer = setInterval(() => {
       void this.flushNow('periodic')
     }, this.config.flushIntervalMs)
+    this.flushTimer.unref()
   }
 
   private appendToEventLog(event: PersistedTelemetryEvent): void {
