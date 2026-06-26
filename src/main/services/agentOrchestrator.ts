@@ -41,14 +41,58 @@ import {
   readOptionalStringArg,
   readRequiredStringArg
 } from './agentToolArgumentUtils'
-import { normalizePersianDigits, normalizePersianText } from './textNormalization'
+import { normalizePersianDigits } from './textNormalization'
 import { detectUnsupportedSqlFunctions } from './sqlPolicyValidator'
-import { renderValidEmptyFinancialAnswer, buildEvidenceContractFailureResponse } from './agentOrchestrator/responseBuilder'
-import { classifyDeterministicIntent, isRelaxedExploratoryIntent } from './agentOrchestrator/intentRouting'
+import {
+  classifyDeterministicIntent,
+  isRelaxedExploratoryIntent
+} from './agentOrchestrator/intentRouting'
 import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
 import { MAX_FINANCIAL_RECOVERY_ATTEMPTS, mapRecoveryErrorHint } from './agentOrchestrator/recovery'
 import { SYSTEM_PROMPT } from './agentOrchestrator/prompts'
 import { resolveDeterministicFinancialTool } from './agentOrchestrator/deterministicTools'
+import {
+  appearsToContainFinancialClaim as appearsToContainFinancialClaimFn,
+  isComparativeMultiPeriodPrompt as isComparativeMultiPeriodPromptFn,
+  isSalesGrowthPercentPrompt as isSalesGrowthPercentPromptFn
+} from './agentOrchestrator/routing'
+import {
+  composeSalesGrowthFallbackMarkdown as composeSalesGrowthFallbackMarkdownFn,
+  tryResolveSalesGrowthPercentFallback as tryResolveSalesGrowthPercentFallbackFn,
+  type SalesGrowthDeps,
+  type SalesGrowthFallbackResult
+} from './agentOrchestrator/salesGrowth'
+import {
+  type ConversationMemoryDeps,
+  type ConversationMemorySnapshot,
+  type ConversationMemoryState as ConversationMemoryStateType,
+  type ExtractedConversationFacts,
+  createConversationMemorySnapshot as createConversationMemorySnapshotFn,
+  extractConversationFacts as extractConversationFactsFn,
+  getOrCreateConversationMemory as getOrCreateConversationMemoryFn,
+  mergeScopeValues as mergeScopeValuesFn,
+  pruneConversationMemory as pruneConversationMemoryFn,
+  pushConversationMemoryNote as pushConversationMemoryNoteFn,
+  rememberToolTrace as rememberToolTraceFn,
+  updateConversationMemoryFromAssistant as updateConversationMemoryFromAssistantFn
+} from './agentOrchestrator/conversationMemory'
+import {
+  type ResponseContractDeps,
+  enforceEvidenceFirstContract as enforceEvidenceFirstContractFn,
+  finalizeFinancialResponse as finalizeFinancialResponseFn
+} from './agentOrchestrator/responseContract'
+import {
+  type SqlExecutionDeps,
+  type ExtractedTableReference,
+  type RuntimeScopeColumnCandidate,
+  throwIfRequestCanceled as throwIfRequestCanceledFn,
+  isCancellationLikeError as isCancellationLikeErrorFn,
+  resolveCancellationError as resolveCancellationErrorFn,
+  parseSqlTableReference as parseSqlTableReferenceFn,
+  ensureFinancialQueryAllowed as ensureFinancialQueryAllowedFn
+} from './agentOrchestrator/sqlExecution'
+
+export type ConversationMemoryState = ConversationMemoryStateType
 
 // Budget arithmetic for the capped tool loop used by the production MVP path.
 // The runtime policy keeps the loop small to avoid runaway token bleed and noisy retries.
@@ -58,9 +102,6 @@ const MAX_TOTAL_TOOL_CALLS = 14
 const MAX_CHAT_HISTORY = 28
 const MAX_HISTORY_SUMMARY_USERS = 6
 const MAX_HISTORY_SUMMARY_ASSISTANT = 4
-const MAX_CONVERSATION_MEMORY_NOTES = 12
-const MAX_CONVERSATION_MEMORY_SESSIONS = 24
-const MAX_CONVERSATION_TOOL_TRACES = 10
 const MAX_TOOL_ROWS = 120
 const MAX_SCHEMA_ROWS = 240
 const MAX_TABLE_LIST_ROWS = 500
@@ -73,48 +114,13 @@ const REFINEMENT_INTENT_PATTERNS: RegExp[] = [
   /\b(instead|same as before|previous|correction|adjust)\b/i
 ]
 
-const COMPANY_SCOPE_CAPTURE_PATTERNS: RegExp[] = [
-  /شرکت(?:\s*های|\s*ها|‌های|‌ها)?\s*[:\-]?\s*([^\n\r؛;:.!?]{2,120})/giu,
-  /\bcompan(?:y|ies)\b\s*[:\-]?\s*([^\n\r؛;:.!?]{2,120})/gi
-]
-
-const BRANCH_SCOPE_CAPTURE_PATTERNS: RegExp[] = [
-  /شعبه(?:\s*های|\s*ها|‌های|‌ها)?\s*[:\-]?\s*([^\n\r؛;:.!?]{1,120})/giu,
-  /\bbranch(?:es)?\b\s*[:\-]?\s*([^\n\r؛;:.!?]{1,120})/gi
-]
-
-const RUNTIME_SCOPE_STOP_PATTERNS: RegExp[] = [
-  /\s+در\s+/iu,
-  /\s+برای\s+/iu,
-  /\s+از\s+/iu,
-  /\s+تا\s+/iu,
-  /\s+سال(?:\s*مالی)?\s+/iu,
-  /\s+from\s+/i,
-  /\s+to\s+/i,
-  /\s+for\s+/i,
-  /\s+fiscal\s*year\s+/i,
-  /\s+where\s+/i,
-  /\s+with\s+/i,
-  /\s+(?:گزارش|تحلیل|مقایسه|نمایش|بررسی)(?=\s|$|[،؛,.!?])/iu,
-  /\s+(?:بده|بدید|کن|کنید|بکن)(?=\s|$|[،؛,.!?])/iu,
-  /\s+(?:report|show|compare|analy[sz]e)\b/i
-]
-
-const RUNTIME_SCOPE_SPLIT_PATTERN = /(?:\s*(?:,|،|;|؛|\/|\||&)\s*|\s+(?:and|و)(?:\s+|$))/iu
-
-const MAX_SCOPE_VALUES_PER_DIMENSION = 8
-
-const RUNTIME_SCOPE_YEAR_CAPTURE_PATTERN = /\b((?:13|14|19|20)\d{2})\b/g
-const RUNTIME_SCOPE_YEAR_CONTEXT_PATTERN =
-  /(?:سال(?:\s*مالی)?(?:\s*های|\s*ها|\s*\(ها\))?|fiscal\s*year(?:s)?)\s*[:\-]?\s*([^\n\r؛;:.!?]{1,120})/giu
-const RUNTIME_SCOPE_YEAR_RANGE_PATTERN = /((?:13|14|19|20)\d{2})\s*(?:تا|to|-|–|—)\s*((?:13|14|19|20)\d{2})/giu
-
 const COMPANY_SCOPE_COLUMN_NAME_PATTERN = /company|firm|entity|organization|organisation|org|شرکت/iu
 const FISCAL_SCOPE_COLUMN_NAME_PATTERN = /fiscal|year|period|دوره|سال|مالی/iu
 const BRANCH_SCOPE_COLUMN_NAME_PATTERN = /branch|store|warehouse|شعبه|انبار/iu
 
 const YEAR_SAMPLE_PATTERN = /^(?:13|14|19|20)\d{2}$/
-const SHAMSI_DATE_SAMPLE_PATTERN = /^(?:13|14)\d{2}[\/-](?:0?[1-9]|1[0-2])[\/-](?:0?[1-9]|[12]\d|3[01])$/
+const SHAMSI_DATE_SAMPLE_PATTERN =
+  /^(?:13|14)\d{2}[\/-](?:0?[1-9]|1[0-2])[\/-](?:0?[1-9]|[12]\d|3[01])$/
 
 const SCHEMA_CONTEXT_CONCEPT_ORDER: AccountingConceptKey[] = [
   'accounts',
@@ -181,7 +187,14 @@ const PROMPT_INTENT_SYNONYMS: Record<AccountingConceptKey, RegExp[]> = {
     /\bvendor(s)?\b/i,
     /\bpart(y|ies)\b/i
   ],
-  cashTransactions: [/دریافت/iu, /پرداخت/iu, /گردش/iu, /نقد/iu, /\bcash\b/i, /\btransaction(s)?\b/i],
+  cashTransactions: [
+    /دریافت/iu,
+    /پرداخت/iu,
+    /گردش/iu,
+    /نقد/iu,
+    /\bcash\b/i,
+    /\btransaction(s)?\b/i
+  ],
   costCenters: [/مرکز\s*هزینه/iu, /\bcost\s*center(s)?\b/i, /\bcost_center(s)?\b/i],
   projects: [/پروژه/iu, /\bproject(s)?\b/i],
   banks: [/بانک/iu, /چک/iu, /\bbank(s)?\b/i],
@@ -199,16 +212,6 @@ type PreferredMapping = {
   source: 'selected' | 'suggested'
 }
 
-type ExtractedTableReference = {
-  raw: string
-  schemaTable: string | null
-  schemaName: string | null
-  databaseName: string | null
-  serverName: string | null
-  tableName: string
-  partCount: number
-}
-
 type RedactedRowsResult = {
   rows: SqlQueryRow[]
   redactedCells: number
@@ -218,55 +221,6 @@ type LimitedRowsForModelResult = {
   rows: SqlQueryRow[]
   payloadTruncated: boolean
   valueTruncatedCells: number
-}
-
-type ConversationMemoryFacts = {
-  companyNames: string[]
-  fiscalYears: string[]
-  branchNames: string[]
-  dateRange: string | null
-  confirmedMappings: Partial<Record<AccountingConceptKey, string>>
-}
-
-type ExtractedConversationFacts = {
-  companyNames: string[]
-  fiscalYears: string[]
-  branchNames: string[]
-  dateRange?: string
-}
-
-type RuntimeScopeDimension = 'company' | 'fiscalYear' | 'branch'
-
-type RuntimeScopeColumnCandidate = {
-  dimension: RuntimeScopeDimension
-  tableRef: string
-  columnName: string
-  score: number
-  samplePreview: string | null
-}
-
-type RuntimeScopeFilterRequirement = {
-  dimension: RuntimeScopeDimension
-  values: string[]
-  candidateColumnNames: string[]
-}
-
-export type ConversationMemoryState = {
-  conversationId: string
-  notes: string[]
-  facts: ConversationMemoryFacts
-  lastUserPrompt: string | null
-  lastAssistantOutcome: string | null
-  lastToolTrace: string[]
-  touchedAt: number
-}
-
-type ConversationMemorySnapshot = {
-  notes: string[]
-  facts: ConversationMemoryFacts
-  lastUserPrompt: string | null
-  lastAssistantOutcome: string | null
-  lastToolTrace: string[]
 }
 
 type ActiveAgentExecution = {
@@ -290,16 +244,6 @@ export type DeterministicFinancialToolResult = {
   value: number | null
   tableRef: string
   columnName: string
-  query: string
-  toolCallsUsed: number
-}
-
-type SalesGrowthFallbackResult = {
-  baseYear: number
-  targetYear: number
-  salesBase: number
-  salesTarget: number
-  percentChange: number | null
   query: string
   toolCallsUsed: number
 }
@@ -470,16 +414,44 @@ export class AgentOrchestrator {
   private readonly sqlParser = new Parser()
   private readonly geminiClient: AgentOrchestratorDeps['geminiClient']
   private readonly getSettings: () => AppSettings
-  private readonly executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
-  private readonly executeMetadataSql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
+  private readonly executeReadOnlySql: (
+    query: string,
+    signal?: AbortSignal
+  ) => Promise<SqlQueryRow[]>
+  private readonly executeMetadataSql: (
+    query: string,
+    signal?: AbortSignal
+  ) => Promise<SqlQueryRow[]>
   private readonly auditLog: AgentOrchestratorDeps['auditLog']
   private readonly telemetry?: AgentOrchestratorDeps['telemetry']
   private readonly mobileBridge?: AgentOrchestratorDeps['mobileBridge']
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
-  private readonly schemaCacheByTableKey = new Map<string, { schema: SchemaColumnCatalogItem[]; timestamp: number }>()
-  private readonly schemaTableListCache = new Map<string, { rows: SqlQueryRow[]; timestamp: number }>()
+  private readonly schemaCacheByTableKey = new Map<
+    string,
+    { schema: SchemaColumnCatalogItem[]; timestamp: number }
+  >()
+  private readonly schemaTableListCache = new Map<
+    string,
+    { rows: SqlQueryRow[]; timestamp: number }
+  >()
   private readonly SCHEMA_CACHE_TTL_MS = 900000
+
+  private get salesGrowthDeps(): SalesGrowthDeps {
+    return {
+      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
+      resolvePreferredMapping: (catalog, conceptKey, prompt) =>
+        this.resolvePreferredMapping(catalog, conceptKey, prompt),
+      normalizeTableRef: (tableRef) => this.normalizeTableRef(tableRef),
+      quoteSqlTableRef: (ref) => this.quoteSqlTableRef(ref),
+      executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal),
+      toSafeNumber: (value) => this.toSafeNumber(value),
+      rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
+      throwIfRequestCanceled: (signal) => this.throwIfRequestCanceled(signal),
+      safeAuditWrite: (entry) => this.safeAuditWrite(entry),
+      compactText: (value, maxLength) => this.compactText(value, maxLength)
+    }
+  }
 
   constructor(deps: AgentOrchestratorDeps) {
     this.geminiClient = deps.geminiClient
@@ -579,8 +551,11 @@ export class AgentOrchestrator {
       const executionEvidence: ToolEvidence[] = []
       const deterministicIntent =
         payload.mode === 'dry-run' ? null : this.detectDeterministicFinancialIntent(prompt)
-      const { fiscalIntent: deterministicFiscalIntent, toolIntent: deterministicToolIntent, nonFiscalIntent: deterministicNonFiscalIntent } =
-        classifyDeterministicIntent(deterministicIntent)
+      const {
+        fiscalIntent: deterministicFiscalIntent,
+        toolIntent: deterministicToolIntent,
+        nonFiscalIntent: deterministicNonFiscalIntent
+      } = classifyDeterministicIntent(deterministicIntent)
 
       const clarificationResponse =
         payload.mode === 'manual'
@@ -641,7 +616,8 @@ export class AgentOrchestrator {
         // list_database_tables on the ACC schema) and still attempt real data
         // delivery. Other deterministic tool intents keep the strict refusal.
         if (!isRelaxedExploratoryIntent(deterministicToolIntent)) {
-          const finalText = this.buildDeterministicIntentClarificationResponse(deterministicToolIntent)
+          const finalText =
+            this.buildDeterministicIntentClarificationResponse(deterministicToolIntent)
           this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
           const finalHistory = this.compactHistory(
             [...workingHistory, { role: 'assistant', content: finalText }],
@@ -672,7 +648,9 @@ export class AgentOrchestrator {
       }
 
       if (deterministicNonFiscalIntent) {
-        const finalText = this.buildDeterministicIntentClarificationResponse(deterministicNonFiscalIntent)
+        const finalText = this.buildDeterministicIntentClarificationResponse(
+          deterministicNonFiscalIntent
+        )
         this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
         const finalHistory = this.compactHistory(
           [...workingHistory, { role: 'assistant', content: finalText }],
@@ -872,15 +850,10 @@ export class AgentOrchestrator {
           const errorInfo = this.toErrorInfo(error)
 
           if (this.shouldReturnDegradedFallback(error)) {
-            this.emitGuardrailTelemetry(
-              'provider-error',
-              requestId,
-              conversationId,
-              {
-                errorCode: errorInfo.code ?? 'AGENT_PROVIDER_FAILURE_DEGRADED',
-                errorMessage: errorInfo.message
-              }
-            )
+            this.emitGuardrailTelemetry('provider-error', requestId, conversationId, {
+              errorCode: errorInfo.code ?? 'AGENT_PROVIDER_FAILURE_DEGRADED',
+              errorMessage: errorInfo.message
+            })
             this.emitGuardrailCounterTelemetry('provider-error', requestId, conversationId, 1)
 
             const finalText = this.buildRuntimeFailureFallbackAnswer(
@@ -897,7 +870,8 @@ export class AgentOrchestrator {
 
             this.emitProgress(onProgress, {
               type: 'tool-error',
-              message: '⚠️ پاسخ جزئی بازگردانده شد زیرا خطای ارتباط یا زمان‌بندی در مسیر هوش مصنوعی رخ داد.',
+              message:
+                '⚠️ پاسخ جزئی بازگردانده شد زیرا خطای ارتباط یا زمان‌بندی در مسیر هوش مصنوعی رخ داد.',
               errorCode: 'AGENT_PROVIDER_FAILURE_DEGRADED',
               errorCategory: 'orchestration-runtime'
             })
@@ -996,7 +970,8 @@ export class AgentOrchestrator {
 
           this.emitProgress(onProgress, {
             type: 'tool-error',
-            message: '⚠️ پاسخ جزئی بازگردانده شد زیرا محدودیت ابزارهای کل درخواست از حد مجاز عبور کرد.',
+            message:
+              '⚠️ پاسخ جزئی بازگردانده شد زیرا محدودیت ابزارهای کل درخواست از حد مجاز عبور کرد.',
             errorCode: 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED',
             errorCategory: 'orchestration-policy'
           })
@@ -1031,8 +1006,12 @@ export class AgentOrchestrator {
             lastToolErrorCode ?? undefined,
             lastToolErrorMessage ?? undefined
           )
-          const numericFinancialQuestion = this.requiresStrictFinancialDataFetch(prompt, response.text)
-          const shouldRecoverEmptyResult = failureKind === 'EMPTY_RESULT' && numericFinancialQuestion
+          const numericFinancialQuestion = this.requiresStrictFinancialDataFetch(
+            prompt,
+            response.text
+          )
+          const shouldRecoverEmptyResult =
+            failureKind === 'EMPTY_RESULT' && numericFinancialQuestion
           const shouldForceFetchAfterDiscovery =
             discoveryWithoutFetchCount >= 2 &&
             totalSuccessfulDataFetches === 0 &&
@@ -1069,7 +1048,10 @@ export class AgentOrchestrator {
               totalToolCallCount += fallbackResult.toolCallsUsed
               const finalText = this.finalizeFinancialResponse(
                 prompt,
-                this.composeFiscalYearDeterministicMarkdown(deterministicFiscalIntent, fallbackResult),
+                this.composeFiscalYearDeterministicMarkdown(
+                  deterministicFiscalIntent,
+                  fallbackResult
+                ),
                 conversationMemory,
                 totalToolCallCount,
                 1
@@ -1139,18 +1121,21 @@ export class AgentOrchestrator {
               prompt
             )
 
-            if (failureKind === 'EMPTY_RESULT' && this.requiresStrictFinancialDataFetch(prompt, rawFinalText)) {
-              this.emitGuardrailTelemetry(
+            if (
+              failureKind === 'EMPTY_RESULT' &&
+              this.requiresStrictFinancialDataFetch(prompt, rawFinalText)
+            ) {
+              this.emitGuardrailTelemetry('empty-result-recovery', requestId, conversationId, {
+                recoveryAttempts: financialRecoveryAttempts,
+                failureKind,
+                hint: recoveryHint
+              })
+              this.emitGuardrailCounterTelemetry(
                 'empty-result-recovery',
                 requestId,
                 conversationId,
-                {
-                  recoveryAttempts: financialRecoveryAttempts,
-                  failureKind,
-                  hint: recoveryHint
-                }
+                financialRecoveryAttempts
               )
-              this.emitGuardrailCounterTelemetry('empty-result-recovery', requestId, conversationId, financialRecoveryAttempts)
             }
 
             workingHistory = this.compactHistory(
@@ -1230,7 +1215,8 @@ export class AgentOrchestrator {
         if (isFinalRound) {
           this.emitProgress(onProgress, {
             type: 'tool-error',
-            message: '⚠️ این آخرین دور ابزار است؛ خروجی فعلی به‌عنوان نتیجه جزئی بازگردانده می‌شود.',
+            message:
+              '⚠️ این آخرین دور ابزار است؛ خروجی فعلی به‌عنوان نتیجه جزئی بازگردانده می‌شود.',
             errorCode: 'AGENT_LOOP_BUDGET_EXHAUSTED',
             errorCategory: 'orchestration-control'
           })
@@ -1263,26 +1249,44 @@ export class AgentOrchestrator {
         totalSuccessfulDataFetches += toolExecution.successfulDataFetches
         executionEvidence.push(...toolExecution.evidence)
 
-        const discoveryToolsUsed = toolExecution.evidence.filter((entry) => entry.tool === 'catalog_scan' || entry.tool === 'list_database_tables')
+        const discoveryToolsUsed = toolExecution.evidence.filter(
+          (entry) => entry.tool === 'catalog_scan' || entry.tool === 'list_database_tables'
+        )
         if (discoveryToolsUsed.some((entry) => entry.status === 'ok')) {
-          const hadFetchInRound = toolExecution.evidence.some((entry) => entry.tool === 'fetch_financial_data' && entry.status === 'ok')
+          const hadFetchInRound = toolExecution.evidence.some(
+            (entry) => entry.tool === 'fetch_financial_data' && entry.status === 'ok'
+          )
           if (!hadFetchInRound) {
             discoveryWithoutFetchCount += 1
           }
         }
 
-        const lastToolEvidence = toolExecution.evidence.filter((entry) => entry.status === 'error').at(-1)
+        const lastToolEvidence = toolExecution.evidence
+          .filter((entry) => entry.status === 'error')
+          .at(-1)
         if (lastToolEvidence) {
-          lastToolErrorCode = lastToolEvidence.errorCode ?? (lastToolEvidence.query ? 'TOOL_ERROR' : null)
+          lastToolErrorCode =
+            lastToolEvidence.errorCode ?? (lastToolEvidence.query ? 'TOOL_ERROR' : null)
           lastToolErrorMessage = lastToolEvidence.errorMessage ?? null
         }
 
-        workingHistory = this.compactHistory([...workingHistory, ...toolExecution.toolMessages], conversationMemory)
+        workingHistory = this.compactHistory(
+          [...workingHistory, ...toolExecution.toolMessages],
+          conversationMemory
+        )
       }
 
-      const finalText = this.buildExhaustionFallbackAnswer(prompt, workingHistory, totalToolCallCount, totalSuccessfulDataFetches)
+      const finalText = this.buildExhaustionFallbackAnswer(
+        prompt,
+        workingHistory,
+        totalToolCallCount,
+        totalSuccessfulDataFetches
+      )
       this.updateConversationMemoryFromAssistant(conversationMemory, finalText)
-      const finalHistory = this.compactHistory([ ...workingHistory, { role: 'assistant', content: finalText } ], conversationMemory)
+      const finalHistory = this.compactHistory(
+        [...workingHistory, { role: 'assistant', content: finalText }],
+        conversationMemory
+      )
 
       this.emitProgress(onProgress, {
         type: 'tool-error',
@@ -1397,8 +1401,21 @@ export class AgentOrchestrator {
     conversationMemory: ConversationMemoryState
     onProgress?: (event: AgentProgressEvent) => void
     abortSignal: AbortSignal
-  }): Promise<{ toolMessages: GeminiMessage[]; successfulDataFetches: number; evidence: ToolEvidence[] }> {
-    const { requestId, conversationId, round, toolCalls, settings, conversationMemory, onProgress, abortSignal } = params
+  }): Promise<{
+    toolMessages: GeminiMessage[]
+    successfulDataFetches: number
+    evidence: ToolEvidence[]
+  }> {
+    const {
+      requestId,
+      conversationId,
+      round,
+      toolCalls,
+      settings,
+      conversationMemory,
+      onProgress,
+      abortSignal
+    } = params
     const toolMessages: GeminiMessage[] = []
     const evidence: ToolEvidence[] = []
     let successfulDataFetches = 0
@@ -1541,17 +1558,13 @@ export class AgentOrchestrator {
           const sqlQuery = readRequiredStringArg(args, 'sql_query', 16000)
           const unsupportedSql = detectUnsupportedSqlFunctions(sqlQuery)
           if (unsupportedSql.found) {
-            const correctionMessage = unsupportedSql.correction ?? 'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
-            this.emitGuardrailTelemetry(
-              'unsupported-function',
-              requestId,
-              conversationId,
-              {
-                functionName: unsupportedSql.functionName ?? 'unknown',
-                correction: correctionMessage,
-                sqlQuery: this.compactText(sqlQuery.replace(/\s+/g, ' '), 400)
-              }
-            )
+            const correctionMessage =
+              unsupportedSql.correction ?? 'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
+            this.emitGuardrailTelemetry('unsupported-function', requestId, conversationId, {
+              functionName: unsupportedSql.functionName ?? 'unknown',
+              correction: correctionMessage,
+              sqlQuery: this.compactText(sqlQuery.replace(/\s+/g, ' '), 400)
+            })
             this.emitGuardrailCounterTelemetry('unsupported-function', requestId, conversationId, 1)
             const guardedError = this.createAgentPolicyError(
               'AGENT_UNSUPPORTED_SQL_FUNCTION',
@@ -1566,17 +1579,14 @@ export class AgentOrchestrator {
 
           const unsupportedSqlAfterPrevalidation = detectUnsupportedSqlFunctions(prevalidatedSql)
           if (unsupportedSqlAfterPrevalidation.found) {
-            const correctionMessage = unsupportedSqlAfterPrevalidation.correction ?? 'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
-            this.emitGuardrailTelemetry(
-              'unsupported-function',
-              requestId,
-              conversationId,
-              {
-                functionName: unsupportedSqlAfterPrevalidation.functionName ?? 'unknown',
-                correction: correctionMessage,
-                sqlQuery: this.compactText(prevalidatedSql.replace(/\s+/g, ' '), 400)
-              }
-            )
+            const correctionMessage =
+              unsupportedSqlAfterPrevalidation.correction ??
+              'این کوئری از توابع پشتیبانی‌نشده استفاده می‌کند.'
+            this.emitGuardrailTelemetry('unsupported-function', requestId, conversationId, {
+              functionName: unsupportedSqlAfterPrevalidation.functionName ?? 'unknown',
+              correction: correctionMessage,
+              sqlQuery: this.compactText(prevalidatedSql.replace(/\s+/g, ' '), 400)
+            })
             const guardedError = this.createAgentPolicyError(
               'AGENT_UNSUPPORTED_SQL_FUNCTION',
               correctionMessage
@@ -1657,7 +1667,7 @@ export class AgentOrchestrator {
           const tableName = readRequiredStringArg(args, 'table_name', 128)
           const schemaName = readOptionalStringArg(args, 'schema_name', 128)
           const cacheKey = `${schemaName || 'dbo'}.${tableName}`
-          
+
           // Try schema cache first (INTENT fix: avoid redundant schema lookups)
           const cached = this.schemaCacheByTableKey.get(cacheKey)
           if (cached && Date.now() - cached.timestamp < this.SCHEMA_CACHE_TTL_MS) {
@@ -1674,7 +1684,7 @@ export class AgentOrchestrator {
               is_nullable: col.isNullable ? 1 : 0,
               is_identity: col.isIdentity ? 1 : 0
             }))
-            
+
             this.rememberToolTrace(
               conversationMemory,
               `get_database_schema rows=${rows.length} table=${cacheKey} (cached)`
@@ -1687,7 +1697,7 @@ export class AgentOrchestrator {
               nonNullValue: rows.length > 0,
               scopeApplied: false
             })
-            
+
             toolMessages.push(
               this.createToolResponseMessage(toolCall, {
                 ok: true,
@@ -1700,7 +1710,7 @@ export class AgentOrchestrator {
                 rows: rows.slice(0, MAX_SCHEMA_ROWS)
               })
             )
-            
+
             this.emitProgress(onProgress, {
               type: 'tool-success',
               message: `✅ ساختار جدول [${tableName}] با ${rows.length} ستون بازیابی شد (از کش).`,
@@ -1709,10 +1719,10 @@ export class AgentOrchestrator {
               args,
               rowCount: rows.length
             })
-            
+
             continue
           }
-          
+
           const sqlQuery = this.buildDatabaseSchemaQuery(tableName, schemaName)
           const cachedSchema = await this.getCachedSchemaSnapshot(cacheKey, sqlQuery, abortSignal)
           const rows = cachedSchema.rows
@@ -1956,7 +1966,8 @@ export class AgentOrchestrator {
       return {
         message: error.message,
         code: typeof errorWithMetadata.code === 'string' ? errorWithMetadata.code : undefined,
-        category: typeof errorWithMetadata.category === 'string' ? errorWithMetadata.category : undefined
+        category:
+          typeof errorWithMetadata.category === 'string' ? errorWithMetadata.category : undefined
       }
     }
 
@@ -1965,7 +1976,10 @@ export class AgentOrchestrator {
     }
   }
 
-  private createAgentPolicyError(code: string, message: string): Error & {
+  private createAgentPolicyError(
+    code: string,
+    message: string
+  ): Error & {
     code: string
     category: string
   } {
@@ -1980,144 +1994,79 @@ export class AgentOrchestrator {
     return error
   }
 
-  private createCancellationError(reason: string): Error & {
-    code: string
-    category: string
-  } {
-    const normalizedReason = reason.trim() || 'Request canceled by user.'
-    const error = new Error(normalizedReason) as Error & {
-      code: string
-      category: string
-    }
-
-    error.name = 'AbortError'
-    error.code = 'AGENT_REQUEST_CANCELLED'
-    error.category = 'orchestration-control'
-
-    return error
-  }
-
   private throwIfRequestCanceled(signal: AbortSignal): void {
-    if (!signal.aborted) {
-      return
-    }
-
-    throw this.createCancellationError(this.toCancellationReason(signal.reason))
+    throwIfRequestCanceledFn(signal)
   }
 
   private resolveCancellationError(error: unknown, signal: AbortSignal): Error {
-    if (signal.aborted) {
-      return this.createCancellationError(this.toCancellationReason(signal.reason))
-    }
-
-    if (this.isCancellationLikeError(error)) {
-      if (error instanceof Error) {
-        return this.createCancellationError(error.message)
-      }
-
-      return this.createCancellationError('Request canceled by user.')
-    }
-
-    if (error instanceof Error) {
-      return error
-    }
-
-    return new Error(String(error))
+    return resolveCancellationErrorFn(error, signal)
   }
 
   private isCancellationLikeError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-      return false
-    }
-
-    const typedError = error as Error & {
-      code?: unknown
-    }
-
-    if (typedError.name === 'AbortError') {
-      return true
-    }
-
-    if (typeof typedError.code === 'string' && typedError.code.toUpperCase() === 'AGENT_REQUEST_CANCELLED') {
-      return true
-    }
-
-    const message = error.message.toLowerCase()
-    return message.includes('request canceled by user') || message.includes('request cancelled by user')
-  }
-
-  private toCancellationReason(reason: unknown): string {
-    if (typeof reason === 'string' && reason.trim()) {
-      return reason.trim()
-    }
-
-    if (reason instanceof Error && reason.message.trim()) {
-      return reason.message.trim()
-    }
-
-    return 'Request canceled by user.'
+    return isCancellationLikeErrorFn(error)
   }
 
   private getOrCreateConversationMemory(conversationId: string): ConversationMemoryState {
-    const existing = this.conversationMemoryById.get(conversationId)
-
-    if (existing) {
-      existing.touchedAt = Date.now()
-      return existing
-    }
-
-    const created: ConversationMemoryState = {
-      conversationId,
-      notes: [],
-      facts: {
-        companyNames: [],
-        fiscalYears: [],
-        branchNames: [],
-        dateRange: null,
-        confirmedMappings: {}
-      },
-      lastUserPrompt: null,
-      lastAssistantOutcome: null,
-      lastToolTrace: [],
-      touchedAt: Date.now()
-    }
-
-    this.conversationMemoryById.set(conversationId, created)
-
-    return created
+    return getOrCreateConversationMemoryFn(this.conversationMemoryById, conversationId)
   }
 
-  private createConversationMemorySnapshot(memory: ConversationMemoryState): ConversationMemorySnapshot {
-    return {
-      notes: [...memory.notes],
-      facts: {
-        companyNames: [...memory.facts.companyNames],
-        fiscalYears: [...memory.facts.fiscalYears],
-        branchNames: [...memory.facts.branchNames],
-        dateRange: memory.facts.dateRange,
-        confirmedMappings: {
-          ...memory.facts.confirmedMappings
-        }
-      },
-      lastUserPrompt: memory.lastUserPrompt,
-      lastAssistantOutcome: memory.lastAssistantOutcome,
-      lastToolTrace: [...memory.lastToolTrace]
-    }
+  private createConversationMemorySnapshot(
+    memory: ConversationMemoryState
+  ): ConversationMemorySnapshot {
+    return createConversationMemorySnapshotFn(memory)
   }
 
   private pruneConversationMemory(): void {
-    if (this.conversationMemoryById.size <= MAX_CONVERSATION_MEMORY_SESSIONS) {
-      return
+    pruneConversationMemoryFn(this.conversationMemoryById)
+  }
+
+  private get conversationMemoryDeps(): ConversationMemoryDeps {
+    return {
+      compactText: (value, maxLength) => this.compactText(value, maxLength)
     }
+  }
 
-    const overflowCount = this.conversationMemoryById.size - MAX_CONVERSATION_MEMORY_SESSIONS
-    const staleConversationIds = [...this.conversationMemoryById.values()]
-      .sort((left, right) => left.touchedAt - right.touchedAt)
-      .slice(0, overflowCount)
-      .map((memory) => memory.conversationId)
+  private get responseContractDeps(): ResponseContractDeps {
+    return {
+      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
+      ensureFinancialResponseTemplate: (rawText, memory, count) =>
+        this.ensureFinancialResponseTemplate(rawText, memory, count),
+      enforcePromptIntentAlignment: (prompt, text) =>
+        this.enforcePromptIntentAlignment(prompt, text),
+      validateIntentTableMatch: (intentId, evidence) =>
+        this.validateIntentTableMatch(intentId, evidence),
+      emitEvidenceContractTelemetry: (requestId, conversationId, failureText, attempts) =>
+        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, attempts),
+      appearsToContainFinancialClaim: (text) => this.appearsToContainFinancialClaim(text),
+      parseFinancialTemplateSections: (text) => this.parseFinancialTemplateSections(text),
+      hasRequiredFinancialResponseSections: (sections) =>
+        this.hasRequiredFinancialResponseSections(sections),
+      hasStructuredEvidence: (evidence) => this.hasStructuredEvidence(evidence),
+      requiresStrictFinancialDataFetch: (prompt, narrative) =>
+        this.requiresStrictFinancialDataFetch(prompt, narrative),
+      requiresStrictQuantitativeDataFetch: (prompt) =>
+        this.requiresStrictQuantitativeDataFetch(prompt),
+      hasQuantitativeResultSignal: (narrative) => this.hasQuantitativeResultSignal(narrative),
+      appearsToBeNoDataResult: (narrative) => this.appearsToBeNoDataResult(narrative),
+      extractNumericClaims: (narrative) => this.extractNumericClaims(narrative),
+      containsUnsupportedNumericClaim: (narrative, evidence, sections) =>
+        this.containsUnsupportedNumericClaim(narrative, evidence, sections),
+      containsFinancialMarkedNumericClaim: (narrative) =>
+        this.containsFinancialMarkedNumericClaim(narrative),
+      traceSupportsNumericClaim: (trace) => this.traceSupportsNumericClaim(trace)
+    }
+  }
 
-    for (const conversationId of staleConversationIds) {
-      this.conversationMemoryById.delete(conversationId)
+  private get sqlExecutionDeps(): SqlExecutionDeps {
+    return {
+      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
+      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
+      normalizeTableRef: (tableRef) => this.normalizeTableRef(tableRef),
+      createAgentPolicyError: (code, message) => this.createAgentPolicyError(code, message),
+      collectRuntimeScopeColumnCandidates: (catalog) =>
+        this.collectRuntimeScopeColumnCandidates(catalog),
+      sqlParser: this.sqlParser,
+      schemaContextConceptOrder: SCHEMA_CONTEXT_CONCEPT_ORDER
     }
   }
 
@@ -2141,18 +2090,25 @@ export class AgentOrchestrator {
     }
 
     const textSources = [
-      ...history
-        .filter((message) => message.role === 'user')
-        .map((message) => message.content),
+      ...history.filter((message) => message.role === 'user').map((message) => message.content),
       prompt
     ]
 
     for (const sourceText of textSources) {
       const extractedFacts = this.extractConversationFacts(sourceText)
 
-      memory.facts.companyNames = this.mergeScopeValues(memory.facts.companyNames, extractedFacts.companyNames)
-      memory.facts.fiscalYears = this.mergeScopeValues(memory.facts.fiscalYears, extractedFacts.fiscalYears)
-      memory.facts.branchNames = this.mergeScopeValues(memory.facts.branchNames, extractedFacts.branchNames)
+      memory.facts.companyNames = this.mergeScopeValues(
+        memory.facts.companyNames,
+        extractedFacts.companyNames
+      )
+      memory.facts.fiscalYears = this.mergeScopeValues(
+        memory.facts.fiscalYears,
+        extractedFacts.fiscalYears
+      )
+      memory.facts.branchNames = this.mergeScopeValues(
+        memory.facts.branchNames,
+        extractedFacts.branchNames
+      )
 
       if (extractedFacts.dateRange) {
         memory.facts.dateRange = extractedFacts.dateRange
@@ -2164,231 +2120,36 @@ export class AgentOrchestrator {
   }
 
   private extractConversationFacts(text: string): ExtractedConversationFacts {
-    const normalizedText = text.replace(/\s+/g, ' ').trim()
-
-    if (!normalizedText) {
-      return {
-        companyNames: [],
-        fiscalYears: [],
-        branchNames: []
-      }
-    }
-
-    const normalizedDigitsText = this.normalizePersianDigits(normalizedText)
-    const facts: ExtractedConversationFacts = {
-      companyNames: this.extractNamedScopeValues(normalizedText, COMPANY_SCOPE_CAPTURE_PATTERNS),
-      fiscalYears: this.extractFiscalYears(normalizedDigitsText),
-      branchNames: this.extractNamedScopeValues(normalizedText, BRANCH_SCOPE_CAPTURE_PATTERNS)
-    }
-
-    const dateRangeFaMatch = normalizedText.match(/از\s+([^\n\r]{1,24})\s+تا\s+([^\n\r]{1,24})/u)
-    if (dateRangeFaMatch?.[1] && dateRangeFaMatch?.[2]) {
-      facts.dateRange = `از ${dateRangeFaMatch[1].trim()} تا ${dateRangeFaMatch[2].trim()}`
-    } else {
-      const dateRangeEnMatch = normalizedDigitsText.match(/\bfrom\s+([a-z0-9\/-]{2,20})\s+to\s+([a-z0-9\/-]{2,20})/i)
-      if (dateRangeEnMatch?.[1] && dateRangeEnMatch?.[2]) {
-        facts.dateRange = `from ${dateRangeEnMatch[1]} to ${dateRangeEnMatch[2]}`
-      }
-    }
-
-    return facts
-  }
-
-  private extractNamedScopeValues(text: string, patterns: RegExp[]): string[] {
-    const values: string[] = []
-
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0
-
-      for (const match of text.matchAll(pattern)) {
-        const captured = match[1]
-
-        if (typeof captured !== 'string' || !captured.trim()) {
-          continue
-        }
-
-        const normalizedChunk = this.trimScopeChunk(captured)
-        if (!normalizedChunk) {
-          continue
-        }
-
-        const parts = normalizedChunk
-          .split(RUNTIME_SCOPE_SPLIT_PATTERN)
-          .map((part) => this.normalizeScopeToken(part))
-          .filter((part) => this.isValidScopeToken(part))
-
-        values.push(...parts)
-      }
-    }
-
-    return this.uniqueScopeValues(values)
-  }
-
-  private trimScopeChunk(value: string): string {
-    const compact = value.replace(/\s+/g, ' ').trim()
-
-    if (!compact) {
-      return ''
-    }
-
-    let minStopIndex = compact.length
-
-    for (const pattern of RUNTIME_SCOPE_STOP_PATTERNS) {
-      const match = pattern.exec(compact)
-
-      if (!match || match.index < 0) {
-        continue
-      }
-
-      minStopIndex = Math.min(minStopIndex, match.index)
-    }
-
-    return compact.slice(0, minStopIndex).trim()
-  }
-
-  private normalizeScopeToken(value: string): string {
-    return value
-      .replace(/^['"“”‘’()\[\]{}]+|['"“”‘’()\[\]{}]+$/g, '')
-      .replace(/^(?:شرکت|company|companies|شعبه|branch|branches)\s+/iu, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  }
-
-  private isValidScopeToken(value: string): boolean {
-    if (!value) {
-      return false
-    }
-
-    if (value.length > 48) {
-      return false
-    }
-
-    if (/^(?:and|و|or|یا)$/iu.test(value)) {
-      return false
-    }
-
-    if (/^\d+$/u.test(value)) {
-      return false
-    }
-
-    return true
-  }
-
-  private extractFiscalYears(text: string): string[] {
-    const years: string[] = []
-
-    RUNTIME_SCOPE_YEAR_RANGE_PATTERN.lastIndex = 0
-    for (const rangeMatch of text.matchAll(RUNTIME_SCOPE_YEAR_RANGE_PATTERN)) {
-      const startYear = Number.parseInt(rangeMatch[1] ?? '', 10)
-      const endYear = Number.parseInt(rangeMatch[2] ?? '', 10)
-
-      if (Number.isNaN(startYear) || Number.isNaN(endYear)) {
-        continue
-      }
-
-      const delta = endYear - startYear
-      if (delta >= 0 && delta <= 5) {
-        for (let year = startYear; year <= endYear; year += 1) {
-          years.push(String(year))
-        }
-      } else {
-        years.push(String(startYear), String(endYear))
-      }
-    }
-
-    RUNTIME_SCOPE_YEAR_CONTEXT_PATTERN.lastIndex = 0
-    for (const contextMatch of text.matchAll(RUNTIME_SCOPE_YEAR_CONTEXT_PATTERN)) {
-      const segment = contextMatch[1] ?? ''
-      const segmentYears = segment.match(RUNTIME_SCOPE_YEAR_CAPTURE_PATTERN) ?? []
-      years.push(...segmentYears)
-    }
-
-    return this.uniqueScopeValues(years)
+    return extractConversationFactsFn(text)
   }
 
   private mergeScopeValues(currentValues: string[], incomingValues: string[]): string[] {
-    return this.uniqueScopeValues([...currentValues, ...incomingValues]).slice(0, MAX_SCOPE_VALUES_PER_DIMENSION)
-  }
-
-  private uniqueScopeValues(values: string[]): string[] {
-    const deduped: string[] = []
-    const seen = new Set<string>()
-
-    for (const value of values) {
-      const normalized = value.replace(/\s+/g, ' ').trim()
-
-      if (!normalized) {
-        continue
-      }
-
-      const key = normalized.toLowerCase()
-      if (seen.has(key)) {
-        continue
-      }
-
-      seen.add(key)
-      deduped.push(normalized)
-    }
-
-    return deduped
+    return mergeScopeValuesFn(currentValues, incomingValues)
   }
 
   private normalizePersianDigits(value: string): string {
     return normalizePersianDigits(value)
   }
 
-  private updateConversationMemoryFromAssistant(memory: ConversationMemoryState, finalText: string): void {
-    memory.touchedAt = Date.now()
-
-    if (!finalText.trim()) {
-      return
-    }
-
-    memory.lastAssistantOutcome = this.compactText(finalText, 280)
-    this.pushConversationMemoryNote(memory, `Latest assistant outcome: ${this.compactText(finalText, 220)}`)
+  private updateConversationMemoryFromAssistant(
+    memory: ConversationMemoryState,
+    finalText: string
+  ): void {
+    updateConversationMemoryFromAssistantFn(this.conversationMemoryDeps, memory, finalText)
   }
 
   private rememberToolTrace(memory: ConversationMemoryState, trace: string): void {
-    const normalizedTrace = this.compactText(trace.replace(/\s+/g, ' ').trim(), 220)
-
-    if (!normalizedTrace) {
-      return
-    }
-
-    const existingIndex = memory.lastToolTrace.findIndex((entry) => entry === normalizedTrace)
-    if (existingIndex >= 0) {
-      memory.lastToolTrace.splice(existingIndex, 1)
-    }
-
-    memory.lastToolTrace.push(normalizedTrace)
-
-    if (memory.lastToolTrace.length > MAX_CONVERSATION_TOOL_TRACES) {
-      memory.lastToolTrace.splice(0, memory.lastToolTrace.length - MAX_CONVERSATION_TOOL_TRACES)
-    }
-
-    this.pushConversationMemoryNote(memory, `Tool trace: ${normalizedTrace}`)
+    rememberToolTraceFn(this.conversationMemoryDeps, memory, trace)
   }
 
   private pushConversationMemoryNote(memory: ConversationMemoryState, note: string): void {
-    const normalizedNote = note.trim()
-
-    if (!normalizedNote) {
-      return
-    }
-
-    const existingIndex = memory.notes.findIndex((entry) => entry === normalizedNote)
-    if (existingIndex >= 0) {
-      memory.notes.splice(existingIndex, 1)
-    }
-
-    memory.notes.push(normalizedNote)
-
-    if (memory.notes.length > MAX_CONVERSATION_MEMORY_NOTES) {
-      memory.notes.splice(0, memory.notes.length - MAX_CONVERSATION_MEMORY_NOTES)
-    }
+    pushConversationMemoryNoteFn(memory, note)
   }
 
-  private createToolResponseMessage(toolCall: GeminiToolCall, payload: Record<string, unknown>): GeminiMessage {
+  private createToolResponseMessage(
+    toolCall: GeminiToolCall,
+    payload: Record<string, unknown>
+  ): GeminiMessage {
     return {
       role: 'tool',
       name: toolCall.function.name,
@@ -2423,9 +2184,11 @@ export class AgentOrchestrator {
     }
 
     return rawToolCalls
-      .filter((toolCall): toolCall is { id: string; function: { name: string; arguments?: string } } => {
-        return Boolean(toolCall?.id && toolCall.function?.name)
-      })
+      .filter(
+        (toolCall): toolCall is { id: string; function: { name: string; arguments?: string } } => {
+          return Boolean(toolCall?.id && toolCall.function?.name)
+        }
+      )
       .map((toolCall) => ({
         id: toolCall.id,
         type: 'function',
@@ -2436,7 +2199,10 @@ export class AgentOrchestrator {
       }))
   }
 
-  private compactHistory(history: GeminiMessage[], memory?: ConversationMemoryState): GeminiMessage[] {
+  private compactHistory(
+    history: GeminiMessage[],
+    memory?: ConversationMemoryState
+  ): GeminiMessage[] {
     const clean = history.filter((message) => message.role !== 'system')
 
     if (clean.length <= MAX_CHAT_HISTORY) {
@@ -2503,8 +2269,13 @@ export class AgentOrchestrator {
     const schemaContext = this.buildSchemaCatalogContext(settings)
     const isRefinementPrompt = this.isLikelyRefinementPrompt(previousMemorySnapshot, prompt)
     const historyWindowContext = this.buildHistoryWindowContext(isRefinementPrompt)
-    const memoryContext = this.buildConversationMemoryContext(conversationMemory, isRefinementPrompt)
-    const refinementContext = isRefinementPrompt ? this.buildRefinementContext(previousMemorySnapshot, prompt) : null
+    const memoryContext = this.buildConversationMemoryContext(
+      conversationMemory,
+      isRefinementPrompt
+    )
+    const refinementContext = isRefinementPrompt
+      ? this.buildRefinementContext(previousMemorySnapshot, prompt)
+      : null
     const freshContext = this.buildFreshConversationContext(previousMemorySnapshot, prompt)
     const intentContext = this.buildPromptIntentContext(settings, prompt)
 
@@ -2546,7 +2317,10 @@ export class AgentOrchestrator {
     ].join('\n')
   }
 
-  private buildConversationMemoryContext(memory: ConversationMemoryState, usePersistentHeader = true): string | null {
+  private buildConversationMemoryContext(
+    memory: ConversationMemoryState,
+    usePersistentHeader = true
+  ): string | null {
     const mappingEntries = Object.entries(memory.facts.confirmedMappings)
       .filter(([, tableRef]) => typeof tableRef === 'string' && tableRef.trim())
       .slice(0, 6)
@@ -2612,12 +2386,17 @@ export class AgentOrchestrator {
     return ['Persistent conversation memory (survives trimmed history):', ...lines].join('\n')
   }
 
-  private buildFreshConversationContext(previousMemory: ConversationMemorySnapshot, prompt: string): string | null {
+  private buildFreshConversationContext(
+    previousMemory: ConversationMemorySnapshot,
+    prompt: string
+  ): string | null {
     if (this.isLikelyRefinementPrompt(previousMemory, prompt)) {
       return null
     }
 
-    const hasPriorContext = Boolean(previousMemory.lastUserPrompt || previousMemory.lastAssistantOutcome)
+    const hasPriorContext = Boolean(
+      previousMemory.lastUserPrompt || previousMemory.lastAssistantOutcome
+    )
 
     if (!hasPriorContext) {
       return [
@@ -2636,7 +2415,10 @@ export class AgentOrchestrator {
     ].join('\n')
   }
 
-  private buildRefinementContext(previousMemory: ConversationMemorySnapshot, prompt: string): string | null {
+  private buildRefinementContext(
+    previousMemory: ConversationMemorySnapshot,
+    prompt: string
+  ): string | null {
     if (!this.isLikelyRefinementPrompt(previousMemory, prompt)) {
       return null
     }
@@ -2685,14 +2467,19 @@ export class AgentOrchestrator {
     return lines.join('\n')
   }
 
-  private isLikelyRefinementPrompt(previousMemory: ConversationMemorySnapshot, prompt: string): boolean {
+  private isLikelyRefinementPrompt(
+    previousMemory: ConversationMemorySnapshot,
+    prompt: string
+  ): boolean {
     const normalizedPrompt = prompt.replace(/\s+/g, ' ').trim()
 
     if (!normalizedPrompt) {
       return false
     }
 
-    const hasPriorContext = Boolean(previousMemory.lastUserPrompt || previousMemory.lastAssistantOutcome)
+    const hasPriorContext = Boolean(
+      previousMemory.lastUserPrompt || previousMemory.lastAssistantOutcome
+    )
     if (!hasPriorContext) {
       return false
     }
@@ -2752,13 +2539,17 @@ export class AgentOrchestrator {
     }
 
     if (!hasPreferredMapping) {
-      lines.push('  - No preferred mappings for detected concepts; proceed with standard discovery flow.')
+      lines.push(
+        '  - No preferred mappings for detected concepts; proceed with standard discovery flow.'
+      )
     }
 
     return lines.join('\n')
   }
 
-  private buildDeterministicIntentClarificationResponse(intentId: DeterministicFinancialIntent): string {
+  private buildDeterministicIntentClarificationResponse(
+    intentId: DeterministicFinancialIntent
+  ): string {
     return [
       '### Summary',
       'Cannot answer reliably: این intent نیاز به مسیر deterministic و mapping دقیق schema دارد.',
@@ -2855,14 +2646,20 @@ export class AgentOrchestrator {
     }
 
     const extractedFacts = this.extractConversationFacts(prompt)
-    const hasPromptDateScope = extractedFacts.fiscalYears.length > 0 || Boolean(extractedFacts.dateRange)
+    const hasPromptDateScope =
+      extractedFacts.fiscalYears.length > 0 || Boolean(extractedFacts.dateRange)
     const hasMemoryDateScope =
       conversationMemory.facts.fiscalYears.length > 0 || Boolean(conversationMemory.facts.dateRange)
     const normalizedPromptDigits = this.normalizePersianDigits(prompt)
     const hasAmbiguousDateSignal = DATE_RANGE_AMBIGUITY_SIGNAL_PATTERN.test(normalizedPromptDigits)
     const hasExplicitDateScope = DATE_RANGE_EXPLICIT_SCOPE_PATTERN.test(normalizedPromptDigits)
 
-    if (hasAmbiguousDateSignal && !hasPromptDateScope && !hasMemoryDateScope && !hasExplicitDateScope) {
+    if (
+      hasAmbiguousDateSignal &&
+      !hasPromptDateScope &&
+      !hasMemoryDateScope &&
+      !hasExplicitDateScope
+    ) {
       return this.buildDateRangeClarificationResponse(activeCatalog)
     }
 
@@ -2870,7 +2667,9 @@ export class AgentOrchestrator {
   }
 
   private buildAmbiguousIntentClarificationResponse(candidates: FinancialIntentId[]): string {
-    const optionLabels = candidates.map((intentId) => FINANCIAL_INTENT_FA_LABELS[intentId] ?? intentId)
+    const optionLabels = candidates.map(
+      (intentId) => FINANCIAL_INTENT_FA_LABELS[intentId] ?? intentId
+    )
 
     return [
       '### Summary',
@@ -2965,7 +2764,11 @@ export class AgentOrchestrator {
     conceptKey: AccountingConceptKey,
     prompt?: string
   ): PreferredMapping | null {
-    const semanticOverride = this.resolvePromptSemanticMappingOverride(activeCatalog, conceptKey, prompt)
+    const semanticOverride = this.resolvePromptSemanticMappingOverride(
+      activeCatalog,
+      conceptKey,
+      prompt
+    )
 
     if (semanticOverride) {
       return semanticOverride
@@ -3002,7 +2805,8 @@ export class AgentOrchestrator {
     }
 
     const normalizedPrompt = this.normalizePersianDigits(prompt).trim().toLowerCase()
-    const purchaseSignals = /(خرید|purchase|purchases|buy|procure|procurement|supplier|vendors?|receipts?|رسید|انبار|inventory|voucher|purchaseinvoice)/iu
+    const purchaseSignals =
+      /(خرید|purchase|purchases|buy|procure|procurement|supplier|vendors?|receipts?|رسید|انبار|inventory|voucher|purchaseinvoice)/iu
     const salesSignals = /(فروش|sale|sales|revenue|customer|salefacts)/iu
 
     const candidates = (activeCatalog.suggestedMappings[conceptKey] ?? [])
@@ -3023,7 +2827,9 @@ export class AgentOrchestrator {
     }
 
     if (salesSignals.test(normalizedPrompt)) {
-      const salesCandidate = candidates.find((tableRef) => /(sale|sales|revenue|mrp)/iu.test(tableRef))
+      const salesCandidate = candidates.find((tableRef) =>
+        /(sale|sales|revenue|mrp)/iu.test(tableRef)
+      )
 
       if (salesCandidate) {
         return {
@@ -3049,7 +2855,10 @@ export class AgentOrchestrator {
     })
   }
 
-  private inferDateHintForTable(activeCatalog: SchemaCatalogEntry, tableRef: string): string | null {
+  private inferDateHintForTable(
+    activeCatalog: SchemaCatalogEntry,
+    tableRef: string
+  ): string | null {
     const selectedDateMode = this.normalizeSchemaDateMode(activeCatalog.selectedDateMode)
 
     if (selectedDateMode && selectedDateMode !== 'unknown') {
@@ -3107,7 +2916,8 @@ export class AgentOrchestrator {
     }
 
     const uniqueDateColumns = [...new Set(relatedDateColumns)].slice(0, 3)
-    const columnHint = uniqueDateColumns.length > 0 ? ` (columns: ${uniqueDateColumns.join(', ')})` : ''
+    const columnHint =
+      uniqueDateColumns.length > 0 ? ` (columns: ${uniqueDateColumns.join(', ')})` : ''
 
     if (hasFiscalPeriod) {
       return `fiscal period${columnHint}`
@@ -3234,7 +3044,10 @@ export class AgentOrchestrator {
       }
 
       const normalizedTableRef = this.normalizeTableReference(`${schemaName}.${tableName}`)
-      const tableRefPattern = new RegExp(`\\b(?:\\[${schemaName}\\]\\.|${schemaName}\\.)?\\[?${tableName}\\]?\\b`, 'gi')
+      const tableRefPattern = new RegExp(
+        `\\b(?:\\[${schemaName}\\]\\.|${schemaName}\\.)?\\[?${tableName}\\]?\\b`,
+        'gi'
+      )
 
       rewritten = rewritten.replace(tableRefPattern, (match) => match)
       rewritten = rewritten.replace(identifierPattern, (match) => {
@@ -3259,7 +3072,9 @@ export class AgentOrchestrator {
         return match
       })
 
-      const canonicalTableToken = availableColumns.some((column) => column.toLowerCase() === normalizedTableRef)
+      const canonicalTableToken = availableColumns.some(
+        (column) => column.toLowerCase() === normalizedTableRef
+      )
       if (canonicalTableToken) {
         rewritten = rewritten.replace(new RegExp(`\\b${tableName}\\b`, 'gi'), tableName)
       }
@@ -3268,7 +3083,11 @@ export class AgentOrchestrator {
     return rewritten
   }
 
-  private async getCachedSchemaSnapshot(cacheKey: string, sqlQuery: string, abortSignal: AbortSignal): Promise<{ rows: SqlQueryRow[] }> {
+  private async getCachedSchemaSnapshot(
+    cacheKey: string,
+    sqlQuery: string,
+    abortSignal: AbortSignal
+  ): Promise<{ rows: SqlQueryRow[] }> {
     const cached = this.schemaCacheByTableKey.get(cacheKey)
 
     if (cached && Date.now() - cached.timestamp < this.SCHEMA_CACHE_TTL_MS) {
@@ -3397,23 +3216,19 @@ export class AgentOrchestrator {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        return await this.geminiClient.chat(
-          payload,
-          savedConfig,
-          {
-            onTextChunk: (chunkText) => {
-              if (!chunkText) {
-                return
-              }
+        return await this.geminiClient.chat(payload, savedConfig, {
+          onTextChunk: (chunkText) => {
+            if (!chunkText) {
+              return
+            }
 
-              this.emitProgress(onProgress, {
-                type: 'response-chunk',
-                message: chunkText
-              })
-            },
-            signal: abortSignal
-          }
-        )
+            this.emitProgress(onProgress, {
+              type: 'response-chunk',
+              message: chunkText
+            })
+          },
+          signal: abortSignal
+        })
       } catch (error) {
         const errorInfo = this.toErrorInfo(error)
         const message = (errorInfo.message || '').toLowerCase()
@@ -3445,7 +3260,10 @@ export class AgentOrchestrator {
     const errorInfo = this.toErrorInfo(error)
     const message = (errorInfo.message || '').toLowerCase()
 
-    if (errorInfo.code === 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED' || errorInfo.code === 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED') {
+    if (
+      errorInfo.code === 'AGENT_TOOL_CALLS_PER_ROUND_EXCEEDED' ||
+      errorInfo.code === 'AGENT_TOTAL_TOOL_CALLS_EXCEEDED'
+    ) {
       return true
     }
 
@@ -3506,12 +3324,20 @@ export class AgentOrchestrator {
    * This is a deterministic guard to prevent intent-table mismatches (e.g., purchase intent using sales tables).
    * Returns null if validation passes, or an error message if there's a mismatch.
    */
-  private validateIntentTableMatch(intentId: string | undefined, evidence: ToolEvidence[]): string | null {
+  private validateIntentTableMatch(
+    intentId: string | undefined,
+    evidence: ToolEvidence[]
+  ): string | null {
     if (!intentId) return null
 
     // Define intent-to-table mapping for deterministic validation
     const intentTableMap: Record<string, string[]> = {
-      get_purchase_summary: ['INV.InventoryReceipt', 'INV.InventoryReceiptItem', 'POM.PurchaseInvoice', 'Inv.Voucher'],
+      get_purchase_summary: [
+        'INV.InventoryReceipt',
+        'INV.InventoryReceiptItem',
+        'POM.PurchaseInvoice',
+        'Inv.Voucher'
+      ],
       get_sales_summary_by_period: ['SLS.Invoice', 'MRP.SaleFacts'],
       get_account_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear', 'ACC.Account'],
       get_cash_bank_balance: ['RPA.CashBalance', 'RPA.BankAccountBalance'],
@@ -3549,7 +3375,8 @@ export class AgentOrchestrator {
     prompt?: string
   ): string {
     void lastErrorMessage
-    const discoveryOnly = evidence.length > 0 && evidence.every((entry) => entry.tool !== 'fetch_financial_data')
+    const discoveryOnly =
+      evidence.length > 0 && evidence.every((entry) => entry.tool !== 'fetch_financial_data')
 
     // H3: comparative multi-period override — must run one fetch per period.
     if (context?.comparativeMultiPeriod && (context.successfulFetches ?? 0) < 2) {
@@ -3564,7 +3391,8 @@ export class AgentOrchestrator {
     // S1: purchase data-source fallback — if POM.PurchaseInvoice is empty, try INV.InventoryReceipt
     const isPurchaseIntent = prompt && /خرید|purchase/iu.test(prompt)
     const usedPurchaseInvoice = evidence.some(
-      (entry) => entry.tool === 'fetch_financial_data' && entry.query?.includes('POM.PurchaseInvoice')
+      (entry) =>
+        entry.tool === 'fetch_financial_data' && entry.query?.includes('POM.PurchaseInvoice')
     )
 
     switch (failureKind) {
@@ -3629,7 +3457,9 @@ export class AgentOrchestrator {
     return lines
   }
 
-  private collectRuntimeScopeColumnCandidates(activeCatalog: SchemaCatalogEntry): RuntimeScopeColumnCandidate[] {
+  private collectRuntimeScopeColumnCandidates(
+    activeCatalog: SchemaCatalogEntry
+  ): RuntimeScopeColumnCandidate[] {
     const candidates: RuntimeScopeColumnCandidate[] = []
 
     for (const table of activeCatalog.tables) {
@@ -3706,7 +3536,9 @@ export class AgentOrchestrator {
   } {
     const normalizedName = this.normalizeColumnNameForScopeDetection(columnName)
     const normalizedSamples = sampleValues.map((value) => this.normalizePersianDigits(value))
-    const hasTextualSample = normalizedSamples.some((value) => /[a-z\u0600-\u06ff]{2,}/iu.test(value))
+    const hasTextualSample = normalizedSamples.some((value) =>
+      /[a-z\u0600-\u06ff]{2,}/iu.test(value)
+    )
     const hasYearLikeSample = normalizedSamples.some(
       (value) => YEAR_SAMPLE_PATTERN.test(value) || SHAMSI_DATE_SAMPLE_PATTERN.test(value)
     )
@@ -3812,7 +3644,9 @@ export class AgentOrchestrator {
       .map((candidate) => `${candidate.name}:${candidate.confidence.toFixed(2)}`)
       .join(' | ')
     const effectiveCandidate = effectiveSoftwareId
-      ? (activeCatalog.softwareCandidates ?? []).find((candidate) => candidate.id === effectiveSoftwareId)
+      ? (activeCatalog.softwareCandidates ?? []).find(
+          (candidate) => candidate.id === effectiveSoftwareId
+        )
       : undefined
 
     if (effectiveSoftwareId && effectiveSoftwareName) {
@@ -3826,14 +3660,19 @@ export class AgentOrchestrator {
         `- Effective accounting software: ${effectiveSoftwareName} (id=${effectiveSoftwareId}, source=${effectiveSoftwareSource}${confidenceText}${candidateText ? `; candidates=${candidateText}` : ''}).`
       )
     } else {
-      contextLines.splice(4, 0, '- Accounting software detection: no reliable software profile detected yet.')
+      contextLines.splice(
+        4,
+        0,
+        '- Accounting software detection: no reliable software profile detected yet.'
+      )
     }
 
     if (effectiveSoftwareId === 'sepidar') {
       contextLines.splice(5, 0, ...this.buildSepidarSchemaHintLines())
     }
 
-    const detectedDateMode = this.normalizeSchemaDateMode(activeCatalog.detectedDateMode) ?? 'unknown'
+    const detectedDateMode =
+      this.normalizeSchemaDateMode(activeCatalog.detectedDateMode) ?? 'unknown'
     const selectedDateMode = this.normalizeSchemaDateMode(activeCatalog.selectedDateMode)
     const effectiveDateMode = selectedDateMode ?? detectedDateMode
     const dateModeSource = selectedDateMode ? 'selected override' : 'detected mode'
@@ -3845,7 +3684,11 @@ export class AgentOrchestrator {
     )
 
     if (activeCatalog.dateEvidence && activeCatalog.dateEvidence.length > 0) {
-      contextLines.splice(7, 0, `- Date mode evidence: ${activeCatalog.dateEvidence.slice(0, 3).join(' | ')}`)
+      contextLines.splice(
+        7,
+        0,
+        `- Date mode evidence: ${activeCatalog.dateEvidence.slice(0, 3).join(' | ')}`
+      )
     }
 
     contextLines.push('- Runtime scope hints (multi-company / multi-fiscal / multi-branch):')
@@ -3941,7 +3784,9 @@ export class AgentOrchestrator {
       return null
     }
 
-    const definition = listFinancialIntentDefinitions().find((entry) => entry.id === matchedIntent.intentId)
+    const definition = listFinancialIntentDefinitions().find(
+      (entry) => entry.id === matchedIntent.intentId
+    )
 
     if (definition?.responseMode === 'deterministic') {
       return matchedIntent.intentId as DeterministicFinancialIntent
@@ -3958,61 +3803,11 @@ export class AgentOrchestrator {
    * defect for such prompts.
    */
   private isComparativeMultiPeriodPrompt(prompt: string): boolean {
-    const normalizedPrompt = normalizePersianText(prompt)
-    const years = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
-    const uniqueYears = new Set(years)
-    if (uniqueYears.size < 2) {
-      return false
-    }
-    const hasComparativeKeyword =
-      /(?:نسبت\s*به|در\s*مقابل|مقایسه|قیاس|رشد|کاهش|افزایش|افت|change|growth|decline|versus|\bvs\.?\b|year\s*over\s*year|yoy)/iu.test(
-        normalizedPrompt
-      )
-    const hasFinancialContext =
-      this.appearsToContainFinancialClaim(normalizedPrompt) || /(?:خرید|purchase|sales|درآمد|revenue)/iu.test(normalizedPrompt)
-    return hasComparativeKeyword && hasFinancialContext
+    return isComparativeMultiPeriodPromptFn(prompt)
   }
 
   private isSalesGrowthPercentPrompt(prompt: string): boolean {
-    const normalizedPrompt = normalizePersianText(prompt)
-
-    const hasSalesSignal = /(?:فروش|sales|revenue)/iu.test(normalizedPrompt)
-    const hasPercentSignal = /(?:درصد|percent|percentage|%)/iu.test(normalizedPrompt)
-    const hasChangeSignal = /(?:رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه)/iu.test(normalizedPrompt)
-    const yearMatches = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
-
-    // Also trigger for comparative multi-period prompts (e.g., "فروش 1403 در مقابل 1402")
-    // even without explicit '%' keyword, as comparison implies percentage change
-    const isComparativeMultiPeriod = this.isComparativeMultiPeriodPrompt(prompt)
-
-    return (hasSalesSignal && hasPercentSignal && hasChangeSignal && yearMatches.length >= 2) ||
-           (isComparativeMultiPeriod && hasSalesSignal && yearMatches.length >= 2)
-  }
-
-  private extractYearComparison(prompt: string): { targetYear: number; baseYear: number } | null {
-    const normalizedPrompt = normalizePersianText(prompt)
-
-    const explicitMatch = normalizedPrompt.match(/\b((?:13|14|19|20)\d{2})\b.{0,40}?نسبت\s*به.{0,40}?\b((?:13|14|19|20)\d{2})\b/iu)
-    if (explicitMatch) {
-      return {
-        targetYear: Number(explicitMatch[1]),
-        baseYear: Number(explicitMatch[2])
-      }
-    }
-
-    const years = (normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []).map((item) => Number(item))
-    const uniqueYears = Array.from(new Set(years))
-
-    if (uniqueYears.length < 2) {
-      return null
-    }
-
-    // If prompt does not explicitly say "X نسبت به Y", use latest year as target and previous as base.
-    uniqueYears.sort((a, b) => a - b)
-    return {
-      targetYear: uniqueYears[uniqueYears.length - 1],
-      baseYear: uniqueYears[uniqueYears.length - 2]
-    }
+    return isSalesGrowthPercentPromptFn(prompt)
   }
 
   private async tryResolveSalesGrowthPercentFallback(
@@ -4020,188 +3815,17 @@ export class AgentOrchestrator {
     conversationMemory: ConversationMemoryState,
     signal: AbortSignal
   ): Promise<SalesGrowthFallbackResult | null> {
-    const yearComparison = this.extractYearComparison(prompt)
-
-    if (!yearComparison) {
-      return null
-    }
-
-    const baseYear = yearComparison.baseYear
-    const targetYear = yearComparison.targetYear
-
-    if (!Number.isFinite(baseYear) || !Number.isFinite(targetYear)) {
-      return null
-    }
-
-    const activeCatalog = this.findActiveSchemaCatalog(this.getSettings())
-    const salesSource = this.selectSalesGrowthSourceTable(activeCatalog)
-    const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
-
-    // The fiscal year is stored as FMK.FiscalYear.Title (e.g. '1402'); the sales
-    // table only carries a surrogate FiscalYearRef FK, so we JOIN and filter on
-    // Title rather than CAST-ing the ref to an int (which never matches the Shamsi
-    // year and silently returns zero rows).
-    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    fy.Title AS FiscalYearTitle,\n    SUM(CAST(src.${salesSource.amountColumn} AS decimal(18, 4))) AS TotalSales\n  FROM ${salesSource.tableRef} src\n  JOIN ${fiscalYearTable} fy ON src.${salesSource.yearRefColumn} = fy.FiscalYearId\n  WHERE fy.Title IN (N'${baseYear}', N'${targetYear}')\n  GROUP BY fy.Title\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = N'${baseYear}' THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = N'${targetYear}' THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
-
-    let firstRow: Record<string, unknown> = {}
-    try {
-      // Code-built, trusted query (table/columns resolved from catalog or the locked
-      // Sepidar mapping; years are Number-validated). Like the other deterministic
-      // financial tools it skips the model-facing ensureFinancialQueryAllowed allowlist
-      // and relies on executeReadOnlySql's read-only policy enforcement.
-      const rows = await this.executeReadOnlySql(sqlQuery, signal)
-      firstRow = (rows[0] ?? {}) as Record<string, unknown>
-    } catch (error) {
-      // Schema mismatch (e.g. non-Sepidar software) or policy rejection: degrade
-      // gracefully to the model exploration loop instead of failing the request.
-      await this.safeAuditWrite({
-        timestamp: new Date().toISOString(),
-        requestId: conversationMemory.conversationId,
-        stage: 'tool-error',
-        toolName: 'sales_growth_fallback',
-        error: error instanceof Error ? error.message : String(error),
-        errorCategory: 'deterministic-tool-failure'
-      })
-      return null
-    }
-
-    this.throwIfRequestCanceled(signal)
-
-    const salesBase = this.toSafeNumber(firstRow['SalesBase'])
-    const salesTarget = this.toSafeNumber(firstRow['SalesTarget'])
-
-    // No sales recorded for either period under this mapping: hand off to the model
-    // loop rather than emitting a misleading deterministic «0 vs 0» comparison.
-    if (salesBase === 0 && salesTarget === 0) {
-      return null
-    }
-
-    const percentRaw = this.toSafeNumber(firstRow['PercentChange'])
-    const percentChange = Number.isFinite(percentRaw) ? percentRaw : null
-
-    this.rememberToolTrace(
+    return tryResolveSalesGrowthPercentFallbackFn(
+      this.salesGrowthDeps,
+      prompt,
+      this.getSettings(),
       conversationMemory,
-      `sales_growth_fallback base=${baseYear} target=${targetYear} pct=${percentChange ?? 'null'}`
+      signal
     )
-
-    return {
-      baseYear,
-      targetYear,
-      salesBase,
-      salesTarget,
-      percentChange,
-      query: sqlQuery,
-      toolCallsUsed: 1
-    }
-  }
-
-  private selectSalesGrowthSourceTable(activeCatalog: SchemaCatalogEntry | null): {
-    tableRef: string
-    yearRefColumn: string
-    amountColumn: string
-  } {
-    if (activeCatalog) {
-      const preferredConcepts = ['documentLines', 'documents', 'accounts'] as AccountingConceptKey[]
-      const preferredMappings = preferredConcepts
-        .map((conceptKey) => this.resolvePreferredMapping(activeCatalog, conceptKey))
-        .filter((mapping): mapping is PreferredMapping => Boolean(mapping))
-
-      const catalogMappings = activeCatalog.tables
-        .filter((table) => table.tags.length > 0)
-        .map((table) => ({
-          tableRef: this.normalizeTableRef(`${table.schemaName}.${table.tableName}`),
-          source: 'suggested' as const
-        }))
-        .filter((mapping) => Boolean(mapping.tableRef)) as PreferredMapping[]
-
-      const tableCandidates: PreferredMapping[] = [...preferredMappings, ...catalogMappings]
-
-      const seen = new Set<string>()
-
-      for (const candidate of tableCandidates) {
-        const normalizedRef = this.normalizeTableRef(candidate.tableRef)
-
-        if (!normalizedRef || seen.has(normalizedRef)) {
-          continue
-        }
-
-        seen.add(normalizedRef)
-
-        const table = activeCatalog.tables.find((entry) => {
-          return this.normalizeTableRef(`${entry.schemaName}.${entry.tableName}`) === normalizedRef
-        })
-
-        if (!table) {
-          continue
-        }
-
-        const yearColumn = table.columns.find((column) => /(?:fiscal|year|period|سال|مالی|دوره)/iu.test(column.name))?.name
-        const amountColumn = table.columns.find((column) => /(?:amount|price|netprice|gross|revenue|total|sale|sum)/iu.test(column.name))?.name
-
-        if (yearColumn && amountColumn) {
-          return {
-            tableRef: this.quoteSqlTableRef(normalizedRef),
-            yearRefColumn: yearColumn,
-            amountColumn
-          }
-        }
-      }
-    }
-
-    // Sepidar default (confirmed live mapping): net sales = SLS.Invoice.NetPriceInBaseCurrency,
-    // scoped by fiscal year via the FiscalYearRef surrogate FK -> FMK.FiscalYear.FiscalYearId.
-    // Returning a default (instead of null) lets the deterministic comparison engage even when
-    // the catalog has no tagged tables; if the schema differs (e.g. Mahak) the query errors and
-    // the caller degrades gracefully to the model exploration loop.
-    return {
-      tableRef: this.quoteSqlTableRef('SLS.Invoice'),
-      yearRefColumn: 'FiscalYearRef',
-      amountColumn: 'NetPriceInBaseCurrency'
-    }
   }
 
   private composeSalesGrowthFallbackMarkdown(result: SalesGrowthFallbackResult): string {
-    const direction =
-      result.percentChange == null
-        ? 'نامشخص'
-        : result.percentChange > 0
-          ? 'رشد'
-          : result.percentChange < 0
-            ? 'کاهش'
-            : 'بدون تغییر'
-
-    const signedPercent =
-      result.percentChange == null
-        ? 'N/A'
-        : `${result.percentChange >= 0 ? '+' : ''}${result.percentChange.toFixed(2)}%`
-
-    const assumptionsLine =
-      result.percentChange == null
-        ? '- فروش سال مبنا صفر یا ناموجود بوده است؛ درصد تغییر قابل محاسبه نیست.'
-        : '- درصد تغییر طبق فرمول ((فروش سال هدف - فروش سال مبنا) / فروش سال مبنا) * 100 محاسبه شد.'
-
-    return [
-      '### Summary',
-      `فروش سال ${result.targetYear} نسبت به ${result.baseYear}: ${signedPercent} (${direction}) (نوع KPI: فروش سالانه)`,
-      '',
-      '### Findings',
-      '- مسیر پاسخ: deterministic',
-      `- فروش سال ${result.baseYear}: ${result.salesBase.toLocaleString('en-US')}`,
-      `- فروش سال ${result.targetYear}: ${result.salesTarget.toLocaleString('en-US')}`,
-      `- درصد تغییر: ${signedPercent}`,
-      '',
-      '### Evidence',
-      '- منبع داده: ابزار fetch_financial_data با تجمیع جدول مالی انتخاب‌شده از catalog و ستون‌های سال/مبلغ',
-      `- سال های مقایسه: ${result.baseYear} و ${result.targetYear}`,
-      `- SQL: ${this.compactText(result.query.replace(/\s+/g, ' '), 220)}`,
-      '',
-      '### Assumptions',
-      assumptionsLine,
-      '',
-      '### Actions',
-      '- در صورت نیاز، همین مقایسه را به تفکیک ماه/شعبه/شرکت هم می‌توانم ارائه کنم.',
-      '- اگر تعریف فروش (مثلا NetPrice vs GrossPrice) باید تغییر کند، اعلام کنید تا کوئری اصلاح شود.'
-    ].join('\n')
+    return composeSalesGrowthFallbackMarkdownFn(this.salesGrowthDeps, result)
   }
 
   private async tryResolveFiscalYearFallback(
@@ -4392,7 +4016,10 @@ ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`,
         })
       }
 
-      const tableCandidates = new Map<string, { schemaName: string; tableName: string; score: number }>()
+      const tableCandidates = new Map<
+        string,
+        { schemaName: string; tableName: string; score: number }
+      >()
 
       for (const row of metadataRows) {
         const schemaName = String(row['table_schema'] ?? '').trim()
@@ -4434,7 +4061,9 @@ ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`,
         }
       }
 
-      const rankedTables = [...tableCandidates.values()].sort((left, right) => right.score - left.score)
+      const rankedTables = [...tableCandidates.values()].sort(
+        (left, right) => right.score - left.score
+      )
 
       for (const candidate of rankedTables.slice(0, 6)) {
         this.throwIfRequestCanceled(signal)
@@ -4446,7 +4075,9 @@ ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`,
           const rows = await this.executeReadOnlySql(countQuery, signal)
           toolCallsUsed += 1
 
-          const count = this.toFiniteInteger((rows[0] as SqlQueryRow | undefined)?.['fiscal_year_count'])
+          const count = this.toFiniteInteger(
+            (rows[0] as SqlQueryRow | undefined)?.['fiscal_year_count']
+          )
 
           if (count <= 0 || count > 300) {
             continue
@@ -4595,7 +4226,8 @@ ORDER BY fiscal_year DESC`
                 ? 'خلاصه بستانکاران'
                 : 'خلاصه جریان نقد'
 
-    const isPurchaseFromInventory = deterministicIntent === 'get_purchase_summary' && result.tableRef === 'INV.InventoryReceipt'
+    const isPurchaseFromInventory =
+      deterministicIntent === 'get_purchase_summary' && result.tableRef === 'INV.InventoryReceipt'
     const hasNoData = result.value === null || result.value === 0
 
     const summaryText = hasNoData
@@ -4637,10 +4269,12 @@ ORDER BY fiscal_year DESC`
       result.minYear !== null && result.maxYear !== null
         ? `${result.minYear} تا ${result.maxYear}`
         : 'نامشخص'
-    const previewText = result.years.length > 0 ? result.years.join('، ') : 'نمونه معتبر بازیابی نشد.'
+    const previewText =
+      result.years.length > 0 ? result.years.join('، ') : 'نمونه معتبر بازیابی نشد.'
 
     if (deterministicIntent === 'list_fiscal_years') {
-      const listedYears = result.years.length > 0 ? result.years.join('، ') : 'سال مالی قابل اتکا یافت نشد.'
+      const listedYears =
+        result.years.length > 0 ? result.years.join('، ') : 'سال مالی قابل اتکا یافت نشد.'
 
       return [
         '### Summary',
@@ -4712,7 +4346,9 @@ ORDER BY fiscal_year DESC`
       '',
       '### Actions',
       '1. مقایسه‌ی نتایج فعلی با baseline و سناریوهای کم‌ریسک.' +
-        '\n2. اولویت‌بندی ' + `${safePriorityCount}` + ' مورد کلیدی برای تایید مدیر.' +
+        '\n2. اولویت‌بندی ' +
+        `${safePriorityCount}` +
+        ' مورد کلیدی برای تایید مدیر.' +
         '\n3. اجرای dry-run و ثبت audit قبل از هر اقدام بعدی.' +
         '\n4. بررسی/چک‌لیست تایید انسانی قبل از هر اقدام واقعی.' +
         '\n5. آماده‌سازی rollback/compensating action و ثبت گزارش before/after برای هر مورد پیشنهادی.'
@@ -4730,63 +4366,21 @@ ORDER BY fiscal_year DESC`
     recoveryContext?: { attempts: number },
     requestId?: string
   ): string {
-    const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
-    const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
-    const routedText = this.annotateManagerUx(alignedText, routeMode)
-
-    // Deterministic answers are produced by code-built, scope-validated read-only
-    // queries and are self-evidenced (the real SQL is embedded in the markdown).
-    // Re-running the model-loop evidence heuristics on them can misfire — e.g. a
-    // clean numeric balance or an honest "no data for this account" message being
-    // converted into a misleading «درصد رشد/کاهش» refusal — so the deterministic
-    // route is authoritative and bypasses the heuristic contract. This does NOT
-    // weaken the guard for the model-assisted route, which still runs in full.
-    if (routeMode === 'deterministic') {
-      return routedText
-    }
-
-    const finalizedText = this.enforceEvidenceFirstContract(
+    return finalizeFinancialResponseFn(
+      this.responseContractDeps,
       prompt,
-      routedText,
+      rawText,
+      conversationMemory,
       totalToolCallCount,
       successfulDataFetchCount,
+      routeMode,
       executionTrace,
       recoveryContext,
-      requestId,
-      conversationMemory.conversationId
+      requestId
     )
-
-    return finalizedText
   }
 
-  private annotateManagerUx(rawText: string, routeMode: 'deterministic' | 'model-assisted' | 'clarification'): string {
-    const normalizedText = this.normalizePersianDigits(rawText)
-
-    if (/^### Summary\n/i.test(normalizedText)) {
-      const routeLine = `- مسیر پاسخ: ${routeMode}`
-      if (normalizedText.includes('نوع KPI:')) {
-        return rawText.replace('### Findings', `${routeLine}\n- نوع KPI: ${rawText.match(/نوع KPI: ([^\n]+)/)?.[1] ?? 'نامشخص'}\n\n### Findings`)
-      }
-
-      return rawText.replace('### Findings', `${routeLine}\n\n### Findings`)
-    }
-
-    return [
-      '### Summary',
-      'مدیریت پاسخ با شفافیت مسیر و KPI فعال شد.',
-      '',
-      '### Findings',
-      `- مسیر پاسخ: ${routeMode}`,
-      '',
-      '### Evidence',
-      rawText,
-      '',
-      '### Actions',
-      '- برای بررسی بیشتر، خروجی را با شواهد و scope مقایسه کنید.'
-    ].join('\n')
-  }
-
-  private enforceEvidenceFirstContract(
+  enforceEvidenceFirstContract(
     prompt: string,
     finalText: string,
     totalToolCallCount: number,
@@ -4796,195 +4390,25 @@ ORDER BY fiscal_year DESC`
     requestId?: string,
     conversationId?: string
   ): string {
-    const normalizedText = this.normalizePersianDigits(finalText)
-
-    if (/cannot\s+answer\s+reliably/iu.test(normalizedText)) {
-      return finalText
-    }
-
-    // S5: Validate intent-table match before proceeding
-    if (executionTrace && executionTrace.intentId) {
-      const intentMismatch = this.validateIntentTableMatch(executionTrace.intentId, executionTrace.evidence)
-      if (intentMismatch) {
-        const failureText = this.buildEvidenceContractFailureResponse(
-          `تطابق intent و جدول برقرار نیست: ${intentMismatch}`,
-          prompt,
-          recoveryContext?.attempts
-        )
-        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-        return failureText
-      }
-    }
-
-    const hasFinancialNumericClaimInResponse = /(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b(?:تومان|ریال|مبلغ|موجودی|مانده|جمع|مجموع|تعداد|سهم|نسبت|amount|balance|total|count)\b)/iu.test(normalizedText)
-    const isClarificationOnlyResponse =
-      /برای\s+پاسخ\s+دقیق|برای\s+جلوگیری\s+از\s+حدس\s+زدن|برای\s+جلوگیری\s+از\s+تحلیل\s+اشتباه|لطفا\s+یکی\s+از\s+این\s+گزینه‌ها|سال\s+مالی\s+دقیق|تاریخ\s+شروع\s+و\s+پایان|درخواست\s+صرفاً\s+استعلامی/i.test(
-        normalizedText
-      ) && !hasFinancialNumericClaimInResponse
-
-    if (isClarificationOnlyResponse) {
-      return finalText
-    }
-
-    const sections = this.parseFinancialTemplateSections(finalText)
-    const narrative = `${sections.summary}\n${sections.findings}`.trim()
-    const evidence = sections.evidence
-    const appearsFinancialClaim = this.appearsToContainFinancialClaim(prompt) || this.appearsToContainFinancialClaim(narrative)
-    const hasRequiredContractSections = this.hasRequiredFinancialResponseSections(sections)
-    const hasStructuredEvidence = this.hasStructuredEvidence(evidence)
-    const requiresStrictFinancialFetch = this.requiresStrictFinancialDataFetch(prompt, narrative)
-    const requiresStrictQuantResult = this.requiresStrictQuantitativeDataFetch(prompt)
-    const hasQuantitativeResult = this.hasQuantitativeResultSignal(narrative)
-    const statesNoData = this.appearsToBeNoDataResult(narrative)
-    const numericClaims = this.extractNumericClaims(narrative)
-    const needsStrictData = requiresStrictFinancialFetch || requiresStrictQuantResult
-
-    // Structural guards apply regardless of structured-trace availability.
-    if (appearsFinancialClaim && !hasRequiredContractSections) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'پاسخ مالی فاقد بلوک‌های قرارداد استاندارد Summary/Findings/Evidence/Assumptions/Actions بود.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    if (totalToolCallCount === 0 && appearsFinancialClaim && !statesNoData) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'پاسخ مالی عددی بدون اجرای ابزار read-only تولید شد و قابل اتکا نیست.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    if (this.containsUnsupportedNumericClaim(narrative, evidence, sections)) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'پاسخ شامل ادعای عددی/درصدی بدون شواهد ساخت‌یافته و بدون داده‌ی اجرا شده بود.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    // H1: only reject when the response contains a currency/percent-marked
-    // financial claim — bare scope numbers (e.g. fiscal years like "1403" in
-    // Findings) are diagnostic, not claims, and must not trip the guard on an
-    // honest VALID_EMPTY response.
-    const hasFinancialMarkedClaim = this.containsFinancialMarkedNumericClaim(narrative)
-    if (executionTrace && numericClaims.length > 0 && hasFinancialMarkedClaim && !statesNoData && (appearsFinancialClaim || needsStrictData)) {
-      if (!this.traceSupportsNumericClaim(executionTrace)) {
-        const failureText = this.buildEvidenceContractFailureResponse(
-          'پاسخ شامل عدد/درصدی است که در trace اجرای واقعی وجود ندارد و بنابراین به‌عنوان ادعای بی‌شاهد رد می‌شود. برای پذیرش، عدد باید از اجرای واقعی و شواهد trace پشتیبانی شود.',
-          prompt,
-          recoveryContext?.attempts
-        )
-        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-        return failureText
-      }
-    }
-
-    if (totalToolCallCount > 0 && !hasStructuredEvidence && (appearsFinancialClaim || needsStrictData || hasQuantitativeResult)) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'پاسخ مالی فاقد شواهد ساخت یافته کافی (ابزار/کوئری/جدول/ردیف) بود.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    // When a structured execution trace is available, the tri-state verdict — not
-    // rendered prose — is the authority for data sufficiency. This is the core
-    // defect fix: a query that ran within scope but returned 0 rows / NULL
-    // (VALID_EMPTY) is a legitimate, answerable fact and must NOT be conflated
-    // with a never-run/errored query (INSUFFICIENT).
-    if (executionTrace && needsStrictData) {
-      const verdict = evaluateEvidence(executionTrace)
-
-      if (verdict.kind === 'INSUFFICIENT') {
-        const failureText = this.buildEvidenceContractFailureResponse(
-          'برای پاسخ عددی/مقایسه ای مالی، اجرای موفق و scope دار fetch_financial_data الزامی است و مسیرهای بدون آن معتبر نیستند.',
-          prompt,
-          recoveryContext?.attempts
-        )
-        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-        return failureText
-      }
-
-      if (verdict.kind === 'VALID_EMPTY') {
-        return this.renderValidEmptyFinancialAnswer(finalText, sections, statesNoData)
-      }
-
-      // POSITIVE_DATA: a percent-style question must still surface a numeric result.
-      if (requiresStrictQuantResult && !hasQuantitativeResult && !statesNoData) {
-        const failureText = this.buildEvidenceContractFailureResponse(
-          'برای سوال درصد رشد/کاهش، پاسخ نهایی باید عدد درصد معتبر (+x% یا -x%) یا پیام صریح نبود داده داشته باشد.',
-          prompt
-        )
-        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-        return failureText
-      }
-
-      return finalText
-    }
-
-    // Legacy heuristic path (no structured trace available).
-    if (requiresStrictFinancialFetch && successfulDataFetchCount === 0 && !statesNoData) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'برای پاسخ عددی/مقایسه ای مالی، اجرای موفق fetch_financial_data الزامی است و مسیرهای بدون آن معتبر نیستند.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    if (requiresStrictQuantResult && successfulDataFetchCount === 0 && !statesNoData) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'برای سوال درصد رشد/کاهش، پاسخ نهایی بدون اجرای موفق fetch_financial_data مجاز نیست.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    if (requiresStrictQuantResult && !hasQuantitativeResult && !statesNoData) {
-      const failureText = this.buildEvidenceContractFailureResponse(
-        'برای سوال درصد رشد/کاهش، پاسخ نهایی باید عدد درصد معتبر (+x% یا -x%) یا پیام صریح نبود داده داشته باشد.',
-        prompt,
-        recoveryContext?.attempts
-      )
-      this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, recoveryContext?.attempts)
-      return failureText
-    }
-
-    return finalText
-  }
-
-  /**
-   * Renders a first-class affirmative "no records" answer for a VALID_EMPTY
-   * verdict. A scoped query executed cleanly but returned 0 rows / NULL, which is
-   * a real fact — not an evidence shortfall — so the response is preserved and,
-   * if it does not already say so, an explicit no-records statement is injected.
-   */
-  private renderValidEmptyFinancialAnswer(
-    finalText: string,
-    sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>,
-    statesNoData: boolean
-  ): string {
-    return renderValidEmptyFinancialAnswer(finalText, sections, statesNoData)
+    return enforceEvidenceFirstContractFn(
+      this.responseContractDeps,
+      prompt,
+      finalText,
+      totalToolCallCount,
+      successfulDataFetchCount,
+      executionTrace,
+      recoveryContext,
+      requestId,
+      conversationId
+    )
   }
 
   private requiresStrictFinancialDataFetch(prompt: string, narrative: string): boolean {
     const normalizedPrompt = this.normalizePersianDigits(prompt)
     const normalizedNarrative = this.normalizePersianDigits(narrative)
     const hasFinancialContext =
-      this.appearsToContainFinancialClaim(normalizedPrompt) || this.appearsToContainFinancialClaim(normalizedNarrative)
+      this.appearsToContainFinancialClaim(normalizedPrompt) ||
+      this.appearsToContainFinancialClaim(normalizedNarrative)
 
     if (!hasFinancialContext) {
       return false
@@ -4993,7 +4417,8 @@ ORDER BY fiscal_year DESC`
     const hasQuantOrComparativeSignal =
       /(?:درصد|percent|percentage|رشد|کاهش|افزایش|افت|change|growth|decline|نسبت\s*به|مقایسه|year\s*over\s*year|yoy|total|sum|avg|average|min|max|top|rank|count|تعداد|جمع|مجموع|میانگین|حداقل|حداکثر|بیشترین|کمترین|چه\s*قدر|چقدر|how\s*much)/iu.test(
         normalizedPrompt
-      ) || /(?:\b\d[\d,.]*\b|[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد)/iu.test(normalizedNarrative)
+      ) ||
+      /(?:\b\d[\d,.]*\b|[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد)/iu.test(normalizedNarrative)
 
     return hasQuantOrComparativeSignal
   }
@@ -5009,7 +4434,9 @@ ORDER BY fiscal_year DESC`
   private hasQuantitativeResultSignal(text: string): boolean {
     const normalized = this.normalizePersianDigits(text)
 
-    return /(?:[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد|درصد\s*[+-]?\d+(?:\.\d+)?)/iu.test(normalized)
+    return /(?:[+-]?\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*درصد|درصد\s*[+-]?\d+(?:\.\d+)?)/iu.test(
+      normalized
+    )
   }
 
   private appearsToBeNoDataResult(text: string): boolean {
@@ -5021,25 +4448,18 @@ ORDER BY fiscal_year DESC`
   }
 
   private appearsToContainFinancialClaim(text: string): boolean {
-    const normalized = this.normalizePersianDigits(text)
-    const strongFinancialSignal =
-      /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|موجودی|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار|account|جریان\s*نقد|حساب|ledger|voucher|invoice)/iu.test(
-        normalized
-      )
-    const fiscalYearSignal =
-      /(?:سال\s*مالی|fiscal\s*year|financial\s*year)/iu.test(normalized) &&
-      /(?:چند|تعداد|لیست|فهرست|کدام|وجود|قرار|دارد|count|list|year)/iu.test(normalized)
-
-    return strongFinancialSignal || fiscalYearSignal
+    return appearsToContainFinancialClaimFn(text)
   }
 
-  private hasRequiredFinancialResponseSections(sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>): boolean {
+  private hasRequiredFinancialResponseSections(
+    sections: ReturnType<AgentOrchestrator['parseFinancialTemplateSections']>
+  ): boolean {
     return Boolean(
       sections.summary.trim() &&
-        sections.findings.trim() &&
-        sections.evidence.trim() &&
-        sections.assumptions.trim() &&
-        sections.actions.trim()
+      sections.findings.trim() &&
+      sections.evidence.trim() &&
+      sections.assumptions.trim() &&
+      sections.actions.trim()
     )
   }
 
@@ -5058,18 +4478,26 @@ ORDER BY fiscal_year DESC`
   ): boolean {
     const normalizedNarrative = this.normalizePersianDigits(narrative)
     const normalizedEvidence = this.normalizePersianDigits(evidence)
-    const hasNumericSignal = /(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/u.test(normalizedNarrative)
-    const hasPositiveEvidenceSignal = /(?:tool:|read-only\s+query|query\s+executed|query\s+used|scope\s+applied|table\s+name|column\s+name|row\s+count|schema\s+check|via\s+read-only|via\s+query|ابزار\s+اجرایی|کوئری\s+اجرا|کوئری\s+read-only|executed|used)/iu.test(
-      normalizedEvidence
+    const hasNumericSignal = /(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/u.test(
+      normalizedNarrative
     )
-    const hasExplicitNoEvidenceSignal = /(?:بدون\s+(?:اجرای|استفاده\s+از|شواهد|کوئری|ابزار|داده|تأیید)|without\s+(?:evidence|tool|query|data)|no\s+(?:evidence|tool|query|data|financial\s+data\s+fetch)|هیچ\s+(?:fetch_financial_data|کوئری|ابزار|داده|شواهد)|not\s+executed|didn['’]?t\s+run|not\s+run|حدس|برآورد|model\s+assumption|assumption)/iu.test(
-      normalizedEvidence
-    )
+    const hasPositiveEvidenceSignal =
+      /(?:tool:|read-only\s+query|query\s+executed|query\s+used|scope\s+applied|table\s+name|column\s+name|row\s+count|schema\s+check|via\s+read-only|via\s+query|ابزار\s+اجرایی|کوئری\s+اجرا|کوئری\s+read-only|executed|used)/iu.test(
+        normalizedEvidence
+      )
+    const hasExplicitNoEvidenceSignal =
+      /(?:بدون\s+(?:اجرای|استفاده\s+از|شواهد|کوئری|ابزار|داده|تأیید)|without\s+(?:evidence|tool|query|data)|no\s+(?:evidence|tool|query|data|financial\s+data\s+fetch)|هیچ\s+(?:fetch_financial_data|کوئری|ابزار|داده|شواهد)|not\s+executed|didn['’]?t\s+run|not\s+run|حدس|برآورد|model\s+assumption|assumption)/iu.test(
+        normalizedEvidence
+      )
     const hasExplicitNoData = this.appearsToBeNoDataResult(normalizedNarrative)
     const hasRequiredSections = this.hasRequiredFinancialResponseSections(sections)
 
     return Boolean(
-      hasNumericSignal && !hasPositiveEvidenceSignal && (hasExplicitNoEvidenceSignal || !normalizedEvidence.trim()) && !hasExplicitNoData && hasRequiredSections
+      hasNumericSignal &&
+      !hasPositiveEvidenceSignal &&
+      (hasExplicitNoEvidenceSignal || !normalizedEvidence.trim()) &&
+      !hasExplicitNoData &&
+      hasRequiredSections
     )
   }
 
@@ -5102,7 +4530,8 @@ ORDER BY fiscal_year DESC`
 
   private extractNumericClaims(text: string): string[] {
     const normalized = this.normalizePersianDigits(text)
-    const matches = normalized.match(/(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/gu) ?? []
+    const matches =
+      normalized.match(/(?:[+-]?\d+(?:[.,]\d+)?(?:\s*%|\s*درصد)|\b\d+(?:[.,]\d+)?\b)/gu) ?? []
 
     return matches.map((value) => value.trim())
   }
@@ -5190,10 +4619,6 @@ ORDER BY fiscal_year DESC`
       requestId,
       conversationId
     })
-  }
-
-  private buildEvidenceContractFailureResponse(reason: string, prompt: string, recoveryAttempts?: number): string {
-    return buildEvidenceContractFailureResponse(reason, this.compactText(prompt, 180), recoveryAttempts)
   }
 
   private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
@@ -5328,7 +4753,8 @@ ORDER BY fiscal_year DESC`
         : '- این پاسخ بدون اجرای ابزار مالی تولید شده است و باید با احتیاط بازبینی شود.')
 
     const evidenceText =
-      sections.evidence || this.buildFinancialEvidenceFallback(conversationMemory, totalToolCallCount)
+      sections.evidence ||
+      this.buildFinancialEvidenceFallback(conversationMemory, totalToolCallCount)
     const assumptionsText =
       sections.assumptions ||
       '- فرض اصلی: پاسخ بر پایه داده و شواهد ابزارهای read-only است و در صورت نبود mapping دقیق، نتیجه قابل اتکا نیست.'
@@ -5516,7 +4942,8 @@ ORDER BY fiscal_year DESC`
 
     if (toolName === 'get_database_schema') {
       const tableNameArg = args['table_name']
-      const tableName = typeof tableNameArg === 'string' && tableNameArg.trim() ? tableNameArg.trim() : 'نامشخص'
+      const tableName =
+        typeof tableNameArg === 'string' && tableNameArg.trim() ? tableNameArg.trim() : 'نامشخص'
       return `📋 در حال تحلیل ساختار و ستون‌های جدول [${tableName}]...`
     }
 
@@ -5532,909 +4959,11 @@ ORDER BY fiscal_year DESC`
     settings: AppSettings,
     conversationMemory?: ConversationMemoryState
   ): void {
-    const activeCatalog = this.findActiveSchemaCatalog(settings)
-
-    if (!activeCatalog || activeCatalog.tables.length === 0) {
-      return
-    }
-
-    const referencedTables = this.extractReferencedTableRefs(sqlQuery)
-
-    if (referencedTables.length === 0) {
-      throw new Error(
-        'Financial query must reference at least one base table in FROM/JOIN/APPLY clauses.'
-      )
-    }
-
-    const allowedRefs = this.buildAllowedFinancialTableRefs(activeCatalog)
-    const catalogTableNameIndex = this.buildCatalogTableNameIndex(activeCatalog)
-    const cteNames = this.extractCteNames(sqlQuery)
-
-    this.validateCatalogColumnReferences(sqlQuery, activeCatalog, allowedRefs, cteNames)
-    const activeDatabaseName = this.normalizeSqlIdentifier(activeCatalog.databaseName)
-    let validatedRefCount = 0
-
-    for (const tableRef of referencedTables) {
-      if (tableRef.partCount > 4) {
-        throw new Error(`Table reference [${tableRef.raw}] is invalid. Maximum identifier depth is 4 parts.`)
-      }
-
-      if (tableRef.serverName) {
-        throw new Error(
-          `Linked-server reference [${tableRef.raw}] is not allowed in financial data queries.`
-        )
-      }
-
-      if (tableRef.databaseName && activeDatabaseName && tableRef.databaseName !== activeDatabaseName) {
-        throw new Error(
-          `Cross-database reference [${tableRef.raw}] is not allowed. Active database is [${activeCatalog.databaseName}].`
-        )
-      }
-
-      if (tableRef.schemaTable) {
-        if (!allowedRefs.has(tableRef.schemaTable)) {
-          throw new Error(`Table reference [${tableRef.raw}] is outside the allowed financial catalog scope.`)
-        }
-
-        validatedRefCount += 1
-        continue
-      }
-
-      if (cteNames.has(tableRef.tableName)) {
-        continue
-      }
-
-      const catalogMatches = catalogTableNameIndex.get(tableRef.tableName)
-
-      if (!catalogMatches || catalogMatches.size === 0) {
-        // Likely a CTE alias or derived table name.
-        continue
-      }
-
-      const hasAllowedMatch = [...catalogMatches].some((candidate) => allowedRefs.has(candidate))
-
-      if (!hasAllowedMatch) {
-        throw new Error(`Table reference [${tableRef.raw}] is outside the allowed financial catalog scope.`)
-      }
-
-      validatedRefCount += 1
-    }
-
-    if (validatedRefCount === 0) {
-      throw new Error(
-        'Financial query must reference at least one allowed base table (schema.table) from discovered catalog.'
-      )
-    }
-
-    if (conversationMemory) {
-      const scopeRequirements = this.buildRuntimeScopeFilterRequirements(settings, conversationMemory)
-
-      if (scopeRequirements.length > 0) {
-        this.ensureRuntimeScopeFilters(sqlQuery, scopeRequirements)
-      }
-    }
-
-    this.ensurePersonNameSearchPolicy(sqlQuery)
-  }
-
-  private ensurePersonNameSearchPolicy(sqlQuery: string): void {
-    const normalizedQuery = this.normalizePersianDigits(sqlQuery)
-    const personNameColumnSignal =
-      /(?:\bLastName\b|\bFirstName\b|\bFullName\b|\bPartyName\b|\bPersonName\b|\bCustomerName\b|\bSurname\b|\bFamilyName\b|\bName\b|نام(?:\s*خانوادگی)?|طرف\s*حساب)/iu.test(
-        normalizedQuery
-      )
-
-    if (!personNameColumnSignal) {
-      return
-    }
-
-    const exactNameEqualityPattern =
-      /(?:\b(?:LastName|FirstName|FullName|PartyName|PersonName|CustomerName|Surname|FamilyName|Name)\b\s*=\s*N?'[^']+'|N?'[^']+'\s*=\s*\b(?:LastName|FirstName|FullName|PartyName|PersonName|CustomerName|Surname|FamilyName|Name)\b)/iu
-
-    if (exactNameEqualityPattern.test(normalizedQuery)) {
-      throw new Error(
-        'Exact equality on person name/surname is not allowed. Use robust token-based matching with LIKE and proper Unicode prefixes (N\'...\') for compound names.'
-      )
-    }
-  }
-
-  private buildRuntimeScopeFilterRequirements(
-    settings: AppSettings,
-    conversationMemory: ConversationMemoryState
-  ): RuntimeScopeFilterRequirement[] {
-    const activeCatalog = this.findActiveSchemaCatalog(settings)
-
-    if (!activeCatalog) {
-      return []
-    }
-
-    const scopeColumnCandidates = this.collectRuntimeScopeColumnCandidates(activeCatalog)
-    const requirements: RuntimeScopeFilterRequirement[] = []
-
-    const dimensionEntries: Array<{
-      dimension: RuntimeScopeDimension
-      values: string[]
-    }> = [
-      {
-        dimension: 'company',
-        values: conversationMemory.facts.companyNames
-      },
-      {
-        dimension: 'fiscalYear',
-        values: conversationMemory.facts.fiscalYears
-      },
-      {
-        dimension: 'branch',
-        values: conversationMemory.facts.branchNames
-      }
-    ]
-
-    for (const entry of dimensionEntries) {
-      if (entry.values.length === 0) {
-        continue
-      }
-
-      const candidateColumnNames: string[] = []
-      const seenColumnNames = new Set<string>()
-
-      for (const candidate of scopeColumnCandidates) {
-        if (candidate.dimension !== entry.dimension) {
-          continue
-        }
-
-        const normalizedColumnName = candidate.columnName.trim().toLowerCase()
-
-        if (!normalizedColumnName || seenColumnNames.has(normalizedColumnName)) {
-          continue
-        }
-
-        seenColumnNames.add(normalizedColumnName)
-        candidateColumnNames.push(normalizedColumnName)
-
-        if (candidateColumnNames.length >= 6) {
-          break
-        }
-      }
-
-      if (candidateColumnNames.length === 0) {
-        continue
-      }
-
-      requirements.push({
-        dimension: entry.dimension,
-        values: [...entry.values],
-        candidateColumnNames
-      })
-    }
-
-    return requirements
-  }
-
-  private ensureRuntimeScopeFilters(
-    sqlQuery: string,
-    requirements: RuntimeScopeFilterRequirement[]
-  ): void {
-    const normalizedSql = this.stripSqlCommentsAndLiterals(sqlQuery)
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase()
-    const normalizedSqlWithValues = this.stripSqlComments(sqlQuery)
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase()
-
-    for (const requirement of requirements) {
-      const hasPredicate = requirement.candidateColumnNames.some((columnName) => {
-        return this.hasColumnPredicateInWhereClause(normalizedSql, columnName)
-      })
-
-      if (!hasPredicate) {
-        const scopeLabel = this.toRuntimeScopeDimensionLabel(requirement.dimension)
-        const valuesText = requirement.values.join(' | ')
-        const columnsText = requirement.candidateColumnNames.slice(0, 4).join(', ')
-
-        throw this.createAgentPolicyError(
-          'AGENT_SCOPE_FILTER_REQUIRED',
-          `Query is missing required ${scopeLabel} filter. Scope values: ${valuesText}. Add WHERE predicate using one of: ${columnsText}.`
-        )
-      }
-
-      const hasScopeValueConstraint = this.hasScopeValueConstraintInWhereClause(
-        normalizedSqlWithValues,
-        requirement
-      )
-
-      if (!hasScopeValueConstraint) {
-        const scopeLabel = this.toRuntimeScopeDimensionLabel(requirement.dimension)
-        const valuesText = requirement.values.join(' | ')
-
-        throw this.createAgentPolicyError(
-          'AGENT_SCOPE_VALUE_FILTER_REQUIRED',
-          `Query has ${scopeLabel} predicate but does not constrain requested scope values. Scope values: ${valuesText}.`
-        )
-      }
-
-      const hasWeakDisjunction = this.hasWeakScopeDisjunctionInWhereClause(
-        normalizedSqlWithValues,
-        requirement
-      )
-
-      if (hasWeakDisjunction) {
-        const scopeLabel = this.toRuntimeScopeDimensionLabel(requirement.dimension)
-        const valuesText = requirement.values.join(' | ')
-
-        throw this.createAgentPolicyError(
-          'AGENT_SCOPE_FILTER_WEAK_CONSTRAINT',
-          `Query contains weak OR branches that can bypass ${scopeLabel} scope constraints. Scope values: ${valuesText}.`
-        )
-      }
-    }
-  }
-
-  private hasScopeValueConstraintInWhereClause(
-    normalizedSqlWithValues: string,
-    requirement: RuntimeScopeFilterRequirement
-  ): boolean {
-    if (!normalizedSqlWithValues || requirement.values.length === 0 || requirement.candidateColumnNames.length === 0) {
-      return false
-    }
-
-    const whereSections = normalizedSqlWithValues.split(/\bwhere\b/gi).slice(1)
-
-    if (whereSections.length === 0) {
-      return false
-    }
-
-    for (const section of whereSections) {
-      const boundedSection = section.split(
-        /\border\s+by\b|\bgroup\s+by\b|\bhaving\b|\boffset\b|\bfetch\b|\bunion\b|\bexcept\b|\bintersect\b/i
-      )[0]
-
-      if (!boundedSection) {
-        continue
-      }
-
-      if (this.hasScopeValueConstraintInExpression(boundedSection, requirement)) {
-        return true
-      }
-    }
-
-    return false
-  }
-
-  private hasScopeValueConstraintInExpression(
-    normalizedExpression: string,
-    requirement: RuntimeScopeFilterRequirement
-  ): boolean {
-    if (!normalizedExpression || requirement.values.length === 0 || requirement.candidateColumnNames.length === 0) {
-      return false
-    }
-
-    for (const columnName of requirement.candidateColumnNames) {
-      const escapedColumnName = this.escapeRegexPattern(columnName)
-      const columnMentionPattern = new RegExp(`(?:\\.|\\b)${escapedColumnName}\\b`, 'i')
-
-      if (!columnMentionPattern.test(normalizedExpression)) {
-        continue
-      }
-
-      for (const value of requirement.values) {
-        const normalizedValue = this.normalizePersianDigits(value).trim().toLowerCase()
-
-        if (!normalizedValue) {
-          continue
-        }
-
-        const escapedValue = this.escapeRegexPattern(normalizedValue)
-        const valueNearColumnPattern = new RegExp(
-          `(?:\\.|\\b)${escapedColumnName}\\b[^;]{0,220}?${escapedValue}`,
-          'i'
-        )
-
-        if (valueNearColumnPattern.test(normalizedExpression)) {
-          return true
-        }
-      }
-    }
-
-    return false
-  }
-
-  private hasWeakScopeDisjunctionInWhereClause(
-    normalizedSqlWithValues: string,
-    requirement: RuntimeScopeFilterRequirement
-  ): boolean {
-    if (!normalizedSqlWithValues || requirement.values.length === 0 || requirement.candidateColumnNames.length === 0) {
-      return false
-    }
-
-    const whereSections = normalizedSqlWithValues.split(/\bwhere\b/gi).slice(1)
-
-    if (whereSections.length === 0) {
-      return false
-    }
-
-    for (const section of whereSections) {
-      const boundedSection = section.split(
-        /\border\s+by\b|\bgroup\s+by\b|\bhaving\b|\boffset\b|\bfetch\b|\bunion\b|\bexcept\b|\bintersect\b/i
-      )[0]
-
-      if (!boundedSection) {
-        continue
-      }
-
-      const disjunctionBranches = this.splitTopLevelDisjunction(boundedSection)
-
-      if (disjunctionBranches.length <= 1) {
-        continue
-      }
-
-      for (const branch of disjunctionBranches) {
-        if (!this.hasScopeValueConstraintInExpression(branch, requirement)) {
-          return true
-        }
-      }
-    }
-
-    return false
-  }
-
-  private splitTopLevelDisjunction(expression: string): string[] {
-    const branches: string[] = []
-    let buffer = ''
-    let parenDepth = 0
-    let bracketDepth = 0
-    let inSingleQuote = false
-    let inDoubleQuote = false
-
-    for (let index = 0; index < expression.length; index += 1) {
-      const char = expression[index]
-
-      if (inSingleQuote) {
-        buffer += char
-
-        if (char === "'") {
-          if (index + 1 < expression.length && expression[index + 1] === "'") {
-            buffer += expression[index + 1]
-            index += 1
-          } else {
-            inSingleQuote = false
-          }
-        }
-
-        continue
-      }
-
-      if (inDoubleQuote) {
-        buffer += char
-
-        if (char === '"') {
-          if (index + 1 < expression.length && expression[index + 1] === '"') {
-            buffer += expression[index + 1]
-            index += 1
-          } else {
-            inDoubleQuote = false
-          }
-        }
-
-        continue
-      }
-
-      if (char === "'") {
-        inSingleQuote = true
-        buffer += char
-        continue
-      }
-
-      if (char === '"') {
-        inDoubleQuote = true
-        buffer += char
-        continue
-      }
-
-      if (char === '[') {
-        bracketDepth += 1
-        buffer += char
-        continue
-      }
-
-      if (char === ']') {
-        bracketDepth = Math.max(0, bracketDepth - 1)
-        buffer += char
-        continue
-      }
-
-      if (bracketDepth === 0) {
-        if (char === '(') {
-          parenDepth += 1
-          buffer += char
-          continue
-        }
-
-        if (char === ')') {
-          parenDepth = Math.max(0, parenDepth - 1)
-          buffer += char
-          continue
-        }
-      }
-
-      if (parenDepth === 0 && bracketDepth === 0 && this.startsWithLogicalOperator(expression, index, 'or')) {
-        const trimmedBranch = buffer.trim()
-        if (trimmedBranch) {
-          branches.push(trimmedBranch)
-        }
-
-        buffer = ''
-        index += 1
-        continue
-      }
-
-      buffer += char
-    }
-
-    const trailingBranch = buffer.trim()
-    if (trailingBranch) {
-      branches.push(trailingBranch)
-    }
-
-    return branches
-  }
-
-  private startsWithLogicalOperator(expression: string, index: number, operator: 'or' | 'and'): boolean {
-    const token = expression.slice(index, index + operator.length).toLowerCase()
-
-    if (token !== operator) {
-      return false
-    }
-
-    const previousChar = index > 0 ? expression[index - 1] : ' '
-    const nextChar = index + operator.length < expression.length ? expression[index + operator.length] : ' '
-
-    const previousIsBoundary = !/[a-z0-9_]/i.test(previousChar)
-    const nextIsBoundary = !/[a-z0-9_]/i.test(nextChar)
-
-    return previousIsBoundary && nextIsBoundary
-  }
-
-  private hasColumnPredicateInWhereClause(normalizedSql: string, columnName: string): boolean {
-    if (!normalizedSql || !columnName) {
-      return false
-    }
-
-    const whereSections = normalizedSql.split(/\bwhere\b/gi).slice(1)
-
-    if (whereSections.length === 0) {
-      return false
-    }
-
-    const escapedColumnName = this.escapeRegexPattern(columnName)
-    const predicatePattern = new RegExp(
-      `(?:\\.|\\b)${escapedColumnName}\\b[^;]{0,120}?(?:=|in\\s*\\(|like\\b|between\\b|>=|<=|<>|>|<)`,
-      'i'
-    )
-
-    for (const section of whereSections) {
-      const boundedSection = section.split(
-        /\border\s+by\b|\bgroup\s+by\b|\bhaving\b|\boffset\b|\bfetch\b|\bunion\b|\bexcept\b|\bintersect\b/i
-      )[0]
-
-      if (!boundedSection) {
-        continue
-      }
-
-      if (predicatePattern.test(boundedSection)) {
-        return true
-      }
-    }
-
-    return false
-  }
-
-  private toRuntimeScopeDimensionLabel(dimension: RuntimeScopeDimension): string {
-    switch (dimension) {
-      case 'company':
-        return 'company'
-      case 'fiscalYear':
-        return 'fiscal-year'
-      case 'branch':
-        return 'branch'
-      default:
-        return 'runtime scope'
-    }
-  }
-
-  private escapeRegexPattern(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  }
-
-  private validateCatalogColumnReferences(
-    sqlQuery: string,
-    activeCatalog: SchemaCatalogEntry,
-    allowedRefs: Set<string>,
-    cteNames: Set<string>
-  ): void {
-    let ast: unknown
-
-    try {
-      ast = this.sqlParser.astify(sqlQuery)
-    } catch {
-      return
-    }
-
-    const tableMap = this.buildCatalogTableAliasMap(activeCatalog, allowedRefs, cteNames)
-
-    this.visitSqlAstColumns(ast, tableMap, activeCatalog)
-  }
-
-  private buildCatalogTableAliasMap(
-    activeCatalog: SchemaCatalogEntry,
-    allowedRefs: Set<string>,
-    cteNames: Set<string>
-  ): Map<string, { schemaName: string; tableName: string }> {
-    const aliasMap = new Map<string, { schemaName: string; tableName: string }>()
-
-    for (const table of activeCatalog.tables) {
-      const normalizedRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
-
-      if (!allowedRefs.has(normalizedRef)) {
-        continue
-      }
-
-      aliasMap.set(table.tableName.trim().toLowerCase(), { schemaName: table.schemaName, tableName: table.tableName })
-      aliasMap.set(`${table.schemaName}.${table.tableName}`.trim().toLowerCase(), {
-        schemaName: table.schemaName,
-        tableName: table.tableName
-      })
-    }
-
-    for (const table of activeCatalog.tables) {
-      const normalizedRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
-
-      if (!allowedRefs.has(normalizedRef) || cteNames.has(table.tableName.trim().toLowerCase())) {
-        continue
-      }
-    }
-
-    return aliasMap
-  }
-
-  private visitSqlAstColumns(
-    node: unknown,
-    aliasMap: Map<string, { schemaName: string; tableName: string }>,
-    activeCatalog: SchemaCatalogEntry
-  ): void {
-    if (!node || typeof node !== 'object') {
-      return
-    }
-
-    const record = node as Record<string, unknown>
-
-    if (record.type === 'column_ref' && typeof record.column === 'string') {
-      const tableName = typeof record.table === 'string' ? record.table.trim().toLowerCase() : null
-      const columnName = record.column.trim().toLowerCase()
-      const resolvedTable = this.resolveCatalogTableForColumnRef(tableName, aliasMap, activeCatalog)
-
-      if (!resolvedTable) {
-        return
-      }
-
-      const catalogTable = activeCatalog.tables.find((entry) => {
-        return (
-          entry.schemaName.trim().toLowerCase() === resolvedTable.schemaName.trim().toLowerCase() &&
-          entry.tableName.trim().toLowerCase() === resolvedTable.tableName.trim().toLowerCase()
-        )
-      })
-
-      if (!catalogTable) {
-        return
-      }
-
-      const columnExists = catalogTable.columns.some((column) => column.name.trim().toLowerCase() === columnName)
-
-      if (!columnExists) {
-        throw new Error(
-          `Column [${columnName}] is not available in table [${catalogTable.schemaName}.${catalogTable.tableName}].`
-        )
-      }
-    }
-
-    for (const value of Object.values(record)) {
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          this.visitSqlAstColumns(item, aliasMap, activeCatalog)
-        }
-        continue
-      }
-
-      if (value && typeof value === 'object') {
-        this.visitSqlAstColumns(value, aliasMap, activeCatalog)
-      }
-    }
-  }
-
-  private resolveCatalogTableForColumnRef(
-    tableAlias: string | null,
-    aliasMap: Map<string, { schemaName: string; tableName: string }>,
-    activeCatalog: SchemaCatalogEntry
-  ): { schemaName: string; tableName: string } | null {
-    if (tableAlias) {
-      return aliasMap.get(tableAlias) ?? null
-    }
-
-    const candidates = [...aliasMap.values()]
-
-    if (candidates.length === 1) {
-      return candidates[0]
-    }
-
-    const inScopeTables = activeCatalog.tables.filter((entry) => aliasMap.has(entry.tableName.trim().toLowerCase()))
-
-    if (inScopeTables.length === 1) {
-      return {
-        schemaName: inScopeTables[0].schemaName,
-        tableName: inScopeTables[0].tableName
-      }
-    }
-
-    return null
-  }
-
-  private buildAllowedFinancialTableRefs(activeCatalog: SchemaCatalogEntry): Set<string> {
-    const catalogRefs = new Set(
-      activeCatalog.tables.map((table) => this.normalizeTableRef(`${table.schemaName}.${table.tableName}`))
-    )
-
-    if (catalogRefs.size === 0) {
-      return catalogRefs
-    }
-
-    const seedRefs = new Set<string>()
-
-    for (const conceptKey of SCHEMA_CONTEXT_CONCEPT_ORDER) {
-      const selectedRef = activeCatalog.selectedMappings[conceptKey]?.trim() ?? ''
-      const selectedNormalized = this.normalizeTableRef(selectedRef)
-
-      if (selectedRef && catalogRefs.has(selectedNormalized)) {
-        seedRefs.add(selectedNormalized)
-      }
-
-      const suggestions = activeCatalog.suggestedMappings[conceptKey] ?? []
-      for (const suggestionRef of suggestions) {
-        const normalizedSuggestion = this.normalizeTableRef(suggestionRef)
-
-        if (normalizedSuggestion && catalogRefs.has(normalizedSuggestion)) {
-          seedRefs.add(normalizedSuggestion)
-        }
-      }
-    }
-
-    for (const table of activeCatalog.tables) {
-      if (table.tags.length > 0) {
-        seedRefs.add(this.normalizeTableRef(`${table.schemaName}.${table.tableName}`))
-      }
-    }
-
-    if (seedRefs.size === 0) {
-      return catalogRefs
-    }
-
-    const expandedRefs = new Set(seedRefs)
-
-    for (const table of activeCatalog.tables) {
-      const currentRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
-      const referencedRefs = table.foreignKeys
-        .map((fk) => this.normalizeTableRef(`${fk.referencedSchema}.${fk.referencedTable}`))
-        .filter((ref) => catalogRefs.has(ref))
-
-      const touchesSeed = seedRefs.has(currentRef) || referencedRefs.some((ref) => seedRefs.has(ref))
-
-      if (!touchesSeed) {
-        continue
-      }
-
-      expandedRefs.add(currentRef)
-
-      for (const referencedRef of referencedRefs) {
-        expandedRefs.add(referencedRef)
-      }
-    }
-
-    return expandedRefs
-  }
-
-  private extractCteNames(sqlQuery: string): Set<string> {
-    const sanitizedSql = this.stripSqlCommentsAndLiterals(sqlQuery)
-    const cteNames = new Set<string>()
-    const ctePattern = /(?:\bWITH\b|,)\s*([A-Z0-9_\[\]"`]+)\s+AS\s*\(/gi
-
-    let match: RegExpExecArray | null
-    while ((match = ctePattern.exec(sanitizedSql)) !== null) {
-      const normalizedName = this.normalizeSqlIdentifier(match[1])
-
-      if (normalizedName) {
-        cteNames.add(normalizedName)
-      }
-    }
-
-    return cteNames
-  }
-
-  private buildCatalogTableNameIndex(activeCatalog: SchemaCatalogEntry): Map<string, Set<string>> {
-    const index = new Map<string, Set<string>>()
-
-    for (const table of activeCatalog.tables) {
-      const tableName = table.tableName.trim().toLowerCase()
-      const schemaTableRef = this.normalizeTableRef(`${table.schemaName}.${table.tableName}`)
-
-      if (!tableName || !schemaTableRef) {
-        continue
-      }
-
-      const bucket = index.get(tableName)
-
-      if (bucket) {
-        bucket.add(schemaTableRef)
-      } else {
-        index.set(tableName, new Set([schemaTableRef]))
-      }
-    }
-
-    return index
-  }
-
-  private extractReferencedTableRefs(sqlQuery: string): ExtractedTableReference[] {
-    const sanitizedSql = this.stripSqlCommentsAndLiterals(sqlQuery)
-    const pattern =
-      /\b(?:FROM|JOIN|APPLY)\s+((?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Z0-9_#@]+)(?:\s*\.\s*(?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Z0-9_#@]+)){0,3})/gi
-    const tableRefs: ExtractedTableReference[] = []
-
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(sanitizedSql)) !== null) {
-      const parsed = this.parseSqlTableReference(match[1])
-
-      if (parsed) {
-        tableRefs.push(parsed)
-      }
-    }
-
-    return tableRefs
+    ensureFinancialQueryAllowedFn(this.sqlExecutionDeps, sqlQuery, settings, conversationMemory)
   }
 
   private parseSqlTableReference(rawRef: string): ExtractedTableReference | null {
-    const segments = this.splitSqlIdentifierParts(rawRef)
-      .map((segment) => this.normalizeSqlIdentifier(segment))
-      .filter(Boolean)
-
-    if (segments.length === 0) {
-      return null
-    }
-
-    const tableName = segments[segments.length - 1]
-    const schemaName = segments.length >= 2 ? segments[segments.length - 2] : null
-    const databaseName = segments.length >= 3 ? segments[segments.length - 3] : null
-    const serverName = segments.length >= 4 ? segments[segments.length - 4] : null
-    const schemaTable =
-      schemaName ? `${schemaName}.${segments[segments.length - 1]}` : null
-
-    return {
-      raw: rawRef.trim(),
-      schemaTable,
-      schemaName,
-      databaseName,
-      serverName,
-      tableName,
-      partCount: segments.length
-    }
-  }
-
-  private splitSqlIdentifierParts(rawRef: string): string[] {
-    const parts: string[] = []
-    let current = ''
-    let mode: 'normal' | 'bracket' | 'doubleQuote' | 'backtick' = 'normal'
-
-    for (let index = 0; index < rawRef.length; index += 1) {
-      const char = rawRef[index]
-
-      if (mode === 'normal') {
-        if (char === '.') {
-          if (current.trim()) {
-            parts.push(current.trim())
-          }
-
-          current = ''
-          continue
-        }
-
-        if (char === '[') {
-          mode = 'bracket'
-          current += char
-          continue
-        }
-
-        if (char === '"') {
-          mode = 'doubleQuote'
-          current += char
-          continue
-        }
-
-        if (char === '`') {
-          mode = 'backtick'
-          current += char
-          continue
-        }
-
-        current += char
-        continue
-      }
-
-      current += char
-
-      if (mode === 'bracket' && char === ']') {
-        if (index + 1 < rawRef.length && rawRef[index + 1] === ']') {
-          current += rawRef[index + 1]
-          index += 1
-        } else {
-          mode = 'normal'
-        }
-
-        continue
-      }
-
-      if (mode === 'doubleQuote' && char === '"') {
-        if (index + 1 < rawRef.length && rawRef[index + 1] === '"') {
-          current += rawRef[index + 1]
-          index += 1
-        } else {
-          mode = 'normal'
-        }
-
-        continue
-      }
-
-      if (mode === 'backtick' && char === '`') {
-        mode = 'normal'
-      }
-    }
-
-    if (current.trim()) {
-      parts.push(current.trim())
-    }
-
-    return parts
-  }
-
-  private normalizeSqlIdentifier(value: string): string {
-    const trimmed = value.trim()
-
-    if (!trimmed) {
-      return ''
-    }
-
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      return trimmed.slice(1, -1).replace(/]]/g, ']').trim().toLowerCase()
-    }
-
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-      return trimmed.slice(1, -1).replace(/""/g, '"').trim().toLowerCase()
-    }
-
-    if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
-      return trimmed.slice(1, -1).trim().toLowerCase()
-    }
-
-    return trimmed.toLowerCase()
-  }
-
-  private stripSqlCommentsAndLiterals(sql: string): string {
-    return this.stripSqlComments(sql)
-      .replace(/N?'(?:''|[^'])*'/g, "''")
-      .replace(/"(?:""|[^"])*"/g, '""')
-  }
-
-  private stripSqlComments(sql: string): string {
-    return sql
-      .replace(/--.*$/gm, ' ')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    return parseSqlTableReferenceFn(rawRef)
   }
 
   private limitRowsForModel(rows: SqlQueryRow[]): LimitedRowsForModelResult {
@@ -6457,7 +4986,8 @@ ORDER BY fiscal_year DESC`
       }
 
       const serializedRow = JSON.stringify(normalizedRow)
-      const projectedPayloadSize = payloadSize + (limitedRows.length > 0 ? 1 : 0) + serializedRow.length
+      const projectedPayloadSize =
+        payloadSize + (limitedRows.length > 0 ? 1 : 0) + serializedRow.length
 
       if (projectedPayloadSize > MAX_TOOL_PAYLOAD_CHARS) {
         payloadTruncated = true
@@ -6482,7 +5012,12 @@ ORDER BY fiscal_year DESC`
       const sanitizedRow: SqlQueryRow = {}
 
       for (const [columnName, value] of Object.entries(row)) {
-        if (this.isSensitiveIdentifierField(columnName) && value !== null && value !== undefined && `${value}`.trim()) {
+        if (
+          this.isSensitiveIdentifierField(columnName) &&
+          value !== null &&
+          value !== undefined &&
+          `${value}`.trim()
+        ) {
           sanitizedRow[columnName] = '[REDACTED]'
           redactedCells += 1
           continue
