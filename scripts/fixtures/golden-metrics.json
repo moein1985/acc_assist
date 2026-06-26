@@ -1,0 +1,178 @@
+{
+  "comment": "Golden metric eval fixtures — anchors from FRE_ROADMAP_00 section 0.7",
+  "metrics": [
+    {
+      "id": "golden-net-sales-1402-a",
+      "prompt": "فروش خالص سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 64252437897,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-net-sales-1402-b",
+      "prompt": "مبلغ فروش در سال ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 64252437897,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-net-sales-1402-c",
+      "prompt": "درآمد فروش ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 64252437897,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-net-sales-1403",
+      "prompt": "فروش خالص سال ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 57023796065,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-purchases-1402-a",
+      "prompt": "خرید سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "purchases",
+      "expectedGrain": "total",
+      "expectedValue": 226110419451,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-purchases-1402-b",
+      "prompt": "مبلغ خرید کالا در ۱۴۰۲",
+      "expectedMetricId": "purchases",
+      "expectedGrain": "total",
+      "expectedValue": 226110419451,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-purchases-1402-c",
+      "prompt": "خرید ۱۴۰۲",
+      "expectedMetricId": "purchases",
+      "expectedGrain": "total",
+      "expectedValue": 226110419451,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-account-balance-1402-a",
+      "prompt": "مانده حساب دریافتنی در سال ۱۴۰۲",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "total",
+      "expectedValue": 19755458505,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-account-balance-1402-b",
+      "prompt": "مانده سرفصل دریافتنی ۱۴۰۲",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "total",
+      "expectedValue": 19755458505,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-account-balance-1402-c",
+      "prompt": "بدهکار بستانکار حساب دریافتنی در ۱۴۰۲",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "total",
+      "expectedValue": 19755458505,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-trial-balance-1402-a",
+      "prompt": "تراز آزمایشی ۱۴۰۲",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expectedValue": 5426804727946,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-trial-balance-1402-b",
+      "prompt": "بدهکار بستانکار حساب‌ها در سال ۱۴۰۲",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expectedValue": 5426804727946,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-trial-balance-1402-c",
+      "prompt": "تراز آزمایشی سال ۱۴۰۲ چقدر است",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expectedValue": 5426804727946,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-cash-bank-1402-a",
+      "prompt": "مانده نقد و بانک در سال ۱۴۰۲",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expectedValue": 9521507066,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-cash-bank-1402-b",
+      "prompt": "مانده صندوق ۱۴۰۲",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expectedValue": 9521507066,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-cash-bank-1402-c",
+      "prompt": "مانده حساب بانکی در ۱۴۰۲",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expectedValue": 9521507066,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-sales-count-1402-a",
+      "prompt": "تعداد فاکتور فروش سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "sales_count",
+      "expectedGrain": "total",
+      "expectedValue": 1500,
+      "tolerance": 0
+    },
+    {
+      "id": "golden-sales-count-1402-b",
+      "prompt": "چند فاکتور فروش در ۱۴۰۲",
+      "expectedMetricId": "sales_count",
+      "expectedGrain": "total",
+      "expectedValue": 1500,
+      "tolerance": 0
+    }
+  ],
+  "negative": [
+    {
+      "id": "neg-employee-count",
+      "prompt": "تعداد کارمندان چقدر است؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "neg-weather",
+      "prompt": "آب‌وهوا فردا چطور است؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "neg-greeting",
+      "prompt": "سلام، خوبی؟",
+      "expect": "refuse"
+    }
+  ],
+  "clarify": [
+    {
+      "id": "clarify-vague-sales",
+      "prompt": "فروش چطور است؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "clarify-no-year",
+      "prompt": "مانده حساب چقدر است؟",
+      "expect": "clarify"
+    }
+  ]
+}

@@ -25,6 +25,7 @@
     "test:integration": "tsx --test tests/integration/**/*.test.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:golden": "tsx scripts/ops/goldenPromptHarness.ts",
+    "eval:metrics": "tsx scripts/ops/goldenMetricEval.ts",
     "smoke:prompt-transport": "tsx scripts/ops/promptTransportSmoke.ts",
     "validate:connector:live": "tsx scripts/validate-connector-live.ts",
     "postinstall": "electron-builder install-app-deps",

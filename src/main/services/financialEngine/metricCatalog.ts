@@ -14,7 +14,7 @@ const catalog: MetricDefinition[] = [
     id: 'net_sales',
     titleFa: 'فروش خالص',
     anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش'],
-    excludeSignals: ['خرید', 'هزینه'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -76,6 +76,7 @@ const catalog: MetricDefinition[] = [
     id: 'account_balance',
     titleFa: 'مانده حساب',
     anchors: ['مانده حساب', 'مانده سرفصل', 'بدهکار بستانکار حساب'],
+    excludeSignals: ['تراز', 'حساب‌ها', 'بانک', 'صندوق', 'کش', 'نقد'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_account'],
     source: {
@@ -167,6 +168,32 @@ const catalog: MetricDefinition[] = [
     grainSupported: ['total', 'by_year'],
     source: { primaryTable: 'RPA.CashBalance', alias: 'cb' },
     measure: { kind: 'sum', column: 'Balance' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: []
+  },
+  {
+    id: 'sales_count',
+    titleFa: 'تعداد فاکتور فروش',
+    anchors: ['تعداد فاکتور فروش', 'تعداد فاکتور', 'چند فاکتور فروش'],
+    excludeSignals: ['خرید', 'مانده', 'تراز', 'صندوق', 'بانک'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'src'
+    },
+    measure: { kind: 'count' },
     dimensions: [
       {
         dimension: 'by_year',

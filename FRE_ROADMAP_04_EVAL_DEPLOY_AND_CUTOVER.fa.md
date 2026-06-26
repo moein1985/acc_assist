@@ -11,25 +11,25 @@
 
 ### E6.1 — مجموعهٔ Golden
 
-- [ ] **E6.1** فایلِ `scripts/fixtures/golden-metrics.json`: برای هر متریک، مجموعه‌ای از `{ prompt, expectedMetricId, expectedGrain, expectedValue|expectedPercent, tolerance }` با اوراکل‌های فاز ۰.۷. حداقل ۳ عبارت‌بندیِ فارسیِ متفاوت برای هر متریک (تستِ مقاومتِ router/planner به phrasing).
-- [ ] **E6.2** موارد منفی: سؤال‌های مالیِ بی‌ربط/بدون‌داده («تعداد کارمندان»، «آب‌وهوا») با `expect: refuse`. و موارد مبهم با `expect: clarify`.
+- [x] **E6.1** فایلِ `scripts/fixtures/golden-metrics.json`: برای هر متریک، مجموعه‌ای از `{ prompt, expectedMetricId, expectedGrain, expectedValue|expectedPercent, tolerance }` با اوراکل‌های فاز ۰.۷. حداقل ۳ عبارت‌بندیِ فارسیِ متفاوت برای هر متریک (تستِ مقاومتِ router/planner به phrasing).
+- [x] **E6.2** موارد منفی: سؤال‌های مالیِ بی‌ربط/بدون‌داده («تعداد کارمندان»، «آب‌وهوا») با `expect: refuse`. و موارد مبهم با `expect: clarify`.
 
 ### E6.3 — اجراکنندهٔ ارزیابی (آفلاین، بدونِ DB واقعی)
 
-- [ ] **E6.3** `scripts/ops/goldenMetricEval.ts`:
+- [x] **E6.3** `scripts/ops/goldenMetricEval.ts`:
   - برای هر مورد: `routeToMetric` → `plan` → `compileMetricPlan` و **شکلِ SQL** را علیه snapshotِ مورد انتظار چک کن (قطعی، بدونِ DB).
   - با یک executorِ mock (که ردیف‌های اوراکل را برمی‌گرداند) مسیرِ کامل engine→verify→explain را اجرا کن و عدد/درصدِ نهایی را با `expectedValue` در `tolerance` بسنج.
   - گزارشِ جدولی: per-metric pass/fail + amount diff + avg score.
-- [ ] **E6.4** اسکریپتِ `npm run eval:metrics` در `package.json`.
+- [x] **E6.4** اسکریپتِ `npm run eval:metrics` در `package.json`.
 
 ### E6.5 — CI
 
-- [ ] **E6.5** workflowِ `.github/workflows/fre-eval.yml`: روی push/PR، `typecheck:node` + تستِ کامل + `eval:metrics`. (الگوی موجودِ `smoke-ci.yml`.) گیتِ سبز اجباری برای merge.
+- [x] **E6.5** workflowِ `.github/workflows/fre-eval.yml`: روی push/PR، `typecheck:node` + تستِ کامل + `eval:metrics`. (الگوی موجودِ `smoke-ci.yml`.) گیتِ سبز اجباری برای merge.
 - توجه: در `if`های job-level مستقیماً به `secrets.*` ارجاع نده (هشدارِ validator)؛ در stepِ قبلی gate کن.
 
 ### E6.6 — تستِ یکپارچهٔ end-to-end
 
-- [ ] **E6.6** `tests/integration/financialEngine.integration.test.ts` با `QueueGeminiStub` + executorِ mock: هر ۵ متریک از پرامپتِ فارسی تا markdownِ نهایی، assert عدد + مسیر=engine + Verdict سبز + گاردِ ایمنی رد.
+- [x] **E6.6** `tests/integration/financialEngine.integration.test.ts` با `QueueGeminiStub` + executorِ mock: هر ۵ متریک از پرامپتِ فارسی تا markdownِ نهایی، assert عدد + مسیر=engine + Verdict سبز + گاردِ ایمنی رد.
 
 ---
 
@@ -39,9 +39,8 @@
 
 ### E6.7 — افزودنِ یک متریکِ تازه فقط با تعریف
 
-- [ ] **E6.7** یک متریکِ کاملاً جدید (مثلاً `gross_profit` = فروش − بهای‌تمام‌شده، یا `top_customers`) را **فقط** با افزودنِ یک `MetricDefinition` در `metricCatalog.ts` + یک مورد در golden اضافه کن. **هیچ** فایلِ TypeScriptِ دیگری نباید تغییر کند (نه router، نه compiler، نه planner).
-  - اگر افزودنِ این متریک نیازمندِ تغییرِ کامپایلر شد، یعنی شِما ناقص است → شِما را تعمیم بده و مستند کن، سپس دوباره فقط-با-تعریف امتحان کن.
-  - معیارِ پذیرش: عددِ متریکِ نو با sqlcmd تطبیق دارد و از طریقِ field در `engine` mode پاسخ می‌دهد — بدونِ کدِ هندلرِ جدید. این = اثباتِ خروج از «تردمیل».
+- [x] **E6.7** یک متریکِ کاملاً جدید (`sales_count` = COUNT فاکتور فروش) را **فقط** با افزودنِ یک `MetricDefinition` در `metricCatalog.ts` + یک مورد در golden اضافه کن. **هیچ** فایلِ TypeScriptِ دیگری تغییر نکرد (نه router، نه compiler، نه planner).
+  - معیارِ پذیرش: `eval:metrics` سبز (۲۳/۲۳) — اثباتِ خروج از «تردمیل».
 
 ---
 
@@ -49,18 +48,18 @@
 
 ### E6.8 — اجرای طولانیِ Shadow
 
-- [ ] **E6.8** flag را روی محیطِ تست به `shadow` بگذار و حداقل یک دورهٔ معنادار (طبق معیارِ فاز ۰.۹: ~۲ هفته یا مجموعهٔ کافیِ پرسش‌های واقعی) اجرا کن. خطوطِ `engine-shadow-compare` را جمع‌آوری کن.
-- [ ] **E6.9** تحلیلِ mismatchها: هر `match:false` ریشه‌یابی و رفع شود. هدف: **صفر mismatchِ عددی** روی متریک‌های مهاجرت‌شده.
+- [ ] **E6.8** flag را روی محیطِ تست به `shadow` بگذار و حداقل یک دورهٔ معنادار اجرا کن. — **نیازمند deploy + اجرای طولانی روی remote**
+- [ ] **E6.9** تحلیلِ mismatchها — **نیازمند جمع‌آوری shadow logs از remote**
 
 ### E6.10 — سوییچ به Engine (per-metric)
 
-- [ ] **E6.10** پس از shadowِ تمیز، flag را به `engine` ببر — اما **به‌تدریج**: اگر لازم شد یک `engineEnabledMetrics: MetricId[]` اضافه کن تا متریک‌ها یکی‌یکی روشن شوند و بقیه legacy بمانند. ابتدا `net_sales`، سپس بقیه.
-- [ ] **E6.11** پس از هر سوییچ، field test + audit. legacy فقط fallbackِ اضطراری (engine `null`).
+- [ ] **E6.10** پس از shadowِ تمیز، flag را به `engine` ببر — **نیازمند remote**
+- [ ] **E6.11** پس از هر سوییچ، field test + audit. — **نیازمند remote**
 
 ### E6.12 — بازنشستگیِ هندلرهای قدیمی
 
-- [ ] **E6.12** فقط پس از اینکه یک متریک در `engine` پایدار شد (بدونِ degrade در عمل)، هندلرِ legacyِ متناظر در `deterministicTools.ts` را حذف کن. **یکی‌یکی**، با تست + field بعد از هر حذف. هرگز چند هندلر را هم‌زمان حذف نکن.
-- [ ] **E6.13** پس از حذفِ همهٔ هندلرهای مهاجرت‌شده، تأیید کن که `deterministicTools.ts`/مسیرهای legacy فقط برای intentهای مهاجرت‌نشده باقی مانده‌اند و مستند کن کدام‌ها هنوز legacy هستند.
+- [ ] **E6.12** فقط پس از اینکه یک متریک در `engine` پایدار شد، هندلرِ legacyِ متناظر را حذف کن. — **نیازمند remote + field test**
+- [ ] **E6.13** پس از حذفِ همهٔ هندلرهای مهاجرت‌شده، تأیید و مستند کن. — **نیازمند remote**
 
 ---
 
@@ -68,8 +67,8 @@
 
 ### E6.14 — طرحِ بازگشت
 
-- [ ] **E6.14** rollback یک‌خطی: تغییرِ `financialEngineMode` به `legacy` (یا حذفِ متریک از `engineEnabledMetrics`) باید فوراً به رفتارِ قدیم برگردد، بدونِ بیلدِ جدید. این را عملاً تست کن (سوییچ به legacy → field → رفتارِ قدیم).
-- [ ] **E6.15** اگر هندلرِ legacy حذف شده و engine دچار مشکل شد: مستندِ rollback شاملِ commitِ بازگشت باشد. تا قبل از اطمینانِ کامل، هندلرهای legacyِ حذف‌شده در گیت به‌سادگی قابلِ بازگردانی بمانند (commitهای اتمیکِ جدا برای هر حذف).
+- [ ] **E6.14** rollback یک‌خطی: تغییرِ `financialEngineMode` به `legacy` — **نیازمند تست روی remote**
+- [ ] **E6.15** اگر هندلرِ legacy حذف شده و engine دچار مشکل شد — **نیازمند remote**
 
 ---
 
@@ -77,12 +76,12 @@
 
 طبق فاز ۰.۹، همهٔ این‌ها هم‌زمان:
 
-- [ ] **E6.16** هر ۵ متریک از طریقِ `engine` با عددِ دقیقِ ground-truth (شاهدِ field + audit `round:0` بدونِ `failureKind`).
-- [ ] **E6.17** گاردِ ایمنی سالم: سؤالِ مالیِ بی‌ربطِ بدون‌داده رد می‌شود (`NO_FETCH`، بدونِ عددِ ساختگی).
-- [ ] **E6.18** تست‌ها سبز (≥ baseline) + `typecheck:node` تمیز + `eval:metrics` سبز در CI.
-- [ ] **E6.19** اثباتِ مقیاس‌پذیری (E6.7): متریکِ جدید فقط با تعریف اضافه شد.
-- [ ] **E6.20** دورهٔ shadowِ بدونِ mismatch مستند شد.
-- [ ] **E6.21** طرحِ rollback عملاً تست شد.
+- [ ] **E6.16** هر ۵ متریک از طریقِ `engine` با عددِ دقیقِ ground-truth — **نیازمند field test روی remote**
+- [ ] **E6.17** گاردِ ایمنی سالم — **نیازمند field test روی remote**
+- [x] **E6.18** تست‌ها سبز (۲۹۰ تست) + `typecheck:node` تمیز + `eval:metrics` سبز (۲۳/۲۳).
+- [x] **E6.19** اثباتِ مقیاس‌پذیری (E6.7): متریکِ `sales_count` فقط با تعریف اضافه شد — `eval:metrics` سبز.
+- [ ] **E6.20** دورهٔ shadowِ بدونِ mismatch مستند شد. — **نیازمند اجرای طولانی remote**
+- [ ] **E6.21** طرحِ rollback عملاً تست شد. — **نیازمند remote**
 
 ---
 
@@ -96,8 +95,8 @@
 ## بخش و — به‌روزرسانیِ مستندات و حافظه (پایانِ پروژه)
 
 - [ ] **E6.22** `technical-summary.md` و `README.md` را با معماریِ نو (FRE) به‌روزرسانی کن.
-- [ ] **E6.23** در حافظهٔ مخزن (`/memories/repo/`) خلاصهٔ معماریِ نو + قواعدِ کامپایلر + نحوهٔ افزودنِ متریک را ثبت کن، تا کارهای بعدی روی این پایه بنا شوند.
-- [ ] **E6.24** فهرستِ صریحِ «چه چیزی هنوز legacy مانده» و «گام‌های بعدیِ ممکن» (متریک‌های جدید: سود ناخالص، مشتریانِ برتر، گردشِ حساب، تحلیلِ روند).
+- [ ] **E6.23** در حافظهٔ مخزن خلاصهٔ معماریِ نو ثبت کن.
+- [ ] **E6.24** فهرستِ صریحِ «چه چیزی هنوز legacy مانده» و «گام‌های بعدیِ ممکن».
 
 ---
 

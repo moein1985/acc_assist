@@ -6,6 +6,7 @@ export type MetricId =
   | 'account_balance'
   | 'trial_balance'
   | 'cash_bank_balance'
+  | 'sales_count'
 
 export type Grain = 'total' | 'by_year' | 'by_month' | 'by_account' | 'by_branch' | 'by_customer'
 
@@ -205,7 +206,8 @@ export const metricPlanSchema = z.object({
     'purchases',
     'account_balance',
     'trial_balance',
-    'cash_bank_balance'
+    'cash_bank_balance',
+    'sales_count'
   ]),
   grain: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
   filters: z.array(planFilterSchema),

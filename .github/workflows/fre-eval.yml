@@ -1,0 +1,38 @@
+name: FRE Eval CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: fre-eval-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fre-eval:
+    name: FRE Typecheck + Tests + Golden Metric Eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run typecheck
+        run: npm run typecheck:node
+
+      - name: Run unit and integration tests
+        run: npm run test
+
+      - name: Run golden metric evaluation
+        run: npm run eval:metrics
