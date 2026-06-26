@@ -64,6 +64,7 @@ flowchart TB
 | ۲–۳ | `FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md` | شِمای MetricDefinition، MetricPlan IR، کامپایلر، مهاجرتِ ۵ متریک | متوسط | پایین–متوسط |
 | ۴–۵ | `FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md` | Planner ساختاریافته + Verifier/Critic + ادغامِ evidence | متوسط | پایین |
 | ۶ | `FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md` | هارنسِ golden، CI، shadow mode، استقرار، تأیید میدانی، cutover، rollback | کوچک–متوسط | پایین |
+| ۷–۱۰ | `FRE_ROADMAP_05_LEGACY_MIGRATION_AND_ADVANCED_ENGINE.fa.md` | مهاجرتِ ۹ متریکِ باقی‌مانده، چند-متریکی، grains پیچیده، production hardening، Planner پیشرفته | متوسط–بزرگ | متوسط |
 
 **ترتیب اجرا اجباری است:** ۱ → ۲ → ۳ → ۴. هیچ فازی قبل از سبزشدنِ کاملِ فاز قبل (تست + typecheck + شواهد) شروع نشود.
 

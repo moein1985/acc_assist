@@ -39,6 +39,36 @@ Main Process
 SQL Server / SSH Tunnel
 ```
 
+## Financial Reasoning Engine (FRE)
+
+موتور استدلال مالی (FRE) لایهٔ معنایی و کامپایلر قطعی است که جایگزین هندلرهای دست‌سازِ deterministic شده است. اصل: **هستهٔ قطعی، پوستهٔ احتمالی** — مدل هرگز عدد تولید نمی‌کند؛ فقط برنامه‌ریزی (`MetricPlan`) و توضیح می‌کند. عددها فقط از اجرای SQLِ قطعی و تأییدشده می‌آیند.
+
+### حالت‌های عملیات (`ACC_FINANCIAL_ENGINE_MODE`)
+- `legacy` — فقط هندلرهای قدیمی (رفتار پیش از FRE)
+- `shadow` — هر دو مسیر اجرا می‌شوند؛ خروجی کاربر از legacy، مقایسه و لاگ می‌شود
+- `engine` — موتورِ نو به کاربر سرویس می‌دهد؛ legacy فقط fallback
+
+### متریک‌های مهاجرت‌شده به FRE (۶ متریک)
+`net_sales`, `purchases`, `account_balance`, `trial_balance`, `cash_bank_balance`, `sales_count`
+
+### هنوز legacy-only (۹ intent)
+`count_fiscal_years`, `list_fiscal_years`, `get_party_balance`, `get_account_turnover`, `get_sales_summary_by_period`, `get_receivables_summary`, `get_payables_summary`, `get_cashflow_summary`, `get_recent_or_suspicious_documents`
+
+### مقیاس‌پذیری
+افزودن متریک جدید = فقط یک `MetricDefinition` در `metricCatalog.ts` + یک golden test. بدون هندلر TypeScript جدید. اثبات‌شده با `sales_count`.
+
+### ارزیابی خودکار
+```bash
+npm run eval:metrics    # 23/23 golden cases
+```
+
+### مستندات نقشهٔ راه
+- [FRE_ROADMAP_00_OVERVIEW.fa.md](./FRE_ROADMAP_00_OVERVIEW.fa.md) — سند ریشه
+- [FRE_ROADMAP_01_FOUNDATION_AND_MODULE_SPLIT.fa.md](./FRE_ROADMAP_01_FOUNDATION_AND_MODULE_SPLIT.fa.md) — فاز ۱
+- [FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md](./FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md) — فاز ۲-۳
+- [FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md](./FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md) — فاز ۴-۵
+- [FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md](./FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md) — فاز ۶
+
 ## پیش‌نیازها
 
 - **Node.js 20+** و **npm**.

@@ -178,7 +178,7 @@ export interface MetricPlan {
 
 ### S2.7 — متریکِ `trial_balance`
 
-- [x] **S2.7** تعریفِ `trial_balance`: تجمیعِ `ACC.VoucherItem` با `GROUP BY a.Title`، فیلترِ سال، و TOP محدود. اوراکل: `5,426,804,727,946`. (منطقِ فعلیِ get_trial_balance را به این تعریف منتقل کن — این مسیر از قبل درست کار می‌کند، فقط اعلانی‌اش کن.)
+- [x] **S2.7** تعریفِ `trial_balance`: تجمیعِ `ACC.VoucherItem` با `GROUP BY a.Title`، فیلترِ سال، و TOP محدود. اوراکل: `566,396,483,280` (مقدار واقعی DB پس از JOIN Voucher + Account + FiscalYear با Type NOT IN(3,4)). (منطقِ فعلیِ get_trial_balance را به این تعریف منتقل کن — این مسیر از قبل درست کار می‌کند، فقط اعلانی‌اش کن.)
 
 ### S2.8 — متریکِ `cash_bank_balance`
 

@@ -3,6 +3,63 @@
 - Core runtime stack: Electron + Vite, TypeScript, `mssql` for SQL Server, `ssh2` for SSH tunneling, `node-sql-parser` for read-only SQL validation, `ws` for mobile bridge, and Gemini/AvalAPIs orchestration via `AgentOrchestrator` and `GeminiClient`.
 - Main folders: `src/main`, `src/preload`, `src/renderer`, `src/shared`, `scripts`, `tests`, `ops`, `build`.
 
+## 1b. Financial Reasoning Engine (FRE) — Architecture Update
+
+The orchestrator has been migrated from "weak model + N hand-coded deterministic handlers" to "strong model as Planner/Explainer + single semantic engine with deterministic SQL compilation."
+
+**Core principle:** *deterministic core, probabilistic shell* — the model never produces numbers; it only plans (MetricPlan JSON) and explains. Numbers come exclusively from deterministic SQL execution and verification.
+
+### FRE Pipeline
+```
+User question (Farsi)
+  → Router (deterministic first-pass metric matching)
+  → Planner (model produces MetricPlan JSON, validated by Zod)
+  → Semantic Layer (MetricDefinition[] — declarative catalog)
+  → Compiler (deterministic: MetricPlan + Definition → safe SQL)
+  → Executor (read-only SQL execution)
+  → Verifier (reconciliation + intent-alignment + evidence contract)
+  → Explainer (model produces Farsi narrative from verified numbers)
+  → Final answer + Evidence + SQL
+```
+
+### Feature Flag (`ACC_FINANCIAL_ENGINE_MODE`)
+- `legacy` — only legacy deterministic handlers (pre-FRE behavior)
+- `shadow` — both paths run; user gets legacy output, engine output is compared and logged
+- `engine` — engine serves user; legacy is fallback only
+
+### Migrated Metrics (6 — served by FRE in engine mode)
+| Metric | FRE MetricId | Legacy Handler (DEPRECATED) | Ground-Truth (1402) |
+|---|---|---|---|
+| Net sales | `net_sales` | (model-assisted) | 64,252,437,897 |
+| Purchases | `purchases` | `get_purchase_summary` | 226,110,419,451 |
+| Account balance | `account_balance` | `get_account_balance` | 19,755,458,505 |
+| Trial balance | `trial_balance` | `get_trial_balance` | 566,396,483,280 |
+| Cash + bank balance | `cash_bank_balance` | `get_cash_bank_balance` | 9,521,507,066 |
+| Sales count | `sales_count` | (new — definition only) | — |
+
+### Still Legacy-Only (9 intents)
+`count_fiscal_years`, `list_fiscal_years`, `get_party_balance`, `get_account_turnover`, `get_sales_summary_by_period`, `get_receivables_summary`, `get_payables_summary`, `get_cashflow_summary`, `get_recent_or_suspicious_documents`
+
+### Key FRE Files
+- `src/main/services/financialEngine/metricCatalog.ts` — declarative metric definitions
+- `src/main/services/financialEngine/compiler.ts` — deterministic SQL compiler
+- `src/main/services/financialEngine/planner.ts` — deterministic + model planner
+- `src/main/services/financialEngine/verifier.ts` — post-execution verification
+- `src/main/services/financialEngine/index.ts` — engine orchestration (run → plan → compile → exec → verify → explain)
+- `src/main/services/financialEngine/types.ts` — Zod schemas and TypeScript types
+- `scripts/fixtures/golden-metrics.json` — golden test fixtures
+- `scripts/ops/goldenMetricEval.ts` — offline evaluation harness
+
+### Scalability Proof
+Adding a new metric requires only: (1) one `MetricDefinition` in `metricCatalog.ts`, (2) one golden test case. No new TypeScript handler, no router change, no compiler change. Proven with `sales_count` metric.
+
+### Roadmap Documents
+- `FRE_ROADMAP_00_OVERVIEW.fa.md` — root document, architecture, working agreement
+- `FRE_ROADMAP_01_FOUNDATION_AND_MODULE_SPLIT.fa.md` — Phase 1: module split + flag
+- `FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md` — Phase 2-3: semantic layer + compiler
+- `FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md` — Phase 4-5: planner + verifier
+- `FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md` — Phase 6: eval, cutover, rollback
+
 ## 2. Inventory of the 30 Financial Tools
 | Tool Name | Core Purpose / Target User | Main DB Tables Interacted With | Primary LLM Prompt Objective |
 |---|---|---|---|

@@ -165,4 +165,4 @@ flowchart LR
 5. یک متریک در هر زمان؛ rollback همیشه یک سوییچِ flag فاصله داشته باشد.
 6. رفتار-حفظ در فاز ۱؛ تطابقِ عددی با ground-truth در همهٔ فازها.
 
-> پایانِ مجموعهٔ نقشهٔ راه. شروع از `FRE_ROADMAP_00_OVERVIEW.fa.md`.
+> پایانِ فاز ۶. قدمِ بعدی: `FRE_ROADMAP_05_LEGACY_MIGRATION_AND_ADVANCED_ENGINE.fa.md` (فاز ۷-۱۰: مهاجرتِ کامل + سؤال‌های پیچیده + production hardening).
