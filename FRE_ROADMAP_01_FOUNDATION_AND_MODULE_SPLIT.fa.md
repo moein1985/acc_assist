@@ -42,13 +42,20 @@ src/main/services/agentOrchestrator/
   salesGrowth.ts                # توابع مقایسهٔ فروش (selectSalesGrowthSourceTable و …)
 ```
 
-- [ ] **F2.1** ماژولِ `routing.ts` را استخراج کن: توابع و regexهای تشخیصِ intent و منظم‌سازیِ پرامپت (مثل `isSalesGrowthPercentPrompt`, `isComparativeMultiPeriodPrompt`, helperهای مرتبط). امضاها تغییر نکنند؛ از طریقِ import در کلاس استفاده شوند. تست + typecheck سبز.
-- [ ] **F2.2** ماژولِ `conversationMemory.ts` را استخراج کن: نوعِ `ConversationMemoryState`، `rememberToolTrace`, و state-management مرتبط. (نوعِ `ConversationMemoryState` از قبل export شده — مرجعش را یکپارچه کن.)
-- [ ] **F2.3** ماژولِ `responseContract.ts` را استخراج کن: `finalizeFinancialResponse`, `enforceEvidenceFirstContract`, `annotateManagerUx`, `renderValidEmptyFinancialAnswer`. **مراقب باش** منطقِ «deterministic-route bypass» (early-return وقتی `routeMode==='deterministic'`) دست‌نخورده منتقل شود.
-- [ ] **F2.4** ماژولِ `salesGrowth.ts` را استخراج کن: `selectSalesGrowthSourceTable`, `tryResolveSalesGrowthPercentFallback`, `composeSalesGrowthFallbackMarkdown`, `isSalesGrowthPercentPrompt`. (این‌ها در فاز ۲ منبعِ مهاجرتِ متریکِ «فروش» می‌شوند، پس تمیز جدا شوند.)
-- [ ] **F2.5** ماژولِ `sqlExecution.ts` را استخراج کن: wrapper های `executeReadOnlySql`/`executeMetadataSql`، `ensureFinancialQueryAllowed`، و منطقِ cancellation (`throwIfRequestCanceled`). دقت: این‌ها dependencyِ `deterministicTools.ts` هم هستند؛ امضای deps نباید بشکند.
-- [ ] **F2.6** `index.ts`: کلاسِ `AgentOrchestrator` باید به یک لایهٔ نازکِ wiring تبدیل شود که ماژول‌ها را به هم وصل می‌کند. هدفِ کمی: فایلِ کلاس < ۱٬۵۰۰ خط (هدفِ U5.3 قبلی).
-- [ ] **F2.7** اجرای کاملِ `npx eslint --fix` روی پوشهٔ `agentOrchestrator/`، سپس typecheck + تستِ کامل. **هیچ تستی نباید قرمز شود** و تعدادِ تست باید همان baseline بماند.
+- [x] **F2.1** ماژولِ `routing.ts` را استخراج کن: توابع و regexهای تشخیصِ intent و منظم‌سازیِ پرامپت (مثل `isSalesGrowthPercentPrompt`, `isComparativeMultiPeriodPrompt`, helperهای مرتبط). امضاها تغییر نکنند؛ از طریقِ import در کلاس استفاده شوند. تست + typecheck سبز.
+  - **شاهد:** `routing.ts` + `intentRouting.ts` موجودند. typecheck + 244 تست سبز.
+- [x] **F2.2** ماژولِ `conversationMemory.ts` را استخراج کن: نوعِ `ConversationMemoryState`، `rememberToolTrace`, و state-management مرتبط. (نوعِ `ConversationMemoryState` از قبل export شده — مرجعش را یکپارچه کن.)
+  - **شاهد:** `conversationMemory.ts` موجود است. typecheck + 244 تست سبز.
+- [x] **F2.3** ماژولِ `responseContract.ts` را استخراج کن: `finalizeFinancialResponse`, `enforceEvidenceFirstContract`, `annotateManagerUx`, `renderValidEmptyFinancialAnswer`. **مراقب باش** منطقِ «deterministic-route bypass» (early-return وقتی `routeMode==='deterministic'`) دست‌نخورده منتقل شود.
+  - **شاهد:** `responseContract.ts` + `responseBuilder.ts` موجودند. typecheck + 244 تست سبز.
+- [x] **F2.4** ماژولِ `salesGrowth.ts` را استخراج کن: `selectSalesGrowthSourceTable`, `tryResolveSalesGrowthPercentFallback`, `composeSalesGrowthFallbackMarkdown`, `isSalesGrowthPercentPrompt`. (این‌ها در فاز ۲ منبعِ مهاجرتِ متریکِ «فروش» می‌شوند، پس تمیز جدا شوند.)
+  - **شاهد:** `salesGrowth.ts` موجود است. typecheck + 244 تست سبز.
+- [x] **F2.5** ماژولِ `sqlExecution.ts` را استخراج کن: wrapper های `executeReadOnlySql`/`executeMetadataSql`، `ensureFinancialQueryAllowed`، و منطقِ cancellation (`throwIfRequestCanceled`). دقت: این‌ها dependencyِ `deterministicTools.ts` هم هستند؛ امضای deps نباید بشکند.
+  - **شاهد:** `sqlExecution.ts` + `sqlUtils.ts` + `sqlGuards.ts` موجودند. typecheck + 244 تست سبز.
+- [x] **F2.6** `index.ts`: کلاسِ `AgentOrchestrator` باید به یک لایهٔ نازکِ wiring تبدیل شود که ماژول‌ها را به هم وصل می‌کند. هدفِ کمی: فایلِ کلاس < ۱٬۵۰۰ خط (هدفِ U5.3 قبلی).
+  - **شاهد:** `agentOrchestrator.ts` = ۱٬۴۸۵ خط. ماژول‌های اضافی استخراج‌شده: `sendMessage.ts`, `geminiRetry.ts`, `schemaCache.ts`, `toolExecution.ts`, `evidenceValidation.ts`, `telemetry.ts`, `promptBuilder.ts`, `clarification.ts`, `schemaCatalog.ts`, `rowUtils.ts`, `fiscalYearFallback.ts`, `recovery.ts`, `prompts.ts`. typecheck + 244 تست سبز.
+- [x] **F2.7** اجرای کاملِ `npx eslint --fix` روی پوشهٔ `agentOrchestrator/`، سپس typecheck + تستِ کامل. **هیچ تستی نباید قرمز شود** و تعدادِ تست باید همان baseline بماند.
+  - **شاهد:** eslint سبز، typecheck سبز، 244 tests / 243 pass / 0 fail / 1 skipped (2026-06-26).
 
 > **هشدارِ IDE:** فایلِ بزرگ ممکن است در ادیتور خطاهای گذرا نشان دهد که با `get_errors` و `typecheck:node` تأیید نمی‌شوند. منبعِ حقیقت = `get_errors` + `typecheck:node`، نه قرمزیِ زندهٔ ادیتور.
 
@@ -68,8 +75,10 @@ src/main/services/financialEngine/
   README.md           # توضیحِ کوتاهِ معماری + لینک به این roadmap
 ```
 
-- [ ] **F3.1** فایل‌های بالا را با interfaceهای خالی و توابعِ no-op بساز که فقط `null`/`{ status: 'not-implemented' }` برمی‌گردانند. هیچ‌کدام هنوز فراخوانی نشوند. typecheck باید سبز بماند.
-- [ ] **F3.2** در `financialEngine/types.ts` فقط **placeholderهای نوع** تعریف کن (جزئیاتِ کامل در فاز ۲): `MetricId`, `Grain`, `MetricDefinition`, `MetricPlan`, `CompiledQuery`, `EngineResult`, `EngineVerdict`. مستندِ TODO بگذار که فاز ۲ آن‌ها را کامل می‌کند.
+- [x] **F3.1** فایل‌های بالا را با interfaceهای خالی و توابعِ no-op بساز که فقط `null`/`{ status: 'not-implemented' }` برمی‌گردانند. هیچ‌کدام هنوز فراخوانی نشوند. typecheck باید سبز بماند.
+  - **شاهد:** ۶ فایل ساخته شد: `index.ts`, `types.ts`, `router.ts`, `metricCatalog.ts`, `compiler.ts`, `verifier.ts`, `README.md`. همه no-op. typecheck سبز.
+- [x] **F3.2** در `financialEngine/types.ts` فقط **placeholderهای نوع** تعریف کن (جزئیاتِ کامل در فاز ۲): `MetricId`, `Grain`, `MetricDefinition`, `MetricPlan`, `CompiledQuery`, `EngineResult`, `EngineVerdict`. مستندِ TODO بگذار که فاز ۲ آن‌ها را کامل می‌کند.
+  - **شاهد:** همه ۷ نوع در `types.ts` تعریف شدند + `FinancialEngineMode`. TODO های فاز ۲/۳ گذاشته شده. typecheck سبز.
 
 ---
 
