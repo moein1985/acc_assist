@@ -17,10 +17,12 @@
 
 ## F1 — آماده‌سازی و خط مبنا
 
-- [ ] **F1.1** اجرای baseline و ثبتِ اعداد: `npm run typecheck:node` (تمیز) و تست‌ها (`244/243/0/1`). این اعداد قراردادِ «رگرسیون صفر» این فاز هستند.
-- [ ] **F1.2** یک snapshotِ میدانی از وضعیتِ فعلی بگیر (مدل `legacy`) برای ۵ متریک + گاردِ ایمنی، و خروجی‌ها را در همین فایل (بخش «شاهد F1») ثبت کن. این snapshot، اوراکلِ «رفتار-حفظ» برای مقایسهٔ پایانِ فاز است.
+- [x] **F1.1** اجرای baseline و ثبتِ اعداد: `npm run typecheck:node` (تمیز) و تست‌ها (`244/243/0/1`). این اعداد قراردادِ «رگرسیون صفر» این فاز هستند.
+  - **شاهد:** `npm run typecheck:node` → exit 0 (تمیز). `npx tsx --test --test-force-exit` → `tests 244, pass 243, fail 0, skipped 1` (2026-06-26).
+- [x] **F1.2** یک snapshotِ میدانی از وضعیتِ فعلی بگیر (مدل `legacy`) برای ۵ متریک + گاردِ ایمنی، و خروجی‌ها را در همین فایل (بخش «شاهد F1») ثبت کن. این snapshot، اوراکلِ «رفتار-حفظ» برای مقایسهٔ پایانِ فاز است.
   - پرامپت‌ها (کوتاه، با DebugToken ثابت `fretok`): «تراز آزمایشی ۱۴۰۲»، «مانده نقد و بانک»، «خرید کل سال ۱۴۰۲»، «فروش ۱۴۰۲»، «مقایسه فروش ۱۴۰۲ و ۱۴۰۳»، «ماندهٔ حساب دریافتنی سال ۱۴۰۲»، و گارد: «تعداد کارمندان».
   - برای هرکدام `Rounds`، `ToolCallsUsed`، عدد/خلاصه، و خطِ `final`ِ audit را ثبت کن.
+  - **شاهد:** snapshot میدانی در بخش «شاهد F1» ثبت شد (2026-06-26، سرور 192.168.85.56، build با تغییرات F2.6).
 
 ---
 
@@ -101,9 +103,61 @@ src/main/services/financialEngine/
 ## شاهد F1 (snapshot پیش از تغییر)
 > (مدلِ پیاده‌ساز اینجا پر می‌کند: برای هر پرامپت → requestId، Rounds، ToolCallsUsed، عدد، خطِ final.)
 
-```
-(خالی — هنگام اجرای F1.2 پر شود)
-```
+### ۱. تراز آزمایشی ۱۴۰۲
+- requestId: `ssh-1782477781502`
+- conversationId: `fre-snap-1`
+- Rounds: 0 | ToolCallsUsed: 1
+- مسیر: deterministic | intent: `get_trial_balance`
+- عدد: `5,426,804,727,946`
+- audit final: `{"stage":"final","durationMs":508,"round":0}`
+
+### ۲. مانده نقد و بانک
+- requestId: `ssh-1782477796941`
+- conversationId: `fre-snap-2`
+- Rounds: 0 | ToolCallsUsed: 2
+- مسیر: deterministic | intent: `get_cash_bank_balance`
+- عدد: `9,521,507,066`
+- audit final: `{"stage":"final","durationMs":285,"round":0}`
+
+### ۳. خرید کل سال ۱۴۰۲
+- requestId: `ssh-1782477811008`
+- conversationId: `fre-snap-3`
+- Rounds: 0 | ToolCallsUsed: 2
+- مسیر: deterministic | intent: `get_purchase_summary`
+- عدد: `226,110,419,451` (از INV.InventoryReceipt, IsReturn=0)
+- audit final: `{"stage":"final","durationMs":325,"round":0}`
+
+### ۴. فروش ۱۴۰۲
+- requestId: `ssh-1782477829429`
+- conversationId: `fre-snap-4`
+- Rounds: 4 | ToolCallsUsed: 4
+- مسیر: model-assisted
+- عدد: `64,252,437,897` (SLS.Invoice, NetPriceInBaseCurrency, fy.Title='1402')
+- audit final: `{"stage":"final","durationMs":10398,"round":4,"recoveryAttempts":0,"failureKind":"NONE"}`
+
+### ۵. مقایسه فروش ۱۴۰۲ و ۱۴۰۳
+- requestId: `ssh-1782477855522`
+- conversationId: `fre-snap-5`
+- Rounds: 0 | ToolCallsUsed: 1
+- مسیر: deterministic | intent: sales-growth fallback
+- عدد: `-11.25%` (1402: 64,252,437,897 → 1403: 57,023,796,065)
+- audit final: `{"stage":"final","durationMs":385,"round":0}`
+
+### ۶. مانده حساب دریافتنی سال ۱۴۰۲
+- requestId: `ssh-1782477875316`
+- conversationId: `fre-snap-6`
+- Rounds: 0 | ToolCallsUsed: 1
+- مسیر: deterministic | intent: `get_account_balance`
+- عدد: `19,755,458,505` (ACC.VoucherItem, Debit-Credit, Type NOT IN (3,4), fy.Title='1402')
+- audit final: `{"stage":"final","durationMs":508,"round":0}`
+
+### ۷. گارد ایمنی: تعداد کارمندان
+- requestId: `ssh-1782477893164`
+- conversationId: `fre-snap-7`
+- Rounds: 1 | ToolCallsUsed: 0
+- مسیر: model-assisted (رد شده)
+- failureKind: `NO_FETCH` — ابزار اجرا نشد، پاسخ عددی نداشت
+- audit final: `{"stage":"final","durationMs":3188,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}`
 
 ## شاهد F5 (پس از شکستن + استقرار — باید با F1 یکسان باشد)
 ```
