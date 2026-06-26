@@ -4034,26 +4034,48 @@ export class AgentOrchestrator {
     }
 
     const activeCatalog = this.findActiveSchemaCatalog(this.getSettings())
-
-    if (!activeCatalog) {
-      return null
-    }
-
     const salesSource = this.selectSalesGrowthSourceTable(activeCatalog)
+    const fiscalYearTable = this.quoteSqlTableRef('FMK.FiscalYear')
 
-    if (!salesSource) {
+    // The fiscal year is stored as FMK.FiscalYear.Title (e.g. '1402'); the sales
+    // table only carries a surrogate FiscalYearRef FK, so we JOIN and filter on
+    // Title rather than CAST-ing the ref to an int (which never matches the Shamsi
+    // year and silently returns zero rows).
+    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    fy.Title AS FiscalYearTitle,\n    SUM(CAST(src.${salesSource.amountColumn} AS decimal(18, 4))) AS TotalSales\n  FROM ${salesSource.tableRef} src\n  JOIN ${fiscalYearTable} fy ON src.${salesSource.yearRefColumn} = fy.FiscalYearId\n  WHERE fy.Title IN (N'${baseYear}', N'${targetYear}')\n  GROUP BY fy.Title\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = N'${baseYear}' THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = N'${targetYear}' THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
+
+    let firstRow: Record<string, unknown> = {}
+    try {
+      // Code-built, trusted query (table/columns resolved from catalog or the locked
+      // Sepidar mapping; years are Number-validated). Like the other deterministic
+      // financial tools it skips the model-facing ensureFinancialQueryAllowed allowlist
+      // and relies on executeReadOnlySql's read-only policy enforcement.
+      const rows = await this.executeReadOnlySql(sqlQuery, signal)
+      firstRow = (rows[0] ?? {}) as Record<string, unknown>
+    } catch (error) {
+      // Schema mismatch (e.g. non-Sepidar software) or policy rejection: degrade
+      // gracefully to the model exploration loop instead of failing the request.
+      await this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: conversationMemory.conversationId,
+        stage: 'tool-error',
+        toolName: 'sales_growth_fallback',
+        error: error instanceof Error ? error.message : String(error),
+        errorCategory: 'deterministic-tool-failure'
+      })
       return null
     }
 
-    const sqlQuery = `WITH yearly_sales AS (\n  SELECT\n    CAST(${salesSource.yearColumn} AS int) AS FiscalYearTitle,\n    SUM(CAST(${salesSource.amountColumn} AS decimal(18, 4))) AS TotalSales\n  FROM ${salesSource.tableRef}\n  WHERE CAST(${salesSource.yearColumn} AS int) IN (${baseYear}, ${targetYear})\n  GROUP BY CAST(${salesSource.yearColumn} AS int)\n),\npivoted AS (\n  SELECT\n    MAX(CASE WHEN FiscalYearTitle = ${baseYear} THEN TotalSales END) AS SalesBase,\n    MAX(CASE WHEN FiscalYearTitle = ${targetYear} THEN TotalSales END) AS SalesTarget\n  FROM yearly_sales\n)\nSELECT\n  ISNULL(SalesBase, 0) AS SalesBase,\n  ISNULL(SalesTarget, 0) AS SalesTarget,\n  CASE\n    WHEN SalesBase IS NULL OR SalesBase = 0 THEN NULL\n    ELSE CAST(((SalesTarget - SalesBase) * 100.0 / SalesBase) AS decimal(18, 4))\n  END AS PercentChange\nFROM pivoted`
-
-    this.ensureFinancialQueryAllowed(sqlQuery, this.getSettings(), conversationMemory)
-    const rows = await this.executeReadOnlySql(sqlQuery, signal)
     this.throwIfRequestCanceled(signal)
 
-    const firstRow = rows[0] ?? {}
     const salesBase = this.toSafeNumber(firstRow['SalesBase'])
     const salesTarget = this.toSafeNumber(firstRow['SalesTarget'])
+
+    // No sales recorded for either period under this mapping: hand off to the model
+    // loop rather than emitting a misleading deterministic «0 vs 0» comparison.
+    if (salesBase === 0 && salesTarget === 0) {
+      return null
+    }
+
     const percentRaw = this.toSafeNumber(firstRow['PercentChange'])
     const percentChange = Number.isFinite(percentRaw) ? percentRaw : null
 
@@ -4073,58 +4095,69 @@ export class AgentOrchestrator {
     }
   }
 
-  private selectSalesGrowthSourceTable(activeCatalog: SchemaCatalogEntry): {
+  private selectSalesGrowthSourceTable(activeCatalog: SchemaCatalogEntry | null): {
     tableRef: string
-    yearColumn: string
+    yearRefColumn: string
     amountColumn: string
-  } | null {
-    const preferredConcepts = ['documentLines', 'documents', 'accounts'] as AccountingConceptKey[]
-    const preferredMappings = preferredConcepts
-      .map((conceptKey) => this.resolvePreferredMapping(activeCatalog, conceptKey))
-      .filter((mapping): mapping is PreferredMapping => Boolean(mapping))
+  } {
+    if (activeCatalog) {
+      const preferredConcepts = ['documentLines', 'documents', 'accounts'] as AccountingConceptKey[]
+      const preferredMappings = preferredConcepts
+        .map((conceptKey) => this.resolvePreferredMapping(activeCatalog, conceptKey))
+        .filter((mapping): mapping is PreferredMapping => Boolean(mapping))
 
-    const catalogMappings = activeCatalog.tables
-      .filter((table) => table.tags.length > 0)
-      .map((table) => ({
-        tableRef: this.normalizeTableRef(`${table.schemaName}.${table.tableName}`),
-        source: 'suggested' as const
-      }))
-      .filter((mapping) => Boolean(mapping.tableRef)) as PreferredMapping[]
+      const catalogMappings = activeCatalog.tables
+        .filter((table) => table.tags.length > 0)
+        .map((table) => ({
+          tableRef: this.normalizeTableRef(`${table.schemaName}.${table.tableName}`),
+          source: 'suggested' as const
+        }))
+        .filter((mapping) => Boolean(mapping.tableRef)) as PreferredMapping[]
 
-    const tableCandidates: PreferredMapping[] = [...preferredMappings, ...catalogMappings]
+      const tableCandidates: PreferredMapping[] = [...preferredMappings, ...catalogMappings]
 
-    const seen = new Set<string>()
+      const seen = new Set<string>()
 
-    for (const candidate of tableCandidates) {
-      const normalizedRef = this.normalizeTableRef(candidate.tableRef)
+      for (const candidate of tableCandidates) {
+        const normalizedRef = this.normalizeTableRef(candidate.tableRef)
 
-      if (!normalizedRef || seen.has(normalizedRef)) {
-        continue
-      }
+        if (!normalizedRef || seen.has(normalizedRef)) {
+          continue
+        }
 
-      seen.add(normalizedRef)
+        seen.add(normalizedRef)
 
-      const table = activeCatalog.tables.find((entry) => {
-        return this.normalizeTableRef(`${entry.schemaName}.${entry.tableName}`) === normalizedRef
-      })
+        const table = activeCatalog.tables.find((entry) => {
+          return this.normalizeTableRef(`${entry.schemaName}.${entry.tableName}`) === normalizedRef
+        })
 
-      if (!table) {
-        continue
-      }
+        if (!table) {
+          continue
+        }
 
-      const yearColumn = table.columns.find((column) => /(?:fiscal|year|period|سال|مالی|دوره)/iu.test(column.name))?.name
-      const amountColumn = table.columns.find((column) => /(?:amount|price|netprice|gross|revenue|total|sale|sum)/iu.test(column.name))?.name
+        const yearColumn = table.columns.find((column) => /(?:fiscal|year|period|سال|مالی|دوره)/iu.test(column.name))?.name
+        const amountColumn = table.columns.find((column) => /(?:amount|price|netprice|gross|revenue|total|sale|sum)/iu.test(column.name))?.name
 
-      if (yearColumn && amountColumn) {
-        return {
-          tableRef: normalizedRef,
-          yearColumn,
-          amountColumn
+        if (yearColumn && amountColumn) {
+          return {
+            tableRef: this.quoteSqlTableRef(normalizedRef),
+            yearRefColumn: yearColumn,
+            amountColumn
+          }
         }
       }
     }
 
-    return null
+    // Sepidar default (confirmed live mapping): net sales = SLS.Invoice.NetPriceInBaseCurrency,
+    // scoped by fiscal year via the FiscalYearRef surrogate FK -> FMK.FiscalYear.FiscalYearId.
+    // Returning a default (instead of null) lets the deterministic comparison engage even when
+    // the catalog has no tagged tables; if the schema differs (e.g. Mahak) the query errors and
+    // the caller degrades gracefully to the model exploration loop.
+    return {
+      tableRef: this.quoteSqlTableRef('SLS.Invoice'),
+      yearRefColumn: 'FiscalYearRef',
+      amountColumn: 'NetPriceInBaseCurrency'
+    }
   }
 
   private composeSalesGrowthFallbackMarkdown(result: SalesGrowthFallbackResult): string {
@@ -4700,6 +4733,18 @@ ORDER BY fiscal_year DESC`
     const templatedText = this.ensureFinancialResponseTemplate(rawText, conversationMemory, totalToolCallCount)
     const alignedText = this.enforcePromptIntentAlignment(prompt, templatedText)
     const routedText = this.annotateManagerUx(alignedText, routeMode)
+
+    // Deterministic answers are produced by code-built, scope-validated read-only
+    // queries and are self-evidenced (the real SQL is embedded in the markdown).
+    // Re-running the model-loop evidence heuristics on them can misfire — e.g. a
+    // clean numeric balance or an honest "no data for this account" message being
+    // converted into a misleading «درصد رشد/کاهش» refusal — so the deterministic
+    // route is authoritative and bypasses the heuristic contract. This does NOT
+    // weaken the guard for the model-assisted route, which still runs in full.
+    if (routeMode === 'deterministic') {
+      return routedText
+    }
+
     const finalizedText = this.enforceEvidenceFirstContract(
       prompt,
       routedText,

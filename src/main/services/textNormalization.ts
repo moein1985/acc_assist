@@ -33,6 +33,8 @@ export function normalizePersianText(input: string): string {
     .normalize('NFKC')
     .replace(/[\u064a\u0649]/g, 'ی')
     .replace(/[\u0643]/g, 'ک')
+    .replace(/\u06c0/g, 'ه')
+    .replace(/[\u064b-\u0655]/g, '')
     .replace(/\u200c/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

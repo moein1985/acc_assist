@@ -17,7 +17,7 @@ import type {
   SqlQueryRow
 } from '../../../shared/contracts'
 import type { AuditLogEntry } from '../auditLogService'
-import { normalizePersianDigits } from '../textNormalization'
+import { normalizePersianDigits, normalizePersianText } from '../textNormalization'
 import type { DeterministicFinancialIntent } from './intentRouting'
 import type {
   ConversationMemoryState,
@@ -267,9 +267,18 @@ export async function resolveDeterministicFinancialTool(
     const fiscalYearTable = deps.quoteSqlTableRef('FMK.FiscalYear')
     const accountTable = deps.quoteSqlTableRef('ACC.Account')
 
-    // Extract account name from prompt if present
+    // Extract account name from prompt if present. Normalize Arabic/Persian variants
+    // (ي/ى->ی, ك->ک) so the search term matches DB titles regardless of which form was entered.
     const accountNameMatch = prompt?.match(/(?:حساب|سرفصل)\s*([^\s]+)/iu)
-    const accountName = accountNameMatch ? accountNameMatch[1] : null
+    const accountName = accountNameMatch ? normalizePersianText(accountNameMatch[1]) : null
+    // Escape single quotes to keep the interpolated LIKE filter injection-safe.
+    const accountNameSql = accountName ? accountName.replace(/'/g, "''") : null
+    // Fold the DB column to the same Persian canonical form. The live Sepidar DB has a
+    // case/accent-sensitive collation and stores account titles with Arabic ي (U+064A)/ك
+    // (U+0643), so a raw LIKE with Persian ی/ک never matches. NCHAR code points keep the
+    // source ASCII-safe: 1610=ي, 1609=ى, 1740=ی, 1603=ك, 1705=ک.
+    const normalizedTitleExpr =
+      'REPLACE(REPLACE(REPLACE(a.Title, NCHAR(1610), NCHAR(1740)), NCHAR(1609), NCHAR(1740)), NCHAR(1603), NCHAR(1705))'
 
     // Extract fiscal year from prompt (normalize Persian digits first)
     const normalizedPrompt = normalizePersianDigits(prompt || '')
@@ -281,8 +290,17 @@ export async function resolveDeterministicFinancialTool(
     if (fiscalYear) {
       whereClause = ` AND fy.Title = N'${fiscalYear}'`
     }
+    // Exclude the Sepidar year-end closing vouchers so the result is the real
+    // closing balance instead of netting to zero. In a fully-closed fiscal year
+    // the اختتامیه (permanent-account close) and بستن حساب‌های موقت (temporary/P&L
+    // close) vouchers reverse every account's balance, making SUM(Debit)-SUM(Credit)
+    // over the whole year exactly 0. ACC.Voucher.Type is a stable Sepidar system
+    // enum: 3 = بستن حساب‌های موقت, 4 = اختتامیه (confirmed against the live DB).
+    // Opening (افتتاحیه, Type 5) stays included because it carries the prior-year
+    // balance forward into the closing position.
+    whereClause += ' AND v.Type NOT IN (3, 4)'
     if (accountName) {
-      whereClause += ` AND a.Title LIKE N'%${accountName}%'`
+      whereClause += ` AND ${normalizedTitleExpr} LIKE N'%${accountNameSql}%'`
       query = `SELECT SUM(CAST(vi.${debitColumn} AS decimal(18,2))) - SUM(CAST(vi.${creditColumn} AS decimal(18,2))) AS result_value
                  FROM ${voucherItemTable} vi
                  JOIN ${voucherTable} v ON vi.VoucherRef = v.VoucherId

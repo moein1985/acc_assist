@@ -165,7 +165,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
     aggregate: 'SUM(Debit) - SUM(Credit)',
     projection: ['AccountRef', 'AccountSLRef', 'Debit', 'Credit'],
     patterns: [
-      /مانده\s*(?:حساب|سرفصل|تنخواه|معین|تفضیلی)/iu,
+      /مانده\s*(?:بدهکار|بستانکار|خالص)?\s*(?:حساب|سرفصل|تنخواه|معین|تفضیلی)/iu,
       /\baccount\s+balance\b/iu,
       /\bbalance\s+of\s+(?:account|ledger|chart)\b/iu,
       /\b(?:ledger|chart)\s+(?:balance|مانده)\b/iu,

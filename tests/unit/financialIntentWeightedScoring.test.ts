@@ -110,6 +110,15 @@ void test('detectFinancialIntent (weighted default) routes a clear prompt with b
   assert.ok(Math.abs(match.confidence - (1 - Math.exp(-1))) < 1e-9)
 })
 
+void test('detectFinancialIntent routes debtor-qualified account balance phrasing with ezafe', () => {
+  // Natural phrasing «ماندهٔ بدهکار حساب صندوق سال ۱۴۰۲» previously failed to match
+  // get_account_balance because (a) the ezafe hamza in «ماندهٔ» and (b) the word
+  // «بدهکار» between «مانده» and «حساب» both broke the /مانده\s*حساب/ adjacency,
+  // dropping the request to the flaky model-assisted path.
+  const match = detectFinancialIntent('ماندهٔ بدهکار حساب صندوق سال ۱۴۰۲')
+  assert.equal(match?.intentId, 'get_account_balance')
+})
+
 void test('detectFinancialIntent applies exclude guards end-to-end (sales returns)', () => {
   const match = detectFinancialIntent('برگشت از فروش سالانه ۱۴۰۲')
   assert.notEqual(match?.intentId, 'get_sales_summary_by_period')

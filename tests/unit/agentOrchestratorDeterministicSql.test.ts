@@ -284,12 +284,20 @@ test('U2.4: get_account_balance with account name and fiscal year filters by bot
     `Query should contain fiscal year filter fy.Title = N'1403' but got: ${query}`
   )
   assert.ok(
-    query!.includes("a.Title LIKE N'%بانک%'"),
-    `Query should contain account name filter a.Title LIKE N'%بانک%' but got: ${query}`
+    query!.includes("LIKE N'%بانک%'"),
+    `Query should contain account name filter LIKE N'%بانک%' but got: ${query}`
+  )
+  assert.ok(
+    query!.includes('REPLACE(a.Title, NCHAR(1610), NCHAR(1740))'),
+    `Query should normalize a.Title Arabic/Persian variants (REPLACE/NCHAR) but got: ${query}`
   )
   assert.ok(
     query!.includes('[ACC].[Account]'),
     `Query should contain [ACC].[Account] when filtering by account name but got: ${query}`
+  )
+  assert.ok(
+    query!.includes('v.Type NOT IN (3, 4)'),
+    `Query should exclude Sepidar year-end closing vouchers (Type 3/4) so the balance is not netted to zero but got: ${query}`
   )
 })
 
