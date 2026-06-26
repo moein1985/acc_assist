@@ -495,6 +495,7 @@ export type AuditLogStage =
   | 'final'
   | 'error'
   | 'engine-mode'
+  | 'engine-shadow-compare'
 
 export interface AuditLogQueryRequest {
   limit?: number

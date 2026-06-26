@@ -13,5 +13,5 @@ export function verifyResult(plan: MetricPlan, result: EngineResult): EngineVerd
   void plan
   void result
   // TODO: Phase 3 — reconciliation + intent-alignment + evidence verification
-  return { status: 'not-implemented' }
+  return { ok: false, reason: 'not-implemented', reconciliations: [] }
 }

@@ -1,41 +1,221 @@
-/**
- * Placeholder type definitions for the Financial Reasoning Engine (FRE).
- *
- * These interfaces are intentionally minimal stubs — Phase 2 will fill in
- * the full schema, validation, and field details.
- *
- * @see FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md
- */
+import { z } from 'zod'
 
-export type MetricId = string
+export type MetricId =
+  | 'net_sales'
+  | 'purchases'
+  | 'account_balance'
+  | 'trial_balance'
+  | 'cash_bank_balance'
 
-export type Grain = 'total' | 'by_year' | 'by_month' | 'by_branch' | 'by_account'
+export type Grain = 'total' | 'by_year' | 'by_month' | 'by_account' | 'by_branch' | 'by_customer'
+
+export type AggregateKind =
+  | { kind: 'sum'; column: string }
+  | { kind: 'count' }
+  | { kind: 'debit_minus_credit'; debitColumn: string; creditColumn: string }
+
+export interface MetricSource {
+  primaryTable: string
+  alias: string
+  fallbackTables?: Array<{
+    table: string
+    alias: string
+    measure: AggregateKind
+    filters?: MetricFilter[]
+  }>
+  /** Structural joins required by mandatoryFilters or dimension sourceColumn (e.g. ACC.Voucher v) */
+  requiredJoins?: Array<{
+    table: string
+    alias: string
+    on: { sourceColumn: string; targetColumn: string }
+  }>
+}
+
+export interface DimensionBinding {
+  dimension: Grain
+  join?: {
+    table: string
+    alias: string
+    on: { sourceColumn: string; targetColumn: string }
+    sourceAlias?: string
+  }
+  labelColumn: string
+  labelType: 'nstring' | 'int'
+}
+
+export interface MetricFilter {
+  sql: string
+  description: string
+}
+
+export interface ReconciliationRule {
+  id: string
+  description: string
+  kind: 'sum_of_parts_equals_total' | 'balanced_to_zero' | 'non_negative' | 'custom'
+  toleranceAbs?: number
+}
 
 export interface MetricDefinition {
-  /** TODO: Phase 2 — full declarative metric definition */
   id: MetricId
-  label: string
+  titleFa: string
+  anchors: string[]
+  supportSignals?: string[]
+  excludeSignals?: string[]
+  softwareId: 'sepidar' | 'mahak' | 'generic'
+  grainSupported: Grain[]
+  source: MetricSource
+  measure: AggregateKind
+  dimensions: DimensionBinding[]
+  mandatoryFilters: MetricFilter[]
+  reconciliations?: ReconciliationRule[]
+  entityNameMatch?: {
+    column: string
+    foldPersian: boolean
+  }
+}
+
+export interface PlanFilter {
+  dimension: Grain
+  op: 'eq' | 'in'
+  values: string[]
 }
 
 export interface MetricPlan {
-  /** TODO: Phase 2 — Planner output IR */
   metricId: MetricId
   grain: Grain
+  filters: PlanFilter[]
+  comparison?: {
+    dimension: Grain
+    baseValue: string
+    targetValue: string
+  }
+  entityName?: string
+  confidence: number
 }
 
 export interface CompiledQuery {
-  /** TODO: Phase 2 — compiler output */
   sql: string
+  bindingsDescription: string
 }
 
 export interface EngineResult {
-  /** TODO: Phase 2 — executor output */
-  rows: unknown[]
+  rows: Record<string, unknown>[]
+  plan: MetricPlan
+  compiled: CompiledQuery
 }
 
 export interface EngineVerdict {
-  /** TODO: Phase 3 — verifier output */
-  status: 'verified' | 'rejected' | 'not-implemented'
+  ok: boolean
+  reason?: string
+  reconciliations: Array<{ id: string; passed: boolean }>
 }
 
 export type FinancialEngineMode = 'legacy' | 'shadow' | 'engine'
+
+const aggregateKindSchema = z.union([
+  z.object({ kind: z.literal('sum'), column: z.string() }),
+  z.object({ kind: z.literal('count') }),
+  z.object({
+    kind: z.literal('debit_minus_credit'),
+    debitColumn: z.string(),
+    creditColumn: z.string()
+  })
+])
+
+const metricFilterSchema = z.object({
+  sql: z.string(),
+  description: z.string()
+})
+
+const dimensionBindingSchema = z.object({
+  dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+  join: z
+    .object({
+      table: z.string(),
+      alias: z.string(),
+      on: z.object({
+        sourceColumn: z.string(),
+        targetColumn: z.string()
+      }),
+      sourceAlias: z.string().optional()
+    })
+    .optional(),
+  labelColumn: z.string(),
+  labelType: z.enum(['nstring', 'int'])
+})
+
+const metricSourceSchema = z.object({
+  primaryTable: z.string(),
+  alias: z.string(),
+  fallbackTables: z
+    .array(
+      z.object({
+        table: z.string(),
+        alias: z.string(),
+        measure: aggregateKindSchema,
+        filters: z.array(metricFilterSchema).optional()
+      })
+    )
+    .optional(),
+  requiredJoins: z
+    .array(
+      z.object({
+        table: z.string(),
+        alias: z.string(),
+        on: z.object({ sourceColumn: z.string(), targetColumn: z.string() })
+      })
+    )
+    .optional()
+})
+
+const reconciliationRuleSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  kind: z.enum(['sum_of_parts_equals_total', 'balanced_to_zero', 'non_negative', 'custom']),
+  toleranceAbs: z.number().optional()
+})
+
+export const metricDefinitionSchema = z.object({
+  id: z.enum(['net_sales', 'purchases', 'account_balance', 'trial_balance', 'cash_bank_balance']),
+  titleFa: z.string(),
+  anchors: z.array(z.string()),
+  supportSignals: z.array(z.string()).optional(),
+  excludeSignals: z.array(z.string()).optional(),
+  softwareId: z.enum(['sepidar', 'mahak', 'generic']),
+  grainSupported: z.array(
+    z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer'])
+  ),
+  source: metricSourceSchema,
+  measure: aggregateKindSchema,
+  dimensions: z.array(dimensionBindingSchema),
+  mandatoryFilters: z.array(metricFilterSchema),
+  reconciliations: z.array(reconciliationRuleSchema).optional(),
+  entityNameMatch: z.object({ column: z.string(), foldPersian: z.boolean() }).optional()
+})
+
+const planFilterSchema = z.object({
+  dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+  op: z.enum(['eq', 'in']),
+  values: z.array(z.string())
+})
+
+export const metricPlanSchema = z.object({
+  metricId: z.enum([
+    'net_sales',
+    'purchases',
+    'account_balance',
+    'trial_balance',
+    'cash_bank_balance'
+  ]),
+  grain: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+  filters: z.array(planFilterSchema),
+  comparison: z
+    .object({
+      dimension: z.enum(['total', 'by_year', 'by_month', 'by_account', 'by_branch', 'by_customer']),
+      baseValue: z.string(),
+      targetValue: z.string()
+    })
+    .optional(),
+  entityName: z.string().optional(),
+  confidence: z.number()
+})

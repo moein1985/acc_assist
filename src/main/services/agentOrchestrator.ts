@@ -283,7 +283,8 @@ export class AgentOrchestrator {
     payload: AgentSendMessageRequest,
     onProgress?: (event: AgentProgressEvent) => void
   ): Promise<AgentSendMessageResult> {
-    const mode = this.getSettings().financialEngineMode ?? 'legacy'
+    const mode =
+      process.env.ACC_FINANCIAL_ENGINE_MODE ?? this.getSettings().financialEngineMode ?? 'legacy'
     void this.safeAuditWrite({
       timestamp: new Date().toISOString(),
       requestId: payload.requestId,
@@ -291,7 +292,67 @@ export class AgentOrchestrator {
       stage: 'engine-mode',
       prompt: `FINANCIAL_ENGINE_MODE=${mode}`
     })
-    return sendMessageFn(this.sendMessageDeps, payload, onProgress)
+    const result = await sendMessageFn(this.sendMessageDeps, payload, onProgress)
+
+    if (mode === 'shadow') {
+      void this.runShadowComparison(payload, result.finalText)
+    }
+
+    return result
+  }
+
+  private async runShadowComparison(
+    payload: AgentSendMessageRequest,
+    legacyText: string
+  ): Promise<void> {
+    try {
+      const { FinancialEngine } = await import('./financialEngine/index')
+      const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
+      const { normalizePersianText } = await import('./textNormalization')
+
+      const engine = new FinancialEngine({
+        quoteSqlTableRef,
+        quoteSqlIdentifier,
+        normalizePersianText,
+        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined)
+      })
+
+      const engineResult = await engine.run(payload.prompt)
+
+      const legacyNumbers = (legacyText.match(/[\d,]{4,}/g) ?? []).sort(
+        (a, b) => b.length - a.length
+      )
+      const legacyValue = legacyNumbers.length > 0 ? legacyNumbers[0]!.replace(/,/g, '') : null
+
+      let engineValue: string | null = null
+      let metricId: string | null = null
+      if (engineResult.result && engineResult.result.rows.length > 0) {
+        const row = engineResult.result.rows[0]
+        const raw = row['result_value'] ?? row['base_value']
+        if (raw != null) {
+          engineValue = String(raw)
+          metricId = engineResult.result.plan.metricId
+        }
+      }
+
+      const match = legacyValue !== null && engineValue !== null && legacyValue === engineValue
+
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-shadow-compare',
+        prompt: `metricId=${metricId ?? 'null'} legacyValue=${legacyValue ?? 'null'} engineValue=${engineValue ?? 'null'} match=${match}`
+      })
+    } catch (error) {
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-shadow-compare',
+        prompt: `error=${error instanceof Error ? error.message : String(error)}`
+      })
+    }
   }
 
   private get sendMessageDeps(): SendMessageDeps {
