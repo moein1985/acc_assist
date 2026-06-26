@@ -251,6 +251,7 @@ export interface AppSettings {
   activeConnectionProfileId: string
   schemaCatalogs: SchemaCatalogEntry[]
   promptTemplates: PromptTemplate[]
+  financialEngineMode?: 'legacy' | 'shadow' | 'engine'
 }
 
 export interface SqlParameter {
@@ -486,7 +487,14 @@ export interface RendererTelemetryEvent {
   details?: Record<string, unknown>
 }
 
-export type AuditLogStage = 'start' | 'tool-start' | 'tool-success' | 'tool-error' | 'final' | 'error'
+export type AuditLogStage =
+  | 'start'
+  | 'tool-start'
+  | 'tool-success'
+  | 'tool-error'
+  | 'final'
+  | 'error'
+  | 'engine-mode'
 
 export interface AuditLogQueryRequest {
   limit?: number

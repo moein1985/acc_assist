@@ -1,13 +1,18 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { app } from 'electron'
-import type { AuditLogQueryRequest, AuditLogQueryResult, AuditLogViewerEntry } from '../../shared/contracts'
+import type {
+  AuditLogQueryRequest,
+  AuditLogQueryResult,
+  AuditLogStage,
+  AuditLogViewerEntry
+} from '../../shared/contracts'
 
 export interface AuditLogEntry {
   timestamp: string
   requestId: string
   conversationId?: string
-  stage: 'start' | 'tool-start' | 'tool-success' | 'tool-error' | 'final' | 'error'
+  stage: AuditLogStage
   prompt?: string
   toolName?: string
   sqlQuery?: string

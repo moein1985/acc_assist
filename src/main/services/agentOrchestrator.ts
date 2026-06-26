@@ -283,6 +283,14 @@ export class AgentOrchestrator {
     payload: AgentSendMessageRequest,
     onProgress?: (event: AgentProgressEvent) => void
   ): Promise<AgentSendMessageResult> {
+    const mode = this.getSettings().financialEngineMode ?? 'legacy'
+    void this.safeAuditWrite({
+      timestamp: new Date().toISOString(),
+      requestId: payload.requestId,
+      conversationId: payload.conversationId,
+      stage: 'engine-mode',
+      prompt: `FINANCIAL_ENGINE_MODE=${mode}`
+    })
     return sendMessageFn(this.sendMessageDeps, payload, onProgress)
   }
 

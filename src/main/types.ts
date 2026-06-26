@@ -106,7 +106,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ],
   activeConnectionProfileId: DEFAULT_PROFILE_ID,
   schemaCatalogs: [],
-  promptTemplates: []
+  promptTemplates: [],
+  financialEngineMode: 'legacy'
 }
 
 export function mergeSettings(current: AppSettings, patch: Partial<AppSettings>): AppSettings {
