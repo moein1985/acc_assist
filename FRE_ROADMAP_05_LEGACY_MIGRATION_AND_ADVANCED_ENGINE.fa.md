@@ -1,9 +1,11 @@
-# FRE Roadmap 05 — فاز ۷ تا ۱۰: مهاجرتِ کامل، سؤال‌های پیچیده، Production Hardening و Planner پیشرفته
-### خروج از تردمیل — همهٔ متریک‌ها در موتورِ نو + سؤال‌های آزاد + پایداریِ production
+# FRE Roadmap 05 — فاز ۷ تا ۱۰ (تقسیم‌شده)
 
-> پیش‌نیاز: فاز ۶ کامل و سبز. ۶ متریک در `engine` mode فعال، rollback تست شده، ۴ هندلر DEPRECATED. این فایل آخرین مرحلهٔ رسیدن به هدفِ فاز ۰.۱ است: **هیچ هندلرِ دست‌سازی باقی نماند.**
-
-**مارکرهای asar این فاز:** `MULTI_METRIC_PLAN`, `PARTY_BALANCE`, `DERIVED_METRIC`, `LEGACY_REMOVED`.
+> این فایل به ۴ فایلِ جداگانه تقسیم شده است. لطفاً به فایل‌های زیر مراجعه کن:
+>
+> - `FRE_ROADMAP_05_PHASE7_LEGACY_MIGRATION.fa.md` — مهاجرتِ ۹ intent باقی‌مانده
+> - `FRE_ROADMAP_06_PHASE8_MULTI_METRIC.fa.md` — سؤال‌های چند-متریکی و grains پیچیده
+> - `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md` — Production hardening و حذف legacy
+> - `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md` — Planner مدلی پیشرفته
 
 ---
 
