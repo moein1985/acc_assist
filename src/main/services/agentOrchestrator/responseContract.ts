@@ -61,11 +61,15 @@ export function annotateManagerUx(
 
   if (/^### Summary\n/i.test(normalizedText)) {
     const routeLine = `- مسیر پاسخ: ${routeMode}`
-    if (normalizedText.includes('نوع KPI:')) {
-      return rawText.replace(
-        '### Findings',
-        `${routeLine}\n- نوع KPI: ${rawText.match(/نوع KPI: ([^\n]+)/)?.[1] ?? 'نامشخص'}\n\n### Findings`
-      )
+
+    // If route line already exists, don't duplicate
+    if (normalizedText.includes(`مسیر پاسخ: ${routeMode}`)) {
+      return rawText
+    }
+
+    // If route line exists with a different mode, replace it
+    if (normalizedText.includes('مسیر پاسخ:')) {
+      return rawText.replace(/- مسیر پاسخ: [^\n]+/, routeLine)
     }
 
     return rawText.replace('### Findings', `${routeLine}\n\n### Findings`)

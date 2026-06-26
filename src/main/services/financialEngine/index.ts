@@ -10,12 +10,19 @@
 import type { EngineResult, EngineVerdict, MetricPlan } from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { routeMetric } from './router'
-import { buildDeterministicPlan } from './planner'
+import {
+  buildDeterministicPlan,
+  buildModelPlan,
+  PLANNER_CONFIDENCE_THRESHOLD,
+  type PlannerModelDeps
+} from './planner'
 import { findMetricById } from './metricCatalog'
 import { compileMetricPlan, type CompilerDeps } from './compiler'
+import { verifyResult } from './verifier'
 
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
+  plannerModel?: PlannerModelDeps
 }
 
 export interface EngineRunResult {
@@ -28,22 +35,56 @@ export class FinancialEngine {
 
   async run(prompt: string, signal?: AbortSignal): Promise<EngineRunResult> {
     const route = routeMetric(prompt)
-    if (!route.metricId || route.confidence < 0.5) {
-      return {
-        verdict: { ok: false, reason: 'no-metric-match', reconciliations: [] },
-        result: null
+
+    // Step 1: If router is confident, use deterministic plan (fast, no model cost)
+    if (route.metricId && route.confidence >= 0.7) {
+      const plan = buildDeterministicPlan(prompt, route.metricId)
+      if (plan) {
+        return this.runPlan(plan, signal)
       }
     }
 
-    const plan = buildDeterministicPlan(prompt, route.metricId)
-    if (!plan) {
-      return {
-        verdict: { ok: false, reason: 'plan-failed', reconciliations: [] },
-        result: null
+    // Step 2: If model planner is available, try it for ambiguous/complex prompts
+    if (this.deps.plannerModel) {
+      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel)
+      if (modelResult.plan && modelResult.plan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
+        return this.runPlan(modelResult.plan, signal)
+      }
+
+      // Step 3: Low confidence or invalid plan → clarify
+      if (modelResult.plan && modelResult.plan.confidence < PLANNER_CONFIDENCE_THRESHOLD) {
+        return {
+          verdict: {
+            ok: false,
+            reason: 'low-confidence-clarify',
+            reconciliations: []
+          },
+          result: null
+        }
+      }
+
+      // Parse error → degrade
+      if (modelResult.error) {
+        return {
+          verdict: {
+            ok: false,
+            reason: `planner-error: ${modelResult.error}`,
+            reconciliations: []
+          },
+          result: null
+        }
       }
     }
 
-    return this.runPlan(plan, signal)
+    // Step 4: No metric match → degrade to legacy
+    return {
+      verdict: {
+        ok: false,
+        reason: route.metricId ? 'plan-failed' : 'no-metric-match',
+        reconciliations: []
+      },
+      result: null
+    }
   }
 
   async runPlan(plan: MetricPlan, signal?: AbortSignal): Promise<EngineRunResult> {
@@ -87,10 +128,8 @@ export class FinancialEngine {
       }
 
       const result: EngineResult = { rows, plan, compiled }
-      return {
-        verdict: { ok: true, reconciliations: [] },
-        result
-      }
+      const verdict = verifyResult(result, plan, def)
+      return { verdict, result }
     } catch (error) {
       void error
       return {

@@ -292,6 +292,22 @@ export class AgentOrchestrator {
       stage: 'engine-mode',
       prompt: `FINANCIAL_ENGINE_MODE=${mode}`
     })
+
+    if (mode === 'engine') {
+      const engineResponse = await this.tryEngineResponse(payload)
+      if (engineResponse !== null) {
+        return engineResponse
+      }
+      // Engine failed → degrade to legacy
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-mode',
+        prompt: 'engine-degraded-to-legacy'
+      })
+    }
+
     const result = await sendMessageFn(this.sendMessageDeps, payload, onProgress)
 
     if (mode === 'shadow') {
@@ -299,6 +315,81 @@ export class AgentOrchestrator {
     }
 
     return result
+  }
+
+  private async tryEngineResponse(
+    payload: AgentSendMessageRequest
+  ): Promise<AgentSendMessageResult | null> {
+    try {
+      const { FinancialEngine } = await import('./financialEngine/index')
+      const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
+      const { normalizePersianText } = await import('./textNormalization')
+      const { composeEngineResponseMarkdown } = await import('./financialEngine/explainer')
+      const { checkIntentAlignment } = await import('./financialEngine/verifier')
+
+      const engine = new FinancialEngine({
+        quoteSqlTableRef,
+        quoteSqlIdentifier,
+        normalizePersianText,
+        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined)
+      })
+
+      const engineRun = await engine.run(payload.prompt)
+
+      if (!engineRun.result || !engineRun.verdict.ok) {
+        void this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: payload.requestId,
+          conversationId: payload.conversationId,
+          stage: 'engine-mode',
+          prompt: `engine-no-result: ${engineRun.verdict.reason ?? 'unknown'}`
+        })
+        return null
+      }
+
+      // V5.2: Intent alignment check
+      const intentCheck = checkIntentAlignment(payload.prompt, engineRun.result.plan)
+      if (!intentCheck.passed) {
+        void this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: payload.requestId,
+          conversationId: payload.conversationId,
+          stage: 'engine-mode',
+          prompt: `intent-mismatch: ${intentCheck.reason}`
+        })
+        return null
+      }
+
+      const finalText = composeEngineResponseMarkdown(
+        engineRun.result,
+        engineRun.verdict,
+        payload.prompt
+      )
+
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-mode',
+        prompt: `engine-served: metricId=${engineRun.result.plan.metricId} verdict=ok`
+      })
+
+      return {
+        history: [],
+        finalText,
+        rounds: 1,
+        toolCallsUsed: 1
+      }
+    } catch (error) {
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-mode',
+        prompt: `engine-error: ${error instanceof Error ? error.message : String(error)}`
+      })
+      return null
+    }
   }
 
   private async runShadowComparison(
