@@ -82,9 +82,13 @@ test('engine end-to-end: trial_balance 1402', async () => {
 })
 
 test('engine end-to-end: cash_bank_balance 1402', async () => {
+  const executor = async (query: string): Promise<SqlQueryRow[]> => {
+    if (query.includes('BankAccountBalance')) return [{ result_value: 7393606464 }]
+    return [{ result_value: 2127900602 }]
+  }
   const engine = new FinancialEngine({
     ...makeCompilerDeps(),
-    executeReadOnlySql: makeMockExecutor(9521507066)
+    executeReadOnlySql: executor
   })
 
   const result = await engine.run('مانده نقد و بانک در سال ۱۴۰۲')

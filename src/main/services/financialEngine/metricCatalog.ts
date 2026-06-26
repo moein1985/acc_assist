@@ -44,33 +44,21 @@ const catalog: MetricDefinition[] = [
     anchors: ['خرید', 'مبلغ خرید', 'خرید کالا'],
     excludeSignals: ['فروش', 'درآمد'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_year'],
+    grainSupported: ['total'],
     source: {
-      primaryTable: 'POM.PurchaseInvoice',
+      primaryTable: 'INV.InventoryReceipt',
       alias: 'src',
       fallbackTables: [
         {
-          table: 'INV.InventoryReceipt',
+          table: 'POM.PurchaseInvoice',
           alias: 'src',
-          measure: { kind: 'sum', column: 'TotalPrice' },
-          filters: [{ sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }]
+          measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' }
         }
       ]
     },
-    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
-    dimensions: [
-      {
-        dimension: 'by_year',
-        join: {
-          table: 'FMK.FiscalYear',
-          alias: 'fy',
-          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
-        },
-        labelColumn: 'Title',
-        labelType: 'nstring'
-      }
-    ],
-    mandatoryFilters: []
+    measure: { kind: 'sum', column: 'TotalPrice' },
+    mandatoryFilters: [{ sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }],
+    dimensions: []
   },
   {
     id: 'account_balance',
@@ -131,6 +119,11 @@ const catalog: MetricDefinition[] = [
           table: 'ACC.Voucher',
           alias: 'v',
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
@@ -165,21 +158,20 @@ const catalog: MetricDefinition[] = [
     titleFa: 'مانده نقد و بانک',
     anchors: ['مانده نقد', 'مانده بانک', 'مانده صندوق', 'مانده کش', 'مانده حساب بانکی'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_year'],
-    source: { primaryTable: 'RPA.CashBalance', alias: 'cb' },
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'RPA.CashBalance',
+      alias: 'cb',
+      compositeSources: [
+        {
+          table: 'RPA.BankAccountBalance',
+          alias: 'bb',
+          measure: { kind: 'sum', column: 'Balance' }
+        }
+      ]
+    },
     measure: { kind: 'sum', column: 'Balance' },
-    dimensions: [
-      {
-        dimension: 'by_year',
-        join: {
-          table: 'FMK.FiscalYear',
-          alias: 'fy',
-          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
-        },
-        labelColumn: 'Title',
-        labelType: 'nstring'
-      }
-    ],
+    dimensions: [],
     mandatoryFilters: []
   },
   {

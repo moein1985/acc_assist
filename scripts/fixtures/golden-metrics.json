@@ -86,7 +86,7 @@
       "prompt": "تراز آزمایشی ۱۴۰۲",
       "expectedMetricId": "trial_balance",
       "expectedGrain": "total",
-      "expectedValue": 5426804727946,
+      "expectedValue": 566396483280,
       "tolerance": 0
     },
     {
@@ -94,7 +94,7 @@
       "prompt": "بدهکار بستانکار حساب‌ها در سال ۱۴۰۲",
       "expectedMetricId": "trial_balance",
       "expectedGrain": "total",
-      "expectedValue": 5426804727946,
+      "expectedValue": 566396483280,
       "tolerance": 0
     },
     {
@@ -102,7 +102,7 @@
       "prompt": "تراز آزمایشی سال ۱۴۰۲ چقدر است",
       "expectedMetricId": "trial_balance",
       "expectedGrain": "total",
-      "expectedValue": 5426804727946,
+      "expectedValue": 566396483280,
       "tolerance": 0
     },
     {

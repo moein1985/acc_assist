@@ -156,7 +156,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_account_balance',
-    description: 'Return balance for an account/chart item from ACC.Voucher/ACC.VoucherItem.',
+    description: 'Return balance for an account/chart item from ACC.Voucher/ACC.VoucherItem. [DEPRECATED: superseded by FRE metric account_balance — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['accountCodeOrName'],
     isGoldenFastPath: true,
@@ -181,7 +181,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_cash_bank_balance',
-    description: 'Return cash and bank account balances from RPA.CashBalance and RPA.BankAccountBalance.',
+    description: 'Return cash and bank account balances from RPA.CashBalance and RPA.BankAccountBalance. [DEPRECATED: superseded by FRE metric cash_bank_balance — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['fiscalYear'],
     isGoldenFastPath: true,
@@ -197,7 +197,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   },
   {
     id: 'get_trial_balance',
-    description: 'Return trial balance (sum of debit/credit by account) from ACC.VoucherItem.',
+    description: 'Return trial balance (sum of debit/credit by account) from ACC.VoucherItem. [DEPRECATED: superseded by FRE metric trial_balance — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['fiscalYear'],
     isGoldenFastPath: true,
@@ -231,7 +231,7 @@ const FINANCIAL_INTENT_REGISTRY: FinancialIntentDefinition[] = [
   {
     id: 'get_purchase_summary',
     description:
-      'Return purchase summary. Fallback from POM.PurchaseInvoice to INV.InventoryReceipt (non-returns).',
+      'Return purchase summary. Fallback from POM.PurchaseInvoice to INV.InventoryReceipt (non-returns). [DEPRECATED: superseded by FRE metric purchases — retained as rollback safety net]',
     responseMode: 'deterministic',
     requiredSlots: ['period'],
     isGoldenFastPath: true,

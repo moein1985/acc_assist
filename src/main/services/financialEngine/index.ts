@@ -129,7 +129,32 @@ export class FinancialEngine {
 
       const result: EngineResult = { rows, plan, compiled }
       const verdict = verifyResult(result, plan, def)
-      return { verdict, result }
+
+      if (verdict.ok && def.source.compositeSources && def.source.compositeSources.length > 0) {
+        let primaryValue = Number(rows[0]['result_value'] ?? 0)
+        for (const cs of def.source.compositeSources) {
+          const csDef = {
+            ...def,
+            source: { primaryTable: cs.table, alias: cs.alias },
+            measure: cs.measure,
+            mandatoryFilters: [...def.mandatoryFilters, ...(cs.filters ?? [])]
+          }
+          try {
+            const csCompiled = compileMetricPlan(plan, csDef, this.deps)
+            const csRows = await this.deps.executeReadOnlySql(csCompiled.sql, signal)
+            if (csRows.length > 0 && csRows[0]['result_value'] != null) {
+              primaryValue += Number(csRows[0]['result_value'])
+            }
+          } catch {
+            // composite source failed — skip it
+          }
+        }
+        rows = [{ ...rows[0], result_value: primaryValue }]
+      }
+
+      const finalResult: EngineResult = { rows, plan, compiled }
+      const finalVerdict = verifyResult(finalResult, plan, def)
+      return { verdict: finalVerdict, result: finalResult }
     } catch (error) {
       void error
       return {

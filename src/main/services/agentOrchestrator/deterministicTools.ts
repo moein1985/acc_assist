@@ -61,6 +61,14 @@ export async function resolveDeterministicFinancialTool(
   onProgress?: (event: AgentProgressEvent) => void,
   prompt?: string
 ): Promise<DeterministicFinancialToolResult | null> {
+  // The following intents are superseded by FRE metrics and retained only as
+  // rollback safety nets. When ACC_FINANCIAL_ENGINE_MODE=engine, the engine
+  // serves these metrics first; this legacy handler runs only in legacy mode
+  // or when the engine degrades.
+  //   get_purchase_summary  → FRE metric: purchases
+  //   get_account_balance   → FRE metric: account_balance
+  //   get_trial_balance     → FRE metric: trial_balance
+  //   get_cash_bank_balance → FRE metric: cash_bank_balance
   const activeCatalog = deps.findActiveSchemaCatalog(settings)
 
   // Hardcoded fallback mappings when no schema catalog is available

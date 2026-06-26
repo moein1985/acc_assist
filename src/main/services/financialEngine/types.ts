@@ -30,6 +30,13 @@ export interface MetricSource {
     alias: string
     on: { sourceColumn: string; targetColumn: string }
   }>
+  /** Additional sources whose results are summed with the primary (e.g. CashBalance + BankAccountBalance) */
+  compositeSources?: Array<{
+    table: string
+    alias: string
+    measure: AggregateKind
+    filters?: MetricFilter[]
+  }>
 }
 
 export interface DimensionBinding {
@@ -164,6 +171,16 @@ const metricSourceSchema = z.object({
         table: z.string(),
         alias: z.string(),
         on: z.object({ sourceColumn: z.string(), targetColumn: z.string() })
+      })
+    )
+    .optional(),
+  compositeSources: z
+    .array(
+      z.object({
+        table: z.string(),
+        alias: z.string(),
+        measure: aggregateKindSchema,
+        filters: z.array(metricFilterSchema).optional()
       })
     )
     .optional()

@@ -175,7 +175,7 @@ test('compileMetricPlan: account_balance produces debit_minus_credit with requir
   assert.ok(sql.includes('[ACC].[VoucherItem]'), 'should quote as [ACC].[VoucherItem]')
 })
 
-test('compileMetricPlan: trial_balance produces SUM(Debit) with requiredJoins', () => {
+test('compileMetricPlan: trial_balance produces SUM(Debit) with requiredJoins and year filter', () => {
   const def = findMetricById('trial_balance')!
   const plan: MetricPlan = {
     metricId: 'trial_balance',
@@ -190,11 +190,12 @@ test('compileMetricPlan: trial_balance produces SUM(Debit) with requiredJoins', 
     'should have SUM(Debit) measure'
   )
   assert.ok(sql.includes('JOIN [ACC].[Voucher] v ON'), 'should have required join to ACC.Voucher')
+  assert.ok(sql.includes('JOIN [ACC].[Account] a ON'), 'should have required join to ACC.Account')
   assert.ok(sql.includes('v.Type NOT IN (3, 4)'), 'should have mandatory filter')
   assert.ok(sql.includes("fy.Title = N'1402'"), 'should filter by year')
 })
 
-test('compileMetricPlan: purchases produces SUM(TotalPrice) from POM.PurchaseInvoice', () => {
+test('compileMetricPlan: purchases produces SUM(TotalPrice) from INV.InventoryReceipt with IsReturn=0', () => {
   const def = findMetricById('purchases')!
   const plan: MetricPlan = {
     metricId: 'purchases',
@@ -205,8 +206,9 @@ test('compileMetricPlan: purchases produces SUM(TotalPrice) from POM.PurchaseInv
   const { sql } = compileMetricPlan(plan, def, deps)
 
   assert.ok(
-    sql.includes('SUM(CAST(src.[NetPriceInBaseCurrency] AS decimal(18,4)))'),
-    'should have SUM(NetPriceInBaseCurrency)'
+    sql.includes('SUM(CAST(src.[TotalPrice] AS decimal(18,4)))'),
+    'should have SUM(TotalPrice)'
   )
-  assert.ok(sql.includes('FROM [POM].[PurchaseInvoice] src'), 'should use POM.PurchaseInvoice')
+  assert.ok(sql.includes('FROM [INV].[InventoryReceipt] src'), 'should use INV.InventoryReceipt')
+  assert.ok(sql.includes('src.IsReturn = 0'), 'should filter IsReturn = 0')
 })

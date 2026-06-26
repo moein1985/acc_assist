@@ -115,8 +115,14 @@ function buildJoinClauses(
     if (dim) addDimensionJoin(dim)
   }
 
-  for (const dim of definition.dimensions) {
-    if (dim.join) addDimensionJoin(dim)
+  if (plan.grain !== 'total') {
+    const dim = findDimension(definition, plan.grain)
+    if (dim) addDimensionJoin(dim)
+  }
+
+  if (definition.entityNameMatch && plan.entityName) {
+    const dim = findDimension(definition, 'by_account')
+    if (dim) addDimensionJoin(dim)
   }
 
   return joins
