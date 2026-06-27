@@ -392,4 +392,6 @@ Total unit tests: 49
 Total integration tests: 1
 ```
 
-> قدمِ بعدی: Shadow run رسمی ۲ هفته‌ای روی کد پخته (S9.3-S9.5 تعلیق‌شده) + سوییچ نهایی به engine mode + آماده‌سازی release نسخه ۲.۰.
+> قدمِ بعدی: فاز ۱۴ — `FRE_ROADMAP_12_PHASE14_ACCOUNTANT_TOOLS.fa.md` (ابزارهای حسابدار: فیلتر محدوده تاریخ، کوئری سند-محور، کشف خطا، تحلیل سنی، چک، مالیات، تطبیق، drill-down مکالمه‌ای).
+> پس از آن: فاز ۱۵ — `FRE_ROADMAP_13_PHASE15_BLIND_SCHEMA_DISCOVERY.fa.md` (کشف کور schema، جایگزین فاز ۱۲).
+> در نهایت: Shadow run رسمی ۲ هفته‌ای (S9.3-S9.5 تعلیق‌شده) + سوییچ نهایی به engine mode + آماده‌سازی release نسخه ۲.۰.
