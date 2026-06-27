@@ -142,6 +142,20 @@ function buildWhereClauses(
     where.push(filter.sql)
   }
 
+  // S14.4: Apply date range filter if present
+  if (plan.dateRange && definition.dateColumn) {
+    const dateCol = definition.dateColumn
+    if (plan.dateRange.start && plan.dateRange.end) {
+      where.push(
+        `${dateCol} >= '${plan.dateRange.start}' AND ${dateCol} <= '${plan.dateRange.end}'`
+      )
+    } else if (plan.dateRange.start) {
+      where.push(`${dateCol} >= '${plan.dateRange.start}'`)
+    } else if (plan.dateRange.end) {
+      where.push(`${dateCol} <= '${plan.dateRange.end}'`)
+    }
+  }
+
   for (const pf of plan.filters) {
     const dim = findDimension(definition, pf.dimension)
     if (!dim) continue
@@ -288,6 +302,9 @@ export function compileMetricPlan(
   }
   if (plan.entityName) {
     bindings.push(`entityName: ${plan.entityName}`)
+  }
+  if (plan.dateRange) {
+    bindings.push(`dateRange: ${plan.dateRange.start ?? '*'} → ${plan.dateRange.end ?? '*'}`)
   }
 
   return {

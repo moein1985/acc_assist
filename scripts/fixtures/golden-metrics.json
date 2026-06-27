@@ -976,6 +976,69 @@
       "expectedGrain": "by_year",
       "expect": "any_number",
       "expectedValue": 1
+    },
+    {
+      "id": "s14-daterange-explicit-dates",
+      "prompt": "فروش از 1403/05/01 تا 1403/05/31 چقدر است؟",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-07-22", "end": "2024-08-21" }
+    },
+    {
+      "id": "s14-daterange-month-names",
+      "prompt": "فروش از فروردین تا مرداد 1403",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-03-20", "end": "2024-08-21" }
+    },
+    {
+      "id": "s14-daterange-half-second",
+      "prompt": "فروش نیمه دوم سال 1403",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-09-22", "end": "2025-03-19" }
+    },
+    {
+      "id": "s14-daterange-single-month",
+      "prompt": "فروش ماه 5 سال 1403",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-07-22", "end": "2024-08-21" }
+    },
+    {
+      "id": "s14-daterange-year-range",
+      "prompt": "فروش از 1402 تا 1403",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2023-03-21", "end": "2025-03-19" }
+    },
+    {
+      "id": "s14-daterange-day-month-range",
+      "prompt": "فروش از 1 خرداد تا 15 تیر 1403",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-05-21", "end": "2024-07-05" }
+    },
+    {
+      "id": "s14-daterange-half-first",
+      "prompt": "مانده حساب نیمه اول سال 1403",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1,
+      "expectedDateRange": { "start": "2024-03-20", "end": "2024-09-21" }
     }
   ],
   "negative": [

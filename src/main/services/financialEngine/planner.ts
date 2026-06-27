@@ -3,6 +3,14 @@ import { metricPlanSchema, multiMetricPlanSchema } from './types'
 import { findMetricById, getMetricCatalog } from './metricCatalog'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
 import { routeMultiMetric } from './router'
+import {
+  persianToGregorian,
+  persianYearStart,
+  persianYearEnd,
+  persianMonthStart,
+  persianMonthEnd,
+  PERSIAN_MONTH_NAME_TO_NUM
+} from './persianDateUtils'
 
 // --- S10.8: Current Persian year ---
 // CONVERSATIONAL_PLANNER: auto-fills current year, entity patterns, date ranges
@@ -57,6 +65,126 @@ function setCachedPlan(key: string, result: MetricPlan | null): void {
     if (firstKey) planCache.delete(firstKey)
   }
   planCache.set(key, { result, expires: Date.now() + PLAN_CACHE_TTL_MS })
+}
+
+/**
+ * S14.2: Parse date range from Persian prompts.
+ *
+ * Supported patterns:
+ * - "از 1403/05/01 تا 1403/05/31" → explicit Persian dates
+ * - "از فروردین تا مرداد 1403" → month name range with year
+ * - "از 1 خرداد تا 15 تیر 1403" → day + month name range with year
+ * - "ماه 5 سال 1403" → single month
+ * - "نیمه دوم سال 1403" → second half (months 7-12)
+ * - "از 1 تا 15 خرداد 1403" → day range within a month
+ */
+function parseDateRange(
+  normalized: string,
+  yearMatches: string[] | null
+): { start?: string; end?: string } | undefined {
+  const year = yearMatches && yearMatches.length > 0 ? Number(yearMatches[0]) : Number(getCurrentPersianYear())
+
+  // Pattern 1: "از YYYY/MM/DD تا YYYY/MM/DD"
+  const explicitRangeMatch = normalized.match(
+    /از\s*(\d{4})[/](\d{1,2})[/](\d{1,2})\s*تا\s*(\d{4})[/](\d{1,2})[/](\d{1,2})/u
+  )
+  if (explicitRangeMatch) {
+    const startY = Number(explicitRangeMatch[1])
+    const startM = Number(explicitRangeMatch[2])
+    const startD = Number(explicitRangeMatch[3])
+    const endY = Number(explicitRangeMatch[4])
+    const endM = Number(explicitRangeMatch[5])
+    const endD = Number(explicitRangeMatch[6])
+    if (
+      startY >= 1300 && startY <= 1500 && endY >= 1300 && endY <= 1500 &&
+      startM >= 1 && startM <= 12 && endM >= 1 && endM <= 12 &&
+      startD >= 1 && startD <= 31 && endD >= 1 && endD <= 31
+    ) {
+      return {
+        start: persianToGregorian(startY, startM, startD),
+        end: persianToGregorian(endY, endM, endD)
+      }
+    }
+  }
+
+  // Pattern 2: "از <monthName> تا <monthName> <year>"
+  const monthNameRange = normalized.match(
+    /از\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)\s*تا\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)/u
+  )
+  if (monthNameRange) {
+    const startMonthNum = PERSIAN_MONTH_NAME_TO_NUM[monthNameRange[1]!]
+    const endMonthNum = PERSIAN_MONTH_NAME_TO_NUM[monthNameRange[2]!]
+    if (startMonthNum && endMonthNum) {
+      return {
+        start: persianMonthStart(year, startMonthNum),
+        end: persianMonthEnd(year, endMonthNum)
+      }
+    }
+  }
+
+  // Pattern 3: "از <day> <monthName> تا <day> <monthName> <year>"
+  const dayMonthRange = normalized.match(
+    /از\s*(\d{1,2})\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)\s*تا\s*(\d{1,2})\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)/u
+  )
+  if (dayMonthRange) {
+    const startDay = Number(dayMonthRange[1])
+    const startMonthNum = PERSIAN_MONTH_NAME_TO_NUM[dayMonthRange[2]!]
+    const endDay = Number(dayMonthRange[3])
+    const endMonthNum = PERSIAN_MONTH_NAME_TO_NUM[dayMonthRange[4]!]
+    if (
+      startMonthNum && endMonthNum &&
+      startDay >= 1 && startDay <= 31 && endDay >= 1 && endDay <= 31
+    ) {
+      return {
+        start: persianToGregorian(year, startMonthNum, startDay),
+        end: persianToGregorian(year, endMonthNum, endDay)
+      }
+    }
+  }
+
+  // Pattern 4: "ماه <N> سال <year>" or "ماه <N> <year>"
+  const singleMonthMatch = normalized.match(/ماه\s*(\d{1,2})\s*(?:سال\s*)?(\d{4})?/u)
+  if (singleMonthMatch) {
+    const monthNum = Number(singleMonthMatch[1])
+    const monthYear = singleMonthMatch[2] ? Number(singleMonthMatch[2]) : year
+    if (monthNum >= 1 && monthNum <= 12) {
+      return {
+        start: persianMonthStart(monthYear, monthNum),
+        end: persianMonthEnd(monthYear, monthNum)
+      }
+    }
+  }
+
+  // Pattern 5: "نیمه دوم سال <year>"
+  if (/نیمه\s*دوم/u.test(normalized)) {
+    return {
+      start: persianMonthStart(year, 7),
+      end: persianMonthEnd(year, 12)
+    }
+  }
+
+  // Pattern 6: "نیمه اول سال <year>" (already handled by month filter, but also set dateRange)
+  if (/نیمه\s*اول/u.test(normalized)) {
+    return {
+      start: persianMonthStart(year, 1),
+      end: persianMonthEnd(year, 6)
+    }
+  }
+
+  // Pattern 7: Year-only range "از <year> تا <year>" — convert to full year boundaries
+  const yearRangeMatch = normalized.match(/از\s*(\d{4})\s*تا\s*(\d{4})/u)
+  if (yearRangeMatch && !explicitRangeMatch) {
+    const startY = Number(yearRangeMatch[1])
+    const endY = Number(yearRangeMatch[2])
+    if (startY >= 1300 && startY <= 1500 && endY >= 1300 && endY <= 1500) {
+      return {
+        start: persianYearStart(startY),
+        end: persianYearEnd(endY)
+      }
+    }
+  }
+
+  return undefined
 }
 
 export function buildDeterministicPlan(prompt: string, metricId: MetricId): MetricPlan | null {
@@ -234,6 +362,11 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'total'
   }
 
+  // S14.2: Parse date range from Persian prompts
+  // Patterns: "از 1403/05/01 تا 1403/05/31", "از فروردین تا مرداد 1403",
+  //           "نیمه دوم سال 1403", "ماه 5 سال 1403", "از 1 خرداد تا 15 تیر"
+  const dateRange = parseDateRange(normalized, yearMatches)
+
   const plan: MetricPlan = {
     metricId,
     grain,
@@ -241,6 +374,7 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     comparison,
     entityName,
     topN,
+    dateRange,
     confidence: 1.0
   }
   setCachedPlan(cacheKey, plan)

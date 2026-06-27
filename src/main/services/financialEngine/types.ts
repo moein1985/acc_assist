@@ -162,6 +162,8 @@ export interface MetricDefinition {
     foldPersian: boolean
   }
   orderBy?: { column: string; direction: 'ASC' | 'DESC' }
+  /** Column for date range filtering (e.g., 'src.Date' or 'v.Date') — S14.4 */
+  dateColumn?: string
 }
 
 export interface PlanFilter {
@@ -181,6 +183,10 @@ export interface MetricPlan {
   }
   entityName?: string
   topN?: number
+  dateRange?: {
+    start?: string
+    end?: string
+  }
   confidence: number
 }
 
@@ -406,6 +412,12 @@ export const metricPlanSchema = z.object({
     .optional(),
   entityName: z.string().optional(),
   topN: z.number().optional(),
+  dateRange: z
+    .object({
+      start: z.string().optional(),
+      end: z.string().optional()
+    })
+    .optional(),
   confidence: z.number()
 })
 

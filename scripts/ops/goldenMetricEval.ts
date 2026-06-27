@@ -30,6 +30,7 @@ interface GoldenMetricCase {
   expect?: 'any_rows' | 'any_number' | 'multi_metric' | 'derived_metric'
   expectedMetricIds?: string[]
   expectedDerivedId?: string
+  expectedDateRange?: { start?: string; end?: string }
 }
 
 interface GoldenNegativeCase {
@@ -209,6 +210,42 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
       grain: plan.grain,
       expectedGrain: case_.expectedGrain,
       expectedMetricId: case_.expectedMetricId
+    }
+  }
+
+  // S14.5: Check dateRange if expected
+  if (case_.expectedDateRange) {
+    const expected = case_.expectedDateRange
+    const actual = plan.dateRange
+    if (!actual) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: 'dateRange expected but not present in plan',
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+    if (expected.start && actual.start !== expected.start) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `dateRange.start mismatch: got ${actual.start}, expected ${expected.start}`,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+    if (expected.end && actual.end !== expected.end) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `dateRange.end mismatch: got ${actual.end}, expected ${expected.end}`,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
     }
   }
 
