@@ -832,6 +832,110 @@
       "expectedGrain": "total",
       "expect": "any_number",
       "expectedValue": 1
+    },
+    {
+      "id": "s13-payroll-1402",
+      "prompt": "حقوق کارمندان چقدر است؟",
+      "expectedMetricId": "payroll",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-cogs-1402",
+      "prompt": "بهای تمام‌شده کالای فروش‌رفته سال ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "cogs",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-cogs-by-year",
+      "prompt": "بهای تمام‌شده به تفکیک سال",
+      "expectedMetricId": "cogs",
+      "expectedGrain": "by_year",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-tax-paid-1402",
+      "prompt": "مالیات پرداختی ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "tax_paid",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-tax-collected-1402",
+      "prompt": "مالیات دریافتی سال ۱۴۰۲",
+      "expectedMetricId": "tax_collected",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-net-profit-1402",
+      "prompt": "سود خالص ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "net_profit",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-net-profit-by-year",
+      "prompt": "سود خالص به تفکیک سال",
+      "expectedMetricId": "net_profit",
+      "expectedGrain": "by_year",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-inventory-value-total",
+      "prompt": "ارزش موجودی کالا چقدر است؟",
+      "expectedMetricId": "inventory_value",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-inventory-value-by-item",
+      "prompt": "موجودی کالا به تفکیک کالا",
+      "expectedMetricId": "inventory_value",
+      "expectedGrain": "by_item",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-inventory-turnover-total",
+      "prompt": "گردش کالا چقدر است؟",
+      "expectedMetricId": "inventory_turnover",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-low-stock-items",
+      "prompt": "کالاهای کم‌موجود کدامند؟",
+      "expectedMetricId": "low_stock_items",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-cost-center-summary",
+      "prompt": "خلاصه مرکز هزینه",
+      "expectedMetricId": "cost_center_summary",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-cost-center-by-year",
+      "prompt": "هزینه به تفکیک مرکز هزینه و سال",
+      "expectedMetricId": "cost_center_summary",
+      "expectedGrain": "by_cost_center",
+      "expect": "any_number",
+      "expectedValue": 1
     }
   ],
   "negative": [
@@ -863,11 +967,6 @@
     {
       "id": "s11-neg-weather-tomorrow",
       "prompt": "هوای فردا تهران چطوره؟",
-      "expect": "refuse"
-    },
-    {
-      "id": "s11-neg-employee-salary",
-      "prompt": "حقوق کارمندان چقدر است؟",
       "expect": "refuse"
     },
     {

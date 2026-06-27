@@ -12,9 +12,9 @@ export const derivedCatalog: DerivedMetric[] = [
   {
     id: 'gross_margin',
     titleFa: 'حاشیه سود ناخالص',
-    inputs: ['net_sales', 'purchases'],
-    formula: (r) => (r['net_sales'] !== 0 ? ((r['net_sales'] - r['purchases']) / r['net_sales']) * 100 : 0),
-    description: 'حاشیه سود ناخالص (فروش منهای خرید تقسیم بر فروش)',
+    inputs: ['net_sales', 'cogs'],
+    formula: (r) => (r['net_sales'] !== 0 ? ((r['net_sales'] - r['cogs']) / r['net_sales']) * 100 : 0),
+    description: 'حاشیه سود ناخالص (فروش منهای بهای تمام‌شده تقسیم بر فروش)',
     unit: 'percent'
   },
   {

@@ -24,6 +24,15 @@ export type MetricId =
   | 'total_equity'
   | 'total_revenue'
   | 'total_expenses'
+  | 'cogs'
+  | 'payroll'
+  | 'tax_paid'
+  | 'tax_collected'
+  | 'net_profit'
+  | 'inventory_value'
+  | 'inventory_turnover'
+  | 'low_stock_items'
+  | 'cost_center_summary'
 
 export type Grain =
   | 'total'
@@ -33,6 +42,9 @@ export type Grain =
   | 'by_account'
   | 'by_branch'
   | 'by_customer'
+  | 'by_cost_center'
+  | 'by_item'
+  | 'by_warehouse'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }

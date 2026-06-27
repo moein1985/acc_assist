@@ -134,6 +134,21 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     def.grainSupported.includes('by_customer')
   ) {
     grain = 'by_customer'
+  } else if (
+    /به تفکیک\s*کالا|در هر کالا|به تفکیک\s*اجنس/u.test(normalized) &&
+    def.grainSupported.includes('by_item')
+  ) {
+    grain = 'by_item'
+  } else if (
+    /به تفکیک\s*انبار|در هر انبار|به تفکیک\s*سوله/u.test(normalized) &&
+    def.grainSupported.includes('by_warehouse')
+  ) {
+    grain = 'by_warehouse'
+  } else if (
+    /به تفکیک\s*مرکز\s*هزینه|در هر مرکز\s*هزینه/u.test(normalized) &&
+    def.grainSupported.includes('by_cost_center')
+  ) {
+    grain = 'by_cost_center'
   }
 
   if (def.entityNameMatch) {
