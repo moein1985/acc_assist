@@ -7,13 +7,98 @@
  * @see FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md
  */
 
-import type { MetricId } from './types'
+import type { MetricId, JoinMode } from './types'
+import type { DerivedMetric } from './types'
 import { getMetricCatalog } from './metricCatalog'
+import { derivedCatalog } from './derivedCatalog'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
 
 export interface RouterResult {
   metricId: MetricId | null
   confidence: number
+}
+
+export interface MultiMetricRouterResult {
+  metricIds: MetricId[]
+  joinMode: JoinMode
+  confidence: number
+}
+
+const COMPARISON_SIGNALS = ['مقایسه', 'در برابر', 'نسبت']
+const TREND_SIGNALS = ['روند']
+
+export function routeMultiMetric(prompt: string): MultiMetricRouterResult {
+  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  if (!normalized) return { metricIds: [], joinMode: 'side_by_side', confidence: 0 }
+
+  let joinMode: JoinMode = 'side_by_side'
+  for (const sig of COMPARISON_SIGNALS) {
+    if (normalized.includes(sig)) {
+      joinMode = 'comparison'
+      break
+    }
+  }
+  if (joinMode !== 'comparison') {
+    for (const sig of TREND_SIGNALS) {
+      if (normalized.includes(sig)) {
+        joinMode = 'trend'
+        break
+      }
+    }
+  }
+
+  if (joinMode === 'trend') {
+    const route = routeMetric(prompt)
+    if (route.metricId && route.confidence >= 0.7) {
+      return { metricIds: [route.metricId], joinMode, confidence: route.confidence }
+    }
+    return { metricIds: [], joinMode, confidence: 0 }
+  }
+
+  const separators = [' و ', ' همراه ', ' و همچنین ']
+  let segments: string[] = [normalized]
+  for (const sep of separators) {
+    const parts = normalized.split(sep)
+    if (parts.length >= 2) {
+      segments = parts
+      break
+    }
+  }
+
+  const metricIds: MetricId[] = []
+  for (const seg of segments) {
+    const route = routeMetric(seg.trim())
+    if (route.metricId && route.confidence >= 0.7) {
+      metricIds.push(route.metricId)
+    }
+  }
+
+  if (metricIds.length < 2) {
+    return { metricIds: [], joinMode: 'side_by_side', confidence: 0 }
+  }
+
+  const uniqueIds = [...new Set(metricIds)]
+  return { metricIds: uniqueIds, joinMode, confidence: 1.0 }
+}
+
+export function routeDerivedMetric(prompt: string): DerivedMetric | null {
+  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  if (!normalized) return null
+
+  for (const derived of derivedCatalog) {
+    const normalizedTitle = normalizePersianText(derived.titleFa)
+    if (normalized.includes(normalizedTitle)) {
+      return derived
+    }
+    const normalizedDesc = normalizePersianText(derived.description)
+    const descWords = normalizedDesc.split(/\s+/)
+    if (descWords.length >= 2) {
+      const matched = descWords.every((w) => w.length > 2 && normalized.includes(w))
+      if (matched) return derived
+    }
+  }
+
+  return null
 }
 
 export function routeMetric(prompt: string): RouterResult {

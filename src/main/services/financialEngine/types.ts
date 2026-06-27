@@ -120,6 +120,23 @@ export interface MetricPlan {
   confidence: number
 }
 
+export type JoinMode = 'side_by_side' | 'comparison' | 'trend'
+
+export interface MultiMetricPlan {
+  plans: MetricPlan[]
+  joinMode: JoinMode
+  confidence: number
+}
+
+export interface DerivedMetric {
+  id: string
+  titleFa: string
+  inputs: MetricId[]
+  formula: (results: Record<string, number>) => number
+  description: string
+  unit?: 'percent' | 'ratio' | 'currency'
+}
+
 export interface CompiledQuery {
   sql: string
   bindingsDescription: string
@@ -325,5 +342,11 @@ export const metricPlanSchema = z.object({
     .optional(),
   entityName: z.string().optional(),
   topN: z.number().optional(),
+  confidence: z.number()
+})
+
+export const multiMetricPlanSchema = z.object({
+  plans: z.array(metricPlanSchema).min(1).max(5),
+  joinMode: z.enum(['side_by_side', 'comparison', 'trend']),
   confidence: z.number()
 })

@@ -1,7 +1,8 @@
-import type { MetricPlan, MetricId, Grain, PlanFilter } from './types'
+import type { MetricPlan, MetricId, Grain, PlanFilter, MultiMetricPlan } from './types'
 import { metricPlanSchema } from './types'
 import { findMetricById, getMetricCatalog } from './metricCatalog'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
+import { routeMultiMetric } from './router'
 
 export function buildDeterministicPlan(prompt: string, metricId: MetricId): MetricPlan | null {
   const def = findMetricById(metricId)
@@ -66,6 +67,11 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     def.grainSupported.includes('by_account')
   ) {
     grain = 'by_account'
+  } else if (
+    /به تفکیک\s*مشتری|در هر مشتری|مشتریان/u.test(normalized) &&
+    def.grainSupported.includes('by_customer')
+  ) {
+    grain = 'by_customer'
   }
 
   if (def.entityNameMatch) {
@@ -106,6 +112,28 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     entityName,
     topN,
     confidence: 1.0
+  }
+}
+
+export function buildDeterministicMultiPlan(prompt: string): MultiMetricPlan | null {
+  const route = routeMultiMetric(prompt)
+  if (route.metricIds.length === 0) return null
+
+  const plans: MetricPlan[] = []
+  for (const metricId of route.metricIds) {
+    const plan = buildDeterministicPlan(prompt, metricId)
+    if (plan) {
+      plans.push(plan)
+    }
+  }
+
+  if (plans.length < 2 && route.joinMode !== 'trend') return null
+  if (plans.length < 1) return null
+
+  return {
+    plans,
+    joinMode: route.joinMode,
+    confidence: route.confidence
   }
 }
 

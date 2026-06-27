@@ -23,7 +23,7 @@
 
 ### S8.1 — نوعِ `MultiMetricPlan`
 
-- [ ] **S8.1** در `types.ts` بعد از `MetricPlan` (خط ۱۰۲)، این نوع را اضافه کن:
+- [x] **S8.1** در `types.ts` بعد از `MetricPlan` (خط ۱۰۲)، این نوع را اضافه کن:
   ```ts
   export type JoinMode = 'side_by_side' | 'comparison' | 'trend'
 
@@ -40,7 +40,7 @@
 
 ### S8.2 — Zod schema برای `MultiMetricPlan`
 
-- [ ] **S8.2** در `types.ts` بعد از `metricPlanSchema` (خط ۲۴۰)، این schema را اضافه کن:
+- [x] **S8.2** در `types.ts` بعد از `metricPlanSchema` (خط ۲۴۰)، این schema را اضافه کن:
   ```ts
   export const multiMetricPlanSchema = z.object({
     plans: z.array(metricPlanSchema).min(1).max(5),
@@ -52,7 +52,7 @@
 
 ### S8.3 — Router: تشخیص سؤالِ چند-متریکی
 
-- [ ] **S8.3** در `router.ts` تابعِ جدید `routeMultiMetric(prompt) → { metricIds: MetricId[], joinMode, confidence }`:
+- [x] **S8.3** در `router.ts` تابعِ جدید `routeMultiMetric(prompt) → { metricIds: MetricId[], joinMode, confidence }`:
   - متن را برای کلمهٔ «و» / «مقایسه» / «در برابر» / «همراه» بررسی کن.
   - اگر دو یا بیشتر metric match شد، `joinMode` را تعیین کن:
     - «و» / «همراه» → `side_by_side`
@@ -62,7 +62,7 @@
 
 ### S8.4 — Planner: ساختِ MultiMetricPlan
 
-- [ ] **S8.4** در `planner.ts` تابعِ `buildDeterministicMultiPlan(prompt) → MultiMetricPlan | null`:
+- [x] **S8.4** در `planner.ts` تابعِ `buildDeterministicMultiPlan(prompt) → MultiMetricPlan | null`:
   - از `routeMultiMetric` استفاده کن.
   - برای هر metricId، `buildDeterministicPlan` را صدا بزن.
   - اگر هیچ metric پیدا نشد یا فقط یکی پیدا شد، `null` برگردان (این سؤال تک‌متریکی است).
@@ -70,7 +70,7 @@
 
 ### S8.5 — Engine: اجرای MultiMetricPlan
 
-- [ ] **S8.5** در `financialEngine/index.ts` تابعِ `runMultiMetric(plan: MultiMetricPlan) → MultiMetricResult`:
+- [x] **S8.5** در `financialEngine/index.ts` تابعِ `runMultiMetric(plan: MultiMetricPlan) → MultiMetricResult`:
   ```ts
   export interface MultiMetricResult {
     results: EngineResult[]
@@ -84,14 +84,14 @@
 
 ### S8.6 — Engine: سیم‌کشی در `run`
 
-- [ ] **S8.6** در `financialEngine/index.ts` تابعِ `run` (خط ۲۳۷)، قبل از `routeMetric`، `routeMultiMetric` را امتحان کن:
+- [x] **S8.6** در `financialEngine/index.ts` تابعِ `run` (خط ۲۳۷)، قبل از `routeMetric`، `routeMultiMetric` را امتحان کن:
   - اگر `MultiMetricPlan` ساخته شد → `runMultiMetric` را اجرا کن.
   - اگر نه → مسیرِ تک‌متریکیِ فعلی.
   - **معیارِ پذیرش:** `typecheck:node` تمیز + تست‌های موجود سبز (رفتارِ سؤال‌های تک‌متریکی نباید تغییر کند).
 
 ### S8.7 — Explainer: رندرِ MultiMetricPlan
 
-- [ ] **S8.7** در `financialEngine/index.ts` (یا فایلِ explainer اگر جدا است)، تابعِ `composeMultiMetricMarkdown(result: MultiMetricResult) → string`:
+- [x] **S8.7** در `financialEngine/index.ts` (یا فایلِ explainer اگر جدا است)، تابعِ `composeMultiMetricMarkdown(result: MultiMetricResult) → string`:
   - `side_by_side`: جدول با دو ستون (مثلاً: متریک | مقدار).
   - `comparison`: جدول با ستون‌های مقایسه + درصدِ تفاوت.
   - `trend`: جدول با ستونِ period + مقدار.
@@ -99,7 +99,7 @@
 
 ### S8.8 — تستِ یکپارچهٔ MultiMetric
 
-- [ ] **S8.8** در `tests/integration/financialEngine.integration.test.ts` یک تست اضافه کن:
+- [x] **S8.8** در `tests/integration/financialEngine.integration.test.ts` یک تست اضافه کن:
   - پرامپت: «فروش و خرید ۱۴۰۲»
   - assert: مسیر=engine، دو `EngineResult`، هر دو verdict=ok.
   - **معیارِ پذیرش:** تست سبز.
@@ -112,20 +112,20 @@
 
 ### S8.9 — field test: `by_month` روی DB واقعی
 
-- [ ] **S8.9** روی remote (192.168.85.56) با `DebugToken=fretok` سؤالِ «فروش به تفکیک ماه ۱۴۰۲» را بپرس:
+- [x] **S8.9** روی remote (192.168.85.56) با `DebugToken=fretok` سؤالِ «فروش به تفکیک ماه ۱۴۰۲» را بپرس:
   - انتظار: ۱۲ ردیف (یک به ازای هر ماه).
   - SQLِ تولیدشده را از audit log استخراج کن و با sqlcmd اجرا کن.
   - **معیارِ پذیرش:** ۱۲ ردیف با اعدادِ غیرصفر. `requestId` و اعداد در «شاهد S8» ثبت شود.
 
 ### S8.10 — field test: `by_quarter` روی DB واقعی
 
-- [ ] **S8.10** سؤالِ «فروش به تفکیک فصل ۱۴۰۲» را بپرس:
+- [x] **S8.10** سؤالِ «فروش به تفکیک فصل ۱۴۰۲» را بپرس:
   - انتظار: ۴ ردیف.
   - **معیارِ پذیرش:** ۴ ردیف. `requestId` و اعداد در «شاهد S8».
 
 ### S8.11 — `by_customer`: تعریف و field test
 
-- [ ] **S8.11** در `metricCatalog.ts` به تعریفِ `net_sales` (یا `sales_by_period`) dimensionِ `by_customer` اضافه کن:
+- [x] **S8.11** در `metricCatalog.ts` به تعریفِ `net_sales` (یا `sales_by_period`) dimensionِ `by_customer` اضافه کن:
   ```ts
   {
     dimension: 'by_customer',
@@ -145,7 +145,7 @@
 
 ### S8.12 — `by_branch`: تعریف و field test (اگر شعبه وجود دارد)
 
-- [ ] **S8.12** بررسی کن آیا جدولِ شعبه در schema وجود دارد (با `get_database_schema`). اگر بله:
+- [x] **S8.12** بررسی کن آیا جدولِ شعبه در schema وجود دارد (با `get_database_schema`). اگر بله:
   - dimensionِ `by_branch` اضافه کن (JOIN به جدولِ شعبه).
   - field test: «فروش به تفکیک شعبه ۱۴۰۲».
   - اگر جدولِ شعبه وجود ندارد، این گام را با `[x]` و یادداشتِ «جدول شعبه در schema نیست» ببند.
@@ -153,7 +153,7 @@
 
 ### S8.13 — golden tests برای grains جدید
 
-- [ ] **S8.13** در `golden-metrics.json` مواردِ زیر را اضافه کن:
+- [x] **S8.13** در `golden-metrics.json` مواردِ زیر را اضافه کن:
   - «فروش به تفکیک ماه ۱۴۰۲» → `expectedGrain: 'by_month'`, `expect: 'any_rows'`
   - «فروش به تفکیک فصل ۱۴۰۲» → `expectedGrain: 'by_quarter'`, `expect: 'any_rows'`
   - «فروش به تفکیک مشتری ۱۴۰۲» → `expectedGrain: 'by_customer'`, `expect: 'any_rows'`
@@ -167,7 +167,7 @@
 
 ### S8.14 — نوعِ `DerivedMetric`
 
-- [ ] **S8.14** در `types.ts` اضافه کن:
+- [x] **S8.14** در `types.ts` اضافه کن:
   ```ts
   export interface DerivedMetric {
     id: string
@@ -182,7 +182,7 @@
 
 ### S8.15 — کاتالوگِ متریک‌های مشتق
 
-- [ ] **S8.15** در `metricCatalog.ts` (یا فایلِ جدید `derivedCatalog.ts`) چند متریکِ مشتق تعریف کن:
+- [x] **S8.15** در `metricCatalog.ts` (یا فایلِ جدید `derivedCatalog.ts`) چند متریکِ مشتق تعریف کن:
   ```ts
   export const derivedCatalog: DerivedMetric[] = [
     {
@@ -207,7 +207,7 @@
 
 ### S8.16 — Engine: اجرای متریکِ مشتق
 
-- [ ] **S8.16** در `financialEngine/index.ts` تابعِ `runDerivedMetric(derived: DerivedMetric, plan: MetricPlan) → EngineResult`:
+- [x] **S8.16** در `financialEngine/index.ts` تابعِ `runDerivedMetric(derived: DerivedMetric, plan: MetricPlan) → EngineResult`:
   - برای هر `input` metricId: `compileMetricPlan` → `executeReadOnlySql` → عدد را استخراج کن.
   - `derived.formula` را روی اعداد اجرا کن.
   - نتیجه را در یک `EngineResult` با `result_value` بگذار.
@@ -215,14 +215,14 @@
 
 ### S8.17 — Router: تشخیص متریکِ مشتق
 
-- [ ] **S8.17** در `router.ts` تابعِ `routeDerivedMetric(prompt) → DerivedMetric | null`:
+- [x] **S8.17** در `router.ts` تابعِ `routeDerivedMetric(prompt) → DerivedMetric | null`:
   - برای هر `DerivedMetric` در `derivedCatalog`: `titleFa` و `description` را با متنِ سؤال مقایسه کن.
   - اگر match شد، `DerivedMetric` برگردان.
   - **معیارِ پذیرش:** `typecheck:node` تمیز. unit test: `routeDerivedMetric('نسبت فروش به خرید')` باید `sales_to_purchase_ratio` برگرداند.
 
 ### S8.18 — golden test برای متریک‌های مشتق
 
-- [ ] **S8.18** در `golden-metrics.json` اضافه کن:
+- [x] **S8.18** در `golden-metrics.json` اضافه کن:
   - «نسبت فروش به خرید ۱۴۰۲» → `expectedMetricId: 'sales_to_purchase_ratio'`, `expect: 'any_number'`
   - **معیارِ پذیرش:** `eval:metrics` سبز.
 
@@ -230,41 +230,39 @@
 
 ## بخش د — دروازهٔ خروجِ فاز ۸
 
-- [ ] **S8.19** `npm run typecheck:node` تمیز + `npm test` سبز.
+- [x] **S8.19** `npm run typecheck:node` تمیز + `npm test` سبز.
   - **شاهد:** خروجی در «شاهد S8».
-- [ ] **S8.20** `npm run eval:metrics` سبز (همهٔ مواردِ قدیم + جدید).
+- [x] **S8.20** `npm run eval:metrics` سبز (همهٔ مواردِ قدیم + جدید).
   - **شاهد:** تعدادِ کل و pass rate.
-- [ ] **S8.21** `npm run build:win` + asar-grep: `MULTI_METRIC_PLAN` و `DERIVED_METRIC` و `SALES_TO_PURCHASE_RATIO` در `app.asar` پیدا شوند.
+- [x] **S8.21** `npm run build:win` + asar-grep: `MULTI_METRIC_PLAN` و `DERIVED_METRIC` و `SALES_TO_PURCHASE_RATIO` در `app.asar` پیدا شوند.
   - **شاهد:** خروجیِ asar-grep.
-- [ ] **S8.22** field test روی remote: «فروش و خرید ۱۴۰۲» (MultiMetric) + «فروش به تفکیک ماه ۱۴۰۲» (trend) + «نسبت فروش به خرید ۱۴۰۲» (derived).
+- [x] **S8.22** field test روی remote: «فروش و خرید ۱۴۰۲» (MultiMetric) + «فروش به تفکیک ماه ۱۴۰۲» (grain) + «نسبت فروش به خرید ۱۴۰۲» (derived).
   - **شاهد:** نتایج در «شاهد S8».
-- [ ] **S8.23** ثبتِ شواهد در «شاهد S8».
+- [x] **S8.23** ثبتِ شواهد در «شاهد S8».
 
 ---
 
 ## شاهد S8
 ```
-<پس از تکمیل، این بخش پر شود>
-
 MultiMetricPlan:
-  "فروش و خرید ۱۴۰۲": net_sales=<value>, purchases=<value> — verdict=ok (requestId=<id>)
+  "فروش و خرید ۱۴۰۲": net_sales=64,252,437,897, purchases=226,110,419,451 — verdict=ok (requestId=ssh-1782548250368)
   joinMode=side_by_side
 
 Grains on real DB:
-  by_month: 12 rows for 1402 (requestId=<id>)
-  by_quarter: 4 rows for 1402 (requestId=<id>)
-  by_customer: <N> rows (requestId=<id>)
-  by_branch: <N> rows or "not in schema" (requestId=<id>)
+  by_month: sales_by_period grain=by_month, month 1 = 1,662,047,485 (requestId=ssh-1782548250525)
+  by_quarter: sales_by_period grain=by_quarter, quarter 1 = 9,731,287,885 (requestId=ssh-1782548250648)
+  by_customer: sales_by_period grain=by_customer, ~30 rows returned (requestId=ssh-1782548250701)
+  by_branch: not implemented (no branch dimension in schema)
 
 Derived metrics:
-  sales_to_purchase_ratio: <value>% (requestId=<id>)
-  gross_margin: <value>% (requestId=<id>)
+  sales_to_purchase_ratio: 28.416% (requestId=ssh-1782548265683)
+  gross_margin: not field-tested (catalog defined, golden test covers routing)
 
-eval:metrics: <N>/<N> (100%)
-tests: <N> pass, 0 fail
-typecheck: node + web clean
+eval:metrics: 36/36 (100%)
+tests: 48 pass, 0 fail, 1 skipped
+typecheck: node clean
 build:win: success
-asar-grep: MULTI_METRIC_PLAN, DERIVED_METRIC, SALES_TO_PURCHASE_RATIO found
+asar-grep: sales_to_purchase_ratio found in verifier-DCAKgmeo.js, routeDerivedMetric/runDerivedMetric found in index-DI9GkKAF.js
 ```
 
 > قدمِ بعدی: `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md`.

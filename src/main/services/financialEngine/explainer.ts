@@ -9,6 +9,7 @@
 
 import type { EngineResult, MetricPlan } from './types'
 import type { EngineVerdict } from './types'
+import type { MultiMetricResult } from './index'
 import { findMetricById } from './metricCatalog'
 
 /**
@@ -193,4 +194,59 @@ function extractResultValue(result: EngineResult): number | null {
   if (raw === null || raw === undefined) return null
   const num = Number(raw)
   return Number.isFinite(num) ? num : null
+}
+
+export function composeMultiMetricMarkdown(
+  multiResult: MultiMetricResult,
+  _prompt: string
+): string {
+  const { results, verdicts, plan } = multiResult
+
+  const lines: string[] = ['### Summary']
+
+  if (plan.joinMode === 'side_by_side') {
+    const parts = results.map((r) => {
+      const def = findMetricById(r.plan.metricId)
+      const title = def?.titleFa ?? r.plan.metricId
+      const val = extractResultValue(r)
+      return `${title}: ${val !== null ? val.toLocaleString('en-US') : 'ناموجود'}`
+    })
+    lines.push(parts.join(' | '))
+  } else if (plan.joinMode === 'comparison') {
+    const vals = results.map((r) => extractResultValue(r))
+    lines.push('مقایسهٔ متریک‌ها:')
+    for (let i = 0; i < results.length; i++) {
+      const def = findMetricById(results[i].plan.metricId)
+      const title = def?.titleFa ?? results[i].plan.metricId
+      lines.push(`- ${title}: ${vals[i] !== null ? vals[i]!.toLocaleString('en-US') : 'ناموجود'}`)
+    }
+    if (vals.length === 2 && vals[0] !== null && vals[1] !== null && vals[0] !== 0) {
+      const pct = ((vals[1]! - vals[0]!) / Math.abs(vals[0]!) * 100).toFixed(1)
+      lines.push(`- درصد تفاوت: ${pct}%`)
+    }
+  } else {
+    lines.push('روند متریک:')
+  }
+
+  lines.push('', '### Findings', '- مسیر پاسخ: engine (multi-metric)')
+
+  for (let i = 0; i < results.length; i++) {
+    const def = findMetricById(results[i].plan.metricId)
+    const title = def?.titleFa ?? results[i].plan.metricId
+    const val = extractResultValue(results[i])
+    const vok = verdicts[i]?.ok ?? false
+    lines.push(`- ${title}: ${val !== null ? val.toLocaleString('en-US') : 'ناموجود'} (verdict: ${vok ? 'ok' : 'failed'})`)
+  }
+
+  lines.push('', '### Evidence')
+  for (let i = 0; i < results.length; i++) {
+    const def = findMetricById(results[i].plan.metricId)
+    const title = def?.titleFa ?? results[i].plan.metricId
+    const sql = results[i].compiled.sql.replace(/\s+/g, ' ').slice(0, 180)
+    lines.push(`- ${title}: ${sql}`)
+  }
+
+  lines.push('', '### Assumptions', '- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.')
+
+  return lines.join('\n')
 }

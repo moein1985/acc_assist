@@ -11,8 +11,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { routeMetric } from '../../src/main/services/financialEngine/router'
-import { buildDeterministicPlan } from '../../src/main/services/financialEngine/planner'
+import { routeMetric, routeMultiMetric, routeDerivedMetric } from '../../src/main/services/financialEngine/router'
+import { buildDeterministicPlan, buildDeterministicMultiPlan } from '../../src/main/services/financialEngine/planner'
 import { compileMetricPlan } from '../../src/main/services/financialEngine/compiler'
 import { verifyResult } from '../../src/main/services/financialEngine/verifier'
 import { composeEngineResponseMarkdown } from '../../src/main/services/financialEngine/explainer'
@@ -23,11 +23,13 @@ import type { SqlQueryRow } from '../../src/shared/contracts'
 interface GoldenMetricCase {
   id: string
   prompt: string
-  expectedMetricId: string
-  expectedGrain: string
+  expectedMetricId?: string
+  expectedGrain?: string
   expectedValue?: number
   tolerance?: number
-  expect?: 'any_rows' | 'any_number'
+  expect?: 'any_rows' | 'any_number' | 'multi_metric' | 'derived_metric'
+  expectedMetricIds?: string[]
+  expectedDerivedId?: string
 }
 
 interface GoldenNegativeCase {
@@ -96,6 +98,72 @@ function makeCompilerDeps(): {
 }
 
 async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
+  // Handle multi-metric cases
+  if (case_.expect === 'multi_metric') {
+    const multiRoute = routeMultiMetric(case_.prompt)
+    if (multiRoute.metricIds.length < 2) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `routeMultiMetric returned ${multiRoute.metricIds.length} metrics, expected 2+`
+      }
+    }
+    const multiPlan = buildDeterministicMultiPlan(case_.prompt)
+    if (!multiPlan) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: 'buildDeterministicMultiPlan returned null'
+      }
+    }
+    const gotIds = multiPlan.plans.map((p) => p.metricId)
+    const expectedIds = case_.expectedMetricIds ?? []
+    const allMatch = expectedIds.every((id) => gotIds.includes(id as never))
+    if (!allMatch) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `metricIds mismatch: got [${gotIds.join(', ')}], expected [${expectedIds.join(', ')}]`
+      }
+    }
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      metricId: gotIds.join(', ')
+    }
+  }
+
+  // Handle derived metric cases
+  if (case_.expect === 'derived_metric') {
+    const derived = routeDerivedMetric(case_.prompt)
+    if (!derived) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: 'routeDerivedMetric returned null'
+      }
+    }
+    if (case_.expectedDerivedId && derived.id !== case_.expectedDerivedId) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `derivedId mismatch: got ${derived.id}, expected ${case_.expectedDerivedId}`
+      }
+    }
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      metricId: derived.id
+    }
+  }
+
   const route = routeMetric(case_.prompt)
 
   if (!route.metricId || route.confidence < 0.5) {
@@ -108,7 +176,7 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
     }
   }
 
-  if (route.metricId !== case_.expectedMetricId) {
+  if (case_.expectedMetricId && route.metricId !== case_.expectedMetricId) {
     return {
       id: case_.id,
       prompt: case_.prompt,
@@ -131,7 +199,7 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
     }
   }
 
-  if (plan.grain !== case_.expectedGrain) {
+  if (case_.expectedGrain && plan.grain !== case_.expectedGrain) {
     return {
       id: case_.id,
       prompt: case_.prompt,

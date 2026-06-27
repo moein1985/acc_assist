@@ -358,10 +358,10 @@ const catalog: MetricDefinition[] = [
   {
     id: 'sales_by_period',
     titleFa: 'فروش به تفکیک دوره',
-    anchors: ['فروش ماهانه', 'فروش فصلی', 'فروش به تفکیک ماه', 'خلاصه فروش', 'فروش دوره'],
+    anchors: ['فروش ماهانه', 'فروش فصلی', 'فروش به تفکیک ماه', 'فروش به تفکیک فصل', 'خلاصه فروش', 'فروش دوره', 'فروش به تفکیک مشتری', 'فروش مشتریان'],
     excludeSignals: ['خرید', 'مانده', 'تراز', 'تعداد', 'صندوق', 'بانک'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
+    grainSupported: ['total', 'by_year', 'by_month', 'by_quarter', 'by_customer'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
     measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
     dimensions: [
@@ -384,6 +384,16 @@ const catalog: MetricDefinition[] = [
         dimension: 'by_quarter',
         labelColumn: 'DATEPART(QUARTER, src.Date)',
         labelType: 'int'
+      },
+      {
+        dimension: 'by_customer',
+        join: {
+          table: 'GNR.Party',
+          alias: 'cust',
+          on: { sourceColumn: 'PartyRef', targetColumn: 'PartyId' }
+        },
+        labelColumn: 'cust.Title',
+        labelType: 'nstring'
       }
     ],
     mandatoryFilters: []

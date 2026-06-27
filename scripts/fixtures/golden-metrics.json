@@ -220,6 +220,25 @@
       "expectedMetricId": "recent_documents",
       "expectedGrain": "total",
       "expect": "any_rows"
+    },
+    {
+      "id": "golden-sales-by-customer-1402",
+      "prompt": "فروش به تفکیک مشتری ۱۴۰۲",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_customer",
+      "expect": "any_rows"
+    },
+    {
+      "id": "golden-multi-sales-purchases-1402",
+      "prompt": "فروش و خرید ۱۴۰۲",
+      "expect": "multi_metric",
+      "expectedMetricIds": ["net_sales", "purchases"]
+    },
+    {
+      "id": "golden-derived-sales-to-purchase-ratio-1402",
+      "prompt": "نسبت فروش به خرید ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "sales_to_purchase_ratio"
     }
   ],
   "negative": [

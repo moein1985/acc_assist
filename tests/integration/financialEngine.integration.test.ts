@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { FinancialEngine } from '../../src/main/services/financialEngine/index'
+import type { EngineRunResult } from '../../src/main/services/financialEngine/index'
 import type { SqlQueryRow } from '../../src/shared/contracts'
+
+function asSingleResult(outcome: Awaited<ReturnType<FinancialEngine['run']>>): EngineRunResult {
+  if ('results' in outcome) {
+    throw new Error('Expected single-metric result but got MultiMetricResult')
+  }
+  return outcome
+}
 
 function makeMockExecutor(
   value: number
@@ -30,7 +38,7 @@ test('engine end-to-end: net_sales 1402 — route → plan → compile → exec 
     executeReadOnlySql: makeMockExecutor(64252437897)
   })
 
-  const result = await engine.run('فروش خالص سال ۱۴۰۲ چقدر است؟')
+  const result = asSingleResult(await engine.run('فروش خالص سال ۱۴۰۲ چقدر است؟'))
 
   assert.ok(result.result, 'engine should produce a result')
   assert.equal(result.verdict.ok, true, 'verdict should be ok')
@@ -45,7 +53,7 @@ test('engine end-to-end: purchases 1402', async () => {
     executeReadOnlySql: makeMockExecutor(226110419451)
   })
 
-  const result = await engine.run('خرید سال ۱۴۰۲ چقدر است؟')
+  const result = asSingleResult(await engine.run('خرید سال ۱۴۰۲ چقدر است؟'))
 
   assert.ok(result.result)
   assert.equal(result.verdict.ok, true)
@@ -59,7 +67,7 @@ test('engine end-to-end: account_balance 1402', async () => {
     executeReadOnlySql: makeMockExecutor(19755458505)
   })
 
-  const result = await engine.run('مانده حساب دریافتنی در سال ۱۴۰۲')
+  const result = asSingleResult(await engine.run('مانده حساب دریافتنی در سال ۱۴۰۲'))
 
   assert.ok(result.result)
   assert.equal(result.verdict.ok, true)
@@ -73,7 +81,7 @@ test('engine end-to-end: trial_balance 1402', async () => {
     executeReadOnlySql: makeMockExecutor(5426804727946)
   })
 
-  const result = await engine.run('تراز آزمایشی ۱۴۰۲')
+  const result = asSingleResult(await engine.run('تراز آزمایشی ۱۴۰۲'))
 
   assert.ok(result.result)
   assert.equal(result.verdict.ok, true)
@@ -91,7 +99,7 @@ test('engine end-to-end: cash_bank_balance 1402', async () => {
     executeReadOnlySql: executor
   })
 
-  const result = await engine.run('مانده نقد و بانک در سال ۱۴۰۲')
+  const result = asSingleResult(await engine.run('مانده نقد و بانک در سال ۱۴۰۲'))
 
   assert.ok(result.result)
   assert.equal(result.verdict.ok, true)
@@ -105,7 +113,7 @@ test('engine safety guard: irrelevant question degrades to no-metric-match', asy
     executeReadOnlySql: makeMockExecutor(0)
   })
 
-  const result = await engine.run('تعداد کارمندان چقدر است؟')
+  const result = asSingleResult(await engine.run('تعداد کارمندان چقدر است؟'))
 
   assert.equal(result.result, null)
   assert.equal(result.verdict.ok, false)
@@ -124,11 +132,11 @@ test('engine: explainer produces markdown with correct number', async () => {
     executeReadOnlySql: makeMockExecutor(64252437897)
   })
 
-  const result = await engine.run('فروش خالص سال ۱۴۰۲ چقدر است؟')
+  const result = asSingleResult(await engine.run('فروش خالص سال ۱۴۰۲ چقدر است؟'))
   assert.ok(result.result)
 
   const markdown = composeEngineResponseMarkdown(
-    result.result,
+    result.result!,
     result.verdict,
     'فروش خالص سال ۱۴۰۲'
   )
@@ -136,4 +144,29 @@ test('engine: explainer produces markdown with correct number', async () => {
   assert.ok(markdown.includes('### Evidence'))
   assert.ok(markdown.includes('64,252,437,897'))
   assert.ok(markdown.includes('مسیر پاسخ: engine'))
+})
+
+test('engine multi-metric: فروش و خرید ۱۴۰۲ — two metrics, side_by_side', async () => {
+  const executor = async (query: string): Promise<SqlQueryRow[]> => {
+    if (query.includes('SaleInvoice') || query.includes('SaleFact')) {
+      return [{ result_value: 64252437897 }]
+    }
+    return [{ result_value: 226110419451 }]
+  }
+  const engine = new FinancialEngine({
+    ...makeCompilerDeps(),
+    executeReadOnlySql: executor
+  })
+
+  const outcome = await engine.run('فروش و خرید ۱۴۰۲')
+
+  assert.ok('results' in outcome, 'should be a MultiMetricResult')
+  if ('results' in outcome) {
+    assert.equal(outcome.results.length, 2, 'should have 2 results')
+    assert.equal(outcome.plan.joinMode, 'side_by_side')
+    assert.ok(outcome.verdicts.every((v) => v.ok), 'all verdicts should be ok')
+    const metricIds = outcome.results.map((r) => r.plan.metricId)
+    assert.ok(metricIds.includes('net_sales'))
+    assert.ok(metricIds.includes('purchases'))
+  }
 })

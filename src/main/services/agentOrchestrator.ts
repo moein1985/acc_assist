@@ -324,7 +324,7 @@ export class AgentOrchestrator {
       const { FinancialEngine } = await import('./financialEngine/index')
       const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
       const { normalizePersianText } = await import('./textNormalization')
-      const { composeEngineResponseMarkdown } = await import('./financialEngine/explainer')
+      const { composeEngineResponseMarkdown, composeMultiMetricMarkdown } = await import('./financialEngine/explainer')
       const { checkIntentAlignment } = await import('./financialEngine/verifier')
 
       const engine = new FinancialEngine({
@@ -335,6 +335,40 @@ export class AgentOrchestrator {
       })
 
       const engineRun = await engine.run(payload.prompt)
+
+      // Handle multi-metric result (has 'results' array)
+      if ('results' in engineRun && 'verdicts' in engineRun) {
+        const multi = engineRun
+        const allOk = multi.verdicts.every((v) => v.ok)
+        if (!allOk || multi.results.length === 0) {
+          void this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId: payload.requestId,
+            conversationId: payload.conversationId,
+            stage: 'engine-mode',
+            prompt: `engine-multi-no-result: ${multi.verdicts.map((v) => v.reason ?? 'ok').join(', ')}`
+          })
+          return null
+        }
+
+        const finalText = composeMultiMetricMarkdown(multi, payload.prompt)
+        const metricIds = multi.results.map((r) => r.plan.metricId).join(', ')
+
+        void this.safeAuditWrite({
+          timestamp: new Date().toISOString(),
+          requestId: payload.requestId,
+          conversationId: payload.conversationId,
+          stage: 'engine-mode',
+          prompt: `engine-served: multi-metric [${metricIds}] verdict=ok`
+        })
+
+        return {
+          history: [],
+          finalText,
+          rounds: 1,
+          toolCallsUsed: multi.results.length
+        }
+      }
 
       if (!engineRun.result || !engineRun.verdict.ok) {
         void this.safeAuditWrite({
@@ -417,6 +451,10 @@ export class AgentOrchestrator {
 
       let engineValue: string | null = null
       let metricId: string | null = null
+      if ('results' in engineResult && 'verdicts' in engineResult) {
+        // Multi-metric: skip shadow comparison for multi-metric plans
+        return
+      }
       if (engineResult.result && engineResult.result.rows.length > 0) {
         const row = engineResult.result.rows[0]
         const raw = row['result_value'] ?? row['base_value']

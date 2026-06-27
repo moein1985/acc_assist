@@ -7,11 +7,13 @@
  * @see FRE_ROADMAP_00_OVERVIEW.fa.md
  */
 
-import type { EngineResult, EngineVerdict, MetricPlan } from './types'
+import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId } from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { routeMetric } from './router'
+import { routeDerivedMetric } from './router'
 import {
   buildDeterministicPlan,
+  buildDeterministicMultiPlan,
   buildModelPlan,
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps
@@ -30,10 +32,30 @@ export interface EngineRunResult {
   result: EngineResult | null
 }
 
+export interface MultiMetricResult {
+  results: EngineResult[]
+  verdicts: EngineVerdict[]
+  plan: MultiMetricPlan
+}
+
+export type EngineRunOutcome = EngineRunResult | MultiMetricResult
+
 export class FinancialEngine {
   constructor(private deps: EngineDeps) {}
 
-  async run(prompt: string, signal?: AbortSignal): Promise<EngineRunResult> {
+  async run(prompt: string, signal?: AbortSignal): Promise<EngineRunOutcome> {
+    // Step -1: Check for derived metric
+    const derived = routeDerivedMetric(prompt)
+    if (derived) {
+      return this.runDerivedMetric(derived, prompt, signal)
+    }
+
+    // Step 0: Try multi-metric plan first
+    const multiPlan = buildDeterministicMultiPlan(prompt)
+    if (multiPlan) {
+      return this.runMultiMetric(multiPlan, signal)
+    }
+
     const route = routeMetric(prompt)
 
     // Step 1: If router is confident, use deterministic plan (fast, no model cost)
@@ -85,6 +107,74 @@ export class FinancialEngine {
       },
       result: null
     }
+  }
+
+  async runDerivedMetric(
+    derived: DerivedMetric,
+    prompt: string,
+    signal?: AbortSignal
+  ): Promise<EngineRunResult> {
+    try {
+      const values: Record<string, number> = {}
+
+      for (const inputId of derived.inputs) {
+        const plan = buildDeterministicPlan(prompt, inputId)
+        if (!plan) {
+          return {
+            verdict: { ok: false, reason: `derived-input-plan-failed: ${inputId}`, reconciliations: [] },
+            result: null
+          }
+        }
+        const runResult = await this.runPlan(plan, signal)
+        if (!runResult.result || !runResult.verdict.ok) {
+          return {
+            verdict: { ok: false, reason: `derived-input-failed: ${inputId}`, reconciliations: [] },
+            result: null
+          }
+        }
+        const raw = runResult.result.rows[0]?.['result_value'] ?? runResult.result.rows[0]?.['base_value']
+        values[inputId] = raw !== null && raw !== undefined ? Number(raw) : 0
+      }
+
+      const derivedValue = derived.formula(values)
+      const fakePlan: MetricPlan = {
+        metricId: derived.id as unknown as MetricId,
+        grain: 'total',
+        filters: [],
+        confidence: 1.0
+      }
+      const result: EngineResult = {
+        rows: [{ result_value: derivedValue }],
+        plan: fakePlan,
+        compiled: { sql: `-- derived: ${derived.id}(${JSON.stringify(values)})`, bindingsDescription: 'derived metric' }
+      }
+
+      return {
+        verdict: { ok: true, reason: undefined, reconciliations: [] },
+        result
+      }
+    } catch (error) {
+      void error
+      return {
+        verdict: { ok: false, reason: 'derived-execution-error', reconciliations: [] },
+        result: null
+      }
+    }
+  }
+
+  async runMultiMetric(plan: MultiMetricPlan, signal?: AbortSignal): Promise<MultiMetricResult> {
+    const results: EngineResult[] = []
+    const verdicts: EngineVerdict[] = []
+
+    for (const subPlan of plan.plans) {
+      const runResult = await this.runPlan(subPlan, signal)
+      if (runResult.result) {
+        results.push(runResult.result)
+      }
+      verdicts.push(runResult.verdict)
+    }
+
+    return { results, verdicts, plan }
   }
 
   async runPlan(plan: MetricPlan, signal?: AbortSignal): Promise<EngineRunResult> {
