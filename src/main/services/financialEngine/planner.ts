@@ -367,6 +367,27 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   //           "نیمه دوم سال 1403", "ماه 5 سال 1403", "از 1 خرداد تا 15 تیر"
   const dateRange = parseDateRange(normalized, yearMatches)
 
+  // S14.6: Extract voucher number from prompt (e.g., "سند شماره 1234", "سند 1234")
+  let voucherNumber: string | undefined
+  const voucherNumMatch = normalized.match(/سند\s*(?:شماره|ش)?\s*(\d{1,10})/u)
+  if (voucherNumMatch && metricId === 'voucher_detail') {
+    voucherNumber = voucherNumMatch[1]
+  }
+
+  // S14.8: Extract voucher type from prompt
+  let voucherType: string | undefined
+  if (metricId === 'vouchers_by_type') {
+    if (/اختتامیه/u.test(normalized)) {
+      voucherType = '4'
+    } else if (/افتتاحیه/u.test(normalized)) {
+      voucherType = '5'
+    } else if (/بستن\s*حساب/u.test(normalized)) {
+      voucherType = '3'
+    } else if (/عملیاتی/u.test(normalized)) {
+      voucherType = '1'
+    }
+  }
+
   const plan: MetricPlan = {
     metricId,
     grain,
@@ -375,6 +396,8 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     entityName,
     topN,
     dateRange,
+    voucherNumber,
+    voucherType,
     confidence: 1.0
   }
   setCachedPlan(cacheKey, plan)

@@ -31,6 +31,8 @@ interface GoldenMetricCase {
   expectedMetricIds?: string[]
   expectedDerivedId?: string
   expectedDateRange?: { start?: string; end?: string }
+  expectedVoucherNumber?: string
+  expectedVoucherType?: string
 }
 
 interface GoldenNegativeCase {
@@ -243,6 +245,54 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
         prompt: case_.prompt,
         passed: false,
         reason: `dateRange.end mismatch: got ${actual.end}, expected ${expected.end}`,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+  }
+
+  // S14.6: Check voucherNumber if expected
+  if (case_.expectedVoucherNumber) {
+    if (!plan.voucherNumber) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: 'voucherNumber expected but not present in plan',
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+    if (plan.voucherNumber !== case_.expectedVoucherNumber) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `voucherNumber mismatch: got ${plan.voucherNumber}, expected ${case_.expectedVoucherNumber}`,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+  }
+
+  // S14.8: Check voucherType if expected
+  if (case_.expectedVoucherType) {
+    if (!plan.voucherType) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: 'voucherType expected but not present in plan',
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+    if (plan.voucherType !== case_.expectedVoucherType) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `voucherType mismatch: got ${plan.voucherType}, expected ${case_.expectedVoucherType}`,
         metricId: route.metricId,
         expectedMetricId: case_.expectedMetricId
       }

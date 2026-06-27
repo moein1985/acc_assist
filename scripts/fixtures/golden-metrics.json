@@ -1039,6 +1039,69 @@
       "expect": "any_number",
       "expectedValue": 1,
       "expectedDateRange": { "start": "2024-03-20", "end": "2024-09-21" }
+    },
+    {
+      "id": "s14-voucher-detail-by-number",
+      "prompt": "سند شماره 1234 چیست؟",
+      "expectedMetricId": "voucher_detail",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherNumber": "1234"
+    },
+    {
+      "id": "s14-voucher-detail-no-number",
+      "prompt": "جزئیات سند 5678 را نشان بده",
+      "expectedMetricId": "voucher_detail",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherNumber": "5678"
+    },
+    {
+      "id": "s14-vouchers-by-date-today",
+      "prompt": "اسناد امروز چیست؟",
+      "expectedMetricId": "vouchers_by_date",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-vouchers-by-date-range",
+      "prompt": "اسناد از 1403/05/01 تا 1403/05/31",
+      "expectedMetricId": "vouchers_by_date",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedDateRange": { "start": "2024-07-22", "end": "2024-08-21" }
+    },
+    {
+      "id": "s14-vouchers-by-type-closing",
+      "prompt": "سندهای اختتامیه 1402",
+      "expectedMetricId": "vouchers_by_type",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherType": "4"
+    },
+    {
+      "id": "s14-vouchers-by-type-opening",
+      "prompt": "سندهای افتتاحیه سال 1403",
+      "expectedMetricId": "vouchers_by_type",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherType": "5"
+    },
+    {
+      "id": "s14-vouchers-by-type-operational",
+      "prompt": "سندهای عملیاتی 1403",
+      "expectedMetricId": "vouchers_by_type",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherType": "1"
+    },
+    {
+      "id": "s14-vouchers-by-type-closing-account",
+      "prompt": "اسناد بستن حساب 1402",
+      "expectedMetricId": "vouchers_by_type",
+      "expectedGrain": "total",
+      "expect": "any_rows",
+      "expectedVoucherType": "3"
     }
   ],
   "negative": [

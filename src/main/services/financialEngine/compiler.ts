@@ -185,6 +185,16 @@ function buildWhereClauses(
     }
   }
 
+  // S14.6: Voucher number filter for voucher_detail
+  if (plan.voucherNumber) {
+    where.push(`v.Number = ${Number(plan.voucherNumber)}`)
+  }
+
+  // S14.8: Voucher type filter for vouchers_by_type
+  if (plan.voucherType) {
+    where.push(`v.Type = ${Number(plan.voucherType)}`)
+  }
+
   return where
 }
 
@@ -305,6 +315,12 @@ export function compileMetricPlan(
   }
   if (plan.dateRange) {
     bindings.push(`dateRange: ${plan.dateRange.start ?? '*'} → ${plan.dateRange.end ?? '*'}`)
+  }
+  if (plan.voucherNumber) {
+    bindings.push(`voucherNumber: ${plan.voucherNumber}`)
+  }
+  if (plan.voucherType) {
+    bindings.push(`voucherType: ${plan.voucherType}`)
   }
 
   return {

@@ -1427,6 +1427,106 @@ const catalog: MetricDefinition[] = [
       { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'درآمد و هزینه‌ها' }
     ],
     dateColumn: 'v.Date'
+  },
+  {
+    id: 'voucher_detail',
+    titleFa: 'جزئیات سند',
+    anchors: ['سند شماره', 'جزئیات سند', 'ردیف‌های سند', 'سند فلان', 'سند چند', 'سند چند است', 'محتوای سند', 'اقلام سند'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'گردش', 'فاکتور', 'اسناد اخیر', 'آخرین سند'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'list',
+      columns: ['v.VoucherId', 'v.Number', 'v.Date', 'v.Description', 'vi.RowDescription', 'a.Code', 'a.Title', 'vi.Debit', 'vi.Credit']
+    },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    orderBy: { column: 'vi.RowNumber', direction: 'ASC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'vouchers_by_date',
+    titleFa: 'اسناد در محدوده تاریخ',
+    anchors: ['اسناد امروز', 'اسناد دیروز', 'اسناد این هفته', 'سندهای ثبت شده', 'چه سندهایی', 'اسناد این ماه', 'سندهای امروز', 'سندهای دیروز', 'سندهای ثبت شده', 'اسناد از', 'اسناد در محدوده'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'جزئیات سند', 'سند شماره'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'v' },
+    measure: {
+      kind: 'list',
+      columns: ['VoucherId', 'Number', 'Date', 'Type', 'Description']
+    },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'vouchers_by_type',
+    titleFa: 'اسناد بر اساس نوع',
+    anchors: ['سندهای اختتامیه', 'سند اختتام', 'سندهای افتتاحیه', 'سندهای عملیاتی', 'اسناد بستن حساب', 'سندهای بستن', 'اختتامیه', 'افتتاحیه', 'سند بستن حساب'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'جزئیات سند', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'v' },
+    measure: {
+      kind: 'list',
+      columns: ['VoucherId', 'Number', 'Date', 'Type', 'Description']
+    },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
   }
 ]
 

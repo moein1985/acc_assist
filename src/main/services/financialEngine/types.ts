@@ -38,6 +38,9 @@ export type MetricId =
   | 'cost_allocation'
   | 'budget_variance'
   | 'budget_report'
+  | 'voucher_detail'
+  | 'vouchers_by_date'
+  | 'vouchers_by_type'
 
 export type Grain =
   | 'total'
@@ -187,6 +190,10 @@ export interface MetricPlan {
     start?: string
     end?: string
   }
+  /** Voucher number for voucher_detail queries — S14.6 */
+  voucherNumber?: string
+  /** Voucher type filter for vouchers_by_type — S14.8 */
+  voucherType?: string
   confidence: number
 }
 
@@ -383,7 +390,10 @@ export const metricPlanSchema = z.object({
     'cashflow',
     'sales_by_period',
     'account_turnover',
-    'recent_documents'
+    'recent_documents',
+    'voucher_detail',
+    'vouchers_by_date',
+    'vouchers_by_type'
   ]),
   grain: z.enum([
     'total',
@@ -418,6 +428,8 @@ export const metricPlanSchema = z.object({
       end: z.string().optional()
     })
     .optional(),
+  voucherNumber: z.string().optional(),
+  voucherType: z.string().optional(),
   confidence: z.number()
 })
 
