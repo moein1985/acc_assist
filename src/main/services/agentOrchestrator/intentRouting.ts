@@ -1,5 +1,6 @@
 // LEGACY_REMOVED: all deterministic financial intents removed (Phase 9).
 // Financial queries are now handled exclusively by the FRE engine.
+export const LEGACY_REMOVED_MARKER = 'LEGACY_REMOVED'
 export type DeterministicFinancialIntent = never
 
 export const RELAXED_EXPLORATORY_INTENTS: ReadonlySet<DeterministicFinancialIntent> = new Set()

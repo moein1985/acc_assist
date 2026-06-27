@@ -9,6 +9,22 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!*.md'
+  - '!roadmap/*'
+  - '!ops/*'
+  - '!scripts/*'
+  - '!tests/*'
+  - '!.devin/*'
+  - '!.windsurf/*'
+  - '!test-output.txt'
+  - '!test_output.txt'
+  - '!telemetry-test-output.txt'
+  - '!.venv/**/*'
+  - '!index.js'
+  - '!dist_*'
+  - '!dist_*/**/*'
+  - '!dist_v3_extracted/**/*'
+  - '!dist/**/*'
 asarUnpack:
   - resources/**
 win:

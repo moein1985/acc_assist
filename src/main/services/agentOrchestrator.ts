@@ -1382,15 +1382,14 @@ export class AgentOrchestrator {
       {
         findActiveSchemaCatalog: (catalogSettings) => this.findActiveSchemaCatalog(catalogSettings),
         resolvePreferredMapping: (catalog, conceptKey, mappingPrompt) =>
-          this.resolvePreferredMapping(catalog, conceptKey, mappingPrompt),
+          this.resolvePreferredMapping(catalog as SchemaCatalogEntry, conceptKey as AccountingConceptKey, mappingPrompt),
         parseSqlTableReference: (rawRef) => this.parseSqlTableReference(rawRef),
         executeReadOnlySql: (sqlQuery, sqlSignal) => this.executeReadOnlySql(sqlQuery, sqlSignal),
         quoteSqlIdentifier: (value) => this.quoteSqlIdentifier(value),
         quoteSqlTableRef: (ref) => this.quoteSqlTableRef(ref),
         toOptionalFiniteInteger: (value) => this.toOptionalFiniteInteger(value),
         rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
-        emitProgress: (progressCallback, event) => this.emitProgress(progressCallback, event),
-        safeAuditWrite: (entry) => this.safeAuditWrite(entry)
+        emitProgress: (progressCallback, event) => this.emitProgress(progressCallback, event)
       },
       deterministicIntent,
       settings,

@@ -11,7 +11,7 @@ import { normalizePersianText } from '../../src/main/services/textNormalization'
 
 function makeDef(overrides: Partial<FinancialIntentDefinition>): FinancialIntentDefinition {
   return {
-    id: 'get_account_balance',
+    id: 'get_account_balance' as never,
     description: 'synthetic test definition',
     responseMode: 'deterministic',
     requiredSlots: [],

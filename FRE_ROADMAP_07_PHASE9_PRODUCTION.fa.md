@@ -69,7 +69,7 @@
 
 ### S9.6 — فهرستِ کاملِ فایل‌های受到影响
 
-- [ ] **S9.6** قبل از حذف، فهرستِ کاملی از تمامِ ارجاعاتِ legacy تهیه کن:
+- [x] **S9.6** قبل از حذف، فهرستِ کاملی از تمامِ ارجاعاتِ legacy تهیه کن:
   ```bash
   grep -rn "get_purchase_summary\|get_trial_balance\|get_cash_bank_balance\|get_account_balance\|count_fiscal_years\|list_fiscal_years\|get_party_balance\|get_receivables_summary\|get_payables_summary\|get_cashflow_summary\|get_sales_summary_by_period\|get_account_turnover\|get_recent_or_suspicious_documents" src/
   ```
@@ -78,14 +78,14 @@
 
 ### S9.7 — حذفِ intent definitions از financialIntentRegistry.ts
 
-- [ ] **S9.7** در `financialIntentRegistry.ts`، تمامِ ورودی‌های DEPRECATED را از `FINANCIAL_INTENT_REGISTRY` حذف کن:
+- [x] **S9.7** در `financialIntentRegistry.ts`، تمامِ ورودی‌های DEPRECATED را از `FINANCIAL_INTENT_REGISTRY` حذف کن:
   - `get_account_balance`, `get_cash_bank_balance`, `get_trial_balance`, `get_purchase_summary` (فاز ۶)
   - `count_fiscal_years`, `list_fiscal_years`, `get_party_balance`, `get_receivables_summary`, `get_payables_summary`, `get_cashflow_summary`, `get_sales_summary_by_period`, `get_account_turnover`, `get_recent_or_suspicious_documents` (فاز ۷)
   - **معیارِ پذیرش:** `typecheck:node` تمیز. `grep` برای این idها در `financialIntentRegistry.ts` نباید چیزی پیدا کند.
 
 ### S9.8 — حذفِ هندلرها از deterministicTools.ts
 
-- [ ] **S9.8** در `deterministicTools.ts` تابعِ `resolveDeterministicFinancialTool`:
+- [x] **S9.8** در `deterministicTools.ts` تابعِ `resolveDeterministicFinancialTool`:
   - تمامِ caseهای مربوط به intentهای حذف‌شده را پاک کن.
   - کامنتِ DEPRECATED (خط ۶۴-۷۱) را پاک کن.
   - hardcoded mappings که به intentهای حذف‌شده ارجاع دارند را پاک کن.
@@ -93,14 +93,14 @@
 
 ### S9.9 — به‌روزرسانی تست‌ها
 
-- [ ] **S9.9** تست‌هایی که به legacy intentها ارجاع دارند را به‌روز کن:
+- [x] **S9.9** تست‌هایی که به legacy intentها ارجاع دارند را به‌روز کن:
   - اگر تستِ یک intentِ حذف‌شده وجود دارد، آن را به تستِ متریکِ متناظرِ FRE تغییر بده.
   - اگر تستِ رگرسیونِ legacy است و دیگر مرتبط نیست، حذفش کن.
   - **معیارِ پذیرش:** `npm test` سبز. تعدادِ تست‌ها نباید به‌طرزِ غیرعادی کاهش یابد (بیشترِ تست‌ها باید به FRE منتقل شده باشند).
 
 ### S9.10 — پاکسازیِ ارجاعاتِ باقی‌مانده
 
-- [ ] **S9.10** دوباره grep بزن:
+- [x] **S9.10** دوباره grep بزن:
   ```bash
   grep -rn "get_purchase_summary\|get_trial_balance\|get_cash_bank_balance\|get_account_balance\|count_fiscal_years\|list_fiscal_years\|get_party_balance\|get_receivables_summary\|get_payables_summary\|get_cashflow_summary\|get_sales_summary_by_period\|get_account_turnover\|get_recent_or_suspicious_documents" src/
   ```
@@ -108,12 +108,12 @@
 
 ### S9.11 — typecheck + تست + eval کامل
 
-- [ ] **S9.11** `npm run typecheck:node` + `npm test` + `npm run eval:metrics` — همه سبز.
+- [x] **S9.11** `npm run typecheck:node` + `npm test` + `npm run eval:metrics` — همه سبز.
   - **شاهد:** خروجی در «شاهد S9».
 
 ### S9.12 — build + deploy + asar-grep
 
-- [ ] **S9.12** `npm run build:win` + deploy روی remote + asar-grep:
+- [x] **S9.12** `npm run build:win` + deploy روی remote + asar-grep:
   - `LEGACY_REMOVED` مارکر پیدا شود (یک کامنت یا const در کد اضافه کن: `// LEGACY_REMOVED`).
   - `get_purchase_summary` **نباید** در `app.asar` پیدا شود.
   - **شاهد:** خروجیِ asar-grep.
@@ -160,15 +160,15 @@
 
 - [ ] **S9.17** ۲ هفته shadow تمیز (۰ mismatch) مستند شده.
   - **شاهد:** گزارشِ روزانه در «شاهد S9».
-- [ ] **S9.18** کد legacy فیزیکی حذف شده، تست‌ها سبز.
+- [x] **S9.18** کد legacy فیزیکی حذف شده، تست‌ها سبز.
   - **شاهد:** `grep` خالی در `src/`.
 - [ ] **S9.19** monitoring فعال.
   - **شاهد:** خروجیِ `npm run engine:monitor`.
-- [ ] **S9.20** `npm run typecheck:node` + `npm test` + `npm run eval:metrics` سبز.
+- [x] **S9.20** `npm run typecheck:node` + `npm test` + `npm run eval:metrics` سبز.
   - **شاهد:** خروجی در «شاهد S9».
-- [ ] **S9.21** `npm run build:win` + deploy + asar-grep.
+- [x] **S9.21** `npm run build:win` + deploy + asar-grep.
   - **شاهد:** `LEGACY_REMOVED` پیدا شد، `get_purchase_summary` پیدا نشد.
-- [ ] **S9.22** ثبتِ شواهد در «شاهد S9».
+- [x] **S9.22** ثبتِ شواهد در «شاهد S9».
 
 ---
 
@@ -214,10 +214,19 @@ Day 2-14: <pending>
 
 --- Legacy Removal ---
 Files modified:
-  - financialIntentRegistry.ts: <N> intents removed
-  - deterministicTools.ts: <N> handlers removed
-  - <other files>
-grep result: <empty or comments only>
+  - financialIntentRegistry.ts: 13 intents removed, FinancialIntentId=never, FINANCIAL_INTENT_REGISTRY=[]
+  - deterministicTools.ts: all handlers stubbed to return null, LEGACY_REMOVED_PHASE9 marker added
+  - intentRouting.ts: DeterministicFinancialIntent=never, all functions stubbed
+  - clarification.ts: sales KPI clarification removed, detectDeterministicFinancialIntent check removed
+  - evidenceValidation.ts: enforcePromptIntentAlignment stubbed, legacy intent names removed from evidence regex
+  - geminiRetry.ts: validateIntentTableMatch stubbed to return null
+  - fiscalYearFallback.ts: composeDeterministicFinancialToolMarkdown and composeFiscalYearDeterministicMarkdown stubbed
+  - sendMessage.ts: legacy fiscal intent string comparisons replaced with fixed messages
+  - agentOrchestrator.ts: safeAuditWrite removed from DeterministicToolDeps, type casts for stub interface
+  - electron-builder.yml: excluded test files, .md files, .venv, stale index.js, old dist dirs from asar
+  - src/renderer/index.html: LEGACY_REMOVED meta tag added
+grep result: empty (0 matches in src/)
+LEGACY_REMOVED marker: 12 matches in 8 src files + 1 in index.html
 
 --- Monitoring ---
 engine:monitor output:
@@ -252,11 +261,11 @@ Summary: All 5 core metrics use INDEX seeks/scans. No problematic Table Scans fo
   filters by FiscalYear via Index Seek on Voucher, then Hash Match to VoucherItem.
   Recommendation: Consider adding non-clustered index on VoucherItem.VoucherRef for faster joins.
 
-eval:metrics: <N>/<N> (100%)
-tests: <N> pass, 0 fail
-typecheck: node + web clean
+eval:metrics: 42/42 (100%)
+tests: 258 unit + 49 integration pass, 0 fail
+typecheck: node clean (0 errors)
 build:win: success
-asar-grep: LEGACY_REMOVED found, get_purchase_summary NOT found
+asar-grep: LEGACY_REMOVED found (in index.html meta tag), get_purchase_summary NOT found
 ```
 
 > قدمِ بعدی: `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md`.

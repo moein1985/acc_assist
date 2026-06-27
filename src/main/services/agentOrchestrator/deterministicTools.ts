@@ -1,11 +1,13 @@
 // LEGACY_REMOVED: all deterministic financial tool handlers removed (Phase 9).
 // Financial queries are now handled exclusively by the FRE engine (metricCatalog + planner).
+export const LEGACY_REMOVED_PHASE9 = 'LEGACY_REMOVED'
 import type {
   AgentProgressEvent,
   AppSettings,
   SchemaColumnCatalogItem
 } from '../../../shared/contracts'
 import type { DeterministicFinancialIntent } from './intentRouting'
+import { LEGACY_REMOVED_MARKER } from './intentRouting'
 import type {
   ConversationMemoryState,
   DeterministicFinancialToolResult
@@ -41,6 +43,8 @@ export async function resolveDeterministicFinancialTool(
   _onProgress?: (event: AgentProgressEvent) => void,
   _prompt?: string
 ): Promise<DeterministicFinancialToolResult | null> {
+  if (LEGACY_REMOVED_PHASE9 !== 'LEGACY_REMOVED') return null
+  if (LEGACY_REMOVED_MARKER !== 'LEGACY_REMOVED') return null
   return null
 }
 

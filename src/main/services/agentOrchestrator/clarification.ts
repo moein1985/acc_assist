@@ -9,7 +9,7 @@ import type {
   SchemaCatalogEntry
 } from '../../../shared/contracts'
 import { transition, type RouteState } from '../intentFsm'
-import { isRelaxedExploratoryIntent, type DeterministicFinancialIntent } from './intentRouting'
+import { type DeterministicFinancialIntent } from './intentRouting'
 import type {
   ConversationMemorySnapshot,
   ConversationMemoryState,
@@ -110,10 +110,8 @@ export function buildSchemaReadinessClarificationIfNeeded(
     return null
   }
 
-  const detectedExploratoryIntent = deps.detectDeterministicFinancialIntent(prompt)
-  if (detectedExploratoryIntent && isRelaxedExploratoryIntent(detectedExploratoryIntent)) {
-    return null
-  }
+  // LEGACY_REMOVED: detectDeterministicFinancialIntent always returns null (Phase 9).
+  // The isRelaxedExploratoryIntent check is unreachable and has been removed.
 
   const missingConceptMappings = detectedConcepts.filter(
     (conceptKey) => !deps.resolvePreferredMapping(activeCatalog, conceptKey, prompt)

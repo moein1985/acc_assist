@@ -1,6 +1,9 @@
 node_modules
 dist
+dist_*
 out
 .DS_Store
 .eslintcache
 *.log*
+index.html
+index.js
