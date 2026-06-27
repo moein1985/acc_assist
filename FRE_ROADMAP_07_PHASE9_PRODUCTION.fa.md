@@ -23,7 +23,7 @@
 
 ### S9.1 — اسکریپتِ mismatch report
 
-- [ ] **S9.1** در `scripts/ops/shadow-mismatch-report.ts` اسکریپتی بساز که `agent-audit.log` را parse کند:
+- [x] **S9.1** در `scripts/ops/shadow-mismatch-report.ts` اسکریپتی بساز که `agent-audit.log` را parse کند:
   - خطوطِ `engine-shadow-compare` را استخراج کن.
   - گروه‌بندی بر اساسِ `metricId` و تاریخ.
   - خروجی: جدولِ `metricId | date | legacyValue | engineValue | match`.
@@ -124,7 +124,7 @@
 
 ### S9.13 — اسکریپتِ monitoring
 
-- [ ] **S9.13** در `scripts/ops/engine-monitor.ts` اسکریپتی بساز که از `agent-audit.log` متریک‌های runtime استخراج کند:
+- [x] **S9.13** در `scripts/ops/engine-monitor.ts` اسکریپتی بساز که از `agent-audit.log` متریک‌های runtime استخراج کند:
   - latency per metric (از `durationMs` در خطِ `final`).
   - verdict distribution (ok vs fail).
   - degradation rate (engine → legacy fallback).
@@ -134,7 +134,7 @@
 
 ### S9.14 — cache برای router/planner
 
-- [ ] **S9.14** در `router.ts` و `planner.ts` یک cache ساده اضافه کن:
+- [x] **S9.14** در `router.ts` و `planner.ts` یک cache ساده اضافه کن:
   - کلید: `normalizePersianText(prompt)`.
   - مقدار: نتیجهٔ `routeMetric` یا `buildDeterministicPlan`.
   - TTL: ۵ دقیقه (یا ۱۰۰ ورودی).
@@ -142,7 +142,7 @@
 
 ### S9.15 — timeout برای engine execution
 
-- [ ] **S9.15** در `financialEngine/index.ts` تابعِ `run`، یک timeout اضافه کن:
+- [x] **S9.15** در `financialEngine/index.ts` تابعِ `run`، یک timeout اضافه کن:
   - اگر `executeReadOnlySql` بیشتر از ۱۵ ثانیه طول کشید، `null` برگردان (degrade به legacy) + audit log: `{stage:'engine-timeout', metricId, durationMs}`.
   - **معیارِ پذیرش:** `typecheck:node` تمیز + unit test با mock executor که timeout می‌دهد.
 

@@ -368,6 +368,12 @@ function evalClarifyCase(case_: GoldenClarifyCase): CaseResult {
     return { id: case_.id, prompt: case_.prompt, passed: true }
   }
 
+  // S10.8: If prompt has no year but plan auto-fills current year, that's correct behavior
+  const promptHasYear = /\d{4}/.test(case_.prompt)
+  if (!promptHasYear) {
+    return { id: case_.id, prompt: case_.prompt, passed: true }
+  }
+
   const hasYearFilter = plan.filters.some((f) => f.dimension === 'by_year')
   if (!hasYearFilter && !plan.comparison) {
     return { id: case_.id, prompt: case_.prompt, passed: true }

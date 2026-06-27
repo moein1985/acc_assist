@@ -170,3 +170,24 @@ test('engine multi-metric: فروش و خرید ۱۴۰۲ — two metrics, side_b
     assert.ok(metricIds.includes('purchases'))
   }
 })
+
+test('S10.13: engine derived metric — نسبت فروش به خرید ۱۴۰۲ — single percent value', async () => {
+  const executor = async (query: string): Promise<SqlQueryRow[]> => {
+    if (query.includes('SLS.Invoice') || query.includes('SaleInvoice')) {
+      return [{ result_value: 64252437897 }]
+    }
+    return [{ result_value: 226110419451 }]
+  }
+  const engine = new FinancialEngine({
+    ...makeCompilerDeps(),
+    executeReadOnlySql: executor
+  })
+
+  const outcome = await engine.run('نسبت فروش به خرید ۱۴۰۲')
+  const single = asSingleResult(outcome)
+
+  assert.ok(single.verdict.ok, 'derived metric verdict should be ok')
+  assert.ok(single.result, 'should have result')
+  const value = Number(single.result!.rows[0]?.['result_value'] ?? 0)
+  assert.ok(value > 0, 'derived ratio should be positive')
+})

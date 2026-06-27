@@ -12,14 +12,15 @@ The orchestrator has been migrated from "weak model + N hand-coded deterministic
 ### FRE Pipeline
 ```
 User question (Farsi)
-  → Router (deterministic first-pass metric matching)
-  → Planner (model produces MetricPlan JSON, validated by Zod)
-  → Semantic Layer (MetricDefinition[] — declarative catalog)
+  → Router (deterministic first-pass metric matching + LRU cache)
+  → Planner (model produces MetricPlan/MultiMetricPlan JSON, validated by Zod)
+  → Semantic Layer (MetricDefinition[] — declarative catalog, 15 metrics)
   → Compiler (deterministic: MetricPlan + Definition → safe SQL)
-  → Executor (read-only SQL execution)
+  → Executor (read-only SQL execution, 15s timeout via AbortController)
   → Verifier (reconciliation + intent-alignment + evidence contract)
   → Explainer (model produces Farsi narrative from verified numbers)
   → Final answer + Evidence + SQL
+  → Smart Clarify (if confidence < 0.5: question + suggestions)
 ```
 
 ### Feature Flag (`ACC_FINANCIAL_ENGINE_MODE`)
@@ -27,7 +28,7 @@ User question (Farsi)
 - `shadow` — both paths run; user gets legacy output, engine output is compared and logged
 - `engine` — engine serves user; legacy is fallback only
 
-### Migrated Metrics (6 — served by FRE in engine mode)
+### FRE Metrics (15 — served by FRE in engine mode)
 | Metric | FRE MetricId | Legacy Handler (DEPRECATED) | Ground-Truth (1402) |
 |---|---|---|---|
 | Net sales | `net_sales` | (model-assisted) | 64,252,437,897 |
@@ -36,9 +37,31 @@ User question (Farsi)
 | Trial balance | `trial_balance` | `get_trial_balance` | 566,396,483,280 |
 | Cash + bank balance | `cash_bank_balance` | `get_cash_bank_balance` | 9,521,507,066 |
 | Sales count | `sales_count` | (new — definition only) | — |
+| Fiscal year count | `fiscal_year_count` | `count_fiscal_years` | — |
+| Fiscal year list | `fiscal_year_list` | `list_fiscal_years` | — |
+| Party balance | `party_balance` | `get_party_balance` | — |
+| Receivables | `receivables` | `get_receivables_summary` | — |
+| Payables | `payables` | `get_payables_summary` | — |
+| Cashflow | `cashflow` | `get_cashflow_summary` | — |
+| Sales by period | `sales_by_period` | `get_sales_summary_by_period` | — |
+| Account turnover | `account_turnover` | `get_account_turnover` | — |
+| Recent documents | `recent_documents` | `get_recent_or_suspicious_documents` | — |
 
-### Still Legacy-Only (9 intents)
-`count_fiscal_years`, `list_fiscal_years`, `get_party_balance`, `get_account_turnover`, `get_sales_summary_by_period`, `get_receivables_summary`, `get_payables_summary`, `get_cashflow_summary`, `get_recent_or_suspicious_documents`
+### Derived Metrics (DerivedMetric)
+| Derived | Inputs | Formula |
+|---|---|---|
+| Sales-to-purchase ratio | `net_sales`, `purchases` | (sales / purchases) × 100 |
+| Gross margin | `net_sales`, `purchases` | ((sales - purchases) / sales) × 100 |
+
+### MultiMetricPlan
+Supports multi-metric queries (e.g. "فروش و خرید ۱۴۰۲") with `joinMode`: `side_by_side`, `comparison`, `trend`.
+
+### Planner Enhancements (Phase 10)
+- **Few-shot examples:** 12+ examples in `buildPlannerPrompt` covering conversational, multi-metric, derived, topN, party_balance, comparison, and negative cases.
+- **Smart Clarify:** When `confidence < 0.5`, `buildClarify` generates a clarification question + 3 metric suggestions from router scores.
+- **Conversational language:** Auto-extracts current Persian year, entity patterns (حساب دریافتنی/پرداختنی/اسناد), and date ranges with Persian month names (فروردین تا تیر, نیمه اول, سه ماه اول).
+- **LRU Cache:** Router and planner results cached (100 entries, 5min TTL).
+- **Timeout:** Engine execution capped at 15s via `AbortController`.
 
 ### Key FRE Files
 - `src/main/services/financialEngine/metricCatalog.ts` — declarative metric definitions
@@ -59,6 +82,10 @@ Adding a new metric requires only: (1) one `MetricDefinition` in `metricCatalog.
 - `FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md` — Phase 2-3: semantic layer + compiler
 - `FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md` — Phase 4-5: planner + verifier
 - `FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md` — Phase 6: eval, cutover, rollback
+- `FRE_ROADMAP_05_PHASE7_LEGACY_MIGRATION.fa.md` — Phase 7: legacy migration (9 metrics)
+- `FRE_ROADMAP_06_PHASE8_MULTI_METRIC.fa.md` — Phase 8: MultiMetric + derived metrics
+- `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md` — Phase 9: production hardening, shadow run
+- `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md` — Phase 10: advanced planner, smart clarify, conversational
 
 ## 2. Inventory of the 30 Financial Tools
 | Tool Name | Core Purpose / Target User | Main DB Tables Interacted With | Primary LLM Prompt Objective |

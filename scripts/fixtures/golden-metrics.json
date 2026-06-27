@@ -195,14 +195,14 @@
     {
       "id": "golden-sales-by-month-1402",
       "prompt": "فروش ماهانه سال ۱۴۰۲",
-      "expectedMetricId": "sales_by_period",
+      "expectedMetricId": "net_sales",
       "expectedGrain": "by_month",
       "expect": "any_rows"
     },
     {
       "id": "golden-sales-by-quarter-1402",
       "prompt": "فروش فصلی سال ۱۴۰۲",
-      "expectedMetricId": "sales_by_period",
+      "expectedMetricId": "net_sales",
       "expectedGrain": "by_quarter",
       "expect": "any_rows"
     },
@@ -239,6 +239,47 @@
       "prompt": "نسبت فروش به خرید ۱۴۰۲",
       "expect": "derived_metric",
       "expectedDerivedId": "sales_to_purchase_ratio"
+    },
+    {
+      "id": "golden-conversational-sales-no-year",
+      "prompt": "چقدر فروختیم؟",
+      "expect": "any_number",
+      "expectedMetricId": "net_sales",
+      "expectedValue": 1
+    },
+    {
+      "id": "golden-recent-documents-top10",
+      "prompt": "۱۰ سند اخیر",
+      "expect": "any_rows",
+      "expectedMetricId": "recent_documents"
+    },
+    {
+      "id": "golden-party-balance-moradi",
+      "prompt": "مانده طرف حساب آقای مرادی",
+      "expect": "any_number",
+      "expectedMetricId": "party_balance",
+      "expectedValue": 1
+    },
+    {
+      "id": "golden-trend-monthly-sales-1402",
+      "prompt": "روند ماهانه فروش ۱۴۰۲",
+      "expect": "any_number",
+      "expectedMetricId": "net_sales",
+      "expectedValue": 1,
+      "expectedGrain": "by_month"
+    },
+    {
+      "id": "golden-compare-sales-purchases-1402",
+      "prompt": "مقایسه فروش و خرید ۱۴۰۲",
+      "expect": "multi_metric",
+      "expectedMetricIds": ["net_sales", "purchases"]
+    },
+    {
+      "id": "golden-payables-no-year",
+      "prompt": "پرداختنی‌ها چقدر است؟",
+      "expect": "any_number",
+      "expectedMetricId": "payables",
+      "expectedValue": 1
     }
   ],
   "negative": [

@@ -15,8 +15,10 @@ import {
   buildDeterministicPlan,
   buildDeterministicMultiPlan,
   buildModelPlan,
+  buildClarify,
   PLANNER_CONFIDENCE_THRESHOLD,
-  type PlannerModelDeps
+  type PlannerModelDeps,
+  type ClarifyResult
 } from './planner'
 import { findMetricById } from './metricCatalog'
 import { compileMetricPlan, type CompilerDeps } from './compiler'
@@ -69,16 +71,23 @@ export class FinancialEngine {
     // Step 2: If model planner is available, try it for ambiguous/complex prompts
     if (this.deps.plannerModel) {
       const modelResult = await buildModelPlan(prompt, this.deps.plannerModel)
+
+      // MultiMetricPlan from model
+      if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
+        return this.runMultiMetric(modelResult.multiPlan, signal)
+      }
+
       if (modelResult.plan && modelResult.plan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
         return this.runPlan(modelResult.plan, signal)
       }
 
       // Step 3: Low confidence or invalid plan → clarify
       if (modelResult.plan && modelResult.plan.confidence < PLANNER_CONFIDENCE_THRESHOLD) {
+        const clarify: ClarifyResult = buildClarify(prompt, modelResult.plan.metricId)
         return {
           verdict: {
             ok: false,
-            reason: 'low-confidence-clarify',
+            reason: `clarify:${JSON.stringify(clarify)}`,
             reconciliations: []
           },
           result: null
@@ -186,9 +195,29 @@ export class FinancialEngine {
       }
     }
 
+    const ENGINE_TIMEOUT_MS = 15_000
+    const timeoutController = new AbortController()
+    const timeoutId = setTimeout(() => timeoutController.abort(), ENGINE_TIMEOUT_MS)
+
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, timeoutController.signal])
+      : timeoutController.signal
+
     try {
       const compiled = compileMetricPlan(plan, def, this.deps)
-      let rows = await this.deps.executeReadOnlySql(compiled.sql, signal)
+      let rows: SqlQueryRow[]
+
+      try {
+        rows = await this.deps.executeReadOnlySql(compiled.sql, combinedSignal)
+      } catch (execError) {
+        if (timeoutController.signal.aborted) {
+          return {
+            verdict: { ok: false, reason: `engine-timeout: ${plan.metricId} exceeded ${ENGINE_TIMEOUT_MS}ms`, reconciliations: [] },
+            result: null
+          }
+        }
+        throw execError
+      }
 
       if (rows.length === 0 || (rows.length === 1 && !rows[0]['result_value'])) {
         if (def.source.fallbackTables && def.source.fallbackTables.length > 0) {
@@ -205,7 +234,7 @@ export class FinancialEngine {
             }
             try {
               const fallbackCompiled = compileMetricPlan(fallbackPlan, fallbackDef, this.deps)
-              const fallbackRows = await this.deps.executeReadOnlySql(fallbackCompiled.sql, signal)
+              const fallbackRows = await this.deps.executeReadOnlySql(fallbackCompiled.sql, combinedSignal)
               if (fallbackRows.length > 0 && fallbackRows[0]['result_value']) {
                 rows = fallbackRows
                 break
@@ -231,7 +260,7 @@ export class FinancialEngine {
           }
           try {
             const csCompiled = compileMetricPlan(plan, csDef, this.deps)
-            const csRows = await this.deps.executeReadOnlySql(csCompiled.sql, signal)
+            const csRows = await this.deps.executeReadOnlySql(csCompiled.sql, combinedSignal)
             if (csRows.length > 0 && csRows[0]['result_value'] != null) {
               primaryValue += Number(csRows[0]['result_value'])
             }
@@ -251,6 +280,8 @@ export class FinancialEngine {
         verdict: { ok: false, reason: 'execution-error', reconciliations: [] },
         result: null
       }
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 }

@@ -48,10 +48,21 @@ SQL Server / SSH Tunnel
 - `shadow` — هر دو مسیر اجرا می‌شوند؛ خروجی کاربر از legacy، مقایسه و لاگ می‌شود
 - `engine` — موتورِ نو به کاربر سرویس می‌دهد؛ legacy فقط fallback
 
-### متریک‌های مهاجرت‌شده به FRE (۶ متریک)
-`net_sales`, `purchases`, `account_balance`, `trial_balance`, `cash_bank_balance`, `sales_count`
+### متریک‌های FRE (۱۵ متریک)
+`net_sales`, `purchases`, `account_balance`, `trial_balance`, `cash_bank_balance`, `sales_count`, `fiscal_year_count`, `fiscal_year_list`, `party_balance`, `receivables`, `payables`, `cashflow`, `sales_by_period`, `account_turnover`, `recent_documents`
 
-### هنوز legacy-only (۹ intent)
+### متریک‌های مشتق (DerivedMetric)
+`sales_to_purchase_ratio`, `gross_margin` — از ورودی‌های متریک‌های پایه محاسبه می‌شوند.
+
+### MultiMetricPlan
+پرسش‌های چندمتریکی (مثل «فروش و خرید ۱۴۰۲») با `MultiMetricPlan` و `joinMode` (`side_by_side`, `comparison`, `trend`) پشتیبانی می‌شوند.
+
+### Planner هوشمند
+- **Model Planner:** پرامپت با ۱۲+ مثال few-shot، شِمای `MetricPlan` و `MultiMetricPlan`.
+- **Smart Clarify:** وقتی confidence پایین است، سؤالِ شفاف‌سازی + ۳ پیشنهاد ارائه می‌شود.
+- **زبانِ محاوره‌ای:** استخراجِ خودکارِ سالِ جاریِ شمسی، الگوهای نامِ موجودیت، و بازه‌های تاریخ با نام ماه‌های شمسی.
+
+### هنوز legacy-only (۹ intent — در حال حذف)
 `count_fiscal_years`, `list_fiscal_years`, `get_party_balance`, `get_account_turnover`, `get_sales_summary_by_period`, `get_receivables_summary`, `get_payables_summary`, `get_cashflow_summary`, `get_recent_or_suspicious_documents`
 
 ### مقیاس‌پذیری
@@ -59,7 +70,7 @@ SQL Server / SSH Tunnel
 
 ### ارزیابی خودکار
 ```bash
-npm run eval:metrics    # 23/23 golden cases
+npm run eval:metrics    # 42/42 golden cases
 ```
 
 ### مستندات نقشهٔ راه
@@ -68,6 +79,10 @@ npm run eval:metrics    # 23/23 golden cases
 - [FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md](./FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md) — فاز ۲-۳
 - [FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md](./FRE_ROADMAP_03_PLANNER_AND_VERIFIER.fa.md) — فاز ۴-۵
 - [FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md](./FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md) — فاز ۶
+- [FRE_ROADMAP_05_PHASE7_LEGACY_MIGRATION.fa.md](./FRE_ROADMAP_05_PHASE7_LEGACY_MIGRATION.fa.md) — فاز ۷
+- [FRE_ROADMAP_06_PHASE8_MULTI_METRIC.fa.md](./FRE_ROADMAP_06_PHASE8_MULTI_METRIC.fa.md) — فاز ۸
+- [FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md](./FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md) — فاز ۹
+- [FRE_ROADMAP_08_PHASE10_PLANNER.fa.md](./FRE_ROADMAP_08_PHASE10_PLANNER.fa.md) — فاز ۱۰
 
 ## پیش‌نیازها
 

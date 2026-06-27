@@ -27,6 +27,29 @@ export interface MultiMetricRouterResult {
 const COMPARISON_SIGNALS = ['مقایسه', 'در برابر', 'نسبت']
 const TREND_SIGNALS = ['روند']
 
+// --- LRU cache for routeMetric (S9.14) ---
+const ROUTE_CACHE_MAX = 100
+const ROUTE_CACHE_TTL_MS = 5 * 60 * 1000
+const routeCache = new Map<string, { result: RouterResult; expires: number }>()
+
+function getCachedRoute(key: string): RouterResult | null {
+  const entry = routeCache.get(key)
+  if (!entry) return null
+  if (Date.now() > entry.expires) {
+    routeCache.delete(key)
+    return null
+  }
+  return entry.result
+}
+
+function setCachedRoute(key: string, result: RouterResult): void {
+  if (routeCache.size >= ROUTE_CACHE_MAX) {
+    const firstKey = routeCache.keys().next().value
+    if (firstKey) routeCache.delete(firstKey)
+  }
+  routeCache.set(key, { result, expires: Date.now() + ROUTE_CACHE_TTL_MS })
+}
+
 export function routeMultiMetric(prompt: string): MultiMetricRouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt))
   if (!normalized) return { metricIds: [], joinMode: 'side_by_side', confidence: 0 }
@@ -105,6 +128,9 @@ export function routeMetric(prompt: string): RouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt))
   if (!normalized) return { metricId: null, confidence: 0 }
 
+  const cached = getCachedRoute(normalized)
+  if (cached) return cached
+
   const catalog = getMetricCatalog()
   let bestId: MetricId | null = null
   let bestScore = 0
@@ -139,5 +165,7 @@ export function routeMetric(prompt: string): RouterResult {
   }
 
   const confidence = bestScore >= 4 ? 1.0 : bestScore >= 2 ? 0.7 : 0
-  return { metricId: bestId, confidence }
+  const result = { metricId: bestId, confidence }
+  setCachedRoute(normalized, result)
+  return result
 }

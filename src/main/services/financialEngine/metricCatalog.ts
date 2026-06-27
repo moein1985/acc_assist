@@ -13,10 +13,10 @@ const catalog: MetricDefinition[] = [
   {
     id: 'net_sales',
     titleFa: 'فروش خالص',
-    anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش'],
-    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'ماهانه', 'فصلی', 'به تفکیک'],
+    anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_year', 'by_month'],
+    grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
     measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
     dimensions: [
@@ -33,6 +33,11 @@ const catalog: MetricDefinition[] = [
       {
         dimension: 'by_month',
         labelColumn: 'MONTH(src.Date)',
+        labelType: 'int'
+      },
+      {
+        dimension: 'by_quarter',
+        labelColumn: 'DATEPART(QUARTER, src.Date)',
         labelType: 'int'
       }
     ],

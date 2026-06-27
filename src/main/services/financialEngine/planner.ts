@@ -1,14 +1,72 @@
 import type { MetricPlan, MetricId, Grain, PlanFilter, MultiMetricPlan } from './types'
-import { metricPlanSchema } from './types'
+import { metricPlanSchema, multiMetricPlanSchema } from './types'
 import { findMetricById, getMetricCatalog } from './metricCatalog'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
 import { routeMultiMetric } from './router'
+
+// --- S10.8: Current Persian year ---
+// CONVERSATIONAL_PLANNER: auto-fills current year, entity patterns, date ranges
+function getCurrentPersianYear(): string {
+  const now = new Date()
+  const gregorianYear = now.getFullYear()
+  const gregorianMonth = now.getMonth() + 1
+  const gregorianDay = now.getDate()
+  // Simple conversion: Persian year = Gregorian year - 621 (adjust for March 21)
+  // Before Nowruz (March 21), subtract one more
+  let persianYear = gregorianYear - 621
+  if (gregorianMonth < 3 || (gregorianMonth === 3 && gregorianDay < 21)) {
+    persianYear--
+  }
+  return String(persianYear)
+}
+
+// --- S10.10: Persian month name to number ---
+const PERSIAN_MONTHS: Record<string, string> = {
+  'فروردین': '01',
+  'اردیبهشت': '02',
+  'خرداد': '03',
+  'تیر': '04',
+  'مرداد': '05',
+  'شهریور': '06',
+  'مهر': '07',
+  'آبان': '08',
+  'آذر': '09',
+  'دی': '10',
+  'بهمن': '11',
+  'اسفند': '12'
+}
+
+// --- LRU cache for buildDeterministicPlan (S9.14) ---
+const PLAN_CACHE_MAX = 100
+const PLAN_CACHE_TTL_MS = 5 * 60 * 1000
+const planCache = new Map<string, { result: MetricPlan | null; expires: number }>()
+
+function getCachedPlan(key: string): { hit: true; result: MetricPlan | null } | { hit: false } {
+  const entry = planCache.get(key)
+  if (!entry) return { hit: false }
+  if (Date.now() > entry.expires) {
+    planCache.delete(key)
+    return { hit: false }
+  }
+  return { hit: true, result: entry.result }
+}
+
+function setCachedPlan(key: string, result: MetricPlan | null): void {
+  if (planCache.size >= PLAN_CACHE_MAX) {
+    const firstKey = planCache.keys().next().value
+    if (firstKey) planCache.delete(firstKey)
+  }
+  planCache.set(key, { result, expires: Date.now() + PLAN_CACHE_TTL_MS })
+}
 
 export function buildDeterministicPlan(prompt: string, metricId: MetricId): MetricPlan | null {
   const def = findMetricById(metricId)
   if (!def) return null
 
   const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  const cacheKey = `${metricId}::${normalized}`
+  const cached = getCachedPlan(cacheKey)
+  if (cached.hit) return cached.result
 
   const filters: PlanFilter[] = []
   let grain: Grain = 'total'
@@ -19,31 +77,29 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   if (yearMatches && yearMatches.length > 0) {
     const years = [...new Set(yearMatches)]
     const rangePattern = /از\s*(\d{4})\s*تا\s*(\d{4})/u.test(normalized)
-    if (
-      years.length >= 2 &&
-      def.grainSupported.includes('by_year') &&
-      !rangePattern
-    ) {
+    if (years.length >= 2 && def.grainSupported.includes('by_year') && !rangePattern) {
       comparison = {
         dimension: 'by_year',
-        baseValue: years[0],
-        targetValue: years[1]
+        baseValue: years[0]!,
+        targetValue: years[1]!
       }
-    } else if (
-      years.length >= 2 &&
-      def.grainSupported.includes('by_year') &&
-      rangePattern
-    ) {
+    } else if (years.length >= 2 && def.grainSupported.includes('by_year') && rangePattern) {
       const rangeMatch = normalized.match(/از\s*(\d{4})\s*تا\s*(\d{4})/u)
       if (rangeMatch) {
         filters.push({
           dimension: 'by_year',
           op: 'between',
-          values: [rangeMatch[1], rangeMatch[2]]
+          values: [rangeMatch[1]!, rangeMatch[2]!]
         })
       }
     } else if (years.length === 1 && def.grainSupported.includes('by_year')) {
-      filters.push({ dimension: 'by_year', op: 'eq', values: [years[0]] })
+      filters.push({ dimension: 'by_year', op: 'eq', values: [years[0]!] })
+    }
+  } else {
+    // S10.8: No year in prompt → infer current Persian year
+    if (def.grainSupported.includes('by_year')) {
+      const currentPersianYear = getCurrentPersianYear()
+      filters.push({ dimension: 'by_year', op: 'eq', values: [currentPersianYear] })
     }
   }
 
@@ -75,15 +131,19 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   }
 
   if (def.entityNameMatch) {
+    // S10.9: Expanded entity patterns for conversational prompts
     const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)
     const partyMatch = normalized.match(/(?:طرف\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\s+([\u0600-\u06FF]+)/u)
     const accountMatch = normalized.match(/(?:حساب|سرفصل|معین|تفضیلی)\s+([\u0600-\u06FF]+)/u)
+    const accountTypeMatch = normalized.match(/(حساب\s*(?:دریافتنی|پرداختنی|اسناد))/u)
     if (personMatch) {
       entityName = personMatch[1]
     } else if (partyMatch) {
       entityName = partyMatch[1]
     } else if (accountMatch) {
       entityName = accountMatch[1]
+    } else if (accountTypeMatch) {
+      entityName = accountTypeMatch[1]
     }
   }
 
@@ -96,6 +156,39 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     }
   }
 
+  // S10.10: Persian month name date ranges
+  const monthRangeMatch = normalized.match(/از\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)\s*تا\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)/u)
+  if (monthRangeMatch && yearMatches && yearMatches.length > 0) {
+    const startMonth = PERSIAN_MONTHS[monthRangeMatch[1]!]
+    const endMonth = PERSIAN_MONTHS[monthRangeMatch[2]!]
+    const year = yearMatches[0]!
+    if (startMonth && endMonth) {
+      filters.push({
+        dimension: 'by_month',
+        op: 'between',
+        values: [`${year}/${startMonth}`, `${year}/${endMonth}`]
+      })
+    }
+  }
+
+  // S10.10: "نیمه اول" and "سه ماه اول"
+  if (/نیمه\s*اول/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    const year = yearMatches[0]!
+    filters.push({
+      dimension: 'by_month',
+      op: 'between',
+      values: [`${year}/01`, `${year}/06`]
+    })
+  }
+  if (/سه\s*ماه\s*اول/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    const year = yearMatches[0]!
+    filters.push({
+      dimension: 'by_month',
+      op: 'between',
+      values: [`${year}/01`, `${year}/03`]
+    })
+  }
+
   if (!topN && def.measure.kind === 'list') {
     topN = metricId === 'recent_documents' ? 20 : 100
   }
@@ -104,7 +197,7 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'total'
   }
 
-  return {
+  const plan: MetricPlan = {
     metricId,
     grain,
     filters,
@@ -113,6 +206,8 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     topN,
     confidence: 1.0
   }
+  setCachedPlan(cacheKey, plan)
+  return plan
 }
 
 export function buildDeterministicMultiPlan(prompt: string): MultiMetricPlan | null {
@@ -152,27 +247,42 @@ export function buildPlannerPrompt(userPrompt: string): string {
     )
     .join('\n')
 
-  return `تو یک برنامه‌ریزِ مالی هستی. کاربر یک سؤال مالی به فارسی می‌پرسد و تو باید یک JSON دقیق مطابق شِمای MetricPlan تولید کنی.
+  return `تو یک برنامه‌ریزِ مالی هستی. کاربر یک سؤال مالی به فارسی می‌پرسد و تو باید یک JSON دقیق مطابق شِمای MetricPlan یا MultiMetricPlan تولید کنی.
 
 قواعد:
 ۱. فقط JSON تولید کن — هیچ متن اضافی، هیچ SQL، هیچ عدد حدسی.
 ۲. اگر سؤال به هیچ متریکی نمی‌خورد یا مبهم است، confidence را پایین (زیر ۰.۵) بده و metricId را همان نزدیک‌ترین بگذار.
 ۳. سال‌ها را در filters با dimension="by_year" و op="eq" قرار بده. مقادیر سال همیشه ۴ رقمی.
 ۴. اگر مقایسهٔ دو سال خواسته شد، از comparison استفاده کن.
-۵. grain یکی از: total, by_year, by_month, by_account.
-۶. entityName فقط اگر نام حساب/سرفصل صراحتاً ذکر شده.
+۵. grain یکی از: total, by_year, by_month, by_quarter, by_customer, by_account.
+۶. entityName فقط اگر نام حساب/سرفصل/طرف‌حساب صراحتاً ذکر شده.
+۷. اگر سؤال دو یا چند متریک می‌خواهد، MultiMetricPlan تولید کن با plans: [...] و joinMode.
+۸. joinMode یکی از: side_by_side, comparison, trend.
+۹. اگر سالی ذکر نشد و متریک by_year پشتیبانی می‌کند، سال جاری شمسی را در filter قرار بده.
+۱۰. topN فقط برای متریک‌های list (مثل recent_documents).
 
 متریک‌های موجود:
 ${metricList}
 
-شِمای خروجی (MetricPlan):
+شِمای خروجی (MetricPlan — تک‌متریکی):
 {
   "metricId": "net_sales | purchases | account_balance | trial_balance | cash_bank_balance",
-  "grain": "total | by_year | by_month | by_account",
+  "grain": "total | by_year | by_month | by_quarter | by_customer | by_account",
   "filters": [{ "dimension": "by_year", "op": "eq", "values": ["1402"] }],
   "comparison": { "dimension": "by_year", "baseValue": "1402", "targetValue": "1403" },
   "entityName": "اختیاری",
+  "topN": 10,
   "confidence": 0.0 تا 1.0
+}
+
+شِمای خروجی (MultiMetricPlan — چندمتریکی):
+{
+  "plans": [
+    { "metricId": "net_sales", "grain": "total", "filters": [...], "confidence": 0.9 },
+    { "metricId": "purchases", "grain": "total", "filters": [...], "confidence": 0.9 }
+  ],
+  "joinMode": "side_by_side | comparison | trend",
+  "confidence": 0.9
 }
 
 مثال ۱:
@@ -191,14 +301,48 @@ ${metricList}
 سؤال: تعداد کارمندان چقدر است؟
 پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.1}
 
+مثال ۵:
+سؤال: چقدر فروختیم؟
+پاسخ: {"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1403"]}],"confidence":0.8}
+
+مثال ۶:
+سؤال: فروش و خرید ۱۴۰۲
+پاسخ: {"plans":[{"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9},{"metricId":"purchases","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}],"joinMode":"side_by_side","confidence":0.9}
+
+مثال ۷:
+سؤال: روند ماهانهٔ فروش ۱۴۰۲
+پاسخ: {"metricId":"net_sales","grain":"by_month","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
+مثال ۸:
+سؤال: نسبت فروش به خرید
+پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.1}
+
+مثال ۹:
+سؤال: ۱۰ سند اخیر
+پاسخ: {"metricId":"recent_documents","grain":"total","filters":[],"topN":10,"confidence":0.85}
+
+مثال ۱۰:
+سؤال: مانده طرف حساب آقای مرادی
+پاسخ: {"metricId":"party_balance","grain":"total","filters":[],"entityName":"مرادی","confidence":0.8}
+
+مثال ۱۱:
+سؤال: مقایسه فروش و خرید ۱۴۰۲
+پاسخ: {"plans":[{"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9},{"metricId":"purchases","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}],"joinMode":"comparison","confidence":0.85}
+
+مثال ۱۲:
+سؤال: آب‌وهوای تهران
+پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.05}
+
 سؤال کاربر: ${userPrompt}
 پاسخ JSON:`
 }
 
 // ─── P4.2 — Planner output parser ──────────────────────────────────────────
+// MULTI_METRIC_PLANNER: parsePlannerOutput supports MultiMetricPlan
 
 export interface ParsePlannerResult {
   plan: MetricPlan | null
+  multiPlan?: MultiMetricPlan
   error?: string
 }
 
@@ -246,7 +390,23 @@ export function parsePlannerOutput(raw: string): ParsePlannerResult {
     return { plan: null, error: 'json-parse-failed' }
   }
 
-  // Zod validation
+  // Try MultiMetricPlan first (has "plans" array)
+  const multiZodResult = multiMetricPlanSchema.safeParse(parsed)
+  if (multiZodResult.success) {
+    const multiPlan = multiZodResult.data as MultiMetricPlan
+    for (const subPlan of multiPlan.plans) {
+      const def = findMetricById(subPlan.metricId)
+      if (!def) {
+        return { plan: null, error: `multi-plan-metric-not-in-catalog: ${subPlan.metricId}` }
+      }
+      if (!def.grainSupported.includes(subPlan.grain)) {
+        return { plan: null, error: `grain-${subPlan.grain}-not-supported-for-${subPlan.metricId}` }
+      }
+    }
+    return { plan: null, multiPlan }
+  }
+
+  // Fall back to single MetricPlan
   const zodResult = metricPlanSchema.safeParse(parsed)
   if (!zodResult.success) {
     return {
@@ -296,6 +456,7 @@ export interface PlannerModelDeps {
   callModel: (prompt: string) => Promise<string>
 }
 
+// S10.4: buildModelPlan now returns ParsePlannerResult which may include multiPlan
 export async function buildModelPlan(
   userPrompt: string,
   deps: PlannerModelDeps
@@ -310,3 +471,49 @@ export async function buildModelPlan(
 }
 
 export const PLANNER_CONFIDENCE_THRESHOLD = 0.5
+
+// ─── S10.5 — ClarifyResult type ─────────────────────────────────────────────
+// SMART_CLARIFY: buildClarify generates question + suggestions
+
+export interface ClarifyResult {
+  question: string
+  suggestions: string[]
+}
+
+// ─── S10.6 — buildClarify ────────────────────────────────────────────────────
+
+export function buildClarify(prompt: string, metricId: MetricId): ClarifyResult {
+  const def = findMetricById(metricId)
+  const catalog = getMetricCatalog()
+
+  const candidates = catalog
+    .map((m) => {
+      let score = 0
+      const normalized = normalizePersianText(normalizePersianDigits(prompt))
+      for (const anchor of m.anchors) {
+        if (normalized.includes(normalizePersianText(anchor))) {
+          score += 2
+        }
+      }
+      if (m.excludeSignals) {
+        for (const sig of m.excludeSignals) {
+          if (normalized.includes(normalizePersianText(sig))) {
+            score = 0
+            break
+          }
+        }
+      }
+      return { id: m.id, titleFa: m.titleFa, score }
+    })
+    .filter((m) => m.score > 0 && m.id !== metricId)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+
+  const question = def
+    ? `آیا منظورتان ${def.titleFa} بود؟`
+    : 'سؤال شما مبهم است. لطفاً مشخص‌تر بپرسید.'
+
+  const suggestions = candidates.map((c) => c.titleFa)
+
+  return { question, suggestions }
+}

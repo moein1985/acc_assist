@@ -5,6 +5,8 @@ import {
   buildPlannerPrompt,
   parsePlannerOutput,
   buildModelPlan,
+  buildDeterministicPlan,
+  buildClarify,
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps
 } from '../../src/main/services/financialEngine/planner'
@@ -183,4 +185,114 @@ test('buildModelPlan — low confidence plan', async () => {
 
 test('PLANNER_CONFIDENCE_THRESHOLD is 0.5', () => {
   assert.equal(PLANNER_CONFIDENCE_THRESHOLD, 0.5)
+})
+
+// ─── S10.11 — Extended planner tests ─────────────────────────────────────────
+
+test('S10.3: parsePlannerOutput — MultiMetricPlan with plans array', () => {
+  const raw = JSON.stringify({
+    plans: [
+      { metricId: 'net_sales', grain: 'total', filters: [{ dimension: 'by_year', op: 'eq', values: ['1402'] }], confidence: 0.9 },
+      { metricId: 'purchases', grain: 'total', filters: [{ dimension: 'by_year', op: 'eq', values: ['1402'] }], confidence: 0.9 }
+    ],
+    joinMode: 'side_by_side',
+    confidence: 0.9
+  })
+  const result = parsePlannerOutput(raw)
+  assert.ok(result.multiPlan, 'should parse multiPlan')
+  assert.equal(result.multiPlan!.plans.length, 2)
+  assert.equal(result.multiPlan!.joinMode, 'side_by_side')
+  assert.equal(result.multiPlan!.plans[0]!.metricId, 'net_sales')
+  assert.equal(result.multiPlan!.plans[1]!.metricId, 'purchases')
+})
+
+test('S10.3: parsePlannerOutput — MultiMetricPlan comparison mode', () => {
+  const raw = JSON.stringify({
+    plans: [
+      { metricId: 'net_sales', grain: 'total', filters: [], confidence: 0.9 },
+      { metricId: 'purchases', grain: 'total', filters: [], confidence: 0.9 }
+    ],
+    joinMode: 'comparison',
+    confidence: 0.85
+  })
+  const result = parsePlannerOutput(raw)
+  assert.ok(result.multiPlan)
+  assert.equal(result.multiPlan!.joinMode, 'comparison')
+})
+
+test('S10.4: buildModelPlan — stub model returns MultiMetricPlan', async () => {
+  const stub: PlannerModelDeps = {
+    callModel: async () =>
+      JSON.stringify({
+        plans: [
+          { metricId: 'net_sales', grain: 'total', filters: [{ dimension: 'by_year', op: 'eq', values: ['1402'] }], confidence: 0.9 },
+          { metricId: 'purchases', grain: 'total', filters: [{ dimension: 'by_year', op: 'eq', values: ['1402'] }], confidence: 0.9 }
+        ],
+        joinMode: 'side_by_side',
+        confidence: 0.9
+      })
+  }
+  const result = await buildModelPlan('فروش و خرید ۱۴۰۲', stub)
+  assert.ok(result.multiPlan)
+  assert.equal(result.multiPlan!.plans.length, 2)
+})
+
+test('S10.8: buildDeterministicPlan — no year in prompt auto-fills current Persian year', () => {
+  const plan = buildDeterministicPlan('فروش', 'net_sales')
+  assert.ok(plan)
+  const yearFilter = plan!.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter, 'should have a by_year filter')
+  assert.equal(yearFilter!.op, 'eq')
+  assert.ok(/^\d{4}$/.test(yearFilter!.values[0]!), 'year should be 4-digit')
+})
+
+test('S10.8: buildDeterministicPlan — explicit year takes precedence over auto-fill', () => {
+  const plan = buildDeterministicPlan('فروش ۱۴۰۲', 'net_sales')
+  assert.ok(plan)
+  const yearFilter = plan!.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter)
+  assert.equal(yearFilter!.values[0], '1402')
+})
+
+test('S10.6: buildClarify — returns question and suggestions', () => {
+  const result = buildClarify('فروش', 'net_sales')
+  assert.ok(result.question)
+  assert.ok(result.question.includes('فروش'))
+  assert.ok(Array.isArray(result.suggestions))
+})
+
+test('S10.6: buildClarify — suggestions exclude the queried metric', () => {
+  const result = buildClarify('فروش', 'net_sales')
+  for (const suggestion of result.suggestions) {
+    assert.ok(!suggestion.includes('فروش خالص'), 'should not include the queried metric itself')
+  }
+})
+
+test('S10.1: buildPlannerPrompt includes 10+ examples', () => {
+  const prompt = buildPlannerPrompt('test')
+  const exampleCount = (prompt.match(/مثال\s/gu) || []).length
+  assert.ok(exampleCount >= 10, `should have 10+ examples, got ${exampleCount}`)
+})
+
+test('S10.1: buildPlannerPrompt includes MultiMetricPlan schema', () => {
+  const prompt = buildPlannerPrompt('test')
+  assert.ok(prompt.includes('MultiMetricPlan'), 'should include MultiMetricPlan schema')
+  assert.ok(prompt.includes('joinMode'), 'should include joinMode in schema')
+})
+
+test('S10.2: buildPlannerPrompt includes topN in schema', () => {
+  const prompt = buildPlannerPrompt('test')
+  assert.ok(prompt.includes('topN'), 'should include topN in schema')
+})
+
+test('parsePlannerOutput — completely broken JSON does not crash', () => {
+  const result = parsePlannerOutput('{ broken json }}}')
+  assert.equal(result.plan, null)
+  assert.ok(result.error)
+})
+
+test('parsePlannerOutput — empty string returns error', () => {
+  const result = parsePlannerOutput('')
+  assert.equal(result.plan, null)
+  assert.equal(result.error, 'no-valid-json')
 })
