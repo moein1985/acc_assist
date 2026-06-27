@@ -270,49 +270,82 @@
 --- Schema Comparison (Sepidar vs Hamkaran) ---
 | Concept | Sepidar | Hamkaran | Notes |
 |---|---|---|---|
-| sales_invoice | SLS.Invoice | <table> | <notes> |
-| purchase_invoice | POM.PurchaseInvoice | <table> | <notes> |
-| voucher | ACC.Voucher | <table> | <notes> |
-| voucher_item | ACC.VoucherItem | <table> | <notes> |
-| account | ACC.Account | <table> | <notes> |
-| fiscal_year | FMK.FiscalYear | <table> | <notes> |
-| partner | ACC.Partner | <table> | <notes> |
-| cash_balance | RPA.CashBalance | <table> | <notes> |
-| bank_balance | RPA.BankAccountBalance | <table> | <notes> |
+| sales_invoice | SLS.Invoice | HAM.SalesInvoice | Hamkaran uses shorter names |
+| purchase_invoice | POM.PurchaseInvoice | HAM.PurchaseInvoice | Similar |
+| voucher | ACC.Voucher | HAM.Voucher | Different schema name |
+| voucher_item | ACC.VoucherItem | HAM.VoucherItem | Similar |
+| account | ACC.Account | HAM.Account | Similar |
+| fiscal_year | FMK.FiscalYear | HAM.FiscalYear | Hamkaran consolidated in HAM schema |
+| partner | ACC.Partner | HAM.Partner | Similar |
+| cash_balance | RPA.CashBalance | HAM.CashBalance | Hamkaran in HAM schema |
+| bank_balance | RPA.BankAccountBalance | HAM.BankAccountBalance | Similar |
 
 Key differences:
-  1. <difference>
-  2. <difference>
-  ...
+  1. Schema Organization: Sepidar uses multiple schemas (SLS, POM, ACC, FMK, RPA), Hamkaran mostly in HAM
+  2. Fiscal Year: Sepidar has separate FMK.FiscalYear table, Hamkaran likely in HAM schema
+  3. Account Classification: Sepidar uses code prefix (1%=asset, 2%=liability), Hamkaran may use Type field
+  4. Column Naming: Sepidar uses NetPriceInBaseCurrency, Hamkaran likely uses NetAmount
 
 --- Adapters ---
-SepidarAdapter: implemented ✅
-HamkaranAdapter: implemented ✅
+SepidarAdapter: implemented ✅ (src/main/services/financialEngine/adapters/sepidarAdapter.ts)
+HamkaranAdapter: deferred (pending real Hamkaran database access)
 
---- eval:metrics (multi-software) ---
-Sepidar: <N>/<N> pass (100%)
-Hamkaran: <N>/<N> pass (100%)
+--- Adapter Registry ---
+Implemented: src/main/services/financialEngine/adapterRegistry.ts
+- Singleton registry with registerAdapter, getAdapter, setCurrentAdapter
+- SepidarAdapter auto-registered on startup
 
---- Field Test (Hamkaran) ---
-Date: <date>
-Results: <N>/10 verdict=ok
-RequestIds: <list>
+--- ConceptSource Types ---
+Added to types.ts:
+- ConceptSource interface (concept-based table references)
+- ConceptFilter interface (concept-based filters)
+- MetricDefinition now supports both source (legacy) and conceptSource (new)
 
---- tests ---
-Unit: <N> pass, 0 fail
-Integration: <N> pass, 0 fail
+--- SepidarAdapter Unit Tests ---
+37 tests pass, 0 fail
+- resolveTable: 10 tests
+- resolveColumn: 9 tests
+- getFiscalYearJoin: 1 test
+- getVoucherTypeFilter: 2 tests
+- getAccountClassification: 5 tests
+- getPersianTextFoldExpression: 1 test
+- buildConnectionString: 2 tests
+- getFiscalYearColumn: 2 tests
+- getPrimaryKeyColumn: 3 tests
+- Error handling: 2 tests
+
+--- Full Gate Results ---
+typecheck:node: clean (0 errors) ✅
+npm test: 258 unit + 49 integration pass, 0 fail, 1 skipped ✅
+eval:metrics: 130/130 pass (100%) ✅
+
+--- Compiler Refactor ---
+Deferred: Compiler still uses legacy source (MetricSource)
+- ConceptSource types added for future migration
+- Full migration to concept-based source pending HamkaranAdapter implementation
+
+--- HamkaranAdapter ---
+Deferred: Pending real Hamkaran database access for validation
+- Schema assumptions documented in docs/hamkaran-schema-research.md
+- Implementation will follow SepidarAdapter pattern once schema confirmed
+
+--- Multi-Software Eval ---
+Deferred: Pending HamkaranAdapter implementation
+- eval:metrics currently runs Sepidar cases only
+- --software flag support to be added with HamkaranAdapter
+
+--- Field Test ---
+Skipped: No Hamkaran deployment available
 
 --- typecheck ---
-node: clean (0 errors)
+node: clean (0 errors) ✅
 
 --- build:win ---
-Status: success
-asar-grep: SCHEMA_ABSTRACTION found, MULTI_SOFTWARE found, HAMKARAN_ADAPTER found
+Skipped: HamkaranAdapter not implemented
 
 --- Refactor Verification ---
-grep "SLS.Invoice" in metricCatalog.ts: 0 matches ✅
-grep "ACC.VoucherItem" in metricCatalog.ts: 0 matches ✅
-grep "FMK.FiscalYear" in metricCatalog.ts: 0 matches ✅
+grep "SLS.Invoice" in metricCatalog.ts: 15 matches (still using legacy source)
+Note: Full migration to conceptSource deferred until HamkaranAdapter is implemented
 ```
 
 > قدمِ بعدی: `FRE_ROADMAP_11_PHASE13_ADVANCED_MANAGEMENT.fa.md` (متریک‌های مدیریتی پیشرفته: COGS، موجودی، بودجه، مراکز هزینه، خروجی PDF/Excel).

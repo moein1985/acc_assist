@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AccountingConcept } from './schemaAdapter'
 
 export type MetricId =
   | 'net_sales'
@@ -63,6 +64,40 @@ export interface MetricSource {
   }>
 }
 
+/** Concept-based source for schema abstraction - replaces hardcoded table names */
+export interface ConceptSource {
+  concept: AccountingConcept
+  alias: string
+  fallbackConcepts?: Array<{
+    concept: AccountingConcept
+    alias: string
+    measure: AggregateKind
+    filters?: ConceptFilter[]
+  }>
+  /** Structural joins using concept refs */
+  requiredJoins?: Array<{
+    concept: AccountingConcept
+    alias: string
+    on: { sourceColumn: string; targetColumn: string }
+  }>
+  /** Additional concept-based sources for composite metrics */
+  compositeConcepts?: Array<{
+    concept: AccountingConcept
+    alias: string
+    measure: AggregateKind
+    filters?: ConceptFilter[]
+  }>
+}
+
+/** Concept-based filter using concept refs instead of raw SQL */
+export interface ConceptFilter {
+  concept: AccountingConcept
+  field: string
+  op: 'eq' | 'ne' | 'in' | 'not_in' | 'like'
+  value: string | string[]
+  description: string
+}
+
 export interface DimensionBinding {
   dimension: Grain
   join?: {
@@ -95,10 +130,15 @@ export interface MetricDefinition {
   excludeSignals?: string[]
   softwareId: 'sepidar' | 'mahak' | 'generic'
   grainSupported: Grain[]
+  /** Legacy source with hardcoded table names (for backward compatibility) */
   source: MetricSource
+  /** New concept-based source for schema abstraction (preferred) - for future migration */
+  conceptSource?: ConceptSource
   measure: AggregateKind
   dimensions: DimensionBinding[]
   mandatoryFilters: MetricFilter[]
+  /** New concept-based filters (preferred) - for future migration */
+  conceptFilters?: ConceptFilter[]
   reconciliations?: ReconciliationRule[]
   entityNameMatch?: {
     column: string
