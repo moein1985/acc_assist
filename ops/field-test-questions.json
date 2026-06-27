@@ -1,0 +1,22 @@
+[
+    { "id": "ft-01", "cat": "financial-statements", "prompt": "ترازنامه سال ۱۴۰۲" },
+    { "id": "ft-02", "cat": "financial-statements", "prompt": "صورت سود و زیان ۱۴۰۲" },
+    { "id": "ft-03", "cat": "financial-statements", "prompt": "کل دارایی‌ها ۱۴۰۲" },
+    { "id": "ft-04", "cat": "financial-statements", "prompt": "کل بدهی‌ها ۱۴۰۲" },
+    { "id": "ft-05", "cat": "financial-statements", "prompt": "حقوق صاحبان سهام ۱۴۰۲" },
+    { "id": "ft-06", "cat": "multi-period", "prompt": "مقایسه فروش ۱۴۰۲ و ۱۴۰۳" },
+    { "id": "ft-07", "cat": "multi-period", "prompt": "مقایسه ترازنامه ۱۴۰۲ و ۱۴۰۳" },
+    { "id": "ft-08", "cat": "multi-period", "prompt": "مقایسه فروش ۱۴۰۱ ۱۴۰۲ و ۱۴۰۳" },
+    { "id": "ft-09", "cat": "multi-period", "prompt": "روند فروش ۳ سال اخیر" },
+    { "id": "ft-10", "cat": "multi-period", "prompt": "مقایسه سود و زیان ۱۴۰۲ و ۱۴۰۳" },
+    { "id": "ft-11", "cat": "conversational", "prompt": "فروش امسال چقدره؟" },
+    { "id": "ft-12", "cat": "conversational", "prompt": "ترازنامه شرکت چطوره؟" },
+    { "id": "ft-13", "cat": "conversational", "prompt": "سود و زیان چطوره؟" },
+    { "id": "ft-14", "cat": "conversational", "prompt": "حاشیه سود خالص ۱۴۰۲" },
+    { "id": "ft-15", "cat": "conversational", "prompt": "نسبت بدهی به حقوق صاحبان سهام ۱۴۰۲" },
+    { "id": "ft-16", "cat": "edge-case", "prompt": "ترازنامه سال ۱۳۹۰" },
+    { "id": "ft-17", "cat": "edge-case", "prompt": "فروش بهار ۱۴۰۲" },
+    { "id": "ft-18", "cat": "edge-case", "prompt": "فروش تابستان ۱۴۰۲" },
+    { "id": "ft-19", "cat": "edge-case", "prompt": "مانده حساب آقای احمدی" },
+    { "id": "ft-20", "cat": "edge-case", "prompt": "آخرین سندها رو نشون بده" }
+]
