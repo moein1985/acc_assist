@@ -77,7 +77,13 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   if (yearMatches && yearMatches.length > 0) {
     const years = [...new Set(yearMatches)]
     const rangePattern = /از\s*(\d{4})\s*تا\s*(\d{4})/u.test(normalized)
-    if (years.length >= 2 && def.grainSupported.includes('by_year') && !rangePattern) {
+    if (years.length >= 3 && def.grainSupported.includes('by_year') && !rangePattern) {
+      // S11.13: 3+ years → use 'in' filter with by_year grain
+      filters.push({ dimension: 'by_year', op: 'in', values: years })
+      if (def.grainSupported.includes('by_year')) {
+        grain = 'by_year'
+      }
+    } else if (years.length >= 2 && def.grainSupported.includes('by_year') && !rangePattern) {
       comparison = {
         dimension: 'by_year',
         baseValue: years[0]!,
@@ -114,7 +120,7 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   ) {
     grain = 'by_month'
   } else if (
-    /به تفکیک\s*فصل|فصلی|در هر فصل|سه ماهه/u.test(normalized) &&
+    /به تفکیک\s*فصل|فصلی|در هر فصل/u.test(normalized) &&
     def.grainSupported.includes('by_quarter')
   ) {
     grain = 'by_quarter'
@@ -156,41 +162,57 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     }
   }
 
-  // S10.10: Persian month name date ranges
+  // S11.14: Persian month name date ranges — use integer month numbers
   const monthRangeMatch = normalized.match(/از\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)\s*تا\s*(فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)/u)
   if (monthRangeMatch && yearMatches && yearMatches.length > 0) {
     const startMonth = PERSIAN_MONTHS[monthRangeMatch[1]!]
     const endMonth = PERSIAN_MONTHS[monthRangeMatch[2]!]
-    const year = yearMatches[0]!
     if (startMonth && endMonth) {
       filters.push({
         dimension: 'by_month',
         op: 'between',
-        values: [`${year}/${startMonth}`, `${year}/${endMonth}`]
+        values: [String(Number(startMonth)), String(Number(endMonth))]
       })
     }
   }
 
-  // S10.10: "نیمه اول" and "سه ماه اول"
+  // S11.14: "نیمه اول" and "سه ماه اول" — use integer month numbers
   if (/نیمه\s*اول/u.test(normalized) && yearMatches && yearMatches.length > 0) {
-    const year = yearMatches[0]!
     filters.push({
       dimension: 'by_month',
       op: 'between',
-      values: [`${year}/01`, `${year}/06`]
+      values: ['1', '6']
     })
   }
   if (/سه\s*ماه\s*اول/u.test(normalized) && yearMatches && yearMatches.length > 0) {
-    const year = yearMatches[0]!
     filters.push({
       dimension: 'by_month',
       op: 'between',
-      values: [`${year}/01`, `${year}/03`]
+      values: ['1', '3']
     })
+  }
+
+  // S11.14: Persian season names
+  if (/بهار/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    filters.push({ dimension: 'by_month', op: 'between', values: ['1', '3'] })
+  }
+  if (/تابستان/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    filters.push({ dimension: 'by_month', op: 'between', values: ['4', '6'] })
+  }
+  if (/پاییز|پاييز/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    filters.push({ dimension: 'by_month', op: 'between', values: ['7', '9'] })
+  }
+  if (/زمستان/u.test(normalized) && yearMatches && yearMatches.length > 0) {
+    filters.push({ dimension: 'by_month', op: 'between', values: ['10', '12'] })
   }
 
   if (!topN && def.measure.kind === 'list') {
     topN = metricId === 'recent_documents' ? 20 : 100
+  }
+
+  // S11.13: "روند" implies trend → set grain to by_month if supported
+  if (/روند/u.test(normalized) && def.grainSupported.includes('by_month') && !comparison) {
+    grain = 'by_month'
   }
 
   if (comparison) {

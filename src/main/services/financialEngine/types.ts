@@ -16,6 +16,13 @@ export type MetricId =
   | 'sales_by_period'
   | 'account_turnover'
   | 'recent_documents'
+  | 'balance_sheet'
+  | 'income_statement'
+  | 'total_assets'
+  | 'total_liabilities'
+  | 'total_equity'
+  | 'total_revenue'
+  | 'total_expenses'
 
 export type Grain =
   | 'total'

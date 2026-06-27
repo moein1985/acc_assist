@@ -280,6 +280,558 @@
       "expect": "any_number",
       "expectedMetricId": "payables",
       "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-1403-a",
+      "prompt": "فروش خالص سال ۱۴۰۳ چقدر است؟",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 57023796065,
+      "tolerance": 0
+    },
+    {
+      "id": "s11-sales-1403-b",
+      "prompt": "مبلغ فروش در سال ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expectedValue": 57023796065,
+      "tolerance": 0
+    },
+    {
+      "id": "s11-purchases-1403",
+      "prompt": "خرید سال ۱۴۰۳ چقدر است؟",
+      "expectedMetricId": "purchases",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-trial-balance-1403",
+      "prompt": "تراز آزمایشی ۱۴۰۳",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-cash-bank-1403",
+      "prompt": "مانده نقد و بانک در سال ۱۴۰۳",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-count-1403",
+      "prompt": "تعداد فاکتور فروش سال ۱۴۰۳",
+      "expectedMetricId": "sales_count",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-receivables-1403",
+      "prompt": "دریافتنی‌ها در سال ۱۴۰۳ چقدر است؟",
+      "expectedMetricId": "receivables",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-payables-1403",
+      "prompt": "پرداختنی‌ها در سال ۱۴۰۳",
+      "expectedMetricId": "payables",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-sales-1402-1403",
+      "prompt": "مقایسه فروش ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-purchases-1402-1403",
+      "prompt": "مقایسه خرید ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "purchases",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-trial-1402-1403",
+      "prompt": "مقایسه تراز آزمایشی ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-receivables-1402-1403",
+      "prompt": "مقایسه دریافتنی‌های ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "receivables",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-cash-1402-1403",
+      "prompt": "مقایسه مانده نقد و بانک ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-multi-sales-purchases-1403",
+      "prompt": "فروش و خرید ۱۴۰۳",
+      "expect": "multi_metric",
+      "expectedMetricIds": ["net_sales", "purchases"]
+    },
+    {
+      "id": "s11-sales-by-year-grain",
+      "prompt": "فروش به تفکیک سال ۱۴۰۲",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-month-1403",
+      "prompt": "فروش ماهانه سال ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-quarter-1403",
+      "prompt": "فروش فصلی سال ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "by_quarter",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-customer-1403",
+      "prompt": "فروش به تفکیک مشتری ۱۴۰۳",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_customer",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-trial-balance-by-account-1402",
+      "prompt": "تراز آزمایشی به تفکیک حساب ۱۴۰۲",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-account-balance-by-account-1402",
+      "prompt": "مانده حساب به تفکیک سرفصل ۱۴۰۲",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-account-turnover-by-account-1402",
+      "prompt": "گردش حساب به تفکیک حساب ۱۴۰۲",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-year-all",
+      "prompt": "فروش به تفکیک سال",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-month-no-year",
+      "prompt": "فروش ماهانه",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-trial-balance-by-year",
+      "prompt": "تراز آزمایشی به تفکیک سال",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-account-turnover-by-year",
+      "prompt": "گردش حساب به تفکیک سال ۱۴۰۲",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-by-customer-no-year",
+      "prompt": "فروش به تفکیک مشتری",
+      "expectedMetricId": "sales_by_period",
+      "expectedGrain": "by_customer",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-recent-documents-5",
+      "prompt": "آخرین ۵ سند ثبت شده",
+      "expectedMetricId": "recent_documents",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-recent-documents-20",
+      "prompt": "۲۰ سند اخیر",
+      "expectedMetricId": "recent_documents",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-recent-documents-50",
+      "prompt": "آخرین ۵۰ سند ثبت شده",
+      "expectedMetricId": "recent_documents",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-party-balance-receivables-entity",
+      "prompt": "مانده طرف حساب دریافتنی در سال ۱۴۰۲",
+      "expectedMetricId": "receivables",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-account-balance-payables-1402",
+      "prompt": "مانده حساب پرداختنی در سال ۱۴۰۲",
+      "expectedMetricId": "account_balance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-half-year-1402",
+      "prompt": "فروش نیمه اول ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-first-quarter-1402",
+      "prompt": "فروش سه ماهه اول ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-month-range-1402",
+      "prompt": "فروش از فروردین تا شهریور ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-derived-gross-margin-1402",
+      "prompt": "حاشیه سود ناخالص ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "gross_margin"
+    },
+    {
+      "id": "s11-multi-sales-purchases-compare-1403",
+      "prompt": "مقایسه فروش و خرید ۱۴۰۳",
+      "expect": "multi_metric",
+      "expectedMetricIds": ["net_sales", "purchases"]
+    },
+    {
+      "id": "s11-multi-receivables-payables-1402",
+      "prompt": "دریافتنی و پرداختنی ۱۴۰۲",
+      "expect": "multi_metric",
+      "expectedMetricIds": ["receivables", "payables"]
+    },
+    {
+      "id": "s11-trend-sales-1402",
+      "prompt": "روند فروش ۱۴۰۲",
+      "expect": "any_number",
+      "expectedMetricId": "net_sales",
+      "expectedValue": 1,
+      "expectedGrain": "by_month"
+    },
+    {
+      "id": "s11-trend-purchases-1402",
+      "prompt": "روند خرید ۱۴۰۲",
+      "expect": "any_number",
+      "expectedMetricId": "purchases",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-sales-this-year",
+      "prompt": "فروش امسال چقدره؟",
+      "expect": "any_number",
+      "expectedMetricId": "net_sales",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-purchases-no-year",
+      "prompt": "چقدر خرید کردیم؟",
+      "expect": "any_number",
+      "expectedMetricId": "purchases",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-receivables",
+      "prompt": "دریافتنی‌ها رو نشون بده",
+      "expect": "any_number",
+      "expectedMetricId": "receivables",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-payables",
+      "prompt": "بدهی‌ها چقدره؟",
+      "expect": "any_number",
+      "expectedMetricId": "payables",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-trial-balance",
+      "prompt": "تراز رو نشون بده",
+      "expect": "any_number",
+      "expectedMetricId": "trial_balance",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-cash",
+      "prompt": "مانده صندوق چقدره؟",
+      "expect": "any_number",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-sales-count",
+      "prompt": "چند تا فاکتور ثبت شد؟",
+      "expect": "any_number",
+      "expectedMetricId": "sales_count",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-fiscal-year-list",
+      "prompt": "سال مالی فعلی کیه؟",
+      "expectedMetricId": "fiscal_year_list",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-conversational-recent-docs",
+      "prompt": "آخرین سندها رو نشون بده",
+      "expectedMetricId": "recent_documents",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-conversational-sales-by-month",
+      "prompt": "فروش ماهانه رو نشون بده",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-conversational-party-balance",
+      "prompt": "مانده طرف حساب آقای احمدی",
+      "expect": "any_number",
+      "expectedMetricId": "party_balance",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-account-turnover",
+      "prompt": "گردش حساب پرداختنی رو نشون بده",
+      "expect": "any_number",
+      "expectedMetricId": "account_turnover",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-conversational-compare-sales",
+      "prompt": "مقایسه کن فروش دو سال اخیر رو",
+      "expect": "any_number",
+      "expectedMetricId": "net_sales",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-balance-sheet-1402",
+      "prompt": "ترازنامه سال ۱۴۰۲",
+      "expectedMetricId": "balance_sheet",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-balance-sheet-1403",
+      "prompt": "ترازنامه ۱۴۰۳",
+      "expectedMetricId": "balance_sheet",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-balance-sheet-no-year",
+      "prompt": "ترازنامه شرکت چطوره؟",
+      "expectedMetricId": "balance_sheet",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-balance-sheet-by-account-1402",
+      "prompt": "ترازنامه به تفکیک حساب ۱۴۰۲",
+      "expectedMetricId": "balance_sheet",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-income-statement-1402",
+      "prompt": "صورت سود و زیان ۱۴۰۲",
+      "expectedMetricId": "income_statement",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-income-statement-1403",
+      "prompt": "صورت سود و زیان سال ۱۴۰۳",
+      "expectedMetricId": "income_statement",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-income-statement-no-year",
+      "prompt": "سود و زیان چطوره؟",
+      "expectedMetricId": "income_statement",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-income-statement-by-account",
+      "prompt": "صورت سود و زیان به تفکیک حساب ۱۴۰۲",
+      "expectedMetricId": "income_statement",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-total-assets-1402",
+      "prompt": "کل دارایی‌ها سال ۱۴۰۲",
+      "expectedMetricId": "total_assets",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-total-liabilities-1402",
+      "prompt": "کل بدهی‌ها ۱۴۰۲",
+      "expectedMetricId": "total_liabilities",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-total-equity-1402",
+      "prompt": "حقوق صاحبان سهام ۱۴۰۲",
+      "expectedMetricId": "total_equity",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-total-revenue-1402",
+      "prompt": "کل درآمد‌ها ۱۴۰۲",
+      "expectedMetricId": "total_revenue",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-total-expenses-1402",
+      "prompt": "کل هزینه‌ها ۱۴۰۲",
+      "expectedMetricId": "total_expenses",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-derived-net-margin-1402",
+      "prompt": "حاشیه سود خالص ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "net_margin"
+    },
+    {
+      "id": "s11-derived-current-ratio-1402",
+      "prompt": "نسبت جاری ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "current_ratio"
+    },
+    {
+      "id": "s11-derived-debt-to-equity-1402",
+      "prompt": "نسبت بدهی به حقوق صاحبان سهام ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "debt_to_equity"
+    },
+    {
+      "id": "s11-compare-balance-sheet-1402-1403",
+      "prompt": "مقایسه ترازنامه ۱۴۰۲ و ۱۴۰۳",
+      "expect": "any_number",
+      "expectedMetricId": "balance_sheet",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-compare-income-statement-1402-1403",
+      "prompt": "مقایسه سود و زیان ۱۴۰۲ و ۱۴۰۳",
+      "expect": "any_number",
+      "expectedMetricId": "income_statement",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-3-year-comparison",
+      "prompt": "مقایسه فروش ۱۴۰۱ ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s11-sales-spring-1402",
+      "prompt": "فروش بهار ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-summer-1402",
+      "prompt": "فروش تابستان ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-autumn-1402",
+      "prompt": "فروش پاییز ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s11-sales-winter-1402",
+      "prompt": "فروش زمستان ۱۴۰۲",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
     }
   ],
   "negative": [
@@ -297,6 +849,46 @@
       "id": "neg-greeting",
       "prompt": "سلام، خوبی؟",
       "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-empty-prompt",
+      "prompt": "",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-profit-not-implemented",
+      "prompt": "سود این ماه چقدر است؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-weather-tomorrow",
+      "prompt": "هوای فردا تهران چطوره؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-employee-salary",
+      "prompt": "حقوق کارمندان چقدر است؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-recipe",
+      "prompt": "طرز تهیه کیک چیکار کنم؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-sport",
+      "prompt": "نتیجه بازی پرسپولیس و استقلال چقدر شد؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-stock-market",
+      "prompt": "قیمت دلار امروز چقدره؟",
+      "expect": "refuse"
+    },
+    {
+      "id": "s11-neg-vague-business",
+      "prompt": "وضعیت کسب و کار چطوره؟",
+      "expect": "refuse"
     }
   ],
   "clarify": [
@@ -308,6 +900,31 @@
     {
       "id": "clarify-no-year",
       "prompt": "مانده حساب چقدر است؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "s11-clarify-vague-purchases",
+      "prompt": "خریدها چطور بوده؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "s11-clarify-vague-receivables",
+      "prompt": "دریافتنی‌ها چطورن؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "s11-clarify-vague-cashflow",
+      "prompt": "وضعیت نقدینگی چطوره؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "s11-clarify-vague-party",
+      "prompt": "طرف حساب‌ها چطورن؟",
+      "expect": "clarify"
+    },
+    {
+      "id": "s11-clarify-vague-documents",
+      "prompt": "اسناد چطورن؟",
       "expect": "clarify"
     }
   ]
