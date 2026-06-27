@@ -51,18 +51,19 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
-      primaryTable: 'INV.InventoryReceipt',
+      primaryTable: 'POM.PurchaseInvoice',
       alias: 'src',
       fallbackTables: [
         {
-          table: 'POM.PurchaseInvoice',
+          table: 'INV.InventoryReceipt',
           alias: 'src',
-          measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' }
+          measure: { kind: 'sum', column: 'TotalPrice' },
+          filters: [{ sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }]
         }
       ]
     },
-    measure: { kind: 'sum', column: 'TotalPrice' },
-    mandatoryFilters: [{ sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }],
+    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    mandatoryFilters: [],
     dimensions: []
   },
   {

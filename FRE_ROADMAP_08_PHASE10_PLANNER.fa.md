@@ -172,7 +172,7 @@ Planner فعلی (در `planner.ts`):
   - **شاهد:** تعدادِ کل و pass rate.
 - [x] **S10.16** `npm run build:win` + asar-grep: `SMART_CLARIFY`, `MULTI_METRIC_PLANNER`, `CONVERSATIONAL_PLANNER` پیدا شوند.
   - **شاهد:** خروجیِ asar-grep.
-- [ ] **S10.17** field test روی remote: ۱۰ سؤالِ پیچیده (محاوره‌ای، چند-متریکی، مبهم، dateRange، topN).
+- [x] **S10.17** field test روی remote: ۱۰ سؤالِ پیچیده (محاوره‌ای، چند-متریکی، مبهم، dateRange، topN).
   - **شاهد:** نتایج در «شاهد S10».
 - [x] **S10.18** به‌روزرسانیِ مستندات نهایی:
   - `README.md` — بخش FRE به‌روز شود (۱۵ متریک، MultiMetric، derived).
@@ -197,8 +197,17 @@ eval:metrics: 42/42 (100%)
 typecheck:node: clean
 Markers: SMART_CLARIFY, MULTI_METRIC_PLANNER, CONVERSATIONAL_PLANNER — all present in planner.ts
 
-Field test (engine mode, remote 192.168.85.56):
-  [پس از اجرای روی remote تکمیل شود — S10.17]
+Field test (engine mode, remote 192.168.85.56, 1405/03/07):
+  1. "چقدر فروختیم؟" → net_sales, year=1405 (auto-filled) — verdict=ok (req=ssh-1782553782380) ✅
+  2. "فروش و خرید ۱۴۰۲" → MultiMetric side_by_side: net_sales=64.2B + purchases=226.1B — verdict=ok (req=ssh-1782553801113) ✅
+  3. "نسبت فروش به خرید ۱۴۰۲" → derived sales_to_purchase_ratio=28.416% — verdict=ok (req=ssh-1782553820640) ✅
+  4. "۱۰ سند اخیر" → recent_documents topN=10 — verdict=ok (req=ssh-1782553838063) ✅
+  5. "مانده طرف حساب آقای مرادی" → party_balance (legacy path) — verdict=ok (req=ssh-1782553857196) ✅
+  6. "روند ماهانه فروش ۱۴۰۲" → net_sales by_month (multi-metric trend) — verdict=ok (req=ssh-1782553878028) ✅
+  7. "مقایسه فروش و خرید ۱۴۰۲" → MultiMetric comparison: sales=64.2B, purchases=226.1B, diff=251.9% — verdict=ok (req=ssh-1782553894734) ✅
+  8. "آب و هوای تهران" → non-financial, model-assisted rejection — verdict=ok (req=ssh-1782553921406) ✅
+  9. "فروش" (بدون سال) → net_sales, year=1405 (auto-filled) — verdict=ok (req=ssh-1782553941975) ✅
+  10. "گردش حساب دریافتنی فروردین تا تیر ۱۴۰۲" → account_turnover, entity=دریافتنی, year=1402 — verdict=ok (req=ssh-1782553966914) ✅
 
 Golden cases breakdown (42 total):
   Metric cases: 20 (net_sales, purchases, account_balance, trial_balance, cash_bank_balance,
