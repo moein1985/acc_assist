@@ -94,6 +94,38 @@ export class ReportExportService {
     }
   }
 
+  async printReport(
+    ownerWindow: BrowserWindow | null,
+    payload: ReportExportRequest
+  ): Promise<void> {
+    void ownerWindow
+    const printWindow = new BrowserWindow({
+      show: false,
+      width: 1240,
+      height: 1754,
+      webPreferences: {
+        sandbox: true,
+        javascript: false,
+        contextIsolation: true
+      }
+    })
+
+    const reportHtml = this.buildReportHtml(payload)
+
+    try {
+      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(reportHtml)}`)
+      await printWindow.webContents.print({
+        printBackground: true,
+        pageSize: 'A4',
+        margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 }
+      })
+    } finally {
+      if (!printWindow.isDestroyed()) {
+        printWindow.destroy()
+      }
+    }
+  }
+
   private normalizeFormat(format: ReportExportFormat): ReportExportFormat {
     if (format === 'pdf' || format === 'excel') {
       return format

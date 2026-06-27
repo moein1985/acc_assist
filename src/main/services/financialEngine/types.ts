@@ -33,6 +33,11 @@ export type MetricId =
   | 'inventory_turnover'
   | 'low_stock_items'
   | 'cost_center_summary'
+  | 'project_summary'
+  | 'project_profitability'
+  | 'cost_allocation'
+  | 'budget_variance'
+  | 'budget_report'
 
 export type Grain =
   | 'total'

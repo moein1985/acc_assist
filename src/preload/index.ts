@@ -95,7 +95,9 @@ const api = {
   },
   report: {
     export: (payload: ReportExportRequest): Promise<IpcResponse<ReportExportResult>> =>
-      ipcRenderer.invoke('report:export', payload)
+      ipcRenderer.invoke('report:export', payload),
+    print: (payload: ReportExportRequest): Promise<IpcResponse<void>> =>
+      ipcRenderer.invoke('report:print', payload)
   },
   mobileBridge: {
     status: (): Promise<IpcResponse<MobileBridgeStatus>> => ipcRenderer.invoke('mobile-bridge:status')

@@ -700,6 +700,18 @@ function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
+    'report:print',
+    async (_, payload: ReportExportRequest): Promise<IpcResponse<void>> => {
+      try {
+        await reportExportService.printReport(mainWindow, payload)
+        return ok(undefined)
+      } catch (error) {
+        return failWithContext(error, 'report:print')
+      }
+    }
+  )
+
+  ipcMain.handle(
     'telemetry:capture-renderer-event',
     async (_, payload: RendererTelemetryEvent): Promise<IpcResponse<boolean>> => {
       try {

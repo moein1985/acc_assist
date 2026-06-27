@@ -936,6 +936,46 @@
       "expectedGrain": "by_cost_center",
       "expect": "any_number",
       "expectedValue": 1
+    },
+    {
+      "id": "s13-project-summary",
+      "prompt": "هزینه پروژه چقدر است؟",
+      "expectedMetricId": "project_summary",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-project-profitability",
+      "prompt": "سودآوری پروژه چقدر است؟",
+      "expectedMetricId": "project_profitability",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-cost-allocation",
+      "prompt": "تخصیص هزینه بین مراکز هزینه",
+      "expectedMetricId": "cost_allocation",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-budget-variance",
+      "prompt": "انحراف بودجه چقدر است؟",
+      "expectedMetricId": "budget_variance",
+      "expectedGrain": "total",
+      "expect": "any_number",
+      "expectedValue": 1
+    },
+    {
+      "id": "s13-budget-report",
+      "prompt": "گزارش بودجه سالانه",
+      "expectedMetricId": "budget_report",
+      "expectedGrain": "by_year",
+      "expect": "any_number",
+      "expectedValue": 1
     }
   ],
   "negative": [

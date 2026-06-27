@@ -73,6 +73,7 @@ export interface AccAssistApi {
   }
   report: {
     export: (payload: ReportExportRequest) => Promise<IpcResponse<ReportExportResult>>
+    print: (payload: ReportExportRequest) => Promise<IpcResponse<void>>
   }
   mobileBridge: {
     status: () => Promise<IpcResponse<MobileBridgeStatus>>

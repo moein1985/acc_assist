@@ -1110,6 +1110,76 @@ const catalog: MetricDefinition[] = [
           table: 'ACC.Account',
           alias: 'a',
           on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        {
+          table: 'ACC.DL',
+          alias: 'dl',
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLId' }
+        },
+        {
+          table: 'GNR.CostCenter',
+          alias: 'cc',
+          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_cost_center',
+        labelColumn: 'dl.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' },
+      { sql: 'vi.DLRef IS NOT NULL', description: 'فقط آیتم‌های دارای تفصیلی' },
+      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
+      { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
+    ]
+  },
+  {
+    id: 'project_summary',
+    titleFa: 'خلاصه پروژه',
+    anchors: ['پروژه', 'هزینه پروژه', 'درآمد پروژه', 'گزارش پروژه'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'مرکز هزینه', 'سود پروژه', 'سودآوری', 'زیان پروژه', 'سود و زیان پروژه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        {
+          table: 'ACC.DL',
+          alias: 'dl',
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLId' }
+        },
+        {
+          table: 'CNT.Project',
+          alias: 'prj',
+          on: { sourceColumn: 'Code', targetColumn: 'Code' }
         }
       ]
     },
@@ -1125,17 +1195,208 @@ const catalog: MetricDefinition[] = [
         },
         labelColumn: 'Title',
         labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' },
+      { sql: 'prj.Code = dl.Code', description: 'اتصال پروژه به تفصیلی' }
+    ]
+  },
+  {
+    id: 'project_profitability',
+    titleFa: 'سودآوری پروژه',
+    anchors: ['سود پروژه', 'سودآوری پروژه', 'زیان پروژه', 'سود و زیان پروژه'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'مرکز هزینه', 'حاشیه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        {
+          table: 'ACC.DL',
+          alias: 'dl',
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLId' }
+        },
+        {
+          table: 'CNT.Project',
+          alias: 'prj',
+          on: { sourceColumn: 'Code', targetColumn: 'Code' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Credit', creditColumn: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'درآمد و هزینه‌ها' },
+      { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' }
+    ]
+  },
+  {
+    id: 'cost_allocation',
+    titleFa: 'تخصیص هزینه',
+    anchors: ['تخصیص هزینه', 'هزینه تخصیصی', 'پراکندگی هزینه', 'سهم هزینه'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'پروژه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year', 'by_cost_center'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        {
+          table: 'ACC.DL',
+          alias: 'dl',
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLId' }
+        },
+        {
+          table: 'GNR.CostCenter',
+          alias: 'cc',
+          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
       },
       {
         dimension: 'by_cost_center',
-        labelColumn: 'vi.CostCenterTitle',
+        labelColumn: 'dl.Title',
         labelType: 'nstring'
       }
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
       { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' },
-      { sql: 'vi.CostCenterRef IS NOT NULL', description: 'فقط آیتم‌های دارای مرکز هزینه' }
+      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
+      { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
+    ]
+  },
+  {
+    id: 'budget_variance',
+    titleFa: 'انحراف بودجه',
+    anchors: ['انحراف بودجه', 'بودجه vs واقعی', 'مقایسه بودجه', 'بودجه و واقعی'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'پروژه', 'مرکز هزینه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' }
+    ]
+  },
+  {
+    id: 'budget_report',
+    titleFa: 'گزارش بودجه',
+    anchors: ['گزارش بودجه', 'بودجه تفصیلی', 'بودجه سالانه', 'پلان بودجه'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'پروژه', 'مرکز هزینه', 'انحراف', 'هزینه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'درآمد و هزینه‌ها' }
     ]
   }
 ]

@@ -163,6 +163,7 @@ const ui = {
   sendPromptBtn: getById<HTMLButtonElement>('sendPromptBtn'),
   exportPdfBtn: getById<HTMLButtonElement>('exportPdfBtn'),
   exportExcelBtn: getById<HTMLButtonElement>('exportExcelBtn'),
+  printReportBtn: getById<HTMLButtonElement>('printReportBtn'),
   savePromptTemplateBtn: getById<HTMLButtonElement>('savePromptTemplateBtn'),
   clearPromptInputBtn: getById<HTMLButtonElement>('clearPromptInputBtn'),
   settingsFeedback: getById<HTMLElement>('settingsFeedback'),
@@ -440,6 +441,7 @@ function bindEvents(): void {
   ui.sendPromptBtn.addEventListener('click', () => void sendChatPrompt())
   ui.exportPdfBtn.addEventListener('click', () => void exportLatestReport('pdf'))
   ui.exportExcelBtn.addEventListener('click', () => void exportLatestReport('excel'))
+  ui.printReportBtn.addEventListener('click', () => void printLatestReport())
   ui.auditRefreshBtn.addEventListener('click', () => void loadAuditLogViewer())
   ui.savePromptTemplateBtn.addEventListener('click', () => void saveCurrentPromptTemplate())
   ui.clearPromptInputBtn.addEventListener('click', () => {
@@ -2138,6 +2140,47 @@ async function exportLatestReport(format: ReportExportFormat): Promise<void> {
 function setReportExportButtonsEnabled(enabled: boolean): void {
   ui.exportPdfBtn.disabled = !enabled
   ui.exportExcelBtn.disabled = !enabled
+  ui.printReportBtn.disabled = !enabled
+}
+
+async function printLatestReport(): Promise<void> {
+  const snapshot = state.latestReportSnapshot
+
+  if (!snapshot) {
+    setAppNotice('ابتدا یک تحلیل موفق اجرا کنید تا امکان چاپ فراهم شود.', 'info')
+    return
+  }
+
+  toggleButton(ui.printReportBtn, true, 'در حال چاپ...')
+  ui.exportPdfBtn.disabled = true
+  ui.exportExcelBtn.disabled = true
+  ui.printReportBtn.disabled = true
+
+  try {
+    const response = await window.api.report.print({
+      format: 'pdf',
+      title: buildExportReportTitle(snapshot.prompt),
+      prompt: snapshot.prompt,
+      responseMarkdown: snapshot.responseMarkdown,
+      generatedAt: snapshot.generatedAt,
+      evidence: snapshot.evidence,
+      defaultFileName: buildExportDefaultFileName(snapshot.generatedAt)
+    })
+
+    if (!response.ok) {
+      const message = response.error ?? 'چاپ گزارش انجام نشد.'
+      setAppNotice(message, 'error')
+      return
+    }
+
+    setAppNotice('گزارش به پرینتر ارسال شد.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    setAppNotice(`چاپ گزارش ناموفق بود: ${message}`, 'error')
+  } finally {
+    toggleButton(ui.printReportBtn, false, 'چاپ')
+    setReportExportButtonsEnabled(Boolean(state.latestReportSnapshot))
+  }
 }
 
 function buildExportReportTitle(prompt: string): string {
