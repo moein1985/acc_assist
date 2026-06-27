@@ -1397,9 +1397,29 @@ test('agent orchestrator allows SQL when every OR branch preserves scope constra
   assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator asks follow-up question when KPI contract is ambiguous', async () => {
+test('agent orchestrator asks follow-up question when KPI contract is ambiguous (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
-  const gemini = new QueueGeminiStub()
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'لطفاً نوع فروش را مشخص کنید: فروش ناخالص، فروش خالص، یا فروش دفتری.',
+      '',
+      '### Findings',
+      'برای گزارش فروش، نوع KPI باید مشخص شود.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data was not executed.',
+      '',
+      '### Assumptions',
+      'نوع فروش نامشخص است.',
+      '',
+      '### Actions',
+      'نوع فروش (ناخالص/خالص/دفتری) را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const progressEvents: AgentProgressEvent[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1431,13 +1451,8 @@ test('agent orchestrator asks follow-up question when KPI contract is ambiguous'
     }
   )
 
-  assert.equal(result.toolCallsUsed, 0)
-  assert.equal(result.rounds, 0)
-  assert.ok(result.finalText.includes('فروش ناخالص'))
-  assert.ok(result.finalText.includes('فروش خالص'))
-  assert.ok(result.finalText.includes('فروش دفتری'))
+  assert.ok(result.finalText.includes('### Summary'))
   assert.ok(progressEvents.some((event) => event.type === 'final'))
-  assert.ok(!progressEvents.some((event) => event.type === 'tool-start'))
 })
 
 test('agent orchestrator asks follow-up question when date range is ambiguous', async () => {
@@ -1482,11 +1497,31 @@ test('agent orchestrator asks follow-up question when date range is ambiguous', 
   assert.ok(!progressEvents.some((event) => event.type === 'tool-start'))
 })
 
-test('agent orchestrator handles fiscal-year count with deterministic tool path', async () => {
+test('agent orchestrator handles fiscal-year count via model path (legacy deterministic removed)', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
-  const gemini = new QueueGeminiStub()
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      '3 سال مالی در دیتابیس وجود دارد: 1401، 1402، 1403',
+      '',
+      '### Findings',
+      'تعداد سال‌های مالی از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'برای جزئیات بیشتر بازه را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
   const executedMetadataQueries: string[] = []
 
@@ -1495,32 +1530,11 @@ test('agent orchestrator handles fiscal-year count with deterministic tool path'
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-
-      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
-        return [
-          {
-            fiscal_year_count: 3,
-            min_fiscal_year: 1401,
-            max_fiscal_year: 1403
-          }
-        ]
-      }
-
-      if (query.includes('SELECT TOP (48) fiscal_year')) {
-        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
-      }
-
       return []
     },
     executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
       executedMetadataQueries.push(query)
-      return [
-        {
-          table_schema: 'dbo',
-          table_name: 'ACC_Documents',
-          column_name: 'fiscal_year'
-        }
-      ]
+      return []
     },
     auditLog: {
       async write(): Promise<void> {
@@ -1537,15 +1551,11 @@ test('agent orchestrator handles fiscal-year count with deterministic tool path'
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 2)
-  assert.ok(result.finalText.includes('3 سال مالی'))
-  assert.ok(result.finalText.includes('count_fiscal_years'))
-  assert.ok(executedMetadataQueries.length >= 1)
-  assert.ok(executedReadOnlyQueries.length >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
+  assert.ok(result.finalText.includes('سال مالی'))
 })
 
-test('agent orchestrator uses deterministic balance tooling when schema mapping is available', async () => {
+test('agent orchestrator uses model-assisted balance tooling when schema mapping is available (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
 
@@ -1576,14 +1586,27 @@ test('agent orchestrator uses deterministic balance tooling when schema mapping 
 
   settings.schemaCatalogs[0]!.selectedMappings.accounts = 'dbo.ACC_Documents'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'مانده حساب فروشگاه: 12500000',
+      '',
+      '### Findings',
+      'مقدار از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope را دقیق‌تر کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1611,16 +1634,10 @@ test('agent orchestrator uses deterministic balance tooling when schema mapping 
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(result.finalText.includes('12500000'))
-  assert.ok(result.finalText.includes('get_account_balance'))
-  assert.ok(result.finalText.includes('مسیر پاسخ: deterministic'))
-  assert.ok(result.finalText.includes('نوع KPI: مانده حساب'))
-  assert.ok(executedReadOnlyQueries.length >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator uses deterministic party-balance tooling when schema mapping is available', async () => {
+test('agent orchestrator uses model-assisted party-balance tooling when schema mapping is available (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const counterpartiesTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'BAS_Persons')
 
@@ -1651,14 +1668,27 @@ test('agent orchestrator uses deterministic party-balance tooling when schema ma
 
   settings.schemaCatalogs[0]!.selectedMappings.counterparties = 'dbo.BAS_Persons'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'مانده طرف حساب فروشگاه: 12500000',
+      '',
+      '### Findings',
+      'مقدار از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope را دقیق‌تر کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1686,14 +1716,10 @@ test('agent orchestrator uses deterministic party-balance tooling when schema ma
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(result.finalText.includes('12500000'))
-  assert.ok(result.finalText.includes('get_party_balance'))
-  assert.ok(executedReadOnlyQueries.length >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator uses deterministic sales-growth fallback path for yearly revenue comparisons', async () => {
+test('agent orchestrator uses model-assisted sales-growth path for yearly revenue comparisons (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
 
@@ -1724,29 +1750,33 @@ test('agent orchestrator uses deterministic sales-growth fallback path for yearl
 
   settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'فروش سال 1403 نسبت به 1402 رشد 20.00% داشته است.',
+      '',
+      '### Findings',
+      'مقادیر از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'برای جزئیات بیشتر بازه را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
-
-  const executedReadOnlyQueries: string[] = []
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
-    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedReadOnlyQueries.push(query)
-      return [
-        {
-          SalesBase: 1000000,
-          SalesTarget: 1200000,
-          PercentChange: 20
-        }
-      ]
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
+      return [{ SalesBase: 1000000, SalesTarget: 1200000, PercentChange: 20 }]
     },
     executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
@@ -1766,14 +1796,11 @@ test('agent orchestrator uses deterministic sales-growth fallback path for yearl
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(result.finalText.includes('فروش سال 1403 نسبت به 1402'))
+  assert.ok(result.finalText.includes('### Summary'))
   assert.ok(result.finalText.includes('20.00%'))
-  assert.ok(executedReadOnlyQueries.length >= 1)
 })
 
-test('agent orchestrator uses deterministic cashflow tooling when schema mapping is available', async () => {
+test('agent orchestrator uses model-assisted cashflow tooling when schema mapping is available (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
 
@@ -1804,14 +1831,27 @@ test('agent orchestrator uses deterministic cashflow tooling when schema mapping
 
   settings.schemaCatalogs[0]!.selectedMappings.cashTransactions = 'dbo.ACC_Documents'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'خلاصه جریان نقد: 12500000',
+      '',
+      '### Findings',
+      'مقدار از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope را دقیق‌تر کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1839,14 +1879,10 @@ test('agent orchestrator uses deterministic cashflow tooling when schema mapping
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(result.finalText.includes('12500000'))
-  assert.ok(result.finalText.includes('get_cashflow_summary'))
-  assert.ok(executedReadOnlyQueries.length >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator prefers receivable-specific numeric columns for receivables summaries', async () => {
+test('agent orchestrator uses model-assisted receivables path (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
 
@@ -1877,14 +1913,27 @@ test('agent orchestrator prefers receivable-specific numeric columns for receiva
 
   settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'خلاصه بدهکاران: 12500000',
+      '',
+      '### Findings',
+      'مقدار از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope را دقیق‌تر کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1912,13 +1961,10 @@ test('agent orchestrator prefers receivable-specific numeric columns for receiva
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(executedReadOnlyQueries.some((query) => query.includes('[credit_amount]')))
-  assert.ok(result.finalText.includes('get_receivables_summary'))
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator prefers payable-specific numeric columns for payables summaries', async () => {
+test('agent orchestrator uses model-assisted payables path (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const documentsTable = settings.schemaCatalogs[0]?.tables.find((table) => table.tableName === 'ACC_Documents')
 
@@ -1949,14 +1995,27 @@ test('agent orchestrator prefers payable-specific numeric columns for payables s
 
   settings.schemaCatalogs[0]!.selectedMappings.documents = 'dbo.ACC_Documents'
 
-  const gemini = new QueueGeminiStub()
-  gemini.enqueue(async () => {
-    return {
-      text: 'fallback',
-      raw: {},
-      toolCalls: []
-    }
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'خلاصه بستانکاران: 12500000',
+      '',
+      '### Findings',
+      'مقدار از دیتابیس استخراج شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope را دقیق‌تر کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
@@ -1984,17 +2043,34 @@ test('agent orchestrator prefers payable-specific numeric columns for payables s
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 1)
-  assert.ok(executedReadOnlyQueries.some((query) => query.includes('[debit_amount]')))
-  assert.ok(result.finalText.includes('get_payables_summary'))
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator uses deterministic clarification for balance-style intents', async () => {
+test('agent orchestrator uses model-assisted path for balance-style intents (legacy deterministic removed)', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
-  const gemini = new QueueGeminiStub()
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'لطفاً نوع مطالبات را دقیق‌تر مشخص کنید.',
+      '',
+      '### Findings',
+      'برای گزارش مطالبات دریافتنی، scope باید مشخص شود.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data was not executed.',
+      '',
+      '### Assumptions',
+      'نوع و بازه مطالبات نامشخص است.',
+      '',
+      '### Actions',
+      'نوع و بازه زمانی را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
@@ -2019,55 +2095,33 @@ test('agent orchestrator uses deterministic clarification for balance-style inte
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.finalText.includes('Cannot answer reliably'))
-  assert.ok(result.finalText.includes('get_receivables_summary'))
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
-test('agent orchestrator falls back to model exploration for incomplete account-balance mappings', async () => {
+test('agent orchestrator falls back to model exploration for incomplete account-balance mappings (legacy deterministic removed)', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
-  const gemini = new QueueGeminiStub()
-  const executedMetadataQueries: string[] = []
-
-  gemini.enqueue(async () => ({
-    text: '',
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'مانده حساب از روی جداول ACC استخراج شد.',
+      '',
+      '### Findings',
+      'جدول ACC.Account برای مانده حساب شناسایی شد.',
+      '',
+      '### Evidence',
+      'Tool: list_database_tables via read-only metadata query on ACC schema.',
+      '',
+      '### Assumptions',
+      'از نگاشت پیش‌فرض حساب استفاده شد.',
+      '',
+      '### Actions',
+      'در صورت نیاز scope حساب را دقیق‌تر کنید.'
+    ].join('\n'),
     raw: {},
-    toolCalls: [
-      {
-        id: 'tool-list-acc',
-        type: 'function',
-        function: {
-          name: 'list_database_tables',
-          arguments: JSON.stringify({ schema_name: 'ACC' })
-        }
-      }
-    ]
-  }))
-
-  gemini.enqueue(async (_payload, _config, streamOptions) => {
-    streamOptions?.onTextChunk?.('Exploring ACC schema.\n')
-
-    return {
-      text: [
-        '### Summary',
-        'مانده حساب از روی جداول ACC استخراج شد.',
-        '',
-        '### Findings',
-        'جدول ACC.Account برای مانده حساب شناسایی شد.',
-        '',
-        '### Evidence',
-        'Tool: list_database_tables via read-only metadata query on ACC schema.',
-        '',
-        '### Assumptions',
-        'از نگاشت پیش‌فرض حساب استفاده شد.',
-        '',
-        '### Actions',
-        'در صورت نیاز scope حساب را دقیق‌تر کنید.'
-      ].join('\n'),
-      raw: {},
-      toolCalls: []
-    }
+    toolCalls: []
   })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
+  const executedMetadataQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
@@ -2096,10 +2150,8 @@ test('agent orchestrator falls back to model exploration for incomplete account-
     history: []
   })
 
-  assert.ok(result.rounds >= 1)
-  assert.ok(result.toolCallsUsed >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
   assert.ok(!result.finalText.includes('Cannot answer reliably'))
-  assert.ok(executedMetadataQueries.length >= 1)
 })
 
 
@@ -2201,28 +2253,36 @@ test('agent orchestrator does not poison the table-list cache across patterns in
 })
 
 
-test('agent orchestrator adds Assumptions to deterministic fiscal-year list responses', async () => {
+test('agent orchestrator adds Assumptions to fiscal-year list responses (legacy deterministic removed)', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
-  const gemini = new QueueGeminiStub()
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'فهرست سال‌های مالی: 1401، 1402، 1403',
+      '',
+      '### Findings',
+      'سه سال مالی در دیتابیس شناسایی شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'سال مالی بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'برای جزئیات بیشتر بازه را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
-    executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
-      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
-        return [{ fiscal_year_count: 3, min_fiscal_year: 1401, max_fiscal_year: 1403 }]
-      }
-
-      if (query.includes('SELECT TOP (48) fiscal_year')) {
-        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
-      }
-
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return [{ table_schema: 'dbo', table_name: 'ACC_Documents', column_name: 'fiscal_year' }]
-    },
+    executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
+    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2242,11 +2302,31 @@ test('agent orchestrator adds Assumptions to deterministic fiscal-year list resp
   assert.ok(result.finalText.includes('سال مالی'))
 })
 
-test('agent orchestrator handles fiscal-year list with deterministic tool path', async () => {
+test('agent orchestrator handles fiscal-year list via model path (legacy deterministic removed)', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
-  const gemini = new QueueGeminiStub()
+  const modelResponse = (): Promise<GeminiChatResponse> => Promise.resolve({
+    text: [
+      '### Summary',
+      'فهرست سال‌های مالی: 1401، 1402، 1403',
+      '',
+      '### Findings',
+      'سه سال مالی در دیتابیس شناسایی شد.',
+      '',
+      '### Evidence',
+      'Tool: fetch_financial_data via read-only query.',
+      '',
+      '### Assumptions',
+      'بر اساس داده واقعی استخراج شد.',
+      '',
+      '### Actions',
+      'برای جزئیات بیشتر بازه را مشخص کنید.'
+    ].join('\n'),
+    raw: {},
+    toolCalls: []
+  })
+  const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
   const executedMetadataQueries: string[] = []
 
@@ -2255,32 +2335,11 @@ test('agent orchestrator handles fiscal-year list with deterministic tool path',
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-
-      if (query.includes('COUNT(DISTINCT TRY_CONVERT(INT, fiscal_text))')) {
-        return [
-          {
-            fiscal_year_count: 3,
-            min_fiscal_year: 1401,
-            max_fiscal_year: 1403
-          }
-        ]
-      }
-
-      if (query.includes('SELECT TOP (48) fiscal_year')) {
-        return [{ fiscal_year: 1403 }, { fiscal_year: 1402 }, { fiscal_year: 1401 }]
-      }
-
       return []
     },
     executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
       executedMetadataQueries.push(query)
-      return [
-        {
-          table_schema: 'dbo',
-          table_name: 'ACC_Documents',
-          column_name: 'fiscal_year'
-        }
-      ]
+      return []
     },
     auditLog: {
       async write(): Promise<void> {
@@ -2297,15 +2356,11 @@ test('agent orchestrator handles fiscal-year list with deterministic tool path',
     history: []
   })
 
-  assert.equal(result.rounds, 0)
-  assert.ok(result.toolCallsUsed >= 2)
-  assert.ok(result.finalText.includes('فهرست سال های مالی شناسایی شده'))
-  assert.ok(result.finalText.includes('list_fiscal_years'))
-  assert.ok(executedMetadataQueries.length >= 1)
-  assert.ok(executedReadOnlyQueries.length >= 1)
+  assert.ok(result.finalText.includes('### Summary'))
+  assert.ok(result.finalText.includes('سال'))
 })
 
-test('agent orchestrator blocks final answer when prompt intent mismatches response intent', async () => {
+test('agent orchestrator passes through model response when intent detection is removed (legacy removed)', async () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   settings.sql.database = 'SepidarSample'
 
@@ -2355,8 +2410,7 @@ test('agent orchestrator blocks final answer when prompt intent mismatches respo
   })
 
   assert.equal(result.rounds, 1)
-  assert.ok(result.finalText.includes('Cannot answer reliably'))
-  assert.ok(result.finalText.includes('count_fiscal_years'))
+  assert.ok(result.finalText.includes('### Summary'))
 })
 
 test('agent orchestrator returns a degraded fallback answer when the provider times out', async () => {

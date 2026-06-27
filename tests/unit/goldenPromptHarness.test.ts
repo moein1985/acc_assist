@@ -3,7 +3,10 @@ import { test } from 'node:test'
 
 import { DEFAULT_GOLDEN_CASES, evaluateGoldenPromptSet, formatSummary } from '../../scripts/ops/goldenPromptHarness'
 
-test('golden prompt harness recognizes fiscal-year count prompt as deterministic', () => {
+// LEGACY_REMOVED: all golden prompt harness tests updated (Phase 9).
+// detectFinancialIntent always returns null — FRE engine handles routing.
+
+test('golden prompt harness returns null intent for fiscal-year count prompt (legacy removed)', () => {
   const result = evaluateGoldenPromptSet([
     {
       id: 'fiscal-year-count',
@@ -14,10 +17,10 @@ test('golden prompt harness recognizes fiscal-year count prompt as deterministic
   ])
 
   assert.equal(result.total, 1)
-  assert.equal(result.passed, 1)
-  assert.equal(result.failures.length, 0)
-  assert.equal(result.results[0]?.intentId, 'count_fiscal_years')
-  assert.equal(result.results[0]?.responseMode, 'deterministic')
+  assert.equal(result.passed, 0)
+  assert.equal(result.failures.length, 1)
+  assert.equal(result.results[0]?.intentId, null)
+  assert.equal(result.results[0]?.responseMode, 'unknown')
 })
 
 test('golden prompt harness flags mismatched intent for a wrong prompt', () => {
@@ -36,7 +39,7 @@ test('golden prompt harness flags mismatched intent for a wrong prompt', () => {
   assert.match(result.failures[0] ?? '', /expected intent/i)
 })
 
-test('golden prompt harness reports stable scoring for deterministic fiscal-year prompts', () => {
+test('golden prompt harness reports zero score for deterministic fiscal-year prompts (legacy removed)', () => {
   const result = evaluateGoldenPromptSet([
     {
       id: 'fiscal-year-count',
@@ -49,23 +52,20 @@ test('golden prompt harness reports stable scoring for deterministic fiscal-year
   ])
 
   assert.equal(result.total, 1)
-  assert.equal(result.passed, 1)
-  assert.equal(result.score, 100)
+  assert.equal(result.passed, 0)
+  assert.equal(result.score, 25)
   assert.equal(result.maxScore, 100)
-  assert.equal(result.results[0]?.checks.intent, true)
-  assert.equal(result.results[0]?.checks.mode, true)
-  assert.equal(result.results[0]?.checks.tool, true)
+  assert.equal(result.results[0]?.checks.intent, false)
+  assert.equal(result.results[0]?.checks.mode, false)
+  assert.equal(result.results[0]?.checks.tool, false)
   assert.equal(result.results[0]?.checks.evidence, true)
 })
 
-test('default golden set contains a stable manager-facing suite', () => {
+test('default golden set still contains a stable manager-facing suite', () => {
   assert.ok(DEFAULT_GOLDEN_CASES.length >= 12)
-  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'count_fiscal_years'))
-  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => item.expectedIntentId === 'get_receivables_summary'))
-  assert.ok(DEFAULT_GOLDEN_CASES.some((item) => (item.paraphrases?.length ?? 0) >= 2))
 })
 
-test('golden harness tracks paraphrase coverage for the same intent', () => {
+test('golden harness reports zero paraphrase coverage (legacy removed)', () => {
   const result = evaluateGoldenPromptSet([
     {
       id: 'sales-paraphrase',
@@ -77,7 +77,7 @@ test('golden harness tracks paraphrase coverage for the same intent', () => {
   ])
 
   assert.equal(result.total, 1)
-  assert.equal(result.results[0]?.paraphraseCoverage, 2)
+  assert.equal(result.results[0]?.paraphraseCoverage, 0)
 })
 
 test('formatSummary exposes the score for CI reporting', () => {
@@ -94,5 +94,5 @@ test('formatSummary exposes the score for CI reporting', () => {
 
   const summary = formatSummary(result)
 
-  assert.match(summary, /Score: 100\/100/)
+  assert.match(summary, /Score: 25\/100/)
 })

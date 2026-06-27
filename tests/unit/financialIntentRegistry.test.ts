@@ -9,95 +9,71 @@ import {
   listSalesKpiContracts
 } from '../../src/main/services/financialIntentRegistry'
 
-test('detectFinancialIntent maps Persian fiscal-year count prompt', () => {
+// LEGACY_REMOVED: all legacy intent detection tests updated (Phase 9).
+// detectFinancialIntent always returns null now — FRE engine handles routing.
+test('detectFinancialIntent returns null for fiscal-year count prompt (legacy removed)', () => {
   const result = detectFinancialIntent('در دیتابیس چند سال مالی قرار داره؟')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'count_fiscal_years')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps English fiscal-year list prompt', () => {
+test('detectFinancialIntent returns null for English fiscal-year list prompt (legacy removed)', () => {
   const result = detectFinancialIntent('List fiscal years in this database')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'list_fiscal_years')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps show-style fiscal-year list prompt', () => {
+test('detectFinancialIntent returns null for show-style fiscal-year list prompt (legacy removed)', () => {
   const result = detectFinancialIntent('Show the fiscal years available in this database')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'list_fiscal_years')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent normalizes Persian digits', () => {
+test('detectFinancialIntent returns null after Persian digit normalization (legacy removed)', () => {
   const result = detectFinancialIntent('لیست سال های مالی ۱۴۰۳ را نمایش بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'list_fiscal_years')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian fiscal-year range listing prompt', () => {
+test('detectFinancialIntent returns null for Persian fiscal-year range listing prompt (legacy removed)', () => {
   const result = detectFinancialIntent('فهرست سال‌های مالی از ۱۴۰۱ تا ۱۴۰۴ را نمایش بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'list_fiscal_years')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian account-balance prompt', () => {
+test('detectFinancialIntent returns null for Persian account-balance prompt (legacy removed)', () => {
   const result = detectFinancialIntent('مانده حساب فروشگاه را بگو')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_account_balance')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian turnover prompt', () => {
+test('detectFinancialIntent returns null for Persian turnover prompt (legacy removed)', () => {
   const result = detectFinancialIntent('گردش حساب در بازه ۱۴۰۳ تا ۱۴۰۴ را نشان بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_account_turnover')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian cashflow prompt', () => {
+test('detectFinancialIntent returns null for Persian cashflow prompt (legacy removed)', () => {
   const result = detectFinancialIntent('جریان نقد ماهانه را خلاصه کن')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_cashflow_summary')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian account-balance synonym prompt', () => {
+test('detectFinancialIntent returns null for Persian account-balance synonym prompt (legacy removed)', () => {
   const result = detectFinancialIntent('مانده سرفصل فروش را بگو')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_account_balance')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian cashflow summary prompt', () => {
+test('detectFinancialIntent returns null for Persian cashflow summary prompt (legacy removed)', () => {
   const result = detectFinancialIntent('خلاصه جریان نقد ماهانه را بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_cashflow_summary')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian receivables synonym prompt', () => {
+test('detectFinancialIntent returns null for Persian receivables synonym prompt (legacy removed)', () => {
   const result = detectFinancialIntent('جمع بدهکاران و دریافتی‌ها را نشان بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_receivables_summary')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps English payables synonym prompt', () => {
+test('detectFinancialIntent returns null for English payables synonym prompt (legacy removed)', () => {
   const result = detectFinancialIntent('Show total payables and creditors for this month')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_payables_summary')
+  assert.equal(result, null)
 })
 
-test('detectFinancialIntent maps Persian cashflow synonym prompt', () => {
+test('detectFinancialIntent returns null for Persian cashflow synonym prompt (legacy removed)', () => {
   const result = detectFinancialIntent('خلاصه جریان وجه نقد را بده')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_cashflow_summary')
+  assert.equal(result, null)
 })
 
 test('extractFinancialIntentSlots detects account and date-range hints', () => {
@@ -120,30 +96,15 @@ test('detectFinancialIntent returns null for unrelated prompt', () => {
   assert.equal(result, null)
 })
 
-test('listFinancialIntentDefinitions exposes roadmap intents including deterministic balance intents', () => {
+test('listFinancialIntentDefinitions returns empty array (legacy removed)', () => {
   const definitions = listFinancialIntentDefinitions()
-
-  assert.ok(definitions.length >= 10)
-  assert.ok(definitions.some((item) => item.id === 'count_fiscal_years' && item.responseMode === 'deterministic'))
-  assert.ok(definitions.some((item) => item.id === 'list_fiscal_years' && item.responseMode === 'deterministic'))
-  assert.ok(definitions.some((item) => item.id === 'get_account_balance' && item.responseMode === 'deterministic'))
-  assert.ok(definitions.some((item) => item.id === 'get_cashflow_summary' && item.responseMode === 'deterministic'))
-  assert.ok(definitions.some((item) => item.id === 'get_receivables_summary' && item.responseMode === 'deterministic'))
-  assert.ok(definitions.some((item) => item.id === 'get_payables_summary' && item.responseMode === 'deterministic'))
+  assert.equal(definitions.length, 0)
 })
 
-test('Golden 7 intents carry fast-path metadata and target scope', () => {
+test('Golden fast-path intents removed (legacy removed)', () => {
   const definitions = listFinancialIntentDefinitions()
   const goldenSeven = definitions.filter((item) => item.isGoldenFastPath)
-
-  assert.equal(goldenSeven.length, 8)
-  assert.ok(goldenSeven.some((item) => item.id === 'count_fiscal_years' && item.targetTables?.length))
-  assert.ok(goldenSeven.some((item) => item.id === 'list_fiscal_years' && item.requiredScopeFilters?.includes('fiscal_year')))
-  assert.ok(goldenSeven.some((item) => item.id === 'get_account_balance' && item.requiredScopeFilters?.length))
-  assert.ok(goldenSeven.some((item) => item.id === 'get_cash_bank_balance' && item.targetTables?.length))
-  assert.ok(goldenSeven.some((item) => item.id === 'get_trial_balance' && item.targetTables?.length))
-  assert.ok(goldenSeven.some((item) => item.id === 'get_receivables_summary' && item.aggregate))
-  assert.ok(goldenSeven.some((item) => item.id === 'get_payables_summary' && item.projection?.length))
+  assert.equal(goldenSeven.length, 0)
 })
 
 test('listSalesKpiContracts exposes the annual sales KPI dictionary', () => {
@@ -170,52 +131,24 @@ test('detectSalesKpiContractCandidates keeps explicit KPI wording precise', () =
   assert.deepEqual(result.contractIds, ['gross_sales'])
 })
 
-test('detectFinancialIntent maps Persian purchase summary prompt', () => {
+test('detectFinancialIntent returns null for Persian purchase summary prompt (legacy removed)', () => {
   const result = detectFinancialIntent('خرید کل سال ۱۴۰۲ را بگو')
-
-  assert.ok(result)
-  assert.equal(result?.intentId, 'get_purchase_summary')
+  assert.equal(result, null)
 })
 
-test('get_purchase_summary intent has deterministic response mode', () => {
+test('get_purchase_summary intent removed (legacy removed)', () => {
   const definitions = listFinancialIntentDefinitions()
   const purchaseIntent = definitions.find((item) => item.id === 'get_purchase_summary')
-
-  assert.ok(purchaseIntent)
-  assert.equal(purchaseIntent?.responseMode, 'deterministic')
-  assert.ok(purchaseIntent?.targetTables?.includes('POM.PurchaseInvoice'))
-  assert.ok(purchaseIntent?.targetTables?.includes('INV.InventoryReceipt'))
+  assert.equal(purchaseIntent, undefined)
 })
 
-test('get_account_balance intent has deterministic response mode and required slots', () => {
+test('get_account_balance intent removed (legacy removed)', () => {
   const definitions = listFinancialIntentDefinitions()
   const accountBalanceIntent = definitions.find((item) => item.id === 'get_account_balance')
-
-  assert.ok(accountBalanceIntent)
-  assert.equal(accountBalanceIntent?.responseMode, 'deterministic')
-  assert.ok(accountBalanceIntent?.isGoldenFastPath)
-  assert.ok(accountBalanceIntent?.targetTables?.includes('ACC.Voucher'))
-  assert.ok(accountBalanceIntent?.targetTables?.includes('ACC.VoucherItem'))
-  assert.ok(accountBalanceIntent?.requiredSlots?.includes('accountCodeOrName'))
-  assert.equal(accountBalanceIntent?.aggregate, 'SUM(Debit) - SUM(Credit)')
+  assert.equal(accountBalanceIntent, undefined)
 })
 
-test('intent definitions have correct targetTables for intent-table guard validation', () => {
+test('intent definitions empty — targetTables guard validation removed (legacy removed)', () => {
   const definitions = listFinancialIntentDefinitions()
-
-  // Verify purchase intent targets purchase-related tables
-  const purchaseIntent = definitions.find((item) => item.id === 'get_purchase_summary')
-  assert.ok(purchaseIntent?.targetTables?.some((t) => t.includes('Purchase') || t.includes('InventoryReceipt')))
-
-  // Verify account balance intent targets account-related tables
-  const accountBalanceIntent = definitions.find((item) => item.id === 'get_account_balance')
-  assert.ok(accountBalanceIntent?.targetTables?.some((t) => t.includes('Voucher')))
-
-  // Verify sales intent targets sales-related tables
-  const salesIntent = definitions.find((item) => item.id === 'get_sales_summary_by_period')
-  assert.ok(salesIntent?.targetTables?.some((t) => t.includes('Invoice') || t.includes('Sale')))
-
-  // Verify cash/bank intent targets cash/bank tables
-  const cashBankIntent = definitions.find((item) => item.id === 'get_cash_bank_balance')
-  assert.ok(cashBankIntent?.targetTables?.some((t) => t.includes('Cash') || t.includes('Bank')))
+  assert.equal(definitions.length, 0)
 })

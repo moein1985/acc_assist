@@ -394,113 +394,17 @@ ORDER BY fiscal_year DESC`
 }
 
 export function composeDeterministicFinancialToolMarkdown(
-  deterministicIntent: DeterministicFinancialIntent,
+  _deterministicIntent: DeterministicFinancialIntent,
   result: DeterministicFinancialToolResult
 ): string {
-  const label =
-    deterministicIntent === 'get_account_balance'
-      ? 'مانده حساب'
-      : deterministicIntent === 'get_party_balance'
-        ? 'مانده طرف حساب'
-        : deterministicIntent === 'get_purchase_summary'
-          ? 'خلاصه خرید'
-          : deterministicIntent === 'get_receivables_summary'
-            ? 'خلاصه بدهکاران'
-            : deterministicIntent === 'get_payables_summary'
-              ? 'خلاصه بستانکاران'
-              : 'خلاصه جریان نقد'
-
-  const isPurchaseFromInventory =
-    deterministicIntent === 'get_purchase_summary' && result.tableRef === 'INV.InventoryReceipt'
-  const hasNoData = result.value === null || result.value === 0
-
-  const summaryText = hasNoData
-    ? `این گزارش با داده‌های موجود قابل تولید نیست. ${label} در جدول ${result.tableRef} خالی است.`
-    : isPurchaseFromInventory
-      ? `فاکتور خرید رسمی ثبت نشده؛ بر اساس رسید انبار (غیرمرجوعی)، ${label} محاسبه شد: ${result.value}`
-      : `${label} بر اساس داده‌های read-only و mapping schema محاسبه شد: ${result.value} (نوع KPI: ${label})`
-
-  const assumptionsText = isPurchaseFromInventory
-    ? '- مبلغ از رسید انبار `TotalPrice` با `IsReturn=0` است، نه فاکتور خرید رسمی.'
-    : '- از mapping انتخاب‌شده schema و ستون عددی قابل‌محاسبه استفاده شد؛ در صورت تفاوت نام ستون، نتیجه ممکن است محدود شود.'
-
-  return [
-    '### Summary',
-    summaryText,
-    '',
-    '### Findings',
-    `- مسیر پاسخ: deterministic`,
-    `- intent قطعی: ${deterministicIntent}`,
-    `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
-    '',
-    '### Evidence',
-    `- ابزار قطعی ${deterministicIntent} با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
-    `- query: ${result.query}`,
-    '',
-    '### Assumptions',
-    assumptionsText,
-    '',
-    '### Actions',
-    '- اگر منظورتان حساب یا بازه زمانی خاصی است، scope دقیق‌تر را مشخص کنید.'
-  ].join('\n')
+  // LEGACY_REMOVED: deterministic tool markdown removed (Phase 9). FRE engine handles response formatting.
+  return `### Summary\n${result.value ?? 'نامشخص'}\n`
 }
 
 export function composeFiscalYearDeterministicMarkdown(
-  deterministicIntent: DeterministicFinancialIntent,
+  _deterministicIntent: DeterministicFinancialIntent,
   result: FiscalYearFallbackResult
 ): string {
-  const yearSpanText =
-    result.minYear !== null && result.maxYear !== null
-      ? `${result.minYear} تا ${result.maxYear}`
-      : 'نامشخص'
-  const previewText = result.years.length > 0 ? result.years.join('، ') : 'نمونه معتبر بازیابی نشد.'
-
-  if (deterministicIntent === 'list_fiscal_years') {
-    const listedYears =
-      result.years.length > 0 ? result.years.join('، ') : 'سال مالی قابل اتکا یافت نشد.'
-
-    return [
-      '### Summary',
-      `فهرست سال های مالی شناسایی شده (fiscal years): ${listedYears} (نوع KPI: سال مالی)`,
-      '',
-      '### Findings',
-      '- مسیر پاسخ: deterministic',
-      `- تعداد کل سال های مالی متمایز: ${result.count}`,
-      `- بازه سال ها: ${yearSpanText}`,
-      `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
-      '',
-      '### Evidence',
-      `- ابزار قطعی list_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
-      '- Listed distinct fiscal_year values from the detected fiscal-year column using the read-only path.',
-      '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در خروجی لحاظ شدند.',
-      '',
-      '### Assumptions',
-      '- فرض اصلی: از جدول/ستون شناسایی‌شده برای سال مالی و مسیر read-only استفاده شده است؛ اگر schema متفاوت باشد، نتیجه ممکن است محدود شود.',
-      '',
-      '### Actions',
-      '- اگر منظور شما شرکت یا شعبه خاصی است، scope را مشخص کنید تا لیست محدودشده ارائه شود.'
-    ].join('\n')
-  }
-
-  return [
-    '### Summary',
-    `در دیتابیس فعلی ${result.count} سال مالی متمایز شناسایی شد (${result.count} fiscal years).`,
-    '',
-    '### Findings',
-    '- مسیر پاسخ: deterministic',
-    `- جدول/ستون مبنا: ${result.tableRef}.${result.columnName}`,
-    `- بازه سال ها: ${yearSpanText}`,
-    `- نمونه سال های بازیابی شده (نزولی): ${previewText}`,
-    '',
-    '### Evidence',
-    `- ابزار قطعی count_fiscal_years با ${result.toolCallsUsed} کوئری read-only اجرا شد.`,
-    '- Counted distinct fiscal_year values from the detected fiscal-year column using the read-only path.',
-    '- فقط مقادیر 4 رقمی در بازه 1300 تا 2099 در شمارش لحاظ شدند.',
-    '',
-    '### Assumptions',
-    '- فرض اصلی: از جدول/ستون شناسایی‌شده برای سال مالی و مسیر read-only استفاده شده است؛ اگر schema متفاوت باشد، نتیجه ممکن است محدود شود.',
-    '',
-    '### Actions',
-    '- اگر منظورتان سال مالی یک شرکت یا شعبه خاص است، نام شرکت/شعبه را اعلام کنید تا شمارش scope-based انجام شود.'
-  ].join('\n')
+  // LEGACY_REMOVED: fiscal year deterministic markdown removed (Phase 9). FRE engine handles response formatting.
+  return `### Summary\nدر دیتابیس فعلی ${result.count} سال مالی متمایز شناسایی شد.\n`
 }

@@ -182,40 +182,10 @@ export function buildRuntimeFailureFallbackAnswer(
 }
 
 export function validateIntentTableMatch(
-  intentId: string | undefined,
-  evidence: ToolEvidence[]
+  _intentId: string | undefined,
+  _evidence: ToolEvidence[]
 ): string | null {
-  if (!intentId) return null
-
-  const intentTableMap: Record<string, string[]> = {
-    get_purchase_summary: [
-      'INV.InventoryReceipt',
-      'INV.InventoryReceiptItem',
-      'POM.PurchaseInvoice',
-      'Inv.Voucher'
-    ],
-    get_sales_summary_by_period: ['SLS.Invoice', 'MRP.SaleFacts'],
-    get_account_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear', 'ACC.Account'],
-    get_cash_bank_balance: ['RPA.CashBalance', 'RPA.BankAccountBalance'],
-    get_trial_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear', 'ACC.Account'],
-    get_party_balance: ['ACC.Voucher', 'ACC.VoucherItem', 'FMK.FiscalYear'],
-    get_receivables_summary: ['accounts', 'documents'],
-    get_payables_summary: ['accounts', 'documents']
-  }
-
-  const allowedTables = intentTableMap[intentId]
-  if (!allowedTables) return null
-
-  for (const entry of evidence) {
-    if (entry.tool === 'fetch_financial_data' && entry.query) {
-      const query = entry.query
-      const usesAllowedTable = allowedTables.some((table) => query.includes(table))
-      if (!usesAllowedTable) {
-        return `Intent mismatch: detected intent "${intentId}" but query uses tables not in the allowed set [${allowedTables.join(', ')}]. Query: ${query}`
-      }
-    }
-  }
-
+  // LEGACY_REMOVED: intent-to-table mapping removed (Phase 9). FRE engine handles table validation.
   return null
 }
 

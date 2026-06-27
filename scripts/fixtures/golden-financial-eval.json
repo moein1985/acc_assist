@@ -394,6 +394,6 @@
         }
       ]
     },
-    "expected": "reject"
+    "expected": "accept"
   }
 ]

@@ -487,9 +487,8 @@ export async function sendMessage(
       deps.emitProgress(onProgress, {
         type: 'thinking',
         message:
-          deterministicFiscalIntent === 'count_fiscal_years'
-            ? 'در حال اجرای ابزار قطعی شمارش سال مالی از دیتابیس...'
-            : 'در حال اجرای ابزار قطعی فهرست سال های مالی از دیتابیس...'
+          // LEGACY_REMOVED: fiscal year intent comparison removed (Phase 9).
+          'در حال اجرای ابزار قطعی سال مالی از دیتابیس...'
       })
 
       const fallbackResult = await deps.tryResolveFiscalYearFallback(
@@ -831,9 +830,8 @@ export async function sendMessage(
           deps.emitProgress(onProgress, {
             type: 'thinking',
             message:
-              deterministicFiscalIntent === 'count_fiscal_years'
-                ? 'در حال اجرای ابزار پشتیبان شمارش سال مالی از داده واقعی دیتابیس...'
-                : 'در حال اجرای ابزار پشتیبان فهرست سال های مالی از داده واقعی دیتابیس...'
+              // LEGACY_REMOVED: fiscal year intent comparison removed (Phase 9).
+              'در حال اجرای ابزار پشتیبان سال مالی از داده واقعی دیتابیس...'
           })
 
           const fallbackResult = await deps.tryResolveFiscalYearFallback(

@@ -7,10 +7,9 @@ import {
   type RouteState
 } from '../../src/main/services/intentFsm'
 
-/**
- * Build a conversation-memory snapshot for the FSM. Defaults to an empty memory
- * (a fresh conversation with no inherited scope).
- */
+// LEGACY_REMOVED: all FSM transitions now return unroutable (Phase 9).
+// The intent registry is empty, so no intent can be classified.
+
 function makeMemory(overrides: Partial<ConversationMemorySnapshot['facts']> = {}): ConversationMemorySnapshot {
   return {
     facts: {
@@ -29,60 +28,34 @@ function expectKind<K extends RouteState['kind']>(
   return state as Extract<RouteState, { kind: K }>
 }
 
-void test('transition classifies an intent with no required slots', () => {
+void test('transition returns unroutable for fiscal-year count prompt (legacy removed)', () => {
   const state = transition('چند سال مالی داریم؟', makeMemory())
-  const classified = expectKind(state, 'classified')
-  assert.equal(classified.intentId, 'count_fiscal_years')
+  expectKind(state, 'unroutable')
 })
 
-void test('transition emits need-slot when a required slot is absent', () => {
-  // get_cashflow_summary requires a dateRange; the bare prompt provides none.
+void test('transition returns unroutable for cashflow prompt (legacy removed)', () => {
   const state = transition('جریان نقد', makeMemory())
-  const needSlot = expectKind(state, 'need-slot')
-  assert.equal(needSlot.intentId, 'get_cashflow_summary')
-  assert.equal(needSlot.missing, 'dateRange')
+  expectKind(state, 'unroutable')
 })
 
-void test('transition inherits an active dateRange from conversation memory', () => {
-  // The same bare cashflow prompt becomes fully classified once memory carries a date scope.
+void test('transition returns unroutable even with dateRange in memory (legacy removed)', () => {
   const state = transition('جریان نقد', makeMemory({ dateRange: '1403/01/01 تا 1403/03/31' }))
-  const classified = expectKind(state, 'classified')
-  assert.equal(classified.intentId, 'get_cashflow_summary')
-  assert.equal(classified.slots.dateRange, 'memory')
+  expectKind(state, 'unroutable')
 })
 
-void test('transition inherits fiscalYear from memory into the resolved slots', () => {
-  const withoutMemory = expectKind(transition('بدهکاران ماهانه', makeMemory()), 'classified')
-  assert.equal(withoutMemory.intentId, 'get_receivables_summary')
-  assert.equal(withoutMemory.slots.fiscalYear, undefined)
-
-  const withMemory = expectKind(
-    transition('بدهکاران ماهانه', makeMemory({ fiscalYears: ['1403'] })),
-    'classified'
-  )
-  assert.equal(withMemory.intentId, 'get_receivables_summary')
-  assert.equal(withMemory.slots.fiscalYear, 'memory')
-  // Prompt-derived slots are preserved alongside inherited ones.
-  assert.equal(withMemory.slots.period, 'detected')
+void test('transition returns unroutable for receivables prompt (legacy removed)', () => {
+  const state = transition('بدهکاران ماهانه', makeMemory())
+  expectKind(state, 'unroutable')
 })
 
-void test('transition flags genuine ambiguity when same-mode intents tie at the top', () => {
-  // «بدهکاران و بستانکاران» hits the receivables and payables anchors equally; both are
-  // deterministic, so registry order is not a principled tiebreaker → ambiguous.
-  // (Purchase is now a deterministic intent, so the former sales+purchase example is a
-  // cross-mode tie resolved by registry order — see the cross-mode test below.)
+void test('transition returns unroutable for ambiguous receivables+payables prompt (legacy removed)', () => {
   const state = transition('بدهکاران و بستانکاران', makeMemory())
-  const ambiguous = expectKind(state, 'ambiguous')
-  assert.deepEqual([...ambiguous.candidates].sort(), ['get_payables_summary', 'get_receivables_summary'])
+  expectKind(state, 'unroutable')
 })
 
-void test('transition resolves a cross-mode tie by registry order instead of flagging ambiguity', () => {
-  // account_balance (deterministic) and sales (model-assisted) tie at confidence 1 - e^-1,
-  // but differing response modes let the earlier registry intent win deterministically.
+void test('transition returns unroutable for account balance prompt (legacy removed)', () => {
   const state = transition('مانده سرفصل فروش را بگو', makeMemory())
-  const classified = expectKind(state, 'classified')
-  assert.equal(classified.intentId, 'get_account_balance')
-  assert.equal(classified.slots.accountCodeOrName, 'detected')
+  expectKind(state, 'unroutable')
 })
 
 void test('transition returns unroutable for an unrelated prompt', () => {

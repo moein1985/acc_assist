@@ -100,51 +100,35 @@ void test('scoreIntent falls back to legacy patterns as weight-1 anchors', () =>
   assert.equal(scoreIntent('unrelated text', def), 0)
 })
 
-void test('detectFinancialIntent (weighted default) routes a clear prompt with bounded confidence', () => {
+void test('detectFinancialIntent returns null for account balance prompt (legacy removed)', () => {
   const match = detectFinancialIntent('مانده حساب صندوق')
-
-  assert.equal(match?.intentId, 'get_account_balance')
-  assert.ok(match !== null)
-  assert.ok(match.confidence > 0 && match.confidence < 1)
-  // raw == minScore (1) → confidence == 1 - e^-1
-  assert.ok(Math.abs(match.confidence - (1 - Math.exp(-1))) < 1e-9)
+  assert.equal(match, null)
 })
 
-void test('detectFinancialIntent routes debtor-qualified account balance phrasing with ezafe', () => {
-  // Natural phrasing «ماندهٔ بدهکار حساب صندوق سال ۱۴۰۲» previously failed to match
-  // get_account_balance because (a) the ezafe hamza in «ماندهٔ» and (b) the word
-  // «بدهکار» between «مانده» and «حساب» both broke the /مانده\s*حساب/ adjacency,
-  // dropping the request to the flaky model-assisted path.
+void test('detectFinancialIntent returns null for debtor-qualified account balance phrasing (legacy removed)', () => {
   const match = detectFinancialIntent('ماندهٔ بدهکار حساب صندوق سال ۱۴۰۲')
-  assert.equal(match?.intentId, 'get_account_balance')
+  assert.equal(match, null)
 })
 
-void test('detectFinancialIntent applies exclude guards end-to-end (sales returns)', () => {
+void test('detectFinancialIntent returns null for sales returns prompt (legacy removed)', () => {
   const match = detectFinancialIntent('برگشت از فروش سالانه ۱۴۰۲')
-  assert.notEqual(match?.intentId, 'get_sales_summary_by_period')
+  assert.equal(match, null)
 })
 
-void test('detectFinancialIntent returns the top-ranked weighted candidate', () => {
-  // The legacy ratio engine and its ACC_INTENT_SCORING A/B flag were retired; the weighted
-  // engine is now the single source of truth, and detectFinancialIntent is the head of the
-  // ranked candidate list.
+void test('detectFinancialIntent returns null — no candidates (legacy removed)', () => {
   const candidates = scoreFinancialIntentCandidates('مانده حساب صندوق')
   const best = detectFinancialIntent('مانده حساب صندوق')
 
-  assert.ok(candidates.length >= 1)
-  assert.equal(best?.intentId, 'get_account_balance')
-  assert.equal(best?.intentId, candidates[0]?.intentId)
-  assert.equal(best?.confidence, candidates[0]?.confidence)
+  assert.equal(candidates.length, 0)
+  assert.equal(best, null)
 })
 
-void test('detectFinancialIntent confidence rises with more anchor matches', () => {
-  // receivables prompt matches two patterns (بدهکاران + بدهکاران ماهانه) → higher confidence
+void test('detectFinancialIntent returns null for receivables and balance prompts (legacy removed)', () => {
   const twoHit = detectFinancialIntent('بدهکاران ماهانه')
   const oneHit = detectFinancialIntent('مانده حساب صندوق')
 
-  assert.equal(twoHit?.intentId, 'get_receivables_summary')
-  assert.ok(twoHit !== null && oneHit !== null)
-  assert.ok(twoHit.confidence > oneHit.confidence)
+  assert.equal(twoHit, null)
+  assert.equal(oneHit, null)
 })
 
 void test('detectFinancialIntent returns null for unrelated prompts under the weighted engine', () => {

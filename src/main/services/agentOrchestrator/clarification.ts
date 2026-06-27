@@ -8,13 +8,8 @@ import type {
   AppSettings,
   SchemaCatalogEntry
 } from '../../../shared/contracts'
-import {
-  detectSalesKpiContractCandidates,
-  type FinancialIntentId
-} from '../financialIntentRegistry'
 import { transition, type RouteState } from '../intentFsm'
-import { isRelaxedExploratoryIntent } from './intentRouting'
-import type { DeterministicFinancialIntent } from './intentRouting'
+import { isRelaxedExploratoryIntent, type DeterministicFinancialIntent } from './intentRouting'
 import type {
   ConversationMemorySnapshot,
   ConversationMemoryState,
@@ -22,21 +17,8 @@ import type {
 } from './conversationMemory'
 import type { PreferredMapping } from './promptBuilder'
 
-const FINANCIAL_INTENT_FA_LABELS: Record<FinancialIntentId, string> = {
-  count_fiscal_years: 'تعداد سال‌های مالی',
-  list_fiscal_years: 'فهرست سال‌های مالی',
-  get_party_balance: 'مانده طرف حساب',
-  get_account_balance: 'مانده حساب',
-  get_account_turnover: 'گردش حساب',
-  get_cash_bank_balance: 'مانده نقد و بانک',
-  get_trial_balance: 'تراز آزمایشی',
-  get_sales_summary_by_period: 'خلاصه فروش',
-  get_purchase_summary: 'خلاصه خرید',
-  get_receivables_summary: 'خلاصه دریافتنی‌ها',
-  get_payables_summary: 'خلاصه پرداختنی‌ها',
-  get_cashflow_summary: 'خلاصه جریان نقد',
-  get_recent_or_suspicious_documents: 'اسناد اخیر یا مشکوک'
-}
+// LEGACY_REMOVED: legacy intent FA labels removed (Phase 9).
+const FINANCIAL_INTENT_FA_LABELS: Record<string, string> = {}
 
 const DATE_RANGE_AMBIGUITY_SIGNAL_PATTERN =
   /(بازه(?:\s*زمانی)?|دوره(?:\s*زمانی)?|range|period|date\s*range|time\s*range)/iu
@@ -96,14 +78,12 @@ export function buildClarificationResponseIfNeeded(
   return buildSchemaReadinessClarificationIfNeeded(deps, settings, prompt, conversationMemory)
 }
 
-function buildRouteStateClarification(prompt: string, routeState: RouteState): string | null {
+function buildRouteStateClarification(_prompt: string, routeState: RouteState): string | null {
   switch (routeState.kind) {
     case 'ambiguous':
       return buildAmbiguousIntentClarificationResponse(routeState.candidates)
     case 'classified':
-      if (routeState.intentId === 'get_sales_summary_by_period') {
-        return buildSalesKpiClarificationResponseIfNeeded(prompt)
-      }
+      // LEGACY_REMOVED: sales KPI clarification removed — handled by FRE planner.
       return null
     case 'need-slot':
     case 'unroutable':
@@ -168,7 +148,7 @@ export function buildSchemaReadinessClarificationIfNeeded(
   return null
 }
 
-function buildAmbiguousIntentClarificationResponse(candidates: FinancialIntentId[]): string {
+function buildAmbiguousIntentClarificationResponse(candidates: string[]): string {
   const optionLabels = candidates.map(
     (intentId) => FINANCIAL_INTENT_FA_LABELS[intentId] ?? intentId
   )
@@ -188,33 +168,8 @@ function buildAmbiguousIntentClarificationResponse(candidates: FinancialIntentId
   ].join('\n')
 }
 
-function buildSalesKpiClarificationResponseIfNeeded(prompt: string): string | null {
-  const detection = detectSalesKpiContractCandidates(prompt)
-
-  if (!detection.isAmbiguous) {
-    return null
-  }
-
-  const contractLabels = ['فروش ناخالص', 'فروش خالص', 'فروش دفتری']
-
-  return [
-    '### Summary',
-    'برای پاسخ دقیق فروش سالانه، باید نوع KPI را مشخص کنید.',
-    '',
-    '### Findings',
-    '- پرسش شما بدون تعیین نوع فروش مطرح شده است.',
-    `- گزینه‌های قابل قبول: ${contractLabels.join('، ')}.`,
-    '',
-    '### Evidence',
-    '- در متن سوال، «فروش سالانه» به‌صورت کلی آمده و به بیش از یک قرارداد KPI اشاره می‌کند.',
-    '',
-    '### Actions',
-    '- لطفا یکی از این گزینه‌ها را انتخاب کنید:',
-    '- 1) فروش ناخالص',
-    '- 2) فروش خالص',
-    '- 3) فروش دفتری'
-  ].join('\n')
-}
+// LEGACY_REMOVED: buildSalesKpiClarificationResponseIfNeeded removed (Phase 9).
+// Sales KPI clarification is now handled by FRE planner.
 
 function buildMissingMappingsClarificationResponse(
   schemaContextConceptLabels: Record<AccountingConceptKey, string>,

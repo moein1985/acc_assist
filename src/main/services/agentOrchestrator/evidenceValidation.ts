@@ -80,7 +80,7 @@ export function hasStructuredEvidence(
 ): boolean {
   const normalized = deps.normalizePersianDigits(evidenceSection)
 
-  return /(?:query|tool|read-only|table|column|row|runtime\s*scope|catalog_scan|list_database_tables|get_database_schema|fetch_financial_data|count_fiscal_years|list_fiscal_years|کوئری|ابزار|جدول|ستون|ردیف|شواهد|شاهد)/iu.test(
+  return /(?:query|tool|read-only|table|column|row|runtime\s*scope|catalog_scan|list_database_tables|get_database_schema|fetch_financial_data|کوئری|ابزار|جدول|ستون|ردیف|شواهد|شاهد)/iu.test(
     normalized
   )
 }
@@ -156,57 +156,12 @@ export function traceSupportsNumericClaim(trace: ExecutionTrace | undefined): bo
 }
 
 export function enforcePromptIntentAlignment(
-  deps: EvidenceValidationDeps,
-  prompt: string,
+  _deps: EvidenceValidationDeps,
+  _prompt: string,
   finalText: string
 ): string {
-  const expectedIntent = deps.detectDeterministicFinancialIntent(prompt)
-
-  if (!expectedIntent || !['count_fiscal_years', 'list_fiscal_years'].includes(expectedIntent)) {
-    return finalText
-  }
-
-  const sections = parseFinancialTemplateSections(finalText)
-  const intentSourceText = `${sections.summary}\n${sections.findings}\n${sections.evidence}`
-  const normalizedText = deps.normalizePersianDigits(intentSourceText)
-  const hasFiscalYearPhrase = /(?:سال(?:\s*های?)?\s*مالی|fiscal\s+years?)/iu.test(normalizedText)
-  const hasCountSignal = /(?:تعداد|count|شمارش|متمایز)/iu.test(normalizedText)
-  const hasListSignal = /(?:لیست|فهرست|list)/iu.test(normalizedText)
-  const yearTokenMatches = normalizedText.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
-  const hasYearToken = yearTokenMatches.length > 0
-  const hasMultipleYearTokens = yearTokenMatches.length >= 2
-  const hasNumericCount = /\b\d+\b/.test(normalizedText)
-
-  const countLike = hasFiscalYearPhrase && (hasCountSignal || hasNumericCount)
-  const listLike = hasFiscalYearPhrase && (hasListSignal || hasMultipleYearTokens)
-
-  const matchedIntent =
-    countLike && listLike
-      ? expectedIntent
-      : countLike
-        ? 'count_fiscal_years'
-        : listLike || (hasFiscalYearPhrase && hasYearToken)
-          ? 'list_fiscal_years'
-          : null
-
-  if (matchedIntent === expectedIntent) {
-    return finalText
-  }
-
-  return [
-    '### Summary',
-    'Cannot answer reliably: پاسخ مدل با intent سوال کاربر هم راستا نیست.',
-    '',
-    '### Findings',
-    `- intent مورد انتظار: ${expectedIntent}`,
-    `- intent تشخیص داده شده در پاسخ: ${matchedIntent ?? 'unknown'}`,
-    '',
-    '### Evidence',
-    '- قاعده کنترل کیفیت intent پاسخ فعال شد و از ارائه پاسخ مالی نامعتبر جلوگیری کرد.',
-    '',
-    '### Actions',
-    '- لطفا سوال را دقیق تر بیان کنید (مثال: تعداد سال های مالی یا لیست سال های مالی).'
-  ].join('\n')
+  // LEGACY_REMOVED: deterministic intent alignment removed (Phase 9). FRE engine handles response validation.
+  return finalText
 }
 
 export function mapFinancialSectionHeading(

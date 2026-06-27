@@ -195,7 +195,7 @@ test('compileMetricPlan: trial_balance produces SUM(Debit) with requiredJoins an
   assert.ok(sql.includes("fy.Title = N'1402'"), 'should filter by year')
 })
 
-test('compileMetricPlan: purchases produces SUM(TotalPrice) from INV.InventoryReceipt with IsReturn=0', () => {
+test('compileMetricPlan: purchases produces SUM from POM.PurchaseInvoice (table-priority fix)', () => {
   const def = findMetricById('purchases')!
   const plan: MetricPlan = {
     metricId: 'purchases',
@@ -206,11 +206,10 @@ test('compileMetricPlan: purchases produces SUM(TotalPrice) from INV.InventoryRe
   const { sql } = compileMetricPlan(plan, def, deps)
 
   assert.ok(
-    sql.includes('SUM(CAST(src.[TotalPrice] AS decimal(18,4)))'),
-    'should have SUM(TotalPrice)'
+    sql.includes('SUM(CAST(src.[NetPriceInBaseCurrency] AS decimal(18,4)))'),
+    'should have SUM(NetPriceInBaseCurrency)'
   )
-  assert.ok(sql.includes('FROM [INV].[InventoryReceipt] src'), 'should use INV.InventoryReceipt')
-  assert.ok(sql.includes('src.IsReturn = 0'), 'should filter IsReturn = 0')
+  assert.ok(sql.includes('FROM [POM].[PurchaseInvoice] src'), 'should use POM.PurchaseInvoice (primary table after fix)')
 })
 
 test('compileMetricPlan: fiscal_year_count produces COUNT(*) from FMK.FiscalYear', () => {

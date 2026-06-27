@@ -675,7 +675,7 @@ test('S4: financial intent registry has a deterministic get_trial_balance entry'
   assert.ok(typeof orchestrator.detectDeterministicFinancialIntent === 'function')
 })
 
-test('S5: validateIntentTableMatch detects purchase intent using sales table', () => {
+test('S5: validateIntentTableMatch returns null for purchase intent (legacy removed)', () => {
   const orchestrator = createHarness()
   const evidence: ToolEvidence[] = [
     {
@@ -689,12 +689,10 @@ test('S5: validateIntentTableMatch detects purchase intent using sales table', (
   ]
 
   const mismatch = orchestrator['validateIntentTableMatch']('get_purchase_summary', evidence)
-
-  assert.ok(mismatch, 'Should detect mismatch when purchase intent uses sales table')
-  assert.match(mismatch, /intent.*purchase.*allowed.*INV\.InventoryReceipt/iu)
+  assert.equal(mismatch, null)
 })
 
-test('S5: validateIntentTableMatch allows purchase intent using purchase table', () => {
+test('S5: validateIntentTableMatch returns null for purchase table (legacy removed)', () => {
   const orchestrator = createHarness()
   const evidence: ToolEvidence[] = [
     {
@@ -708,6 +706,5 @@ test('S5: validateIntentTableMatch allows purchase intent using purchase table',
   ]
 
   const mismatch = orchestrator['validateIntentTableMatch']('get_purchase_summary', evidence)
-
-  assert.equal(mismatch, null, 'Should not detect mismatch when purchase intent uses allowed table')
+  assert.equal(mismatch, null)
 })
