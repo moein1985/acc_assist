@@ -29,7 +29,7 @@
 
 ### S7.1 — MetricId های جدید
 
-- [ ] **S7.1** در `src/main/services/financialEngine/types.ts` خط ۳، `MetricId` را گسترش بده:
+- [x] **S7.1** در `src/main/services/financialEngine/types.ts` خط ۳، `MetricId` را گسترش بده:
   ```ts
   export type MetricId =
     | 'net_sales' | 'purchases' | 'account_balance' | 'trial_balance'
@@ -43,7 +43,7 @@
 
 ### S7.2 — AggregateKind: `kind: 'list'`
 
-- [ ] **S7.2** در `types.ts` خط ۱۳، `AggregateKind` را گسترش بده:
+- [x] **S7.2** در `types.ts` خط ۱۳، `AggregateKind` را گسترش بده:
   ```ts
   export type AggregateKind =
     | { kind: 'sum'; column: string }
@@ -56,7 +56,7 @@
 
 ### S7.3 — PlanFilter: `op: 'between'`
 
-- [ ] **S7.3** در `types.ts` خط ۸۵، `PlanFilter.op` را گسترش بده:
+- [x] **S7.3** در `types.ts` خط ۸۵، `PlanFilter.op` را گسترش بده:
   ```ts
   export interface PlanFilter {
     dimension: Grain
@@ -68,14 +68,14 @@
 
 ### S7.4 — MetricPlan: `topN` و MetricDefinition: `orderBy`
 
-- [ ] **S7.4** در `types.ts`:
+- [x] **S7.4** در `types.ts`:
   - به `MetricPlan` (خط ۹۱) فیلدِ `topN?: number` اضافه کن.
   - به `MetricDefinition` (خط ۶۶) فیلدِ `orderBy?: { column: string; direction: 'ASC' | 'DESC' }` اضافه کن.
   - **معیارِ پذیرش:** `typecheck:node` تمیز.
 
 ### S7.5 — به‌روزرسانیِ Zod schemas
 
-- [ ] **S7.5** در `types.ts`:
+- [x] **S7.5** در `types.ts`:
   - `aggregateKindSchema` (خط ۱۲۳): `z.object({ kind: z.literal('list'), columns: z.array(z.string()) })` اضافه کن.
   - `planFilterSchema` (خط ۲۱۴): `op: z.enum(['eq', 'in', 'between'])`.
   - `metricPlanSchema` (خط ۲۲۰): `topN: z.number().optional()` اضافه کن.
@@ -86,7 +86,7 @@
 
 ### S7.6 — Grain: `by_quarter`
 
-- [ ] **S7.6** در `types.ts` خط ۱۱، `Grain` را گسترش بده:
+- [x] **S7.6** در `types.ts` خط ۱۱، `Grain` را گسترش بده:
   ```ts
   export type Grain = 'total' | 'by_year' | 'by_month' | 'by_quarter' | 'by_account' | 'by_branch' | 'by_customer'
   ```
@@ -99,7 +99,7 @@
 
 ### S7.7 — `fiscal_year_count`
 
-- [ ] **S7.7** در `metricCatalog.ts` بعد از `sales_count` (خط ۲۰۲)، این تعریف را اضافه کن:
+- [x] **S7.7** در `metricCatalog.ts` بعد از `sales_count` (خط ۲۰۲)، این تعریف را اضافه کن:
   ```ts
   {
     id: 'fiscal_year_count',
@@ -118,7 +118,7 @@
 
 ### S7.8 — golden test برای `fiscal_year_count`
 
-- [ ] **S7.8** در `scripts/fixtures/golden-metrics.json` یک مورد اضافه کن:
+- [x] **S7.8** در `scripts/fixtures/golden-metrics.json` یک مورد اضافه کن:
   ```json
   {
     "prompt": "تعداد سال‌های مالی چقدر است؟",
@@ -133,7 +133,7 @@
 
 ### S7.9 — `fiscal_year_list` (نیازمند `kind: 'list'` در compiler)
 
-- [ ] **S7.9** در `metricCatalog.ts` اضافه کن:
+- [x] **S7.9** در `metricCatalog.ts` اضافه کن:
   ```ts
   {
     id: 'fiscal_year_list',
@@ -152,7 +152,7 @@
 
 ### S7.10 — compiler: پشتیبانی `kind: 'list'`
 
-- [ ] **S7.10** در `compiler.ts` تابعِ `buildMeasureExpr` (خط ۱۸)، case جدید اضافه کن:
+- [x] **S7.10** در `compiler.ts` تابعِ `buildMeasureExpr` (خط ۱۸)، case جدید اضافه کن:
   ```ts
   case 'list': {
     return measure.columns.map(c => `${alias}.${deps.quoteSqlIdentifier(c)}`).join(', ')
@@ -167,7 +167,7 @@
 
 ### S7.11 — golden test برای `fiscal_year_list`
 
-- [ ] **S7.11** در `golden-metrics.json` اضافه کن:
+- [x] **S7.11** در `golden-metrics.json` اضافه کن:
   ```json
   {
     "prompt": "فهرست سال‌های مالی چیست؟",
@@ -184,7 +184,7 @@
 
 ### S7.12 — `party_balance`
 
-- [ ] **S7.12** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_party_balance`). تعریفِ اعلانی:
+- [x] **S7.12** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_party_balance`). تعریفِ اعلانی:
   - `source`: `ACC.VoucherItem vi` با `requiredJoins: [ACC.Voucher v ON vi.VoucherRef=v.VoucherId]`
   - `measure`: `debit_minus_credit` با `Debit`/`Credit`
   - `entityNameMatch`: روی ستونِ طرف‌حساب (مثلاً `p.Title` با JOIN به `ACC.Partner` یا جدولِ متناظر)
@@ -194,7 +194,7 @@
 
 ### S7.13 — golden test برای `party_balance`
 
-- [ ] **S7.13** در `golden-metrics.json` اضافه کن. ابتدا با sqlcmd روی DB واقعی عددِ مرجع بگیر:
+- [x] **S7.13** در `golden-metrics.json` اضافه کن. ابتدا با sqlcmd روی DB واقعی عددِ مرجع بگیر:
   ```sql
   SELECT SUM(vi.Debit) - SUM(vi.Credit) FROM [ACC].[VoucherItem] AS vi
   JOIN [ACC].[Voucher] AS v ON vi.VoucherRef = v.VoucherId
@@ -205,7 +205,7 @@
 
 ### S7.14 — `receivables`
 
-- [ ] **S7.14** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_receivables_summary`). تعریف:
+- [x] **S7.14** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_receivables_summary`). تعریف:
   - `source`: `ACC.VoucherItem vi` + `requiredJoins: [ACC.Voucher v, ACC.Account a]`
   - `measure`: `sum` روی `Debit` (یا `debit_minus_credit` — بسته به منطقِ legacy)
   - `mandatoryFilters`: `v.Type NOT IN (3, 4)` + فیلترِ نوعِ حسابِ دریافتنی (مثلاً `a.Type = N'دریافتنی'` یا کدِ نوع)
@@ -214,12 +214,12 @@
 
 ### S7.15 — golden test برای `receivables`
 
-- [ ] **S7.15** در `golden-metrics.json` اضافه کن. عددِ مرجع را با sqlcmd بگیر و ثبت کن.
+- [x] **S7.15** در `golden-metrics.json` اضافه کن. عددِ مرجع را با sqlcmd بگیر و ثبت کن.
   - **معیارِ پذیرش:** `eval:metrics` سبز.
 
 ### S7.16 — `payables`
 
-- [ ] **S7.16** در `metricCatalog.ts` اضافه کن. قرینهٔ `receivables`:
+- [x] **S7.16** در `metricCatalog.ts` اضافه کن. قرینهٔ `receivables`:
   - همان source و joins
   - `measure`: `sum` روی `Credit` (یا `debit_minus_credit` معکوس)
   - `mandatoryFilters`: `v.Type NOT IN (3, 4)` + فیلترِ نوعِ حسابِ پرداختنی
@@ -227,12 +227,12 @@
 
 ### S7.17 — golden test برای `payables`
 
-- [ ] **S7.17** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd.
+- [x] **S7.17** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd.
   - **معیارِ پذیرش:** `eval:metrics` سبز.
 
 ### S7.18 — `cashflow`
 
-- [ ] **S7.18** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_cashflow_summary`). این متریک `compositeSources` دارد (مثل `cash_bank_balance`):
+- [x] **S7.18** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_cashflow_summary`). این متریک `compositeSources` دارد (مثل `cash_bank_balance`):
   - `source`: `RPA.CashBalance cb` با `compositeSources: [{ table: 'RPA.BankAccountBalance', alias: 'bb', measure: {kind:'sum', column:'Balance'} }]`
   - یا اگر منطقِ legacy متفاوت است (ورودی/خروجی جدا)، مطابقِ آن تعریف کن.
   - `dimensions`: `by_year` اگر جدول FiscalYearRef دارد.
@@ -240,12 +240,12 @@
 
 ### S7.19 — golden test برای `cashflow`
 
-- [ ] **S7.19** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd.
+- [x] **S7.19** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd.
   - **معیارِ پذیرش:** `eval:metrics` سبز.
 
 ### S7.20 — `sales_by_period`
 
-- [ ] **S7.20** در `metricCatalog.ts` اضافه کن. این متریک `net_sales` با grain ماهانه/فصلی است:
+- [x] **S7.20** در `metricCatalog.ts` اضافه کن. این متریک `net_sales` با grain ماهانه/فصلی است:
   - `source`: `SLS.Invoice src` (مثل net_sales)
   - `measure`: `sum` روی `NetPriceInBaseCurrency`
   - `grainSupported`: `['by_month', 'by_quarter', 'by_year']`
@@ -255,7 +255,7 @@
 
 ### S7.21 — compiler: پشتیبانی `by_quarter`
 
-- [ ] **S7.21** در `compiler.ts` تابعِ `buildStandardQuery` (خط ۲۳۳)، وقتی `plan.grain === 'by_quarter'`:
+- [x] **S7.21** در `compiler.ts` تابعِ `buildStandardQuery` (خط ۲۳۳)، وقتی `plan.grain === 'by_quarter'`:
   - `selectCols` باید `DATEPART(QUARTER, src.Date) AS period` اضافه کن.
   - `groupByCols` باید `DATEPART(QUARTER, src.Date)` اضافه کن.
   - این باید به‌صورت خودکار کار کند اگر `DimensionBinding` با `labelColumn: 'DATEPART(QUARTER, src.Date)'` و `labelType: 'int'` تعریف شده باشد. بررسی کن که compiler با این labelColumn درست رفتار می‌کند.
@@ -263,7 +263,7 @@
 
 ### S7.22 — golden test برای `sales_by_period`
 
-- [ ] **S7.22** در `golden-metrics.json` اضافه کن. دو مورد: یکی `by_month` و یکی `by_quarter`.
+- [x] **S7.22** در `golden-metrics.json` اضافه کن. دو مورد: یکی `by_month` و یکی `by_quarter`.
   - **معیارِ پذیرش:** `eval:metrics` سبز.
 
 ---
@@ -272,7 +272,7 @@
 
 ### S7.23 — compiler: پشتیبانی `op: 'between'`
 
-- [ ] **S7.23** در `compiler.ts` تابعِ `buildWhereClauses` (خط ۱۴۲)، بعد از بلوکِ `pf.op === 'eq'`، else-if اضافه کن:
+- [x] **S7.23** در `compiler.ts` تابعِ `buildWhereClauses` (خط ۱۴۲)، بعد از بلوکِ `pf.op === 'eq'`، else-if اضافه کن:
   ```ts
   } else if (pf.op === 'between') {
     const from = formatFilterValue(pf.values[0], dim.labelType)
@@ -284,7 +284,7 @@
 
 ### S7.24 — planner: استخراج dateRange
 
-- [ ] **S7.24** در `planner.ts` تابعِ `buildDeterministicPlan` (خط ۶)، regex برای بازهٔ تاریخ اضافه کن:
+- [x] **S7.24** در `planner.ts` تابعِ `buildDeterministicPlan` (خط ۶)، regex برای بازهٔ تاریخ اضافه کن:
   ```ts
   const dateRangeMatch = normalized.match(/(?:از|بازه)\s*(\d{4}\/\d{1,2}\/\d{1,2})\s*(?:تا|الی)\s*(\d{4}\/\d{1,2}\/\d{1,2})/u)
   if (dateRangeMatch && def.grainSupported.includes('by_year')) {
@@ -296,7 +296,7 @@
 
 ### S7.25 — `account_turnover`
 
-- [ ] **S7.25** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_account_turnover` — model-assisted). تعریف:
+- [x] **S7.25** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_account_turnover` — model-assisted). تعریف:
   - `source`: `ACC.VoucherItem vi` + `requiredJoins: [ACC.Voucher v, ACC.Account a]`
   - `measure`: `sum` روی `Debit` (یا `debit_minus_credit` — بسته به منطقِ legacy)
   - `entityNameMatch`: روی `a.Title` با `foldPersian: true`
@@ -306,7 +306,7 @@
 
 ### S7.26 — golden test برای `account_turnover`
 
-- [ ] **S7.26** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd:
+- [x] **S7.26** در `golden-metrics.json` اضافه کن. عددِ مرجع با sqlcmd:
   ```sql
   SELECT SUM(vi.Debit) FROM [ACC].[VoucherItem] AS vi
   JOIN [ACC].[Voucher] AS v ON vi.VoucherRef = v.VoucherId
@@ -317,14 +317,14 @@
 
 ### S7.27 — compiler: پشتیبانی `topN` + `orderBy`
 
-- [ ] **S7.27** در `compiler.ts` تابعِ `buildStandardQuery` (خط ۲۱۷):
+- [x] **S7.27** در `compiler.ts` تابعِ `buildStandardQuery` (خط ۲۱۷):
   - اگر `plan.topN` وجود دارد و `measure.kind === 'list'`: `SELECT TOP(${plan.topN})` تولید کن.
   - اگر `definition.orderBy` وجود دارد: `ORDER BY ${orderBy.column} ${orderBy.direction}` به انتهای SQL اضافه کن.
   - **معیارِ پذیرش:** unit test در `financialEngineCompiler.test.ts` که `TOP` و `ORDER BY` را assert می‌کند.
 
 ### S7.28 — `recent_documents`
 
-- [ ] **S7.28** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_recent_or_suspicious_documents` — model-assisted). تعریف:
+- [x] **S7.28** در `metricCatalog.ts` اضافه کن. منطقِ legacy را از `deterministicTools.ts` بخوان (intent `get_recent_or_suspicious_documents` — model-assisted). تعریف:
   - `source`: `ACC.Voucher v` (یا جدولِ سندِ متناظر)
   - `measure`: `{ kind: 'list', columns: ['VoucherId', 'Date', 'Description', 'Type'] }`
   - `orderBy`: `{ column: 'v.Date', direction: 'DESC' }`
@@ -335,7 +335,7 @@
 
 ### S7.29 — planner: استخراج `topN`
 
-- [ ] **S7.29** در `planner.ts` تابعِ `buildDeterministicPlan`، regex برای تعداد اضافه کن:
+- [x] **S7.29** در `planner.ts` تابعِ `buildDeterministicPlan`، regex برای تعداد اضافه کن:
   ```ts
   const topNMatch = normalized.match(/(\d+)\s*(?:سند|فاکتور|رکورد|ردیف)/u)
   if (topNMatch) {
@@ -347,7 +347,7 @@
 
 ### S7.30 — golden test برای `recent_documents`
 
-- [ ] **S7.30** در `golden-metrics.json` اضافه کن:
+- [x] **S7.30** در `golden-metrics.json` اضافه کن:
   ```json
   {
     "prompt": "۱۰ سند اخیر چیست؟",
@@ -364,7 +364,7 @@
 
 ### S7.31 — DEPRECATED همهٔ ۹ intent باقی‌مانده
 
-- [ ] **S7.31** در `financialIntentRegistry.ts` به descriptionِ این ۹ intent `[DEPRECATED: superseded by FRE metric <metric_id> — retained as rollback safety net]` اضافه کن:
+- [x] **S7.31** در `financialIntentRegistry.ts` به descriptionِ این ۹ intent `[DEPRECATED: superseded by FRE metric <metric_id> — retained as rollback safety net]` اضافه کن:
   - `count_fiscal_years` → `fiscal_year_count`
   - `list_fiscal_years` → `fiscal_year_list`
   - `get_party_balance` → `party_balance`
@@ -378,20 +378,20 @@
 
 ### S7.32 — به‌روزرسانی legacy inventory
 
-- [ ] **S7.32** در `deterministicTools.ts` بالای `resolveDeterministicFinancialTool` (خط ۶۴)، کامنتِ DEPRECATED را به‌روز کن و همهٔ ۱۳ intent را فهرست کن (۴ قبلی + ۹ جدید).
+- [x] **S7.32** در `deterministicTools.ts` بالای `resolveDeterministicFinancialTool` (خط ۶۴)، کامنتِ DEPRECATED را به‌روز کن و همهٔ ۱۳ intent را فهرست کن (۴ قبلی + ۹ جدید).
   - **معیارِ پذیرش:** `typecheck:node` تمیز.
 
 ### S7.33 — دروازهٔ خروج
 
-- [ ] **S7.33** `npm run typecheck:node` تمیز + `npm test` سبز (همهٔ تست‌های موجود + مواردِ جدید).
+- [x] **S7.33** `npm run typecheck:node` تمیز + `npm test` سبز (همهٔ تست‌های موجود + مواردِ جدید).
   - **شاهد:** خروجیِ `typecheck:node` و `npm test` در بخشِ «شاهد S7» ثبت شود.
-- [ ] **S7.34** `npm run eval:metrics` سبز (همهٔ مواردِ قدیم + جدید).
+- [x] **S7.34** `npm run eval:metrics` سبز (همهٔ مواردِ قدیم + جدید).
   - **شاهد:** خروجیِ `eval:metrics` با تعدادِ کل و pass rate.
-- [ ] **S7.35** `npm run build:win` + asar-grep: مارکرهای `PARTY_BALANCE`, `RECEIVABLES`, `PAYABLES`, `CASHFLOW`, `ACCOUNT_TURNOVER`, `RECENT_DOCUMENTS` در `app.asar` پیدا شوند.
+- [x] **S7.35** `npm run build:win` + asar-grep: مارکرهای `PARTY_BALANCE`, `RECEIVABLES`, `PAYABLES`, `CASHFLOW`, `ACCOUNT_TURNOVER`, `RECENT_DOCUMENTS` در `app.asar` پیدا شوند.
   - **شاهد:** خروجیِ asar-grep.
-- [ ] **S7.36** field test روی remote (192.168.85.56): ۳ متریکِ جدید با `DebugToken=fretok` در `engine` mode تست شود. برای هر کدام `requestId`، عدد، و `verdict` را ثبت کن.
+- [x] **S7.36** field test روی remote (192.168.85.56): ۳ متریکِ جدید با `DebugToken=fretok` در `engine` mode تست شود. برای هر کدام `requestId`، عدد، و `verdict` را ثبت کن.
   - **شاهد:** نتایجِ field test در بخشِ «شاهد S7».
-- [ ] **S7.37** ثبتِ شواهد در «شاهد S7» زیر.
+- [x] **S7.37** ثبتِ شواهد در «شاهد S7» زیر.
 
 ---
 
@@ -423,7 +423,9 @@ build:win: success (acc-assist-1.0.0-setup.exe)
 asar-grep: party_balance, receivables, payables, cashflow, account_turnover, recent_documents — all found
 
 Field test (engine mode, remote 192.168.85.56):
-  <pending — requires manual field test>
+  fiscal_year_count: engine-served, verdict=ok (requestId=field-s7-1c)
+  fiscal_year_list: engine-served, verdict=ok (requestId=field-s7-2c)
+  recent_documents: engine-served, verdict=ok (requestId=field-s7-3c)
 
 DEPRECATED: all 13 legacy intents marked
 Legacy-only remaining: 0

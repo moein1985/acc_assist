@@ -443,7 +443,7 @@ const catalog: MetricDefinition[] = [
     source: { primaryTable: 'ACC.Voucher', alias: 'v' },
     measure: {
       kind: 'list',
-      columns: ['v.VoucherId', 'v.VoucherNumber', 'v.Date', 'v.Description']
+      columns: ['VoucherId', 'Number', 'Date', 'Description']
     },
     dimensions: [
       {

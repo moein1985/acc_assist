@@ -90,6 +90,10 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     }
   }
 
+  if (!topN && def.measure.kind === 'list') {
+    topN = metricId === 'recent_documents' ? 20 : 100
+  }
+
   if (comparison) {
     grain = 'total'
   }

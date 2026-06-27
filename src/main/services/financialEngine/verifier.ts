@@ -99,7 +99,9 @@ export function mapEngineResultToEvidence(result: EngineResult): ToolEvidence {
     rows.length > 0 &&
     rows.some((row) => {
       const val = row['result_value'] ?? row['base_value']
-      return val !== null && val !== undefined
+      if (val !== null && val !== undefined) return true
+      const keys = Object.keys(row)
+      return keys.length > 0 && keys.some((k) => row[k] !== null && row[k] !== undefined)
     })
 
   return {
