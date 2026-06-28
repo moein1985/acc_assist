@@ -419,3 +419,227 @@ test('S15.25: Golden case — relationships include FK from JournalLine to Journ
 test('S15.26: Field test with 2nd database — SKIPPED (no 2nd database available)', { skip: true }, () => {
   assert.ok(true)
 })
+
+// ─── S15.27: Extended golden cases ───
+
+// --- 5 cases for discovery on mock schema ---
+
+test('S15.27: Discovery — Customer table maps to party concept', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  const tables = result.tables as Record<string, { schema: string; table: string }>
+  assert.ok(tables.party, 'party should be mapped')
+  assert.equal(tables.party.table, 'Customer')
+})
+
+test('S15.27: Discovery — column mapping for voucher includes EntryId as idColumn', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  const voucherCols = result.columns.voucher
+  assert.ok(voucherCols, 'voucher columns should be mapped')
+  assert.ok(voucherCols!.idColumn, 'idColumn should be mapped')
+  assert.equal(voucherCols!.idColumn!.column, 'EntryId')
+})
+
+test('S15.27: Discovery — column mapping for salesInvoice includes Amount as netAmountColumn', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  const salesCols = result.columns.salesInvoice
+  assert.ok(salesCols, 'salesInvoice columns should be mapped')
+  assert.ok(salesCols!.netAmountColumn, 'netAmountColumn should be mapped')
+  assert.equal(salesCols!.netAmountColumn!.column, 'Amount')
+})
+
+test('S15.27: Discovery — unmatched tables list excludes mapped tables', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  const mappedTableNames = Object.values(result.tables).map(
+    (t) => t.schema + '.' + t.table
+  )
+  for (const unmatched of result.unmatched) {
+    assert.ok(
+      !mappedTableNames.includes(unmatched),
+      'Unmatched table should not be in mapped tables: ' + unmatched
+    )
+  }
+})
+
+test('S15.27: Discovery — relationships include FK from Bill to FiscalPeriod', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  const rels = inferRelationships(schema, result.tables)
+  const billFyRel = rels.find(
+    (r) => r.fromTable.table === 'Bill' && r.toTable.table === 'FiscalPeriod'
+  )
+  assert.ok(billFyRel, 'Should have relationship from Bill to FiscalPeriod')
+  assert.equal(billFyRel!.fromColumn, 'PeriodRef')
+  assert.equal(billFyRel!.toColumn, 'PeriodId')
+})
+
+// --- 5 cases for Compiler with non-sepidar adapter ---
+
+test('S15.27: Compiler — net_sales SQL uses Amount column from mock schema', () => {
+  const adapter = buildMockAdapter()
+  const deps = makeCompilerDeps(adapter)
+  const def = makeConceptSalesDef()
+  const plan: MetricPlan = {
+    metricId: 'net_sales',
+    grain: 'total',
+    filters: [],
+    confidence: 1.0,
+  }
+  const compiled = compileMetricPlan(plan, def, deps)
+  assert.ok(compiled.sql.includes('[Amount]'), 'SQL should use Amount column')
+  assert.ok(!compiled.sql.includes('NetPriceInBaseCurrency'), 'SQL should not use Sepidar column name')
+})
+
+test('S15.27: Compiler — net_sales SQL uses BillId as primary key from mock schema', () => {
+  const adapter = buildMockAdapter()
+  const pkCol = adapter.getPrimaryKeyColumn(AccountingConcept.sales_invoice)
+  assert.equal(pkCol, 'BillId', 'Primary key should be BillId from mock schema')
+})
+
+test('S15.27: Compiler — account_balance SQL uses Debit/Credit from mock schema', () => {
+  const adapter = buildMockAdapter()
+  const deps = makeCompilerDeps(adapter)
+  const def = makeConceptVoucherDef()
+  const plan: MetricPlan = {
+    metricId: 'account_balance',
+    grain: 'total',
+    filters: [],
+    confidence: 1.0,
+  }
+  const compiled = compileMetricPlan(plan, def, deps)
+  assert.ok(compiled.sql.includes('[Debit]'), 'SQL should use Debit column')
+  assert.ok(compiled.sql.includes('[Credit]'), 'SQL should use Credit column')
+})
+
+test('S15.27: Compiler — account_balance by_year uses FiscalPeriod table and PeriodName column', () => {
+  const adapter = buildMockAdapter()
+  const deps = makeCompilerDeps(adapter)
+  const def = makeConceptVoucherDef()
+  const plan: MetricPlan = {
+    metricId: 'account_balance',
+    grain: 'by_year',
+    filters: [],
+    confidence: 1.0,
+  }
+  const compiled = compileMetricPlan(plan, def, deps)
+  assert.ok(compiled.sql.includes('[Financial].[FiscalPeriod]'), 'SQL should join FiscalPeriod')
+  assert.ok(compiled.sql.includes('PeriodTitle'), 'SQL should use PeriodTitle column for year label')
+})
+
+test('S15.27: Compiler — account classification uses AccountCode from mock schema', () => {
+  const adapter = buildMockAdapter()
+  const filter = adapter.getAccountClassification(AccountCategory.liability)
+  assert.ok(filter.includes('AccountCode'), 'Filter should use AccountCode column')
+  assert.ok(filter.includes("'2'"), 'Filter should use prefix 2 for liabilities')
+})
+
+// --- 3 cases for confidence levels (high/medium/low) ---
+
+test('S15.27: Confidence — high when all 4 core concepts mapped', () => {
+  const schema = loadMockSchema()
+  const result = heuristicMapTables(schema)
+  assert.equal(result.confidence, 'high', 'Mock schema with all core concepts should have high confidence')
+})
+
+test('S15.27: Confidence — medium when only 2 core concepts mapped', () => {
+  const partialSchema: RawSchemaInventory = {
+    serverVersion: '12.0',
+    databaseName: 'PartialDB',
+    scannedAt: new Date().toISOString(),
+    tables: [
+      {
+        tableRef: { schema: 'dbo', table: 'JournalEntry' },
+        estimatedRowCount: 100,
+        columns: [
+          { name: 'EntryId', dataType: 'int', maxLength: 4, isNullable: false, isIdentity: true, isPrimaryKey: true },
+          { name: 'EntryDate', dataType: 'datetime', maxLength: 8, isNullable: true, isIdentity: false, isPrimaryKey: false },
+        ],
+        foreignKeys: [],
+      },
+      {
+        tableRef: { schema: 'dbo', table: 'ChartOfAccounts' },
+        estimatedRowCount: 50,
+        columns: [
+          { name: 'AccountId', dataType: 'int', maxLength: 4, isNullable: false, isIdentity: true, isPrimaryKey: true },
+          { name: 'AccountCode', dataType: 'nvarchar', maxLength: 50, isNullable: true, isIdentity: false, isPrimaryKey: false },
+        ],
+        foreignKeys: [],
+      },
+    ],
+  }
+  const result = heuristicMapTables(partialSchema)
+  assert.equal(result.confidence, 'medium', '2 core concepts should give medium confidence')
+})
+
+test('S15.27: Confidence — low when no core concepts mapped', () => {
+  const emptySchema: RawSchemaInventory = {
+    serverVersion: '12.0',
+    databaseName: 'EmptyDB',
+    scannedAt: new Date().toISOString(),
+    tables: [
+      {
+        tableRef: { schema: 'dbo', table: 'RandomTable' },
+        estimatedRowCount: 10,
+        columns: [
+          { name: 'Id', dataType: 'int', maxLength: 4, isNullable: false, isIdentity: true, isPrimaryKey: true },
+        ],
+        foreignKeys: [],
+      },
+    ],
+  }
+  const result = heuristicMapTables(emptySchema)
+  assert.equal(result.confidence, 'low', 'No core concepts should give low confidence')
+})
+
+// --- 2 cases for human-in-the-loop adapter override ---
+
+test('S15.27: Human-in-the-loop — manual table override changes resolved table name', () => {
+  const adapter = buildMockAdapter()
+  const originalTable = adapter.resolveTable(AccountingConcept.voucher)
+  assert.equal(originalTable, 'Accounting.JournalEntry')
+
+  // Simulate human override: rebuild adapter with corrected mapping
+  const schema = loadMockSchema()
+  const heuristic = heuristicMapTables(schema)
+  const overriddenTables = { ...heuristic.tables, voucher: { schema: 'Accounting', table: 'GeneralJournal' } }
+  const overriddenAdapter = buildAdapter({
+    softwareId: 'mocksoft',
+    softwareName: 'Mock Software',
+    tables: overriddenTables,
+    columns: heuristic.columns,
+    relationships: inferRelationships(schema, overriddenTables),
+    enums: detectEnums(schema, overriddenTables),
+    confidence: 'high',
+  })
+  assert.equal(overriddenAdapter.resolveTable(AccountingConcept.voucher), 'Accounting.GeneralJournal')
+})
+
+test('S15.27: Human-in-the-loop — manual column override changes resolved column name', () => {
+  const adapter = buildMockAdapter()
+  const originalCol = adapter.resolveColumn(AccountingConcept.voucher, 'dateColumn')
+  assert.equal(originalCol, 'EntryDate')
+
+  // Simulate human override: rebuild adapter with corrected column mapping
+  const schema = loadMockSchema()
+  const heuristic = heuristicMapTables(schema)
+  const overriddenColumns = {
+    ...heuristic.columns,
+    voucher: {
+      ...heuristic.columns.voucher,
+      dateColumn: { schema: 'Accounting', table: 'JournalEntry', column: 'PostingDate' },
+    },
+  }
+  const overriddenAdapter = buildAdapter({
+    softwareId: 'mocksoft',
+    softwareName: 'Mock Software',
+    tables: heuristic.tables,
+    columns: overriddenColumns,
+    relationships: inferRelationships(schema, heuristic.tables),
+    enums: detectEnums(schema, heuristic.tables),
+    confidence: 'high',
+  })
+  assert.equal(overriddenAdapter.resolveColumn(AccountingConcept.voucher, 'dateColumn'), 'PostingDate')
+})
