@@ -488,7 +488,7 @@
 
 ### S15.17 — Router با adapter پارامتریک
 
-- [ ] **S15.17** Router را به‌روز کن تا از `SchemaAdapter` استفاده کند:
+- [x] **S15.17** Router را به‌روز کن تا از `SchemaAdapter` استفاده کند:
   - **نکته:** Router فعلی بر اساس signal matching کار می‌کند — نیازی به adapter ندارد
   - **اما:** اگر adapter برای یک نرم‌افزار جدید anchors متفاوت دارد، Router باید بداند
   - **تغییر:** anchors در `MetricDefinition` می‌توانند به adapter وابسته باشند (اختیاری)
@@ -496,7 +496,7 @@
 
 ### S15.18 — Planner با adapter پارامتریک
 
-- [ ] **S15.18** Planner را به‌روز کن تا از `SchemaAdapter` استفاده کند:
+- [x] **S15.18** Planner را به‌روز کن تا از `SchemaAdapter` استفاده کند:
   - **نکته:** Planner فعلی few-shot examples با schema سپیدار دارد
   - **تغییر:** اگر adapter غیر-sepidar است، few-shot examples به schema جدید adapt شوند
   - **روش:** در prompt Planner، نام جداول و ستون‌ها از adapter استخراج و جایگزین شوند
@@ -504,7 +504,7 @@
 
 ### S15.19 — unit test برای Compiler با adapter
 
-- [ ] **S15.19** unit test:
+- [x] **S15.19** unit test:
   - test: Compiler با `sepidarAdapter` همان SQL قبلی را تولید کند
   - test: Compiler با mock adapter (نام‌های متفاوت) SQL درست تولید کند
   - test: Compiler با adapter ناقص graceful error بدهد

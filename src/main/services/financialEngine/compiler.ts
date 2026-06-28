@@ -413,16 +413,19 @@ function resolveConceptDimensions(
       dim.expression = cd.expression
       dim.labelColumn = cd.expression
     } else if (cd.conceptLabelField && cd.conceptJoin) {
+      const sourceConcept = cd.conceptJoin.sourceAlias
+        ? (findConceptByAlias(cs, cd.conceptJoin.sourceAlias) ?? cs.concept)
+        : cs.concept
       dim.join = {
         table: adapter.resolveTable(cd.conceptJoin.concept),
         alias: cd.conceptJoin.alias,
         on: {
-          sourceColumn: resolveConceptColumn(adapter, cs.concept, cd.conceptJoin.on.sourceColumn),
+          sourceColumn: resolveConceptColumn(adapter, sourceConcept, cd.conceptJoin.on.sourceColumn),
           targetColumn: resolveConceptColumn(adapter, cd.conceptJoin.concept, cd.conceptJoin.on.targetColumn)
         },
         sourceAlias: cd.conceptJoin.sourceAlias
       }
-      dim.labelColumn = `${cd.conceptJoin.alias}.${adapter.resolveColumn(cd.conceptJoin.concept, cd.conceptLabelField)}`
+      dim.labelColumn = adapter.resolveColumn(cd.conceptJoin.concept, cd.conceptLabelField)
     } else if (cd.conceptLabelField) {
       dim.labelColumn = adapter.resolveColumn(cs.concept, cd.conceptLabelField)
     }

@@ -192,6 +192,8 @@ export interface MetricDefinition {
   id: MetricId
   titleFa: string
   anchors: string[]
+  /** Per-software anchor overrides — when adapter is active, these replace default anchors */
+  adapterAnchors?: Record<string, string[]>
   supportSignals?: string[]
   excludeSignals?: string[]
   softwareId: 'sepidar' | 'mahak' | 'generic'

@@ -496,11 +496,24 @@ export function buildDeterministicMultiPlan(prompt: string): MultiMetricPlan | n
 
 export interface PlannerPromptContext {
   userPrompt: string
+  softwareId?: string
 }
 
-export function buildPlannerPrompt(userPrompt: string): string {
+// S15.18: Build schema context from adapter when available
+function buildSchemaContext(softwareId?: string): string {
+  if (!softwareId || softwareId === 'sepidar') {
+    return ''
+  }
+  return `\n\nنکته: این سیستم به نرم‌افزار «${softwareId}» متصل است. متریک‌های موجود فقط آن‌هایی هستند که با این نرم‌افزار سازگارند.`
+}
+
+export function buildPlannerPrompt(userPrompt: string, softwareId?: string): string {
   const catalog = getMetricCatalog()
-  const metricList = catalog
+  // S15.18: Filter metrics by softwareId when adapter is active
+  const filteredCatalog = softwareId && softwareId !== 'sepidar'
+    ? catalog.filter(m => m.softwareId === softwareId || m.softwareId === 'generic')
+    : catalog
+  const metricList = filteredCatalog
     .map(
       (m) =>
         `- id: ${m.id}, titleFa: ${m.titleFa}, grainSupported: [${m.grainSupported.join(', ')}]`
@@ -593,7 +606,7 @@ ${metricList}
 سؤال: آب‌وهوای تهران
 پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.05}
 
-سؤال کاربر: ${userPrompt}
+سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}
 پاسخ JSON:`
 }
 
@@ -719,9 +732,10 @@ export interface PlannerModelDeps {
 // S10.4: buildModelPlan now returns ParsePlannerResult which may include multiPlan
 export async function buildModelPlan(
   userPrompt: string,
-  deps: PlannerModelDeps
+  deps: PlannerModelDeps,
+  softwareId?: string
 ): Promise<ParsePlannerResult> {
-  const plannerPrompt = buildPlannerPrompt(userPrompt)
+  const plannerPrompt = buildPlannerPrompt(userPrompt, softwareId)
   try {
     const raw = await deps.callModel(plannerPrompt)
     return parsePlannerOutput(raw)

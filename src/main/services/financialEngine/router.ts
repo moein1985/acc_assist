@@ -50,7 +50,7 @@ function setCachedRoute(key: string, result: RouterResult): void {
   routeCache.set(key, { result, expires: Date.now() + ROUTE_CACHE_TTL_MS })
 }
 
-export function routeMultiMetric(prompt: string): MultiMetricRouterResult {
+export function routeMultiMetric(prompt: string, softwareId?: string): MultiMetricRouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt))
   if (!normalized) return { metricIds: [], joinMode: 'side_by_side', confidence: 0 }
 
@@ -71,7 +71,7 @@ export function routeMultiMetric(prompt: string): MultiMetricRouterResult {
   }
 
   if (joinMode === 'trend') {
-    const route = routeMetric(prompt)
+    const route = routeMetric(prompt, softwareId)
     if (route.metricId && route.confidence >= 0.7) {
       return { metricIds: [route.metricId], joinMode, confidence: route.confidence }
     }
@@ -90,7 +90,7 @@ export function routeMultiMetric(prompt: string): MultiMetricRouterResult {
 
   const metricIds: MetricId[] = []
   for (const seg of segments) {
-    const route = routeMetric(seg.trim())
+    const route = routeMetric(seg.trim(), softwareId)
     if (route.metricId && route.confidence >= 0.7) {
       metricIds.push(route.metricId)
     }
@@ -124,11 +124,12 @@ export function routeDerivedMetric(prompt: string): DerivedMetric | null {
   return null
 }
 
-export function routeMetric(prompt: string): RouterResult {
+export function routeMetric(prompt: string, softwareId?: string): RouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt))
   if (!normalized) return { metricId: null, confidence: 0 }
 
-  const cached = getCachedRoute(normalized)
+  const cacheKey = softwareId ? `${softwareId}:${normalized}` : normalized
+  const cached = getCachedRoute(cacheKey)
   if (cached) return cached
 
   const catalog = getMetricCatalog()
@@ -139,7 +140,12 @@ export function routeMetric(prompt: string): RouterResult {
     let score = 0
     let excluded = false
 
-    for (const anchor of metric.anchors) {
+    // S15.17: Use adapter-specific anchors when available
+    const anchors = (softwareId && metric.adapterAnchors?.[softwareId])
+      ? metric.adapterAnchors[softwareId]
+      : metric.anchors
+
+    for (const anchor of anchors) {
       const normalizedAnchor = normalizePersianText(anchor)
       if (normalized.includes(normalizedAnchor)) {
         score += 2
@@ -166,6 +172,6 @@ export function routeMetric(prompt: string): RouterResult {
 
   const confidence = bestScore >= 4 ? 1.0 : bestScore >= 2 ? 0.7 : 0
   const result = { metricId: bestId, confidence }
-  setCachedRoute(normalized, result)
+  setCachedRoute(cacheKey, result)
   return result
 }
