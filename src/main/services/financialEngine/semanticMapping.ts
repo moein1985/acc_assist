@@ -490,6 +490,10 @@ export function detectEnums(
 
 // ─── S15.11: buildAdapter — construct SchemaAdapter from mapping ───
 
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
 export interface BuildAdapterInput {
   softwareId: string
   softwareName: string
@@ -527,7 +531,8 @@ class DiscoveredAdapter implements SchemaAdapter {
   }
 
   resolveTable(concept: string): string {
-    const mapping = (this.tables as Record<string, TableRef>)[concept]
+    const key = snakeToCamel(concept)
+    const mapping = (this.tables as Record<string, TableRef>)[key] ?? (this.tables as Record<string, TableRef>)[concept]
     if (!mapping) {
       throw new Error('Unknown concept: ' + concept)
     }
@@ -535,7 +540,8 @@ class DiscoveredAdapter implements SchemaAdapter {
   }
 
   resolveColumn(concept: string, field: string): string {
-    const conceptCols = (this.columns as Record<string, Record<string, ColumnRef>>)[concept]
+    const key = snakeToCamel(concept)
+    const conceptCols = (this.columns as Record<string, Record<string, ColumnRef>>)[key] ?? (this.columns as Record<string, Record<string, ColumnRef>>)[concept]
     if (!conceptCols) {
       throw new Error('No column mapping for concept: ' + concept)
     }
@@ -546,7 +552,7 @@ class DiscoveredAdapter implements SchemaAdapter {
     return colRef.column
   }
 
-  getFiscalYearJoin(sourceAlias: string, sourceColumn: string): { table: string; alias: string; on: { sourceColumn: string; targetColumn: string }; type: 'inner' } {
+  getFiscalYearJoin(_sourceAlias: string, sourceColumn: string): { table: string; alias: string; on: { sourceColumn: string; targetColumn: string }; type: 'inner' } {
     if (!this.tables.fiscalYear) {
       throw new Error('No fiscal year table mapped')
     }

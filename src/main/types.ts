@@ -145,6 +145,8 @@ export function mergeSettings(current: AppSettings, patch: Partial<AppSettings>)
     connectionProfiles: patch.connectionProfiles ? [...patch.connectionProfiles] : [...current.connectionProfiles],
     activeConnectionProfileId: patch.activeConnectionProfileId ?? current.activeConnectionProfileId,
     schemaCatalogs: patch.schemaCatalogs ? [...patch.schemaCatalogs] : [...current.schemaCatalogs],
-    promptTemplates: patch.promptTemplates ? [...patch.promptTemplates] : [...current.promptTemplates]
+    promptTemplates: patch.promptTemplates ? [...patch.promptTemplates] : [...current.promptTemplates],
+    discoveredAdapters: patch.discoveredAdapters ? { ...patch.discoveredAdapters } : { ...(current.discoveredAdapters ?? {}) },
+    softwareMode: patch.softwareMode ?? current.softwareMode
   }
 }

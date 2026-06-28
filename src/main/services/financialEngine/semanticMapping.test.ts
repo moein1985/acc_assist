@@ -13,6 +13,7 @@ import {
   type HeuristicMappingResult,
 } from './semanticMapping'
 import type { RawSchemaInventory, RawTableInfo } from './schemaDiscovery'
+import { AccountingConcept, AccountCategory } from './schemaAdapter'
 
 // ─── Helper: build a mock inventory ───
 
@@ -383,12 +384,12 @@ test('buildAdapter', (t) => {
   })
 
   t.test('resolveTable works', () => {
-    assert.strictEqual(adapter.resolveTable('voucher'), 'ACC.Voucher')
+    assert.strictEqual(adapter.resolveTable(AccountingConcept.voucher), 'ACC.Voucher')
   })
 
   t.test('resolveColumn works', () => {
-    assert.strictEqual(adapter.resolveColumn('voucher', 'idColumn'), 'VoucherId')
-    assert.strictEqual(adapter.resolveColumn('voucherItem', 'debitColumn'), 'Debit')
+    assert.strictEqual(adapter.resolveColumn(AccountingConcept.voucher, 'idColumn'), 'VoucherId')
+    assert.strictEqual(adapter.resolveColumn(AccountingConcept.voucher_item, 'debitColumn'), 'Debit')
   })
 
   t.test('getFiscalYearJoin works', () => {
@@ -410,7 +411,7 @@ test('buildAdapter', (t) => {
   })
 
   t.test('getAccountClassification works', () => {
-    const filter = adapter.getAccountClassification('asset')
+    const filter = adapter.getAccountClassification(AccountCategory.asset)
     assert.ok(filter.includes('SUBSTRING'))
     assert.ok(filter.includes("'1'"))
   })
@@ -432,11 +433,11 @@ test('buildAdapter', (t) => {
   })
 
   t.test('getFiscalYearColumn works', () => {
-    assert.strictEqual(adapter.getFiscalYearColumn('voucher'), 'FiscalYearRef')
+    assert.strictEqual(adapter.getFiscalYearColumn(AccountingConcept.voucher), 'FiscalYearRef')
   })
 
   t.test('getPrimaryKeyColumn works', () => {
-    assert.strictEqual(adapter.getPrimaryKeyColumn('voucher'), 'VoucherId')
+    assert.strictEqual(adapter.getPrimaryKeyColumn(AccountingConcept.voucher), 'VoucherId')
   })
 
   t.test('relationships are preserved', () => {

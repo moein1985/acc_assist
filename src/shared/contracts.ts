@@ -239,6 +239,19 @@ export interface PromptTemplate {
   isSystem?: boolean
 }
 
+export interface DiscoveredAdapterEntry {
+  adapter: unknown
+  discoveredAt: string
+  confirmed: boolean
+  connectionString: string
+  server: string
+  database: string
+  softwareName?: string
+  confidence?: 'high' | 'medium' | 'low'
+}
+
+export type SoftwareMode = 'sepidar' | 'auto'
+
 export interface AppSettings {
   gemini: GeminiConfig
   sql: SqlConnectionConfig
@@ -252,6 +265,8 @@ export interface AppSettings {
   schemaCatalogs: SchemaCatalogEntry[]
   promptTemplates: PromptTemplate[]
   financialEngineMode?: 'legacy' | 'shadow' | 'engine'
+  discoveredAdapters?: Record<string, DiscoveredAdapterEntry>
+  softwareMode?: SoftwareMode
 }
 
 export interface SqlParameter {
