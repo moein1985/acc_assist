@@ -29,6 +29,8 @@ import { verifyResult } from './verifier'
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   plannerModel?: PlannerModelDeps
+  /** S15.22: Active softwareId for adapter-aware routing and planning */
+  softwareId?: string
 }
 
 export interface EngineRunResult {
@@ -73,7 +75,7 @@ export class FinancialEngine {
       return this.runMultiMetric(multiPlan, signal)
     }
 
-    const route = routeMetric(prompt)
+    const route = routeMetric(prompt, this.deps.softwareId)
 
     // Step 1: If router is confident, use deterministic plan (fast, no model cost)
     if (route.metricId && route.confidence >= 0.7) {
@@ -85,7 +87,7 @@ export class FinancialEngine {
 
     // Step 2: If model planner is available, try it for ambiguous/complex prompts
     if (this.deps.plannerModel) {
-      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel)
+      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel, this.deps.softwareId)
 
       // MultiMetricPlan from model
       if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {

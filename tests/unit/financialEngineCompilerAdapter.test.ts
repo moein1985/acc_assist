@@ -124,7 +124,7 @@ class MockAdapter implements SchemaAdapter {
     return col
   }
 
-  getFiscalYearJoin(sourceAlias: string, sourceColumn: string): JoinSpec {
+  getFiscalYearJoin(_sourceAlias: string, sourceColumn: string): JoinSpec {
     return {
       table: 'SYS.Year',
       alias: 'fy',
@@ -156,7 +156,7 @@ class MockAdapter implements SchemaAdapter {
     return `Server=${config.server},${config.port};Database=${config.database};User Id=${config.user};Password=${config.password};Encrypt=false`
   }
 
-  getFiscalYearColumn(concept: AccountingConcept): string {
+  getFiscalYearColumn(_concept: AccountingConcept): string {
     return 'YearRef'
   }
 

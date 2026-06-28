@@ -530,7 +530,7 @@
 
 ### S15.21 — Connection manager
 
-- [ ] **S15.21** `ConnectionManager` را پیاده کن:
+- [x] **S15.21** `ConnectionManager` را پیاده کن:
   - **هدف:** مدیریت اتصال به دیتابیس بر اساس انتخاب کاربر
   - **مسیر ۱ (سپیدار):** از connection string موجود در settings استفاده شود
   - **مسیر ۲ (Auto):** از connection string واردشده توسط کاربر استفاده شود
@@ -540,7 +540,7 @@
 
 ### S15.22 — Integration مسیر دوگانه
 
-- [ ] **S15.22** در `agentOrchestrator`، مسیر دوگانه را فعال کن:
+- [x] **S15.22** در `agentOrchestrator`، مسیر دوگانه را فعال کن:
   - هنگام startup:
     - اگر `softwareMode = 'sepidar'` → `sepidarAdapter` بارگذاری شود
     - اگر `softwareMode = 'auto'` → adapter از settings بارگذاری شود (یا discovery اجرا شود)
@@ -549,7 +549,7 @@
 
 ### S15.23 — unit test و integration test برای مسیر دوگانه
 
-- [ ] **S15.23** test:
+- [x] **S15.23** test:
   - unit test: ConnectionManager با هر دو مسیر
   - integration test: ارسال سؤال با `sepidarAdapter` → پاسخ درست
   - integration test: ارسال سؤال با mock `autoAdapter` → پاسخ درست

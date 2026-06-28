@@ -279,6 +279,32 @@ export class AgentOrchestrator {
     this.mobileBridge = deps.mobileBridge
   }
 
+  /**
+   * S15.22: Resolve adapter and softwareId for the current settings.
+   * Returns { adapter, softwareId } for injection into FinancialEngine.
+   */
+  private async resolveAdapter(): Promise<{
+    adapter: import('./financialEngine/schemaAdapter').SchemaAdapter
+    softwareId: string
+  }> {
+    const settings = this.getSettings()
+    const mode = settings.softwareMode ?? 'sepidar'
+
+    if (mode === 'auto') {
+      const adapters = settings.discoveredAdapters ?? {}
+      const key = `auto-${settings.sql.server.replace(/[^a-zA-Z0-9._-]/g, '')}-${settings.sql.database.replace(/[^a-zA-Z0-9._-]/g, '')}`
+      const entry = adapters[key]
+      if (entry?.confirmed && entry.adapter) {
+        const adapter = entry.adapter as import('./financialEngine/schemaAdapter').SchemaAdapter
+        return { adapter, softwareId: adapter.softwareId }
+      }
+    }
+
+    const { SepidarAdapter } = await import('./financialEngine/adapters/sepidarAdapter')
+    const sepidar = new SepidarAdapter()
+    return { adapter: sepidar, softwareId: 'sepidar' }
+  }
+
   async sendMessage(
     payload: AgentSendMessageRequest,
     onProgress?: (event: AgentProgressEvent) => void
@@ -327,11 +353,16 @@ export class AgentOrchestrator {
       const { composeEngineResponseMarkdown, composeMultiMetricMarkdown } = await import('./financialEngine/explainer')
       const { checkIntentAlignment } = await import('./financialEngine/verifier')
 
+      // S15.22: Resolve adapter based on softwareMode
+      const { adapter, softwareId } = await this.resolveAdapter()
+
       const engine = new FinancialEngine({
         quoteSqlTableRef,
         quoteSqlIdentifier,
         normalizePersianText,
-        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined)
+        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
+        adapter,
+        softwareId
       })
 
       // S14.41: Pass lastMetricPlan from conversation memory for drill-down follow-up
@@ -384,7 +415,7 @@ export class AgentOrchestrator {
       }
 
       // V5.2: Intent alignment check
-      const intentCheck = checkIntentAlignment(payload.prompt, engineRun.result.plan)
+      const intentCheck = checkIntentAlignment(payload.prompt, engineRun.result.plan, softwareId)
       if (!intentCheck.passed) {
         void this.safeAuditWrite({
           timestamp: new Date().toISOString(),
@@ -440,11 +471,16 @@ export class AgentOrchestrator {
       const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
       const { normalizePersianText } = await import('./textNormalization')
 
+      // S15.22: Resolve adapter for shadow comparison too
+      const { adapter, softwareId } = await this.resolveAdapter()
+
       const engine = new FinancialEngine({
         quoteSqlTableRef,
         quoteSqlIdentifier,
         normalizePersianText,
-        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined)
+        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
+        adapter,
+        softwareId
       })
 
       const engineResult = await engine.run(payload.prompt)

@@ -75,9 +75,10 @@ export function checkReconciliations(
  */
 export function checkIntentAlignment(
   prompt: string,
-  plan: MetricPlan
+  plan: MetricPlan,
+  softwareId?: string
 ): { passed: boolean; reason?: string } {
-  const route = routeMetric(prompt)
+  const route = routeMetric(prompt, softwareId)
   if (route.metricId && route.confidence >= 0.7) {
     if (route.metricId !== plan.metricId) {
       return {
