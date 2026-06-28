@@ -45,6 +45,8 @@ export type MetricId =
   | 'zero_amount_invoices'
   | 'duplicate_vouchers'
   | 'vouchers_without_account'
+  | 'receivables_aging'
+  | 'payables_aging'
 
 export type Grain =
   | 'total'
@@ -57,6 +59,7 @@ export type Grain =
   | 'by_cost_center'
   | 'by_item'
   | 'by_warehouse'
+  | 'by_age_bucket'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }
@@ -132,6 +135,8 @@ export interface DimensionBinding {
   }
   labelColumn: string
   labelType: 'nstring' | 'int'
+  /** Custom SQL expression for computed dimensions (e.g. age buckets) — overrides labelColumn — S14.15 */
+  expression?: string
 }
 
 export interface MetricFilter {
@@ -405,7 +410,9 @@ export const metricPlanSchema = z.object({
     'unbalanced_vouchers',
     'zero_amount_invoices',
     'duplicate_vouchers',
-    'vouchers_without_account'
+    'vouchers_without_account',
+    'receivables_aging',
+    'payables_aging'
   ]),
   grain: z.enum([
     'total',
@@ -414,7 +421,8 @@ export const metricPlanSchema = z.object({
     'by_quarter',
     'by_account',
     'by_branch',
-    'by_customer'
+    'by_customer',
+    'by_age_bucket'
   ]),
   filters: z.array(planFilterSchema),
   comparison: z

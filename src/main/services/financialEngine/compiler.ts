@@ -62,6 +62,10 @@ function findDimension(
 }
 
 function resolveLabelColumn(dim: MetricDefinition['dimensions'][number]): string {
+  // S14.15: Use custom expression for computed dimensions (e.g. age buckets)
+  if (dim.expression) {
+    return dim.expression
+  }
   if (dim.join) {
     return `${dim.join.alias}.${dim.labelColumn}`
   }

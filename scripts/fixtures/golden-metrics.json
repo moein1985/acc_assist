@@ -1158,6 +1158,48 @@
       "expectedMetricId": "vouchers_without_account",
       "expectedGrain": "total",
       "expect": "any_rows"
+    },
+    {
+      "id": "s14-receivables-aging",
+      "prompt": "تحلیل سنی دریافتنی\u200cها",
+      "expectedMetricId": "receivables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-receivables-aging-overdue",
+      "prompt": "چقدر دریافتنی سررسید گذشته است؟",
+      "expectedMetricId": "receivables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-receivables-aging-alt",
+      "prompt": "دریافتنی\u200cهای معوق کدامند؟",
+      "expectedMetricId": "receivables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-payables-aging",
+      "prompt": "تحلیل سنی پرداختنی\u200cها",
+      "expectedMetricId": "payables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-payables-aging-overdue",
+      "prompt": "چقدر پرداختنی سررسید گذشته است؟",
+      "expectedMetricId": "payables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-payables-aging-alt",
+      "prompt": "پرداختنی\u200cهای معوق کدامند؟",
+      "expectedMetricId": "payables_aging",
+      "expectedGrain": "by_age_bucket",
+      "expect": "any_rows"
     }
   ],
   "negative": [

@@ -279,6 +279,15 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'by_cost_center'
   }
 
+  // S14.15: Aging analysis — prompts with "تحلیل سنی" or "سررسید" or "معوق" → by_age_bucket
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_age_bucket') &&
+    /تحلیل\s*سنی|سررسید\s*گذشته|معوق|سنی\s*(دریافتنی|پرداختنی)/u.test(normalized)
+  ) {
+    grain = 'by_age_bucket'
+  }
+
   if (def.entityNameMatch) {
     // S10.9: Expanded entity patterns for conversational prompts
     const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)

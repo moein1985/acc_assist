@@ -282,7 +282,7 @@ const catalog: MetricDefinition[] = [
     id: 'receivables',
     titleFa: 'دریافتنی‌ها',
     anchors: ['دریافتنی', 'مانده دریافتنی', 'حساب‌های دریافتنی', 'طرف حساب دریافتنی'],
-    excludeSignals: ['پرداختنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش'],
+    excludeSignals: ['پرداختنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'معوق', 'سررسید', 'تحلیل سنی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -317,7 +317,7 @@ const catalog: MetricDefinition[] = [
     id: 'payables',
     titleFa: 'پرداختنی‌ها',
     anchors: ['پرداختنی', 'مانده پرداختنی', 'حساب‌های پرداختنی', 'طرف حساب پرداختنی', 'بدهی', 'بدهی‌ها'],
-    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع'],
+    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -1646,6 +1646,112 @@ const catalog: MetricDefinition[] = [
       { sql: 'vi.AccountSLRef IS NULL OR vi.AccountSLRef = 0', description: 'ردیف بدون حساب' }
     ],
     orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'receivables_aging',
+    titleFa: 'تحلیل سنی دریافتنی\u200cها',
+    anchors: ['دریافتنی سررسیدشده', 'تحلیل سنی دریافتنی', 'دریافتنی\u200cهای معوق', 'دریافتنی\u200cهای overdue', 'چقدر دریافتنی سررسید گذشته', 'دریافتنی معوق', 'سنی دریافتنی'],
+    excludeSignals: ['پرداختنی', 'فروش', 'خرید', 'تراز', 'فاکتور', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_age_bucket'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'debit_minus_credit',
+      debitColumn: 'vi.Debit',
+      creditColumn: 'vi.Credit'
+    },
+    dimensions: [
+      {
+        dimension: 'by_age_bucket',
+        labelColumn: 'AgeBucket',
+        labelType: 'nstring',
+        expression: "CASE WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 0 AND 30 THEN '0-30' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 31 AND 60 THEN '31-60' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 61 AND 90 THEN '61-90' ELSE '90+' END"
+      },
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: "a.Code LIKE '12%' OR a.Title LIKE N'%دریافتنی%'", description: 'فقط حساب\u200cهای دریافتنی' }
+    ],
+    orderBy: { column: 'AgeBucket', direction: 'ASC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'payables_aging',
+    titleFa: 'تحلیل سنی پرداختنی\u200cها',
+    anchors: ['پرداختنی سررسیدشده', 'تحلیل سنی پرداختنی', 'پرداختنی\u200cهای معوق', 'چقدر پرداختنی سررسید گذشته', 'پرداختنی معوق', 'سنی پرداختنی'],
+    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'فاکتور', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_age_bucket'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'debit_minus_credit',
+      debitColumn: 'vi.Debit',
+      creditColumn: 'vi.Credit'
+    },
+    dimensions: [
+      {
+        dimension: 'by_age_bucket',
+        labelColumn: 'AgeBucket',
+        labelType: 'nstring',
+        expression: "CASE WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 0 AND 30 THEN '0-30' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 31 AND 60 THEN '31-60' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 61 AND 90 THEN '61-90' ELSE '90+' END"
+      },
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: "a.Code LIKE '22%' OR a.Title LIKE N'%پرداختنی%'", description: 'فقط حساب\u200cهای پرداختنی' }
+    ],
+    orderBy: { column: 'AgeBucket', direction: 'ASC' },
     dateColumn: 'v.Date'
   }
 ]
