@@ -47,6 +47,7 @@ export type MetricId =
   | 'vouchers_without_account'
   | 'receivables_aging'
   | 'payables_aging'
+  | 'party_turnover'
 
 export type Grain =
   | 'total'
@@ -60,6 +61,7 @@ export type Grain =
   | 'by_item'
   | 'by_warehouse'
   | 'by_age_bucket'
+  | 'by_voucher'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }
@@ -412,7 +414,8 @@ export const metricPlanSchema = z.object({
     'duplicate_vouchers',
     'vouchers_without_account',
     'receivables_aging',
-    'payables_aging'
+    'payables_aging',
+    'party_turnover'
   ]),
   grain: z.enum([
     'total',
@@ -422,7 +425,8 @@ export const metricPlanSchema = z.object({
     'by_account',
     'by_branch',
     'by_customer',
-    'by_age_bucket'
+    'by_age_bucket',
+    'by_voucher'
   ]),
   filters: z.array(planFilterSchema),
   comparison: z

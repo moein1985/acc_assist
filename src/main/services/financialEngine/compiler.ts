@@ -266,12 +266,21 @@ function buildStandardQuery(
   const groupByCols: string[] = []
   const selectCols: string[] = isList ? [measureExpr] : [`${measureExpr} AS result_value`]
 
-  if (plan.grain !== 'total') {
+  if (plan.grain !== 'total' && plan.grain !== 'by_voucher') {
     const dim = findDimension(definition, plan.grain)
     if (dim) {
       const labelCol = resolveLabelColumn(dim)
       selectCols.unshift(`${labelCol} AS period`)
       groupByCols.push(labelCol)
+    }
+  }
+
+  // S14.19: by_voucher adds voucher number as period column but no GROUP BY
+  if (plan.grain === 'by_voucher') {
+    const dim = findDimension(definition, 'by_voucher')
+    if (dim) {
+      const labelCol = resolveLabelColumn(dim)
+      selectCols.unshift(`${labelCol} AS period`)
     }
   }
 

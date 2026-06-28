@@ -1200,6 +1200,51 @@
       "expectedMetricId": "payables_aging",
       "expectedGrain": "by_age_bucket",
       "expect": "any_rows"
+    },
+    {
+      "id": "s14-account-turnover-detail",
+      "prompt": "گردش حساب بانکی با جزئیات",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "by_voucher",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-account-turnover-voucher",
+      "prompt": "گردش حساب سند به سند",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "by_voucher",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-account-turnover-detail-alt",
+      "prompt": "گردش تفصیلی حساب نقد",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "by_voucher",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-party-turnover",
+      "prompt": "گردش طرف حساب شرکت آریا",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_voucher",
+      "expectedMetricId_entityName": "آریا",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-party-turnover-customer",
+      "prompt": "تراکنش\u200cهای مشتری رضایی",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_voucher",
+      "expectedMetricId_entityName": "رضایی",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-party-turnover-supplier",
+      "prompt": "گردش تأمین\u200cکننده پارس",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_voucher",
+      "expectedMetricId_entityName": "پارس",
+      "expect": "any_rows"
     }
   ],
   "negative": [

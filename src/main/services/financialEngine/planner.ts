@@ -288,6 +288,24 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'by_age_bucket'
   }
 
+  // S14.19: Detailed turnover — prompts with "با جزئیات", "ردیف به ردیف", "سند به سند" → by_voucher
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_voucher') &&
+    /با\s*جزئیات|ردیف\s*به\s*ردیف|سند\s*به\s*سند|گردش\s*تفصیلی/u.test(normalized)
+  ) {
+    grain = 'by_voucher'
+  }
+
+  // S14.21: party_turnover — "گردش/تراکنش مشتری/طرف حساب/شخص" → by_voucher
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_voucher') &&
+    /(?:گردش|تراکنش)\s*(?:های\s*)?(?:مشتری|طرف\s*حساب|شخص|تأمین)/u.test(normalized)
+  ) {
+    grain = 'by_voucher'
+  }
+
   if (def.entityNameMatch) {
     // S10.9: Expanded entity patterns for conversational prompts
     const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)

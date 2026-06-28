@@ -417,10 +417,10 @@ const catalog: MetricDefinition[] = [
   {
     id: 'account_turnover',
     titleFa: 'گردش حساب',
-    anchors: ['گردش حساب', 'گردش سرفصل', 'بدهکار و بستانکار حساب', 'گردش معین'],
-    excludeSignals: ['مانده', 'تراز', 'فروش', 'خرید', 'صندوق', 'بانک', 'نقد'],
+    anchors: ['گردش حساب', 'گردش سرفصل', 'بدهکار و بستانکار حساب', 'گردش معین', 'گردش تفصیلی'],
+    excludeSignals: ['مانده', 'تراز', 'فروش', 'خرید', 'صندوق'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_year', 'by_account'],
+    grainSupported: ['total', 'by_year', 'by_account', 'by_voucher'],
     source: {
       primaryTable: 'ACC.VoucherItem',
       alias: 'vi',
@@ -453,6 +453,11 @@ const catalog: MetricDefinition[] = [
       {
         dimension: 'by_account',
         labelColumn: 'a.Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_voucher',
+        labelColumn: 'v.Number',
         labelType: 'nstring'
       }
     ],
@@ -1752,6 +1757,45 @@ const catalog: MetricDefinition[] = [
       { sql: "a.Code LIKE '22%' OR a.Title LIKE N'%پرداختنی%'", description: 'فقط حساب\u200cهای پرداختنی' }
     ],
     orderBy: { column: 'AgeBucket', direction: 'ASC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'party_turnover',
+    titleFa: 'گردش طرف حساب',
+    anchors: ['گردش مشتری', 'تراکنش\u200cهای مشتری', 'گردش طرف حساب', 'گردش تأمین\u200cکننده', 'تراکنش\u200cهای شخص', 'گردش شخص', 'تراکنش\u200cهای طرف حساب'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'اسناد اخیر', 'صندوق', 'بانک'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_voucher'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'list',
+      columns: ['v.Number', 'v.Date', 'v.Description', 'vi.RowDescription', 'vi.Debit', 'vi.Credit']
+    },
+    dimensions: [
+      {
+        dimension: 'by_voucher',
+        labelColumn: 'v.Number',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    entityNameMatch: { column: 'a.Title', foldPersian: true },
+    orderBy: { column: 'v.Date', direction: 'ASC' },
     dateColumn: 'v.Date'
   }
 ]
