@@ -7,12 +7,16 @@
  * @see FRE_ROADMAP_02_SEMANTIC_LAYER_AND_COMPILER.fa.md
  */
 
-import type { CompiledQuery, MetricDefinition, MetricPlan, Grain } from './types'
+import type { CompiledQuery, MetricDefinition, MetricPlan, Grain, MetricSource, AggregateKind, DimensionBinding, MetricFilter, ConceptSource, ConceptAggregateKind, ConceptDimensionBinding, ConceptFilter } from './types'
+import type { SchemaAdapter } from './schemaAdapter'
+import { AccountingConcept } from './schemaAdapter'
 
 export interface CompilerDeps {
   quoteSqlTableRef: (ref: string) => string
   quoteSqlIdentifier: (value: string) => string
   normalizePersianText: (input: string) => string
+  /** Schema adapter for concept-based resolution (S15.16) */
+  adapter?: SchemaAdapter
 }
 
 function buildMeasureExpr(
@@ -320,17 +324,233 @@ function buildStandardQuery(
   return sql
 }
 
+// ─── S15.16: Concept-based resolution layer ───
+
+function resolveConceptColumn(adapter: SchemaAdapter, concept: AccountingConcept, field: string): string {
+  if (field === 'primary_key') {
+    return adapter.getPrimaryKeyColumn(concept)
+  }
+  return adapter.resolveColumn(concept, field)
+}
+
+function findConceptAlias(cs: ConceptSource, concept: AccountingConcept): string | null {
+  if (cs.concept === concept) return cs.alias
+  for (const rj of cs.requiredJoins ?? []) {
+    if (rj.concept === concept) return rj.alias
+  }
+  for (const fc of cs.fallbackConcepts ?? []) {
+    if (fc.concept === concept) return fc.alias
+  }
+  for (const cc of cs.compositeConcepts ?? []) {
+    if (cc.concept === concept) return cc.alias
+  }
+  return null
+}
+
+function resolveConceptMeasure(measure: ConceptAggregateKind, concept: AccountingConcept, adapter: SchemaAdapter): AggregateKind {
+  switch (measure.kind) {
+    case 'sum':
+      return { kind: 'sum', column: adapter.resolveColumn(concept, measure.field) }
+    case 'count':
+      return { kind: 'count' }
+    case 'debit_minus_credit':
+      return {
+        kind: 'debit_minus_credit',
+        debitColumn: adapter.resolveColumn(concept, measure.debitField),
+        creditColumn: adapter.resolveColumn(concept, measure.creditField)
+      }
+    case 'list':
+      return { kind: 'list', columns: measure.fields.map(f => adapter.resolveColumn(concept, f)) }
+  }
+}
+
+function resolveConceptSource(cs: ConceptSource, adapter: SchemaAdapter): MetricSource {
+  const source: MetricSource = {
+    primaryTable: adapter.resolveTable(cs.concept),
+    alias: cs.alias
+  }
+  if (cs.requiredJoins) {
+    source.requiredJoins = cs.requiredJoins.map(rj => ({
+      table: adapter.resolveTable(rj.concept),
+      alias: rj.alias,
+      on: {
+        sourceColumn: resolveConceptColumn(adapter, cs.concept, rj.on.sourceColumn),
+        targetColumn: resolveConceptColumn(adapter, rj.concept, rj.on.targetColumn)
+      }
+    }))
+  }
+  if (cs.fallbackConcepts) {
+    source.fallbackTables = cs.fallbackConcepts.map(fc => ({
+      table: adapter.resolveTable(fc.concept),
+      alias: fc.alias,
+      measure: resolveConceptMeasure(fc.measure, fc.concept, adapter),
+      filters: fc.filters ? resolveConceptFilters(fc.filters, cs, adapter) : undefined
+    }))
+  }
+  if (cs.compositeConcepts) {
+    source.compositeSources = cs.compositeConcepts.map(cc => ({
+      table: adapter.resolveTable(cc.concept),
+      alias: cc.alias,
+      measure: resolveConceptMeasure(cc.measure, cc.concept, adapter),
+      filters: cc.filters ? resolveConceptFilters(cc.filters, cs, adapter) : undefined
+    }))
+  }
+  return source
+}
+
+function resolveConceptDimensions(
+  conceptDims: ConceptDimensionBinding[],
+  cs: ConceptSource,
+  adapter: SchemaAdapter
+): DimensionBinding[] {
+  return conceptDims.map(cd => {
+    const dim: DimensionBinding = {
+      dimension: cd.dimension,
+      labelColumn: '',
+      labelType: cd.labelType
+    }
+    if (cd.expression) {
+      dim.expression = cd.expression
+      dim.labelColumn = cd.expression
+    } else if (cd.conceptLabelField && cd.conceptJoin) {
+      dim.join = {
+        table: adapter.resolveTable(cd.conceptJoin.concept),
+        alias: cd.conceptJoin.alias,
+        on: {
+          sourceColumn: resolveConceptColumn(adapter, cs.concept, cd.conceptJoin.on.sourceColumn),
+          targetColumn: resolveConceptColumn(adapter, cd.conceptJoin.concept, cd.conceptJoin.on.targetColumn)
+        },
+        sourceAlias: cd.conceptJoin.sourceAlias
+      }
+      dim.labelColumn = `${cd.conceptJoin.alias}.${adapter.resolveColumn(cd.conceptJoin.concept, cd.conceptLabelField)}`
+    } else if (cd.conceptLabelField) {
+      dim.labelColumn = adapter.resolveColumn(cs.concept, cd.conceptLabelField)
+    }
+    return dim
+  })
+}
+
+function resolveEnumValues(adapter: SchemaAdapter, concept: AccountingConcept, field: string, values: string[]): number[] {
+  if (concept === AccountingConcept.voucher && field === 'voucher_type') {
+    const enumMap = adapter.enums.voucherType as Record<string, number[]>
+    const result: number[] = []
+    for (const v of values) {
+      const mapped = enumMap[v]
+      if (mapped) result.push(...mapped)
+    }
+    return result
+  }
+  if (concept === AccountingConcept.inventory_receipt && field === 'return_type') {
+    const enumMap = adapter.enums.inventoryReturnType as Record<string, number>
+    return values.map(v => enumMap[v]).filter((v): v is number => v != null)
+  }
+  return values.map(v => Number(v)).filter((v): v is number => !isNaN(v))
+}
+
+function resolveConceptFilters(
+  filters: ConceptFilter[],
+  cs: ConceptSource,
+  adapter: SchemaAdapter
+): MetricFilter[] {
+  return filters.map(cf => {
+    const alias = findConceptAlias(cs, cf.concept) ?? cs.alias
+    const column = adapter.resolveColumn(cf.concept, cf.field)
+    const colRef = `${alias}.${column}`
+    let sql: string
+    if (cf.op === 'like') {
+      sql = `${colRef} LIKE N'${String(cf.value).replace(/'/g, "''")}'`
+    } else if (cf.op === 'eq' || cf.op === 'ne') {
+      const vals = Array.isArray(cf.value) ? cf.value : [cf.value]
+      const enumVals = resolveEnumValues(adapter, cf.concept, cf.field, vals)
+      if (enumVals.length > 0) {
+        sql = `${colRef} ${cf.op === 'eq' ? '=' : '<>'} ${enumVals[0]}`
+      } else {
+        sql = `${colRef} ${cf.op === 'eq' ? '=' : '<>'} N'${vals[0].replace(/'/g, "''")}'`
+      }
+    } else if (cf.op === 'in' || cf.op === 'not_in') {
+      const vals = Array.isArray(cf.value) ? cf.value : [cf.value]
+      const enumVals = resolveEnumValues(adapter, cf.concept, cf.field, vals)
+      if (enumVals.length > 0) {
+        sql = `${colRef} ${cf.op === 'in' ? 'IN' : 'NOT IN'} (${enumVals.join(', ')})`
+      } else {
+        sql = `${colRef} ${cf.op === 'in' ? 'IN' : 'NOT IN'} (${vals.map(v => `N'${v.replace(/'/g, "''")}'`).join(', ')})`
+      }
+    } else {
+      sql = `${colRef} = N'${String(cf.value).replace(/'/g, "''")}'`
+    }
+    return { sql, description: cf.description }
+  })
+}
+
+function resolveDefinition(definition: MetricDefinition, adapter: SchemaAdapter): MetricDefinition {
+  if (!definition.conceptSource) return definition
+  const cs = definition.conceptSource
+  const resolvedSource = resolveConceptSource(cs, adapter)
+  const resolvedMeasure = definition.conceptMeasure
+    ? resolveConceptMeasure(definition.conceptMeasure, cs.concept, adapter)
+    : definition.measure
+  const resolvedDimensions = definition.conceptDimensions
+    ? resolveConceptDimensions(definition.conceptDimensions, cs, adapter)
+    : definition.dimensions
+  const resolvedFilters = definition.conceptFilters
+    ? resolveConceptFilters(definition.conceptFilters, cs, adapter)
+    : definition.mandatoryFilters
+  const resolved: MetricDefinition = {
+    ...definition,
+    source: resolvedSource,
+    measure: resolvedMeasure,
+    dimensions: resolvedDimensions,
+    mandatoryFilters: resolvedFilters,
+    conceptSource: undefined,
+    conceptMeasure: undefined,
+    conceptDimensions: undefined,
+    conceptFilters: undefined
+  }
+  if (definition.conceptDateColumn) {
+    const cdc = definition.conceptDateColumn
+    const conceptForAlias = findConceptByAlias(cs, cdc.sourceAlias) ?? cs.concept
+    resolved.dateColumn = `${cdc.sourceAlias}.${adapter.resolveColumn(conceptForAlias, cdc.field)}`
+  }
+  if (definition.conceptEntityNameMatch) {
+    const cem = definition.conceptEntityNameMatch
+    const alias = findConceptAlias(cs, cem.concept) ?? cs.alias
+    resolved.entityNameMatch = {
+      column: `${alias}.${adapter.resolveColumn(cem.concept, cem.field)}`,
+      foldPersian: cem.foldPersian
+    }
+  }
+  return resolved
+}
+
+function findConceptByAlias(cs: ConceptSource, alias: string): AccountingConcept | null {
+  if (cs.alias === alias) return cs.concept
+  for (const rj of cs.requiredJoins ?? []) {
+    if (rj.alias === alias) return rj.concept
+  }
+  for (const fc of cs.fallbackConcepts ?? []) {
+    if (fc.alias === alias) return fc.concept
+  }
+  for (const cc of cs.compositeConcepts ?? []) {
+    if (cc.alias === alias) return cc.concept
+  }
+  return null
+}
+
 export function compileMetricPlan(
   plan: MetricPlan,
   definition: MetricDefinition,
   deps: CompilerDeps
 ): CompiledQuery {
+  const resolvedDef = (deps.adapter && definition.conceptSource)
+    ? resolveDefinition(definition, deps.adapter)
+    : definition
+
   let sql: string
 
   if (plan.comparison) {
-    sql = buildComparisonQuery(plan, definition, deps)
+    sql = buildComparisonQuery(plan, resolvedDef, deps)
   } else {
-    sql = buildStandardQuery(plan, definition, deps)
+    sql = buildStandardQuery(plan, resolvedDef, deps)
   }
 
   const bindings: string[] = []

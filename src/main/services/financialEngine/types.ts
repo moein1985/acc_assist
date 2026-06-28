@@ -106,6 +106,13 @@ export interface MetricSource {
   }>
 }
 
+/** Concept-based aggregate — uses field names resolved via SchemaAdapter */
+export type ConceptAggregateKind =
+  | { kind: 'sum'; field: string }
+  | { kind: 'count' }
+  | { kind: 'debit_minus_credit'; debitField: string; creditField: string }
+  | { kind: 'list'; fields: string[] }
+
 /** Concept-based source for schema abstraction - replaces hardcoded table names */
 export interface ConceptSource {
   concept: AccountingConcept
@@ -113,7 +120,7 @@ export interface ConceptSource {
   fallbackConcepts?: Array<{
     concept: AccountingConcept
     alias: string
-    measure: AggregateKind
+    measure: ConceptAggregateKind
     filters?: ConceptFilter[]
   }>
   /** Structural joins using concept refs */
@@ -126,7 +133,7 @@ export interface ConceptSource {
   compositeConcepts?: Array<{
     concept: AccountingConcept
     alias: string
-    measure: AggregateKind
+    measure: ConceptAggregateKind
     filters?: ConceptFilter[]
   }>
 }
@@ -151,6 +158,21 @@ export interface DimensionBinding {
   labelColumn: string
   labelType: 'nstring' | 'int'
   /** Custom SQL expression for computed dimensions (e.g. age buckets) — overrides labelColumn — S14.15 */
+  expression?: string
+}
+
+/** Concept-based dimension binding — uses field names resolved via SchemaAdapter */
+export interface ConceptDimensionBinding {
+  dimension: Grain
+  conceptJoin?: {
+    concept: AccountingConcept
+    alias: string
+    on: { sourceColumn: string; targetColumn: string }
+    sourceAlias?: string
+  }
+  conceptLabelField?: string
+  labelType: 'nstring' | 'int'
+  /** Custom SQL expression (used as-is, no adapter resolution) */
   expression?: string
 }
 
@@ -183,6 +205,18 @@ export interface MetricDefinition {
   mandatoryFilters: MetricFilter[]
   /** New concept-based filters (preferred) - for future migration */
   conceptFilters?: ConceptFilter[]
+  /** Concept-based measure (used when conceptSource is present) */
+  conceptMeasure?: ConceptAggregateKind
+  /** Concept-based dimensions (used when conceptSource is present) */
+  conceptDimensions?: ConceptDimensionBinding[]
+  /** Concept-based entity name match */
+  conceptEntityNameMatch?: {
+    concept: AccountingConcept
+    field: string
+    foldPersian: boolean
+  }
+  /** Concept-based date column */
+  conceptDateColumn?: { sourceAlias: string; field: string }
   reconciliations?: ReconciliationRule[]
   entityNameMatch?: {
     column: string

@@ -7,7 +7,7 @@
  * @see FRE_ROADMAP_00_OVERVIEW.fa.md
  */
 
-import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId } from './types'
+import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId, MetricDefinition } from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { routeMetric } from './router'
 import { routeDerivedMetric } from './router'
@@ -241,8 +241,14 @@ export class FinancialEngine {
               ...plan,
               metricId: plan.metricId
             }
-            const fallbackDef = {
+            const fallbackDef: MetricDefinition = {
               ...def,
+              conceptSource: undefined,
+              conceptMeasure: undefined,
+              conceptDimensions: undefined,
+              conceptFilters: undefined,
+              conceptDateColumn: undefined,
+              conceptEntityNameMatch: undefined,
               source: { primaryTable: fallback.table, alias: fallback.alias },
               measure: fallback.measure,
               mandatoryFilters: [...def.mandatoryFilters, ...(fallback.filters ?? [])]
@@ -267,8 +273,14 @@ export class FinancialEngine {
       if (verdict.ok && def.source.compositeSources && def.source.compositeSources.length > 0) {
         let primaryValue = Number(rows[0]['result_value'] ?? 0)
         for (const cs of def.source.compositeSources) {
-          const csDef = {
+          const csDef: MetricDefinition = {
             ...def,
+            conceptSource: undefined,
+            conceptMeasure: undefined,
+            conceptDimensions: undefined,
+            conceptFilters: undefined,
+            conceptDateColumn: undefined,
+            conceptEntityNameMatch: undefined,
             source: { primaryTable: cs.table, alias: cs.alias },
             measure: cs.measure,
             mandatoryFilters: [...def.mandatoryFilters, ...(cs.filters ?? [])]
