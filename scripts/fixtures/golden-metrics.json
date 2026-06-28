@@ -1503,5 +1503,41 @@
       "prompt": "اسناد چطورن؟",
       "expect": "clarify"
     }
+  ],
+  "conversations": [
+    {
+      "id": "s14-conv-drill-down-2step",
+      "steps": [
+        {
+          "prompt": "فروش ۱۴۰۳ چقدر است؟",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "total"
+        },
+        {
+          "prompt": "به تفکیک ماه",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "by_month"
+        }
+      ]
+    },
+    {
+      "id": "s14-conv-drill-down-3step",
+      "steps": [
+        {
+          "prompt": "فروش ۱۴۰۳",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "total"
+        },
+        {
+          "prompt": "نمایش بده فاکتورها",
+          "expectedMetricId": "net_sales"
+        },
+        {
+          "prompt": "به تفکیک ماه",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "by_month"
+        }
+      ]
+    }
   ]
 }

@@ -171,6 +171,51 @@ test('engine multi-metric: فروش و خرید ۱۴۰۲ — two metrics, side_b
   }
 })
 
+test('S14.42: conversational drill-down — فروش ۱۴۰۳ → نمایش بده → به تفکیک ماه', async () => {
+  const executor = async (query: string): Promise<SqlQueryRow[]> => {
+    if (query.includes('GROUP BY') || query.includes('MONTH(')) {
+      return [
+        { result_value: 5000000, label: '1' },
+        { result_value: 7000000, label: '2' },
+        { result_value: 3000000, label: '3' }
+      ]
+    }
+    return [{ result_value: 15000000 }]
+  }
+  const engine = new FinancialEngine({
+    ...makeCompilerDeps(),
+    executeReadOnlySql: executor
+  })
+
+  // Step 1: Initial query — "فروش ۱۴۰۳"
+  const step1 = asSingleResult(await engine.run('فروش ۱۴۰۳ چقدر است؟'))
+  assert.ok(step1.result, 'step 1 should produce a result')
+  assert.equal(step1.verdict.ok, true)
+  assert.equal(step1.result!.plan.metricId, 'net_sales')
+  assert.equal(step1.result!.plan.grain, 'total')
+
+  const lastPlan = step1.result!.plan
+
+  // Step 2: Drill-down — "نمایش بده" (should switch to by_voucher if supported, or stay total)
+  const step2 = asSingleResult(await engine.run('نمایش بده فاکتورها', undefined, lastPlan))
+  assert.ok(step2.result, 'step 2 should produce a result')
+  assert.equal(step2.verdict.ok, true)
+  assert.equal(step2.result!.plan.metricId, 'net_sales', 'should inherit metricId')
+  const yearFilter2 = step2.result!.plan.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter2, 'should inherit year filter')
+  assert.equal(yearFilter2!.values[0], '1403')
+
+  // Step 3: Grain change — "به تفکیک ماه"
+  const step3 = asSingleResult(await engine.run('به تفکیک ماه', undefined, step2.result!.plan))
+  assert.ok(step3.result, 'step 3 should produce a result')
+  assert.equal(step3.verdict.ok, true)
+  assert.equal(step3.result!.plan.metricId, 'net_sales', 'should still inherit metricId')
+  assert.equal(step3.result!.plan.grain, 'by_month', 'should change grain to by_month')
+  const yearFilter3 = step3.result!.plan.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter3, 'should still inherit year filter')
+  assert.equal(yearFilter3!.values[0], '1403')
+})
+
 test('S10.13: engine derived metric — نسبت فروش به خرید ۱۴۰۲ — single percent value', async () => {
   const executor = async (query: string): Promise<SqlQueryRow[]> => {
     if (query.includes('SLS.Invoice') || query.includes('SaleInvoice')) {

@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { routeMetric, routeMultiMetric, routeDerivedMetric } from '../../src/main/services/financialEngine/router'
-import { buildDeterministicPlan, buildDeterministicMultiPlan } from '../../src/main/services/financialEngine/planner'
+import { buildDeterministicPlan, buildDeterministicMultiPlan, buildFollowUpPlan, isDrillDownPrompt } from '../../src/main/services/financialEngine/planner'
 import { compileMetricPlan } from '../../src/main/services/financialEngine/compiler'
 import { verifyResult } from '../../src/main/services/financialEngine/verifier'
 import { composeEngineResponseMarkdown } from '../../src/main/services/financialEngine/explainer'
@@ -47,10 +47,22 @@ interface GoldenClarifyCase {
   expect: 'clarify'
 }
 
+interface GoldenConversationStep {
+  prompt: string
+  expectedMetricId?: string
+  expectedGrain?: string
+}
+
+interface GoldenConversationCase {
+  id: string
+  steps: GoldenConversationStep[]
+}
+
 interface GoldenFixture {
   metrics: GoldenMetricCase[]
   negative: GoldenNegativeCase[]
   clarify: GoldenClarifyCase[]
+  conversations?: GoldenConversationCase[]
 }
 
 interface CaseResult {
@@ -442,6 +454,123 @@ function evalNegativeCase(case_: GoldenNegativeCase): CaseResult {
   return { id: case_.id, prompt: case_.prompt, passed: true }
 }
 
+function evalConversationCase(case_: GoldenConversationCase): CaseResult[] {
+  const results: CaseResult[] = []
+  let lastPlan: ReturnType<typeof buildDeterministicPlan> = null
+
+  for (let i = 0; i < case_.steps.length; i++) {
+    const step = case_.steps[i]!
+    const stepId = `${case_.id}#step${i + 1}`
+
+    if (lastPlan && isDrillDownPrompt(step.prompt)) {
+      const followUp = buildFollowUpPlan(step.prompt, lastPlan)
+      if (!followUp) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: 'buildFollowUpPlan returned null',
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      if (step.expectedMetricId && followUp.metricId !== step.expectedMetricId) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: `metricId mismatch: got ${followUp.metricId}, expected ${step.expectedMetricId}`,
+          metricId: followUp.metricId,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      if (step.expectedGrain && followUp.grain !== step.expectedGrain) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: `grain mismatch: got ${followUp.grain}, expected ${step.expectedGrain}`,
+          metricId: followUp.metricId,
+          grain: followUp.grain,
+          expectedGrain: step.expectedGrain,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      lastPlan = followUp
+      results.push({
+        id: stepId,
+        prompt: step.prompt,
+        passed: true,
+        metricId: followUp.metricId,
+        expectedMetricId: step.expectedMetricId,
+        grain: followUp.grain,
+        expectedGrain: step.expectedGrain
+      })
+    } else {
+      const route = routeMetric(step.prompt)
+      if (!route.metricId || route.confidence < 0.5) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: `router returned no match (confidence=${route.confidence})`,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      if (step.expectedMetricId && route.metricId !== step.expectedMetricId) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: `metricId mismatch: got ${route.metricId}, expected ${step.expectedMetricId}`,
+          metricId: route.metricId,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      const plan = buildDeterministicPlan(step.prompt, route.metricId)
+      if (!plan) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: 'buildDeterministicPlan returned null',
+          metricId: route.metricId,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      if (step.expectedGrain && plan.grain !== step.expectedGrain) {
+        results.push({
+          id: stepId,
+          prompt: step.prompt,
+          passed: false,
+          reason: `grain mismatch: got ${plan.grain}, expected ${step.expectedGrain}`,
+          metricId: route.metricId,
+          grain: plan.grain,
+          expectedGrain: step.expectedGrain,
+          expectedMetricId: step.expectedMetricId
+        })
+        continue
+      }
+      lastPlan = plan
+      results.push({
+        id: stepId,
+        prompt: step.prompt,
+        passed: true,
+        metricId: route.metricId,
+        expectedMetricId: step.expectedMetricId,
+        grain: plan.grain,
+        expectedGrain: step.expectedGrain
+      })
+    }
+  }
+  return results
+}
+
 function evalClarifyCase(case_: GoldenClarifyCase): CaseResult {
   const route = routeMetric(case_.prompt)
   // Clarify cases: router may match but with low confidence, or match but no year filter
@@ -512,6 +641,22 @@ async function main(): Promise<void> {
     const status = result.passed ? '✓' : '✗'
     const detail = result.passed ? 'clarified correctly' : `FAIL: ${result.reason}`
     console.log(`  ${status} ${result.id}: ${detail}`)
+  }
+
+  // Conversation cases (S14.42)
+  if (fixture.conversations && fixture.conversations.length > 0) {
+    console.log('\n── Conversation Cases (S14.42 drill-down) ──')
+    for (const case_ of fixture.conversations) {
+      const convResults = evalConversationCase(case_)
+      for (const result of convResults) {
+        results.push(result)
+        const status = result.passed ? '✓' : '✗'
+        const detail = result.passed
+          ? `metric=${result.metricId} grain=${result.grain}`
+          : `FAIL: ${result.reason}`
+        console.log(`  ${status} ${result.id}: ${detail}`)
+      }
+    }
   }
 
   // Summary
