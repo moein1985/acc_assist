@@ -8,7 +8,8 @@
 
 | سرور | آدرس | پورت | کاربر | نوع |
 |------|------|------|------|-----|
-| **اپلیکیشن** | 192.168.85.56 | 2211 | administrator | Windows Server (SSH) |
+| **اپلیکیشن (Sepidar)** | 192.168.85.56 | 2211 | administrator | Windows Server (SSH) |
+| **تست بلایند (Mahak)** | 192.168.85.15 | 2211 | administrator | Windows Server (SSH) |
 | **تلمتری** | 192.168.85.84 | 8081 | - | Node.js (HTTP) |
 | **Proxmox** | 192.168.85.37 | 22 | root | Linux (SSH) |
 
@@ -17,12 +18,19 @@
 ## 🔐 اطلاعات احراز هویت
 
 ```powershell
-# سرور اصلی (192.168.85.56)
+# سرور اصلی — Sepidar (192.168.85.56)
 $ServerHost = "192.168.85.56"
 $Port = 2211
 $User = "administrator"
 $Password = "Hs-co@12321#"
 $HostKey = "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ"
+
+# سرور تست بلایند — Mahak (192.168.85.15)
+$BlindHost = "192.168.85.15"
+$BlindPort = 2211
+$BlindUser = "administrator"
+$BlindPassword = "Hs-co@12321#"
+$BlindHostKey = "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo"
 
 # سرور تلمتری (192.168.85.84)
 $TelemetryHost = "192.168.85.84"
@@ -313,5 +321,83 @@ plink -P 2211 -ssh administrator@192.168.85.56
 
 ---
 
-**تاریخ آپدیت:** 2026-06-14 (v2 Telemetry Collector با فیلتر پیشرفته deploy شد)
-**نسخه:** 2.0.0
+---
+
+## 🧪 سرور تست بلایند — Mahak (192.168.85.15)
+
+این سرور برای تست auto-discovery روی نرم‌افزار حسابداری **مهک (Mahak)** استفاده می‌شود.
+نرم‌افزار مهک نصب شده ولی هنوز دیتابیس کاربری ایجاد نشده است.
+
+### اطلاعات سرور:
+
+| مورد | مقدار |
+|------|-------|
+| **آدرس** | 192.168.85.15 |
+| **پورت SSH** | 2211 |
+| **کاربر** | administrator |
+| **رمز عبور** | Hs-co@12321# |
+| **Host Key** | ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo |
+| **Hostname** | Mahak |
+| **OS** | Windows Server 2022 (Build 20348) |
+
+### اطلاعات SQL Server:
+
+| مورد | مقدار |
+|------|-------|
+| **نسخه** | SQL Server 2014 (SP2) Enterprise (64-bit) — 12.0.5000.0 |
+| **Instance** | MSSQL12.MAHAK (named instance: MAHAK) |
+| **پورت** | 50492 (dynamic) |
+| **Service Name** | MSSQL$MAHAK |
+| **یوزر SQL** | _TODO — بعداً اضافه شود_ |
+| **پسورد SQL** | _TODO — بعداً اضافه شود_ |
+| **دیتابیس** | _TODO — بعداً اضافه شود_ |
+
+> ⚠️ **توجه:** یوزر و پسورد SQL هنوز در دسترس نیست. بعداً توسط کاربر ارائه خواهد شد.
+
+### نرم‌افزارهای نصب‌شده:
+
+- **مهک (Mahak)** — نرم‌افزار حسابداری (در `C:\Program Files (x86)\Mahak`، فقط Updater نصب است)
+- **تامین (Tamin)** — نرم‌افزار قدیمی VB6 (در `C:\Program Files (x86)\Tamin`، دارای DBF/MDB)
+- **DorsanDesk** — ابزار Remote Desktop (در `C:\Program Files\DorsanDesk`)
+
+### اتصال به سرور:
+
+```powershell
+# دستور کلی plink برای سرور Mahak
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo" -pw "Hs-co@12321#" administrator@192.168.85.15 "COMMAND"
+```
+
+#### مثال‌های عملی:
+
+```powershell
+# وضعیت SQL Server
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo" -pw "Hs-co@12321#" administrator@192.168.85.15 "sc query state= all | findstr SQL"
+
+# پورت SQL Server
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo" -pw "Hs-co@12321#" administrator@192.168.85.15 "powershell.exe -NoProfile -c Get-Content 'C:\Program Files\Microsoft SQL Server\MSSQL12.MAHAK\MSSQL\Log\ERRORLOG' -TotalCount 50" 2>&1 | findstr /i listening
+
+# لیست دیتابیس‌ها (نیاز به یوزر SQL دارد)
+# TODO: بعد از دریافت یوزر SQL، دستور زیر را تکمیل کنید:
+# plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo" -pw "Hs-co@12321#" administrator@192.168.85.15 "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\Administrator\query_dbs.ps1"
+
+# بررسی فایل‌های دیتابیس (.mdf)
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo" -pw "Hs-co@12321#" administrator@192.168.85.15 "powershell.exe -NoProfile -c Get-ChildItem 'C:\' -Recurse -Filter '*.mdf' -Name -ErrorAction SilentlyContinue"
+```
+
+### اجرای SQL Query (بعد از دریافت یوزر SQL):
+
+```powershell
+# فایل اسکریپت query روی سرور:
+# C:\Users\Administrator\query_dbs.ps1 (قبلاً آپلود شده)
+# محتوا:
+#   $sqlcmd = 'C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\110\Tools\Binn\SQLCMD.EXE'
+#   & $sqlcmd -S localhost,50492 -E -Q "SELECT name FROM sys.databases ORDER BY name" -W
+#
+# نکته: -E برای Windows Auth است. بعد از دریافت یوزر SQL،
+# پارامترها را به -U <user> -P <pass> تغییر دهید.
+```
+
+---
+
+**تاریخ آپدیت:** 2026-06-28 (سرور تست بلایند Mahak اضافه شد)
+**نسخه:** 2.1.0
