@@ -334,7 +334,9 @@ export class AgentOrchestrator {
         executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined)
       })
 
-      const engineRun = await engine.run(payload.prompt)
+      // S14.41: Pass lastMetricPlan from conversation memory for drill-down follow-up
+      const memory = this.getOrCreateConversationMemory(payload.conversationId)
+      const engineRun = await engine.run(payload.prompt, undefined, memory.lastMetricPlan)
 
       // Handle multi-metric result (has 'results' array)
       if ('results' in engineRun && 'verdicts' in engineRun) {
@@ -407,6 +409,9 @@ export class AgentOrchestrator {
         stage: 'engine-mode',
         prompt: `engine-served: metricId=${engineRun.result.plan.metricId} verdict=ok`
       })
+
+      // S14.41: Store the successful plan for future drill-down
+      memory.lastMetricPlan = engineRun.result.plan
 
       return {
         history: [],

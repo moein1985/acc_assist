@@ -48,6 +48,18 @@ export type MetricId =
   | 'receivables_aging'
   | 'payables_aging'
   | 'party_turnover'
+  | 'tax_monthly_summary'
+  | 'invoices_without_tax'
+  | 'vat_liability'
+  | 'checks_due'
+  | 'checks_bounced'
+  | 'checks_summary'
+  | 'closing_status'
+  | 'trial_balance_check'
+  | 'period_comparison'
+  | 'sales_reconciliation'
+  | 'purchase_reconciliation'
+  | 'inventory_reconciliation'
 
 export type Grain =
   | 'total'
@@ -62,6 +74,7 @@ export type Grain =
   | 'by_warehouse'
   | 'by_age_bucket'
   | 'by_voucher'
+  | 'by_direction'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }
@@ -415,7 +428,19 @@ export const metricPlanSchema = z.object({
     'vouchers_without_account',
     'receivables_aging',
     'payables_aging',
-    'party_turnover'
+    'party_turnover',
+    'tax_monthly_summary',
+    'invoices_without_tax',
+    'vat_liability',
+    'checks_due',
+    'checks_bounced',
+    'checks_summary',
+    'closing_status',
+    'trial_balance_check',
+    'period_comparison',
+    'sales_reconciliation',
+    'purchase_reconciliation',
+    'inventory_reconciliation'
   ]),
   grain: z.enum([
     'total',
@@ -426,7 +451,8 @@ export const metricPlanSchema = z.object({
     'by_branch',
     'by_customer',
     'by_age_bucket',
-    'by_voucher'
+    'by_voucher',
+    'by_direction'
   ]),
   filters: z.array(planFilterSchema),
   comparison: z

@@ -16,6 +16,8 @@ import {
   buildDeterministicMultiPlan,
   buildModelPlan,
   buildClarify,
+  buildFollowUpPlan,
+  isDrillDownPrompt,
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps,
   type ClarifyResult
@@ -45,7 +47,20 @@ export type EngineRunOutcome = EngineRunResult | MultiMetricResult
 export class FinancialEngine {
   constructor(private deps: EngineDeps) {}
 
-  async run(prompt: string, signal?: AbortSignal): Promise<EngineRunOutcome> {
+  async run(
+    prompt: string,
+    signal?: AbortSignal,
+    lastPlan?: MetricPlan | null
+  ): Promise<EngineRunOutcome> {
+    // S14.40: Conversational drill-down — if prompt is a follow-up and we have a lastPlan,
+    // build a plan that inherits metricId and filters from the previous turn
+    if (lastPlan && isDrillDownPrompt(prompt)) {
+      const followUpPlan = buildFollowUpPlan(prompt, lastPlan)
+      if (followUpPlan) {
+        return this.runPlan(followUpPlan, signal)
+      }
+    }
+
     // Step -1: Check for derived metric
     const derived = routeDerivedMetric(prompt)
     if (derived) {

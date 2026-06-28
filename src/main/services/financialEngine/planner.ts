@@ -306,6 +306,45 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'by_voucher'
   }
 
+  // S14.23: tax_monthly_summary — "مالیات ماهانه" → by_month
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_month') &&
+    def.id === 'tax_monthly_summary' &&
+    /ماهانه|ماه\s*به\s*ماه|به\s*تفکیک\s*ماه/u.test(normalized)
+  ) {
+    grain = 'by_month'
+  }
+
+  // S14.30: checks_summary — "دریافتی/پرداختی" → by_direction
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_direction') &&
+    /دریافتی\s*و\s*پرداختی|دریافتی\s*پرداختی|به\s*تفکیک\s*(?:دریافتی|پرداختی|نوع)/u.test(normalized)
+  ) {
+    grain = 'by_direction'
+  }
+
+  // S14.32: closing_status — "اختتامیه/افتتاحیه" with year → by_year
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_year') &&
+    def.id === 'closing_status' &&
+    /اختتامیه|افتتاحیه|بستن\s*(?:دوره|سال)/u.test(normalized)
+  ) {
+    grain = 'by_year'
+  }
+
+  // S14.34: period_comparison — "به تفکیک حساب" → by_account
+  if (
+    grain === 'total' &&
+    def.grainSupported.includes('by_account') &&
+    def.id === 'period_comparison' &&
+    /به\s*تفکیک\s*(?:حساب|سرفصل|معین)/u.test(normalized)
+  ) {
+    grain = 'by_account'
+  }
+
   if (def.entityNameMatch) {
     // S10.9: Expanded entity patterns for conversational prompts
     const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)
@@ -737,4 +776,107 @@ export function buildClarify(prompt: string, metricId: MetricId): ClarifyResult 
   const suggestions = candidates.map((c) => c.titleFa)
 
   return { question, suggestions }
+}
+
+// ─── S14.40: Conversational drill-down ──────────────────────────────────────
+
+const DRILL_DOWN_SIGNALS = [
+  'نمایش بده',
+  'نمایش بده فاکتورها',
+  'جزئیات',
+  'لیست',
+  'فاکتورها',
+  'سندها',
+  'به تفکیک',
+  'تفکیک',
+  'ردیف ها',
+  'ردیف‌ها',
+  'اقلام'
+]
+
+export function isDrillDownPrompt(prompt: string): boolean {
+  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  return DRILL_DOWN_SIGNALS.some((sig) => normalized.includes(normalizePersianText(sig)))
+}
+
+function normRegex(pattern: string): RegExp {
+  return new RegExp(normalizePersianText(pattern), 'u')
+}
+
+export function buildFollowUpPlan(
+  prompt: string,
+  lastPlan: MetricPlan
+): MetricPlan | null {
+  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  const def = findMetricById(lastPlan.metricId)
+  if (!def) return null
+
+  let grain: Grain = lastPlan.grain
+  const filters: PlanFilter[] = [...lastPlan.filters]
+  let entityName = lastPlan.entityName
+  let topN = lastPlan.topN
+
+  // "نمایش بده فاکتورها" / "لیست فاکتورها" / "جزئیات" → switch to list/voucher detail
+  if (normRegex('نمایش\\s*بده|لیست|جزئیات|اقلام|ردیف').test(normalized)) {
+    if (def.measure.kind === 'list') {
+      grain = 'total'
+    } else if (def.grainSupported.includes('by_voucher')) {
+      grain = 'by_voucher'
+    }
+  }
+
+  // "به تفکیک مشتری" → by_customer if supported
+  if (normRegex('به\\s*تفکیک\\s*مشتری|تفکیک\\s*مشتری').test(normalized) && def.grainSupported.includes('by_customer')) {
+    grain = 'by_customer'
+  }
+
+  // "به تفکیک ماه" → by_month if supported
+  if (normRegex('به\\s*تفکیک\\s*ماه|تفکیک\\s*ماه|ماهانه').test(normalized) && def.grainSupported.includes('by_month')) {
+    grain = 'by_month'
+  }
+
+  // "به تفکیک سال" → by_year if supported
+  if (normRegex('به\\s*تفکیک\\s*سال|تفکیک\\s*سال|سالانه').test(normalized) && def.grainSupported.includes('by_year')) {
+    grain = 'by_year'
+  }
+
+  // "به تفکیک حساب" → by_account if supported
+  if (normRegex('به\\s*تفکیک\\s*(?:حساب|سرفصل|معین)').test(normalized) && def.grainSupported.includes('by_account')) {
+    grain = 'by_account'
+  }
+
+  // Extract new entity name if mentioned in follow-up
+  if (def.entityNameMatch) {
+    const personMatch = normalized.match(normRegex('(?:آقای|خانم|شرکت)\\s+([\\u0600-\\u06FF]+)'))
+    const partyMatch = normalized.match(normRegex('(?:طرف\\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\\s+([\\u0600-\\u06FF]+)'))
+    const accountMatch = normalized.match(normRegex('(?:حساب|سرفصل|معین|تفضیلی)\\s+([\\u0600-\\u06FF]+)'))
+    if (personMatch) {
+      entityName = personMatch[1]
+    } else if (partyMatch) {
+      entityName = partyMatch[1]
+    } else if (accountMatch) {
+      entityName = accountMatch[1]
+    }
+  }
+
+  // Extract topN if mentioned (e.g., "۱۰ تا اول", "۲۰ ردیف")
+  const topNMatch = normalized.match(normRegex('(\\d{1,3})\\s*(?:تا|ردیف|سند|فاکتور)'))
+  if (topNMatch) {
+    topN = Number(topNMatch[1])
+  }
+
+  // Inherit dateRange from last plan
+  const dateRange = lastPlan.dateRange
+
+  const plan: MetricPlan = {
+    metricId: lastPlan.metricId,
+    grain,
+    filters,
+    entityName,
+    topN,
+    dateRange,
+    confidence: 0.9
+  }
+
+  return plan
 }

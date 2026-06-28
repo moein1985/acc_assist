@@ -7,9 +7,12 @@ import {
   buildModelPlan,
   buildDeterministicPlan,
   buildClarify,
+  buildFollowUpPlan,
+  isDrillDownPrompt,
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps
 } from '../../src/main/services/financialEngine/planner'
+import type { MetricPlan } from '../../src/main/services/financialEngine/types'
 
 test('buildPlannerPrompt includes metric catalog and schema', () => {
   const prompt = buildPlannerPrompt('فروش خالص سال ۱۴۰۲')
@@ -295,4 +298,72 @@ test('parsePlannerOutput — empty string returns error', () => {
   const result = parsePlannerOutput('')
   assert.equal(result.plan, null)
   assert.equal(result.error, 'no-valid-json')
+})
+
+// ─── S14.42 — Conversational drill-down tests ───────────────────────────────
+
+const baseNetSalesPlan: MetricPlan = {
+  metricId: 'net_sales',
+  grain: 'total',
+  filters: [{ dimension: 'by_year', op: 'eq', values: ['1403'] }],
+  dateRange: { start: '2024-03-20', end: '2025-03-20' },
+  confidence: 0.95
+}
+
+test('S14.42: isDrillDownPrompt detects "نمایش بده فاکتورها"', () => {
+  assert.equal(isDrillDownPrompt('نمایش بده فاکتورها'), true)
+})
+
+test('S14.42: isDrillDownPrompt detects "جزئیات"', () => {
+  assert.equal(isDrillDownPrompt('جزئیات رو نشون بده'), true)
+})
+
+test('S14.42: isDrillDownPrompt detects "به تفکیک مشتری"', () => {
+  assert.equal(isDrillDownPrompt('به تفکیک مشتری'), true)
+})
+
+test('S14.42: isDrillDownPrompt returns false for normal query', () => {
+  assert.equal(isDrillDownPrompt('فروش ۱۴۰۳ چقدره'), false)
+})
+
+test('S14.42: buildFollowUpPlan — "نمایش بده فاکتورها" inherits metricId and filters', () => {
+  const plan = buildFollowUpPlan('نمایش بده فاکتورها', baseNetSalesPlan)
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'net_sales')
+  assert.equal(plan!.filters.length, 1)
+  assert.equal(plan!.filters[0]!.dimension, 'by_year')
+  assert.equal(plan!.filters[0]!.values[0], '1403')
+  assert.ok(plan!.dateRange, 'should inherit dateRange')
+  assert.equal(plan!.dateRange!.start, '2024-03-20')
+})
+
+test('S14.42: buildFollowUpPlan — "به تفکیک مشتری" changes grain to by_customer', () => {
+  const salesByPeriodPlan: MetricPlan = {
+    ...baseNetSalesPlan,
+    metricId: 'sales_by_period'
+  }
+  const plan = buildFollowUpPlan('به تفکیک مشتری', salesByPeriodPlan)
+  assert.ok(plan)
+  assert.equal(plan!.grain, 'by_customer')
+  assert.equal(plan!.metricId, 'sales_by_period')
+  assert.equal(plan!.filters[0]!.values[0], '1403')
+})
+
+test('S14.42: buildFollowUpPlan — "به تفکیک ماه" changes grain to by_month', () => {
+  const plan = buildFollowUpPlan('به تفکیک ماه', baseNetSalesPlan)
+  assert.ok(plan)
+  assert.equal(plan!.grain, 'by_month')
+})
+
+test('S14.42: buildFollowUpPlan — non-drill-down prompt still returns plan (caller checks isDrillDownPrompt)', () => {
+  const plan = buildFollowUpPlan('فروش ۱۴۰۳ چقدره', baseNetSalesPlan)
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'net_sales')
+  assert.equal(plan!.grain, 'total')
+})
+
+test('S14.42: buildFollowUpPlan — confidence is set to 0.9', () => {
+  const plan = buildFollowUpPlan('نمایش بده فاکتورها', baseNetSalesPlan)
+  assert.ok(plan)
+  assert.equal(plan!.confidence, 0.9)
 })

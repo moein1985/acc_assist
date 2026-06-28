@@ -404,6 +404,7 @@ test('buildRuntimeSystemPrompt includes schema guidance for unsupported function
       lastUserPrompt: null,
       lastAssistantOutcome: null,
       lastToolTrace: [],
+      lastMetricPlan: null,
       touchedAt: 0
     },
     {
@@ -417,7 +418,8 @@ test('buildRuntimeSystemPrompt includes schema guidance for unsupported function
       },
       lastUserPrompt: null,
       lastAssistantOutcome: null,
-      lastToolTrace: []
+      lastToolTrace: [],
+      lastMetricPlan: null
     }
   )
 
@@ -447,6 +449,7 @@ test('H4: buildRuntimeSystemPrompt advertises the ACC.Voucher / ACC.VoucherItem 
       lastUserPrompt: null,
       lastAssistantOutcome: null,
       lastToolTrace: [],
+      lastMetricPlan: null,
       touchedAt: 0
     },
     {
@@ -460,7 +463,8 @@ test('H4: buildRuntimeSystemPrompt advertises the ACC.Voucher / ACC.VoucherItem 
       },
       lastUserPrompt: null,
       lastAssistantOutcome: null,
-      lastToolTrace: []
+      lastToolTrace: [],
+      lastMetricPlan: null
     }
   )
 

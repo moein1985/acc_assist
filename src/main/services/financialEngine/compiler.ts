@@ -34,7 +34,20 @@ function buildMeasureExpr(
       return `SUM(${alias}.${debit}) - SUM(${alias}.${credit})`
     }
     case 'list': {
-      return measure.columns.map((c) => `${alias}.${deps.quoteSqlIdentifier(c)}`).join(', ')
+      return measure.columns
+        .map((c) => {
+          if (c.includes('(') || c.includes(' ')) {
+            return c
+          }
+          if (c.includes('.')) {
+            return c
+              .split('.')
+              .map((part) => deps.quoteSqlIdentifier(part))
+              .join('.')
+          }
+          return `${alias}.${deps.quoteSqlIdentifier(c)}`
+        })
+        .join(', ')
     }
   }
 }

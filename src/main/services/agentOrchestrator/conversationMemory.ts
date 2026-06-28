@@ -5,6 +5,7 @@
  */
 import type { AccountingConceptKey } from '../../../shared/contracts'
 import { normalizePersianDigits } from '../textNormalization'
+import type { MetricPlan } from '../financialEngine/types'
 
 export type ConversationMemoryFacts = {
   companyNames: string[]
@@ -21,6 +22,7 @@ export type ConversationMemoryState = {
   lastUserPrompt: string | null
   lastAssistantOutcome: string | null
   lastToolTrace: string[]
+  lastMetricPlan: MetricPlan | null
   touchedAt: number
 }
 
@@ -98,6 +100,7 @@ export function createInitialConversationMemory(conversationId: string): Convers
     lastUserPrompt: null,
     lastAssistantOutcome: null,
     lastToolTrace: [],
+    lastMetricPlan: null,
     touchedAt: Date.now()
   }
 }

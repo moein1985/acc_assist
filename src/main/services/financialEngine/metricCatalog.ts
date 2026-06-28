@@ -14,7 +14,7 @@ const catalog: MetricDefinition[] = [
     id: 'net_sales',
     titleFa: 'فروش خالص',
     anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت'],
-    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -48,7 +48,7 @@ const catalog: MetricDefinition[] = [
     id: 'purchases',
     titleFa: 'خرید',
     anchors: ['خرید', 'مبلغ خرید', 'خرید کالا'],
-    excludeSignals: ['فروش', 'درآمد'],
+    excludeSignals: ['فروش', 'درآمد', 'تطبیق', 'اختلاف'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -118,7 +118,7 @@ const catalog: MetricDefinition[] = [
     id: 'trial_balance',
     titleFa: 'تراز آزمایشی',
     anchors: ['تراز آزمایشی', 'بدهکار بستانکار حساب‌ها', 'تراز'],
-    excludeSignals: ['ترازنامه', 'تراز نشده', 'تراز ندارن', 'تراز ندارند', 'ترازنشده', 'تراز نیستند', 'تراز نشده\u200cاند', 'ناتراز'],
+    excludeSignals: ['ترازنامه', 'تراز نشده', 'تراز ندارن', 'تراز ندارند', 'ترازنشده', 'تراز نیستند', 'تراز نشده\u200cاند', 'ناتراز', 'می\u200cبندد', 'اختلاف تراز', 'بررسی تراز'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_account'],
     source: {
@@ -228,7 +228,7 @@ const catalog: MetricDefinition[] = [
     id: 'fiscal_year_list',
     titleFa: 'فهرست سال‌های مالی',
     anchors: ['فهرست سال مالی', 'سال‌های مالی', 'لیست سال‌های مالی', 'چه سال‌هایی', 'سال مالی'],
-    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'صندوق', 'بانک', 'فاکتور', 'تعداد'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'صندوق', 'بانک', 'فاکتور', 'تعداد', 'بستن', 'اختتامیه', 'افتتاحیه'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: { primaryTable: 'FMK.FiscalYear', alias: 'fy' },
@@ -317,7 +317,7 @@ const catalog: MetricDefinition[] = [
     id: 'payables',
     titleFa: 'پرداختنی‌ها',
     anchors: ['پرداختنی', 'مانده پرداختنی', 'حساب‌های پرداختنی', 'طرف حساب پرداختنی', 'بدهی', 'بدهی‌ها'],
-    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی'],
+    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی', 'VAT', 'ارزش افزوده'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -1033,7 +1033,7 @@ const catalog: MetricDefinition[] = [
     id: 'inventory_value',
     titleFa: 'ارزش موجودی کالا',
     anchors: ['موجودی کالا', 'ارزش موجودی', 'موجودی انبار', 'ارزش انبار'],
-    excludeSignals: ['فروش', 'خرید', 'مانده حساب'],
+    excludeSignals: ['فروش', 'خرید', 'مانده حساب', 'تطبیق', 'اختلاف'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_item', 'by_warehouse'],
     source: {
@@ -1797,6 +1797,275 @@ const catalog: MetricDefinition[] = [
     entityNameMatch: { column: 'a.Title', foldPersian: true },
     orderBy: { column: 'v.Date', direction: 'ASC' },
     dateColumn: 'v.Date'
+  },
+  {
+    id: 'tax_monthly_summary',
+    titleFa: 'خلاصه مالیات ماهانه',
+    anchors: ['مالیات ماهانه', 'مالیات این ماه', 'VAT ماه', 'مالیات فروش ماه', 'خالص مالیات', 'خلاصه مالیات'],
+    excludeSignals: ['فاکتور', 'بدون مالیات', 'بدهی', 'ارزش افزوده', 'VAT چقدر', 'پرداختنی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_month'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv',
+      requiredJoins: [
+        {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'TaxAmount' },
+    dimensions: [
+      {
+        dimension: 'by_month',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'fy.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    dateColumn: 'inv.IssueDate'
+  },
+  {
+    id: 'invoices_without_tax',
+    titleFa: 'فاکتورهای بدون مالیات',
+    anchors: ['فاکتور بدون مالیات', 'فاکتور بدون VAT', 'کدام فاکتورها مالیات ندارند', 'فاکتورهای معاف'],
+    excludeSignals: ['ماهانه', 'بدهی', 'خالص'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv'
+    },
+    measure: {
+      kind: 'list',
+      columns: ['inv.InvoiceId', 'inv.Number', 'inv.IssueDate', 'inv.CustomerName', 'inv.NetPriceInBaseCurrency', 'inv.TaxAmount']
+    },
+    dimensions: [],
+    mandatoryFilters: [{ sql: 'inv.TaxAmount = 0 OR inv.TaxAmount IS NULL', description: 'فاکتور با مالیات صفر یا نامعتبر' }],
+    dateColumn: 'inv.IssueDate'
+  },
+  {
+    id: 'vat_liability',
+    titleFa: 'بدهی مالیات ارزش افزوده',
+    anchors: ['بدهی VAT', 'مالیات پرداختنی', 'خالص مالیات ارزش افزوده', 'چقدر مالیات باید بدهیم'],
+    excludeSignals: ['ماهانه', 'فاکتور بدون', 'معاف'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv'
+    },
+    measure: { kind: 'sum', column: 'TaxAmount' },
+    dimensions: [],
+    mandatoryFilters: [],
+    dateColumn: 'inv.IssueDate'
+  },
+  {
+    id: 'checks_due',
+    titleFa: 'چک\u200cهای سررسید',
+    anchors: ['چک سررسید', 'چک\u200cهای این هفته', 'چک\u200cهای دریافتی سررسید', 'چک\u200cهای پرداختی سررسید', 'چک\u200cهای در جریان'],
+    excludeSignals: ['برگشتی', 'مجموع'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'RPA.PaperCheck',
+      alias: 'chk'
+    },
+    measure: {
+      kind: 'list',
+      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.Status', 'chk.PartyName']
+    },
+    dimensions: [],
+    mandatoryFilters: [{ sql: "chk.Status = N'در جریان'", description: 'فقط چک\u200cهای در جریان' }],
+    dateColumn: 'chk.DueDate'
+  },
+  {
+    id: 'checks_bounced',
+    titleFa: 'چک\u200cهای برگشتی',
+    anchors: ['چک برگشتی', 'چک\u200cهای برگشتی', 'چک\u200cهای برگشت خورده', 'چک ناموفق'],
+    excludeSignals: ['سررسید', 'مجموع', 'در جریان'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'RPA.PaperCheck',
+      alias: 'chk'
+    },
+    measure: {
+      kind: 'list',
+      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.PartyName']
+    },
+    dimensions: [],
+    mandatoryFilters: [{ sql: "chk.Status = N'برگشتی'", description: 'فقط چک\u200cهای برگشتی' }],
+    dateColumn: 'chk.DueDate'
+  },
+  {
+    id: 'checks_summary',
+    titleFa: 'خلاصه چک\u200cها',
+    anchors: ['مجموع چک\u200cها', 'چک\u200cهای در جریان', 'چقدر چک داریم', 'خلاصه چک'],
+    excludeSignals: ['برگشتی', 'سررسید'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_direction'],
+    source: {
+      primaryTable: 'RPA.PaperCheck',
+      alias: 'chk'
+    },
+    measure: { kind: 'sum', column: 'Amount' },
+    dimensions: [
+      {
+        dimension: 'by_direction',
+        labelColumn: 'chk.Direction',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [{ sql: "chk.Status = N'در جریان'", description: 'فقط چک\u200cهای در جریان' }],
+    dateColumn: 'chk.DueDate'
+  },
+  {
+    id: 'closing_status',
+    titleFa: 'وضعیت بستن دوره',
+    anchors: ['بستن دوره', 'اختتامیه', 'افتتاحیه', 'آیا اختتامیه ثبت شده', 'وضعیت بستن سال'],
+    excludeSignals: ['تراز', 'اول دوره', 'آخر دوره'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.Voucher',
+      alias: 'v',
+      requiredJoins: [
+        {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        }
+      ]
+    },
+    measure: { kind: 'count' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [{ sql: 'v.Type IN (3, 4, 5)', description: 'فقط اسناد اختتامیه/افتتاحیه/بستن' }],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'trial_balance_check',
+    titleFa: 'بررسی تراز آزمایشی',
+    anchors: ['تراز می\u200cبندد', 'آیا تراز آزمایشی می\u200cبندد', 'اختلاف تراز', 'بررسی تراز'],
+    excludeSignals: ['اختتامیه', 'افتتاحیه', 'بستن دوره', 'اول دوره', 'آخر دوره'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    dimensions: [],
+    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'period_comparison',
+    titleFa: 'مقایسه اول و آخر دوره',
+    anchors: ['اول دوره', 'آخر دوره', 'تغییرات حساب', 'مقایسه اول و آخر دوره'],
+    excludeSignals: ['اختتامیه', 'افتتاحیه', 'تراز می\u200cبندد'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_account'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    dimensions: [
+      {
+        dimension: 'by_account',
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    entityNameMatch: { column: 'a.Title', foldPersian: true },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'sales_reconciliation',
+    titleFa: 'تطبیق فروش با دفتر کل',
+    anchors: ['تطبیق فروش', 'آیا فاکتورها با دفتر کل می\u200cخواند', 'اختلاف فروش', 'reconciliation فروش'],
+    excludeSignals: ['خرید', 'موجودی', 'انبار'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv'
+    },
+    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    dimensions: [],
+    mandatoryFilters: [],
+    dateColumn: 'inv.IssueDate'
+  },
+  {
+    id: 'purchase_reconciliation',
+    titleFa: 'تطبیق خرید با دفتر کل',
+    anchors: ['تطبیق خرید', 'آیا خرید با دفتر کل می\u200cخواند', 'اختلاف خرید'],
+    excludeSignals: ['فروش', 'موجودی', 'انبار'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'INV.InventoryReceipt',
+      alias: 'ir'
+    },
+    measure: { kind: 'sum', column: 'TotalPrice' },
+    dimensions: [],
+    mandatoryFilters: [{ sql: 'ir.IsReturn = 0', description: 'فقط حواله\u200cهای ورودی (خرید)' }],
+    dateColumn: 'ir.IssueDate'
+  },
+  {
+    id: 'inventory_reconciliation',
+    titleFa: 'تطبیق موجودی انبار با حساب',
+    anchors: ['تطبیق موجودی', 'آیا انبار با حساب می\u200cخواند', 'اختلاف موجودی'],
+    excludeSignals: ['فروش', 'خرید', 'فاکتور'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'INV.InventoryReceipt',
+      alias: 'ir'
+    },
+    measure: { kind: 'sum', column: 'TotalPrice' },
+    dimensions: [],
+    mandatoryFilters: [],
+    dateColumn: 'ir.IssueDate'
   }
 ]
 

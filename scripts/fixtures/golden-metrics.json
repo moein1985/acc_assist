@@ -1245,6 +1245,174 @@
       "expectedGrain": "by_voucher",
       "expectedMetricId_entityName": "پارس",
       "expect": "any_rows"
+    },
+    {
+      "id": "s14-tax-monthly",
+      "prompt": "مالیات ماهانه فروش",
+      "expectedMetricId": "tax_monthly_summary",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-tax-monthly-alt",
+      "prompt": "خلاصه مالیات به تفکیک ماه",
+      "expectedMetricId": "tax_monthly_summary",
+      "expectedGrain": "by_month",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-invoices-without-tax",
+      "prompt": "کدام فاکتورها مالیات ندارند",
+      "expectedMetricId": "invoices_without_tax",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-invoices-without-tax-alt",
+      "prompt": "فاکتورهای معاف از مالیات",
+      "expectedMetricId": "invoices_without_tax",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-vat-liability",
+      "prompt": "بدهی VAT چقدر است",
+      "expectedMetricId": "vat_liability",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-vat-liability-alt",
+      "prompt": "خالص مالیات ارزش افزوده",
+      "expectedMetricId": "vat_liability",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-due",
+      "prompt": "چک سررسید این هفته",
+      "expectedMetricId": "checks_due",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-due-alt",
+      "prompt": "چک\u200cهای در جریان",
+      "expectedMetricId": "checks_due",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-bounced",
+      "prompt": "چک برگشتی",
+      "expectedMetricId": "checks_bounced",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-bounced-alt",
+      "prompt": "چک\u200cهای برگشت خورده",
+      "expectedMetricId": "checks_bounced",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-summary",
+      "prompt": "مجموع چک\u200cهای در جریان",
+      "expectedMetricId": "checks_summary",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-checks-summary-direction",
+      "prompt": "خلاصه چک\u200cهای دریافتی و پرداختی",
+      "expectedMetricId": "checks_summary",
+      "expectedGrain": "by_direction",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-closing-status",
+      "prompt": "آیا اختتامیه ثبت شده",
+      "expectedMetricId": "closing_status",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-closing-status-alt",
+      "prompt": "وضعیت بستن سال مالی",
+      "expectedMetricId": "closing_status",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-trial-balance-check",
+      "prompt": "آیا تراز آزمایشی می\u200cبندد",
+      "expectedMetricId": "trial_balance_check",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-trial-balance-check-alt",
+      "prompt": "اختلاف تراز",
+      "expectedMetricId": "trial_balance_check",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-period-comparison",
+      "prompt": "مقایسه اول و آخر دوره",
+      "expectedMetricId": "period_comparison",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-period-comparison-account",
+      "prompt": "تغییرات حساب به تفکیک سرفصل",
+      "expectedMetricId": "period_comparison",
+      "expectedGrain": "by_account",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-sales-reconciliation",
+      "prompt": "تطبیق فروش با دفتر کل",
+      "expectedMetricId": "sales_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-sales-reconciliation-alt",
+      "prompt": "آیا فاکتورها با دفتر کل می\u200cخواند",
+      "expectedMetricId": "sales_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-purchase-reconciliation",
+      "prompt": "تطبیق خرید با دفتر کل",
+      "expectedMetricId": "purchase_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-purchase-reconciliation-alt",
+      "prompt": "اختلاف خرید",
+      "expectedMetricId": "purchase_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-inventory-reconciliation",
+      "prompt": "تطبیق موجودی انبار با حساب",
+      "expectedMetricId": "inventory_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-inventory-reconciliation-alt",
+      "prompt": "اختلاف موجودی",
+      "expectedMetricId": "inventory_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "negative": [
