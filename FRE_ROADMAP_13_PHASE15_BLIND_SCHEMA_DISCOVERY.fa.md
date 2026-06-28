@@ -710,6 +710,25 @@ Results: 18/20 OK, 1 correct refusal (negative), 1 pre-existing planner issue (n
 RequestIds: ssh-1782649813155 through ssh-1782650243543
 Verdict: PASS — no Phase 15 regressions
 
+--- Blind Discovery Test on Sepidar (S15.26 substitute) ---
+Date: 2026-06-28
+Method: INFORMATION_SCHEMA scan via SSH/sqlcmd → heuristic mapping → buildAdapter → compare with hardcoded SepidarAdapter
+Script: scripts/ops/blind-test-sepidar.ts
+Schema: 133 tables discovered, 10 concepts mapped, confidence=high
+Table mappings: 10/11 match (91%)
+  MATCH: sales_invoice→SLS.Invoice, voucher→ACC.Voucher, voucher_item→ACC.VoucherItem,
+         account→ACC.Account, fiscal_year→FMK.FiscalYear, party→GNR.Party,
+         cashBalance→RPA.CashBalance, bankBalance→RPA.Bank, costCenter→GNR.CostCenter
+  MISMATCH: inventory_receipt→INV.PricingItemPrice (should be INV.InventoryReceipt — heuristic picked first match)
+Column mappings: 4/8 match (50%)
+  MATCH: Debit, Credit, Code, Title
+  MISMATCH: net_amount (Price vs NetPriceInBaseCurrency), date (Date vs InvoiceDate/VoucherDate),
+            voucher_type (Type vs VoucherType) — heuristic picks shortest column name
+Account classification: 5/5 match (100%) — all SUBSTRING(Code,1,1)='1'..'5'
+Overall: 14/19 (74%)
+Verdict: PARTIAL — heuristic provides strong base, human-in-the-loop needed for column disambiguation
+Key finding: Table-level heuristic is excellent (91%). Column-level needs refinement or human override for ambiguous names.
+
 --- Field Test (optional, second database) ---
 Database: Mahak (192.168.85.15) — SQL credentials not yet available
 Discovery: pending (awaiting SQL user/password)
