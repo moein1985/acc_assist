@@ -5,11 +5,126 @@
  * Sepidar uses SQL Server with multiple schemas (SLS, POM, ACC, FMK, RPA).
  */
 
-import type { SchemaAdapter, JoinSpec, SoftwareConfig } from '../schemaAdapter'
+import type { SchemaAdapter, JoinSpec, SoftwareConfig, SchemaTableMapping, SchemaColumnMapping, SchemaRelationship, SchemaEnumMapping } from '../schemaAdapter'
 import { AccountingConcept, AccountCategory } from '../schemaAdapter'
 
 export class SepidarAdapter implements SchemaAdapter {
   readonly softwareId = 'sepidar'
+  readonly softwareName = 'سپیدار'
+  readonly discoveryMethod = 'hardcoded' as const
+  readonly confidence = 'high' as const
+  readonly discoveredAt = undefined
+
+  readonly tables: SchemaTableMapping = {
+    salesInvoice: { schema: 'SLS', table: 'Invoice' },
+    purchaseInvoice: { schema: 'POM', table: 'PurchaseInvoice' },
+    inventoryReceipt: { schema: 'INV', table: 'InventoryReceipt' },
+    voucher: { schema: 'ACC', table: 'Voucher' },
+    voucherItem: { schema: 'ACC', table: 'VoucherItem' },
+    account: { schema: 'ACC', table: 'Account' },
+    fiscalYear: { schema: 'FMK', table: 'FiscalYear' },
+    party: { schema: 'ACC', table: 'Partner' },
+    cashBalance: { schema: 'RPA', table: 'CashBalance' },
+    bankBalance: { schema: 'RPA', table: 'BankAccountBalance' },
+  }
+
+  readonly columns: SchemaColumnMapping = {
+    salesInvoice: {
+      idColumn: { schema: 'SLS', table: 'Invoice', column: 'InvoiceId' },
+      dateColumn: { schema: 'SLS', table: 'Invoice', column: 'Date' },
+      netAmountColumn: { schema: 'SLS', table: 'Invoice', column: 'NetPriceInBaseCurrency' },
+      taxAmountColumn: { schema: 'SLS', table: 'Invoice', column: 'TaxAmount' },
+      fiscalYearRefColumn: { schema: 'SLS', table: 'Invoice', column: 'FiscalYearRef' },
+      partyRefColumn: { schema: 'SLS', table: 'Invoice', column: 'PartyRef' },
+    },
+    purchaseInvoice: {
+      idColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'PurchaseInvoiceId' },
+      dateColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'Date' },
+      netAmountColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'NetPriceInBaseCurrency' },
+      fiscalYearRefColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'FiscalYearRef' },
+      partyRefColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'PartnerRef' },
+    },
+    inventoryReceipt: {
+      idColumn: { schema: 'INV', table: 'InventoryReceipt', column: 'InventoryReceiptId' },
+      dateColumn: { schema: 'INV', table: 'InventoryReceipt', column: 'Date' },
+      totalPriceColumn: { schema: 'INV', table: 'InventoryReceipt', column: 'TotalPrice' },
+      isReturnColumn: { schema: 'INV', table: 'InventoryReceipt', column: 'IsReturn' },
+      fiscalYearRefColumn: { schema: 'INV', table: 'InventoryReceipt', column: 'FiscalYearRef' },
+    },
+    voucher: {
+      idColumn: { schema: 'ACC', table: 'Voucher', column: 'VoucherId' },
+      numberColumn: { schema: 'ACC', table: 'Voucher', column: 'Number' },
+      dateColumn: { schema: 'ACC', table: 'Voucher', column: 'Date' },
+      typeColumn: { schema: 'ACC', table: 'Voucher', column: 'Type' },
+      descriptionColumn: { schema: 'ACC', table: 'Voucher', column: 'Description' },
+      fiscalYearRefColumn: { schema: 'ACC', table: 'Voucher', column: 'FiscalYearRef' },
+    },
+    voucherItem: {
+      idColumn: { schema: 'ACC', table: 'VoucherItem', column: 'VoucherItemId' },
+      voucherRefColumn: { schema: 'ACC', table: 'VoucherItem', column: 'VoucherRef' },
+      accountRefColumn: { schema: 'ACC', table: 'VoucherItem', column: 'AccountSLRef' },
+      debitColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Debit' },
+      creditColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Credit' },
+      descriptionColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Description' },
+      partyRefColumn: { schema: 'ACC', table: 'VoucherItem', column: 'PartyRef' },
+    },
+    account: {
+      idColumn: { schema: 'ACC', table: 'Account', column: 'AccountId' },
+      codeColumn: { schema: 'ACC', table: 'Account', column: 'Code' },
+      titleColumn: { schema: 'ACC', table: 'Account', column: 'Title' },
+    },
+    fiscalYear: {
+      idColumn: { schema: 'FMK', table: 'FiscalYear', column: 'FiscalYearId' },
+      titleColumn: { schema: 'FMK', table: 'FiscalYear', column: 'Title' },
+    },
+    party: {
+      idColumn: { schema: 'ACC', table: 'Partner', column: 'PartnerId' },
+      titleColumn: { schema: 'ACC', table: 'Partner', column: 'Title' },
+    },
+  }
+
+  readonly relationships: SchemaRelationship[] = [
+    {
+      fromTable: { schema: 'ACC', table: 'VoucherItem' },
+      fromColumn: 'VoucherRef',
+      toTable: { schema: 'ACC', table: 'Voucher' },
+      toColumn: 'VoucherId',
+      type: 'fk',
+    },
+    {
+      fromTable: { schema: 'ACC', table: 'VoucherItem' },
+      fromColumn: 'AccountSLRef',
+      toTable: { schema: 'ACC', table: 'Account' },
+      toColumn: 'AccountId',
+      type: 'fk',
+    },
+    {
+      fromTable: { schema: 'ACC', table: 'VoucherItem' },
+      fromColumn: 'PartyRef',
+      toTable: { schema: 'ACC', table: 'Partner' },
+      toColumn: 'PartnerId',
+      type: 'logical',
+    },
+    {
+      fromTable: { schema: 'SLS', table: 'Invoice' },
+      fromColumn: 'FiscalYearRef',
+      toTable: { schema: 'FMK', table: 'FiscalYear' },
+      toColumn: 'FiscalYearId',
+      type: 'fk',
+    },
+    {
+      fromTable: { schema: 'ACC', table: 'Voucher' },
+      fromColumn: 'FiscalYearRef',
+      toTable: { schema: 'FMK', table: 'FiscalYear' },
+      toColumn: 'FiscalYearId',
+      type: 'fk',
+    },
+  ]
+
+  readonly enums: SchemaEnumMapping = {
+    voucherType: { operational: [1, 2], tempClosing: [3], closing: [4], opening: [5] },
+    inventoryReturnType: { normal: 0, return: 1 },
+  }
 
   private readonly tableMap: Record<AccountingConcept, string> = {
     [AccountingConcept.sales_invoice]: 'SLS.Invoice',

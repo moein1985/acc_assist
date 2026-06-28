@@ -190,4 +190,106 @@ test('SepidarAdapter', (t) => {
   t.test('getPrimaryKeyColumn - return AccountId for account', () => {
     assert.strictEqual(adapter.getPrimaryKeyColumn(AccountingConcept.account), 'AccountId')
   })
+
+  // ─── Phase 15: Declarative field tests ───
+
+  t.test('softwareName is correct', () => {
+    assert.strictEqual(adapter.softwareName, 'سپیدار')
+  })
+
+  t.test('discoveryMethod is hardcoded', () => {
+    assert.strictEqual(adapter.discoveryMethod, 'hardcoded')
+  })
+
+  t.test('confidence is high', () => {
+    assert.strictEqual(adapter.confidence, 'high')
+  })
+
+  t.test('tables.salesInvoice is correct', () => {
+    assert.deepStrictEqual(adapter.tables.salesInvoice, { schema: 'SLS', table: 'Invoice' })
+  })
+
+  t.test('tables.voucher is correct', () => {
+    assert.deepStrictEqual(adapter.tables.voucher, { schema: 'ACC', table: 'Voucher' })
+  })
+
+  t.test('tables.voucherItem is correct', () => {
+    assert.deepStrictEqual(adapter.tables.voucherItem, { schema: 'ACC', table: 'VoucherItem' })
+  })
+
+  t.test('tables.account is correct', () => {
+    assert.deepStrictEqual(adapter.tables.account, { schema: 'ACC', table: 'Account' })
+  })
+
+  t.test('tables.fiscalYear is correct', () => {
+    assert.deepStrictEqual(adapter.tables.fiscalYear, { schema: 'FMK', table: 'FiscalYear' })
+  })
+
+  t.test('tables.party is correct', () => {
+    assert.deepStrictEqual(adapter.tables.party, { schema: 'ACC', table: 'Partner' })
+  })
+
+  t.test('tables.inventoryReceipt is correct', () => {
+    assert.deepStrictEqual(adapter.tables.inventoryReceipt, { schema: 'INV', table: 'InventoryReceipt' })
+  })
+
+  t.test('columns.salesInvoice.netAmountColumn is correct', () => {
+    assert.deepStrictEqual(adapter.columns.salesInvoice?.netAmountColumn, {
+      schema: 'SLS', table: 'Invoice', column: 'NetPriceInBaseCurrency'
+    })
+  })
+
+  t.test('columns.voucher.typeColumn is correct', () => {
+    assert.deepStrictEqual(adapter.columns.voucher?.typeColumn, {
+      schema: 'ACC', table: 'Voucher', column: 'Type'
+    })
+  })
+
+  t.test('columns.voucherItem.debitColumn is correct', () => {
+    assert.deepStrictEqual(adapter.columns.voucherItem?.debitColumn, {
+      schema: 'ACC', table: 'VoucherItem', column: 'Debit'
+    })
+  })
+
+  t.test('columns.account.codeColumn is correct', () => {
+    assert.deepStrictEqual(adapter.columns.account?.codeColumn, {
+      schema: 'ACC', table: 'Account', column: 'Code'
+    })
+  })
+
+  t.test('relationships has at least 5 entries', () => {
+    assert.ok(adapter.relationships.length >= 5)
+  })
+
+  t.test('relationships includes VoucherItem→Voucher FK', () => {
+    const rel = adapter.relationships.find(
+      (r) => r.fromTable.table === 'VoucherItem' && r.toTable.table === 'Voucher'
+    )
+    assert.ok(rel)
+    assert.strictEqual(rel?.type, 'fk')
+  })
+
+  t.test('relationships includes VoucherItem→Partner logical', () => {
+    const rel = adapter.relationships.find(
+      (r) => r.fromTable.table === 'VoucherItem' && r.toTable.table === 'Partner'
+    )
+    assert.ok(rel)
+    assert.strictEqual(rel?.type, 'logical')
+  })
+
+  t.test('enums.voucherType has operational [1,2]', () => {
+    assert.deepStrictEqual(adapter.enums.voucherType?.operational, [1, 2])
+  })
+
+  t.test('enums.voucherType has closing [4]', () => {
+    assert.deepStrictEqual(adapter.enums.voucherType?.closing, [4])
+  })
+
+  t.test('enums.inventoryReturnType has normal 0', () => {
+    assert.strictEqual(adapter.enums.inventoryReturnType?.normal, 0)
+  })
+
+  t.test('enums.inventoryReturnType has return 1', () => {
+    assert.strictEqual(adapter.enums.inventoryReturnType?.return, 1)
+  })
 })
