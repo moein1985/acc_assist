@@ -702,6 +702,14 @@ Mock schema: created (tests/fixtures/mock-schema.json)
 auto-discovery on mock schema: pass (5 discovery golden cases)
 Compiler with mock adapter: pass (5 compiler golden cases)
 
+--- Field Test (Sepidar regression — 192.168.85.56) ---
+Date: 2026-06-28
+Build: Phase 15 deployed (4 markers in asar confirmed)
+Questions: 20 (5 core, 3 multi-year, 3 financial statements, 3 accountant tools, 3 drill-down, 2 date range, 1 negative)
+Results: 18/20 OK, 1 correct refusal (negative), 1 pre-existing planner issue (net_margin tool-call limit)
+RequestIds: ssh-1782649813155 through ssh-1782650243543
+Verdict: PASS — no Phase 15 regressions
+
 --- Field Test (optional, second database) ---
 Database: Mahak (192.168.85.15) — SQL credentials not yet available
 Discovery: pending (awaiting SQL user/password)
