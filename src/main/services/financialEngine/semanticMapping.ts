@@ -50,18 +50,22 @@ const CONCEPT_KEYWORDS: Record<string, RegExp[]> = {
   voucher: [
     /\bvoucher\b/i, /\bjournal\b/i, /\bentry\b/i, /\bsanad\b/i,
     /\bdocument\b/i, /سند/i, /\bacc\b/i,
+    /journal.*entry/i,
   ],
   voucherItem: [
     /voucher.?item/i, /\bitem\b/i, /\bline\b/i, /\bdetail\b/i, /\barticle\b/i,
     /\bjournal_?line\b/i, /voucherline/i, /سند\s*ردیف/i,
+    /journal.*line/i,
   ],
   account: [
     /\baccount\b/i, /\baccounts\b/i, /\bledger\b/i, /\bchart\b/i,
     /\bcoa\b/i, /\bcode\b/i, /حساب/i,
+    /chart.*account/i,
   ],
   fiscalYear: [
     /fiscalyear/i, /\bfiscal/i, /\byear\b/i, /\bperiod\b/i,
     /سال/i, /\bdor[e]h\b/i, /دوره/i,
+    /fiscal.*period/i,
   ],
   party: [
     /\bparty\b/i, /\bcustomer\b/i, /\bvendor\b/i, /\bpartner\b/i,
@@ -89,7 +93,7 @@ const CONCEPT_KEYWORDS: Record<string, RegExp[]> = {
 }
 
 const COLUMN_KEYWORDS: Record<string, RegExp[]> = {
-  idColumn: [/id$/i, /\bid\b/i, /\bcode\b/i, /\bref\b/i, /\bpk\b/i],
+  idColumn: [/id$/i, /\bid\b/i, /\bref\b/i, /\bpk\b/i],
   dateColumn: [/date/i, /\btime\b/i, /\btarikh\b/i, /تاریخ/i],
   netAmountColumn: [/\bnet\b/i, /\bamount\b/i, /\btotal\b/i, /\bprice\b/i, /\bvalue\b/i, /\bnet_?amount\b/i, /مبلغ/i],
   grossAmountColumn: [/\bgross\b/i, /\bsubtotal\b/i, /\bbruto\b/i],
@@ -98,14 +102,14 @@ const COLUMN_KEYWORDS: Record<string, RegExp[]> = {
   creditColumn: [/\bcredit\b/i, /\bcrd\b/i, /\bcrt\b/i, /بستان/i, /بستانکار/i],
   numberColumn: [/number/i, /\bno\b/i, /\bnum\b/i, /شماره/i],
   typeColumn: [/type/i, /\bkind\b/i, /\bcategory\b/i, /نوع/i],
-  descriptionColumn: [/\bdescription\b/i, /\bdesc\b/i, /\bnote\b/i, /\bcomment\b/i, /\bremark\b/i, /شرح/i, /توضیح/i],
-  codeColumn: [/\bcode\b/i, /\bsymbol\b/i, /کد/i, /كد/i],
-  titleColumn: [/\btitle\b/i, /\bname\b/i, /\blabel\b/i, /عنوان/i, /نام/i],
+  descriptionColumn: [/description/i, /\bdesc\b/i, /\bnote\b/i, /\bcomment\b/i, /\bremark\b/i, /شرح/i, /توضیح/i],
+  codeColumn: [/code/i, /\bsymbol\b/i, /کد/i, /كد/i],
+  titleColumn: [/title/i, /name/i, /\blabel\b/i, /عنوان/i, /نام/i],
   isReturnColumn: [/\breturn\b/i, /\bis_?return\b/i, /مرجوع/i, /برگشتی/i],
   fiscalYearRefColumn: [/fiscalyear/i, /yearref/i, /periodref/i, /سال/i],
-  partyRefColumn: [/\bparty\b/i, /\bcustomer\b/i, /\bvendor\b/i, /\bpartner\b/i, /\bperson_?ref\b/i],
-  accountRefColumn: [/accountref/i, /accountid/i, /accref/i],
-  voucherRefColumn: [/\bvoucher_?ref\b/i, /\bvoucher_?id\b/i, /\bdoc_?ref\b/i, /\bsanad_?ref\b/i],
+  partyRefColumn: [/party/i, /customer/i, /vendor/i, /partner/i, /person_?ref/i],
+  accountRefColumn: [/accountref/i, /accountid/i, /accref/i, /account_?ref/i],
+  voucherRefColumn: [/voucher_?ref/i, /voucher_?id/i, /doc_?ref/i, /sanad_?ref/i, /entry_?ref/i],
   statusColumn: [/\bstatus\b/i, /\bstate\b/i, /\bcondition\b/i, /وضعیت/i],
   directionColumn: [/\bdirection\b/i, /\bdir\b/i, /\bincome\b/i, /\boutgo\b/i, /جهت/i],
   dueDateColumn: [/\bdue\b/i, /\bdue_?date\b/i, /\bmaturity\b/i, /سررسید/i],
@@ -494,6 +498,36 @@ function snakeToCamel(s: string): string {
   return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
 }
 
+const FIELD_TO_COLUMN_KEY: Record<string, string> = {
+  net_amount: 'netAmountColumn',
+  gross_amount: 'grossAmountColumn',
+  tax_amount: 'taxAmountColumn',
+  date: 'dateColumn',
+  fiscal_year_id: 'fiscalYearRefColumn',
+  party_id: 'partyRefColumn',
+  account_id: 'accountRefColumn',
+  voucher_id: 'voucherRefColumn',
+  voucher_type: 'typeColumn',
+  debit: 'debitColumn',
+  credit: 'creditColumn',
+  code: 'codeColumn',
+  title: 'titleColumn',
+  name: 'titleColumn',
+  description: 'descriptionColumn',
+  number: 'numberColumn',
+  primary_key: 'idColumn',
+  is_return: 'isReturnColumn',
+  total_price: 'totalPriceColumn',
+  status: 'statusColumn',
+  direction: 'directionColumn',
+  due_date: 'dueDateColumn',
+  amount: 'amountColumn',
+}
+
+function translateField(field: string): string {
+  return FIELD_TO_COLUMN_KEY[field] ?? field
+}
+
 export interface BuildAdapterInput {
   softwareId: string
   softwareName: string
@@ -545,7 +579,7 @@ class DiscoveredAdapter implements SchemaAdapter {
     if (!conceptCols) {
       throw new Error('No column mapping for concept: ' + concept)
     }
-    const colRef = conceptCols[field]
+    const colRef = conceptCols[field] ?? conceptCols[translateField(field)]
     if (!colRef) {
       throw new Error('Unknown field ' + field + ' for concept ' + concept)
     }
@@ -577,7 +611,8 @@ class DiscoveredAdapter implements SchemaAdapter {
         ...(this.enums.voucherType.opening ?? []),
       ]
       if (excluded.length === 0) return '1=1'
-      return 'v.Type NOT IN (' + excluded.join(', ') + ')'
+      const typeCol = this.columns.voucher?.typeColumn?.column ?? 'Type'
+      return 'v.' + typeCol + ' NOT IN (' + excluded.join(', ') + ')'
     }
     return '1=1'
   }

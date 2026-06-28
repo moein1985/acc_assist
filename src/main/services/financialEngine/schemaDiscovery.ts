@@ -291,17 +291,17 @@ const IRRELEVANT_TABLE_PATTERNS = [
 ]
 
 const RELEVANT_TABLE_PATTERNS = [
-  /\baccount\b/i, /\baccounts\b/i, /\bledger\b/i, /\bchart\b/i, /\bcoa\b/i,
-  /\bvoucher\b/i, /\bjournal\b/i, /\bentry\b/i, /\bsanad\b/i, /سند/i,
-  /\binvoice\b/i, /\bfactor\b/i, /فاکتور/i, /فاكتور/i,
-  /\bparty\b/i, /\bcustomer\b/i, /\bvendor\b/i, /\bpartner\b/i, /\bclient\b/i, /\bsupplier\b/i,
-  /\bfiscal\b/i, /\byear\b/i, /سال/i, /\bperiod\b/i,
-  /\binventory\b/i, /\breceipt\b/i, /\bstock\b/i, /\bwarehouse\b/i, /انبار/i,
-  /\bcheck\b/i, /\bcheque\b/i, /چک/i,
-  /\bbank\b/i, /\bcash\b/i, /\bpayment\b/i, /\breceipt\b/i,
-  /\bpurchase\b/i, /\bsales\b/i, /\bsale\b/i, /\bbill\b/i,
-  /\btax\b/i, /مالیات/i,
-  /\bcost\b/i, /\bproject\b/i, /\bcenter\b/i,
+  /account/i, /accounts/i, /ledger/i, /chart/i, /coa/i,
+  /voucher/i, /journal/i, /entry/i, /sanad/i, /سند/i,
+  /invoice/i, /factor/i, /فاکتور/i, /فاكتور/i,
+  /party/i, /customer/i, /vendor/i, /partner/i, /client/i, /supplier/i,
+  /fiscal/i, /year/i, /سال/i, /period/i,
+  /inventory/i, /receipt/i, /stock/i, /warehouse/i, /انبار/i,
+  /check/i, /cheque/i, /چک/i,
+  /bank/i, /cash/i, /payment/i,
+  /purchase/i, /sales/i, /sale/i, /bill/i,
+  /tax/i, /مالیات/i,
+  /cost/i, /project/i, /center/i,
 ]
 
 function isSystemTable(schema: string, table: string): boolean {

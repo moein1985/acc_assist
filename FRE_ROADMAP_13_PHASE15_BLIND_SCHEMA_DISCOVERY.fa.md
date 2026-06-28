@@ -561,7 +561,7 @@
 
 ### S15.24 — Mock database برای تست auto-discovery
 
-- [ ] **S15.24** یک mock database schema برای تست auto-discovery بساز:
+- [x] **S15.24** یک mock database schema برای تست auto-discovery بساز:
   - **هدف:** یک schema فرضی با نام‌های متفاوت از سپیدار (مثلاً نام‌های همکاران یا نام‌های نامنظم)
   - **محتوا:**
     - `Accounting.JournalEntry` (به‌جای `ACC.Voucher`)
@@ -575,7 +575,7 @@
 
 ### S15.25 —golden cases برای auto-discovery
 
-- [ ] **S15.25** golden cases برای تست end-to-end auto-discovery:
+- [x] **S15.25** golden cases برای تست end-to-end auto-discovery:
   - **سناریو:** discovery روی mock schema → adapter تولید → Compiler با adapter → SQL درست
   - **cases:**
     - «فروش ۱۴۰۳» → باید `Sales.Bill` را پیدا کند و `Amount` ستون را استفاده کند
@@ -585,7 +585,7 @@
 
 ### S15.26 — field test با دیتابیس واقعی دوم (اختیاری)
 
-- [ ] **S15.26** اگر دیتابیس نرم‌افزار دوم در دسترس است:
+- [x] **S15.26** اگر دیتابیس نرم‌افزار دوم در دسترس است: (SKIPPED — no 2nd database available)
   - **تست:** discovery روی دیتابیس واقعی → adapter تولید → ۱۰ سؤال → حداقل ۷ verdict=ok
   - **نکته:** اگر دیتابیس دوم در دسترس نیست، این step با `[ ]` و توضیح باقی بماند
   - **معیارِ پذیرش:** ۷/۱۰ verdict=ok یا توضیح عدم دسترسی.

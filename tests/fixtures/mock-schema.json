@@ -1,0 +1,95 @@
+{
+  "comment": "Mock database schema for auto-discovery testing (S15.24). Tables and columns use different names from Sepidar to verify heuristic mapping works correctly.",
+  "serverVersion": "15.0.2000",
+  "databaseName": "MockSoftDB",
+  "tables": [
+    {
+      "tableRef": { "schema": "Accounting", "table": "JournalEntry" },
+      "estimatedRowCount": 5000,
+      "columns": [
+        { "name": "EntryId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "EntryDate", "dataType": "datetime", "maxLength": 8, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "EntryNumber", "dataType": "nvarchar", "maxLength": 50, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "DocType", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "Description", "dataType": "nvarchar", "maxLength": 500, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "PeriodRef", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": [
+        { "column": "PeriodRef", "referencedTable": { "schema": "Financial", "table": "FiscalPeriod" }, "referencedColumn": "PeriodId" }
+      ]
+    },
+    {
+      "tableRef": { "schema": "Accounting", "table": "JournalLine" },
+      "estimatedRowCount": 50000,
+      "columns": [
+        { "name": "LineId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "EntryRef", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "AccountRef", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "Debit", "dataType": "decimal", "maxLength": 9, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "Credit", "dataType": "decimal", "maxLength": 9, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "LineDescription", "dataType": "nvarchar", "maxLength": 500, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "PartyRef", "dataType": "int", "maxLength": 4, "isNullable": true, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": [
+        { "column": "EntryRef", "referencedTable": { "schema": "Accounting", "table": "JournalEntry" }, "referencedColumn": "EntryId" },
+        { "column": "AccountRef", "referencedTable": { "schema": "Accounting", "table": "ChartOfAccounts" }, "referencedColumn": "AccountId" }
+      ]
+    },
+    {
+      "tableRef": { "schema": "Accounting", "table": "ChartOfAccounts" },
+      "estimatedRowCount": 200,
+      "columns": [
+        { "name": "AccountId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "AccountCode", "dataType": "nvarchar", "maxLength": 50, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "AccountName", "dataType": "nvarchar", "maxLength": 200, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "AccountType", "dataType": "int", "maxLength": 4, "isNullable": true, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "tableRef": { "schema": "Financial", "table": "FiscalPeriod" },
+      "estimatedRowCount": 20,
+      "columns": [
+        { "name": "PeriodId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "PeriodTitle", "dataType": "nvarchar", "maxLength": 100, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "StartDate", "dataType": "date", "maxLength": 3, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "EndDate", "dataType": "date", "maxLength": 3, "isNullable": true, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "tableRef": { "schema": "Sales", "table": "Bill" },
+      "estimatedRowCount": 8000,
+      "columns": [
+        { "name": "BillId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "BillDate", "dataType": "datetime", "maxLength": 8, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "Amount", "dataType": "decimal", "maxLength": 9, "isNullable": false, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "TaxAmount", "dataType": "decimal", "maxLength": 9, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "CustomerRef", "dataType": "int", "maxLength": 4, "isNullable": true, "isIdentity": false, "isPrimaryKey": false },
+        { "name": "PeriodRef", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": [
+        { "column": "PeriodRef", "referencedTable": { "schema": "Financial", "table": "FiscalPeriod" }, "referencedColumn": "PeriodId" }
+      ]
+    },
+    {
+      "tableRef": { "schema": "Sales", "table": "Customer" },
+      "estimatedRowCount": 500,
+      "columns": [
+        { "name": "CustomerId", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "CustomerName", "dataType": "nvarchar", "maxLength": 200, "isNullable": false, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "tableRef": { "schema": "dbo", "table": "migration_log" },
+      "estimatedRowCount": 15,
+      "columns": [
+        { "name": "Id", "dataType": "int", "maxLength": 4, "isNullable": false, "isIdentity": true, "isPrimaryKey": true },
+        { "name": "LogText", "dataType": "nvarchar", "maxLength": 500, "isNullable": true, "isIdentity": false, "isPrimaryKey": false }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "scannedAt": "2026-06-28T12:00:00.000Z"
+}
