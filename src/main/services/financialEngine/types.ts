@@ -41,6 +41,10 @@ export type MetricId =
   | 'voucher_detail'
   | 'vouchers_by_date'
   | 'vouchers_by_type'
+  | 'unbalanced_vouchers'
+  | 'zero_amount_invoices'
+  | 'duplicate_vouchers'
+  | 'vouchers_without_account'
 
 export type Grain =
   | 'total'
@@ -167,6 +171,10 @@ export interface MetricDefinition {
   orderBy?: { column: string; direction: 'ASC' | 'DESC' }
   /** Column for date range filtering (e.g., 'src.Date' or 'v.Date') — S14.4 */
   dateColumn?: string
+  /** HAVING clause for anomaly detection (e.g. 'SUM(Debit) <> SUM(Credit)') — S14.10 */
+  havingClause?: string
+  /** GROUP BY columns for aggregate-list metrics (used with havingClause) — S14.10 */
+  groupByColumns?: string[]
 }
 
 export interface PlanFilter {
@@ -393,7 +401,11 @@ export const metricPlanSchema = z.object({
     'recent_documents',
     'voucher_detail',
     'vouchers_by_date',
-    'vouchers_by_type'
+    'vouchers_by_type',
+    'unbalanced_vouchers',
+    'zero_amount_invoices',
+    'duplicate_vouchers',
+    'vouchers_without_account'
   ]),
   grain: z.enum([
     'total',

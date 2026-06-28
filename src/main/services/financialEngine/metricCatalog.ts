@@ -118,7 +118,7 @@ const catalog: MetricDefinition[] = [
     id: 'trial_balance',
     titleFa: 'تراز آزمایشی',
     anchors: ['تراز آزمایشی', 'بدهکار بستانکار حساب‌ها', 'تراز'],
-    excludeSignals: ['ترازنامه'],
+    excludeSignals: ['ترازنامه', 'تراز نشده', 'تراز ندارن', 'تراز ندارند', 'ترازنشده', 'تراز نیستند', 'تراز نشده\u200cاند', 'ناتراز'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_account'],
     source: {
@@ -1525,6 +1525,126 @@ const catalog: MetricDefinition[] = [
       }
     ],
     mandatoryFilters: [],
+    orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'unbalanced_vouchers',
+    titleFa: 'سندهای ترازنشده',
+    anchors: ['سند ترازنشده', 'سندهای تراز ندارند', 'اختلاف سند', 'سند با اختلاف', 'کدام سندها تراز نیستند', 'سندهای ناتراز', 'تراز نشده', 'تراز ندارن', 'ترازنشده', 'تراز ندارند'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'ترازنامه', 'فاکتور', 'اسناد اخیر', 'تراز آزمایشی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'list',
+      columns: ['v.VoucherId', 'v.Number', 'v.Date', 'v.Description', 'SUM(vi.Debit)', 'SUM(vi.Credit)', 'SUM(vi.Debit) - SUM(vi.Credit)']
+    },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    groupByColumns: ['v.VoucherId', 'v.Number', 'v.Date', 'v.Description'],
+    havingClause: 'SUM(vi.Debit) <> SUM(vi.Credit)',
+    orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'zero_amount_invoices',
+    titleFa: 'فاکتورهای مبلغ صفر',
+    anchors: ['فاکتور صفر', 'فاکتور مبلغ صفر', 'فاکتور با مبلغ نامعتبر', 'فاکتورهای صفر', 'فاکتور صفر ریال', 'فاکتورهای مبلغ صفر', 'فاکتورها مبلغ صفر', 'فاکتور صفر کدام'],
+    excludeSignals: ['سند', 'مانده', 'تراز', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: { primaryTable: 'SAL.Invoice', alias: 'inv' },
+    measure: {
+      kind: 'list',
+      columns: ['InvoiceId', 'Number', 'Date', 'TotalAmount', 'PartyName']
+    },
+    dimensions: [],
+    mandatoryFilters: [
+      { sql: 'inv.TotalAmount = 0', description: 'فاکتور با مبلغ صفر' }
+    ],
+    orderBy: { column: 'inv.Date', direction: 'DESC' },
+    dateColumn: 'inv.Date'
+  },
+  {
+    id: 'duplicate_vouchers',
+    titleFa: 'سندهای تکراری',
+    anchors: ['سند تکراری', 'سندهای تکراری', 'ثبت تکراری', 'سندهای مشابه', 'کدام سندها تکراری\u200cاند', 'سند مشابه'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'ترازنامه', 'فاکتور', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'list',
+      columns: ['v.Date', 'v.Description', 'COUNT(*)', 'SUM(vi.Debit)']
+    },
+    dimensions: [],
+    mandatoryFilters: [
+      { sql: 'v.Type IN (1, 2)', description: 'فقط سندهای عملیاتی و خرید' }
+    ],
+    groupByColumns: ['v.Date', 'v.Description', 'SUM(vi.Debit)'],
+    havingClause: 'COUNT(*) > 1',
+    orderBy: { column: 'v.Date', direction: 'DESC' },
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'vouchers_without_account',
+    titleFa: 'ردیف\u200cهای بدون حساب',
+    anchors: ['ردیف بدون حساب', 'سند بدون حساب', 'حساب خالی', 'ردیف\u200cهای بدون سرفصل', 'سند بدون سرفصل', 'ردیف\u200cهای بدون حساب', 'حساب خالی دارند', 'بدون حساب'],
+    excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'اسناد اخیر'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        }
+      ]
+    },
+    measure: {
+      kind: 'list',
+      columns: ['vi.VoucherItemId', 'v.Number', 'v.Date', 'vi.RowDescription', 'vi.Debit', 'vi.Credit']
+    },
+    dimensions: [],
+    mandatoryFilters: [
+      { sql: 'vi.AccountSLRef IS NULL OR vi.AccountSLRef = 0', description: 'ردیف بدون حساب' }
+    ],
     orderBy: { column: 'v.Date', direction: 'DESC' },
     dateColumn: 'v.Date'
   }

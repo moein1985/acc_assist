@@ -1102,6 +1102,62 @@
       "expectedGrain": "total",
       "expect": "any_rows",
       "expectedVoucherType": "3"
+    },
+    {
+      "id": "s14-unbalanced-vouchers",
+      "prompt": "کدام سندها تراز نیستند؟",
+      "expectedMetricId": "unbalanced_vouchers",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-unbalanced-vouchers-alt",
+      "prompt": "سندهای تراز نشده را نشان بده",
+      "expectedMetricId": "unbalanced_vouchers",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-zero-amount-invoices",
+      "prompt": "فاکتورهای مبلغ صفر کدامند؟",
+      "expectedMetricId": "zero_amount_invoices",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-zero-amount-invoices-alt",
+      "prompt": "کدام فاکتورها مبلغ صفر دارند؟",
+      "expectedMetricId": "zero_amount_invoices",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-duplicate-vouchers",
+      "prompt": "سندهای تکراری را پیدا کن",
+      "expectedMetricId": "duplicate_vouchers",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-duplicate-vouchers-alt",
+      "prompt": "کدام سندها تکراری\u200cاند؟",
+      "expectedMetricId": "duplicate_vouchers",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-vouchers-without-account",
+      "prompt": "ردیف\u200cهای بدون حساب را نشان بده",
+      "expectedMetricId": "vouchers_without_account",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s14-vouchers-without-account-alt",
+      "prompt": "کدام سندها حساب خالی دارند؟",
+      "expectedMetricId": "vouchers_without_account",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "negative": [

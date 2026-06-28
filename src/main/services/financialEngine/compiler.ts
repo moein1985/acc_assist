@@ -271,6 +271,11 @@ function buildStandardQuery(
     }
   }
 
+  // S14.10: Use custom GROUP BY columns from definition if provided
+  if (definition.groupByColumns && groupByCols.length === 0) {
+    groupByCols.push(...definition.groupByColumns)
+  }
+
   const topN = plan.topN
   const selectClause = topN ? `SELECT TOP(${topN}) ${selectCols.join(', ')}` : `SELECT ${selectCols.join(', ')}`
 
@@ -280,6 +285,7 @@ function buildStandardQuery(
     joins.length > 0 ? joins.join('\n') : null,
     where.length > 0 ? `WHERE ${where.join(' AND ')}` : null,
     groupByCols.length > 0 ? `GROUP BY ${groupByCols.join(', ')}` : null,
+    definition.havingClause ? `HAVING ${definition.havingClause}` : null,
     definition.orderBy ? `ORDER BY ${definition.orderBy.column} ${definition.orderBy.direction}` : null
   ]
     .filter((line) => line !== null)
