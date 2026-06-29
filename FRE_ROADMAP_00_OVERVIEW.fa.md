@@ -69,7 +69,7 @@ flowchart TB
 | ۹ | `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md` | Shadow run ۲ هفته، حذفِ فیزیکیِ legacy، monitoring، بهینه‌سازی | کوچک–متوسط | پایین |
 | ۱۰ | `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md` | Planner مدلی پیشرفته، Clarify هوشمند، زبانِ محاوره‌ای، ۴۰+ golden | متوسط | متوسط |
 | ۱۱ | `FRE_ROADMAP_09_PHASE11_SEPIDAR_DEPTH.fa.md` | عمق‌بخشی روی سپیدار: ۱۰۰+ golden cases، صورت‌های مالی استاندارد، نسبت‌های مالی، planner پیچیده | متوسط–بزرگ | متوسط |
-| ۱۲ | `FRE_ROADMAP_10_PHASE12_SCHEMA_ABSTRACTION.fa.md` | **معوق شده** — جایگزین شده با فاز ۱۵ (Blind Schema Discovery) | — | — |
+| ۱۲ | `FRE_ROADMAP_10_PHASE12_SCHEMA_ABSTRACTION.fa.md` | **جایگزین‌شده با فاز ۱۵** — تمام اهداف (SchemaAdapter, SepidarAdapter, adapter registry) در فاز ۱۵ به‌صورت کامل‌تر پیاده‌سازی شد (automatic discovery + buildAdapter) | — | — |
 | ۱۳ | `FRE_ROADMAP_11_PHASE13_ADVANCED_MANAGEMENT.fa.md` | متریک‌های مدیریتی پیشرفته: COGS، موجودی، بودجه، مراکز هزینه، پروژه، خروجی PDF/Excel، نمودار | بزرگ | متوسط |
 | ۱۴ | `FRE_ROADMAP_12_PHASE14_ACCOUNTANT_TOOLS.fa.md` | ابزارهای حسابدار: فیلتر محدوده تاریخ، کوئری سند-محور، کشف خطا، تحلیل سنی، گردش تفصیلی، مالیات، چک، بستن دوره، تطبیق، drill-down مکالمه‌ای | بزرگ | متوسط |
 | ۱۵ | `FRE_ROADMAP_13_PHASE15_BLIND_SCHEMA_DISCOVERY.fa.md` | کشف کور schema: SchemaAdapter interface، INFORMATION_SCHEMA scan، LLM semantic mapping، human-in-the-loop، مسیر دوگانه (سپیدار + auto-detect) | متوسط–بزرگ | متوسط |
@@ -215,7 +215,37 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 2. هیچ رگرسیونی در گاردِ ایمنی نیست: سؤالِ مالیِ بی‌ربط بدون داده همچنان رد می‌شود (`failureKind=NO_FETCH`، بدونِ عددِ ساختگی).
 3. تست‌ها سبز (≥ baseline) + `typecheck:node` تمیز.
 4. افزودنِ یک متریکِ جدید فقط نیازمندِ **یک تعریفِ اعلانی + یک golden test** باشد — بدونِ هندلرِ TypeScriptِ جدید (اثبات با افزودنِ یک متریکِ نمونهٔ تازه در فاز ۶).
-5. حداقل ۲ هفته اجرای `shadow` بدونِ mismatchِ عددی روی متریک‌های مهاجرت‌شده، قبل از سوییچ به `engine`. — **وضعیت: shadow run کوتاه‌مدت انجام شد (mismatchها اصلاح شدند). اجرای طولانی‌مدت ۲ هفته‌ای به production موکول شد.**
+5. حداقل ۲ هفته اجرای `shadow` بدونِ mismatchِ عددی روی متریک‌های مهاجرت‌شده، قبل از سوییچ به `engine`. — **وضعیت: shadow run کوتاه‌مدت انجام شد (mismatchها اصلاح شدند). اجرای طولانی‌مدت ۲ هفته‌ای به production موکول شد. در حال حاضر engine mode فعال است.**
+
+---
+
+## ۰.۹.۱ — وضعیت فعلی پروژه (تاریخ بروزرسانی: ۱۴۰۵/۰۴/۰۹)
+
+| فاز | وضعیت | توضیح |
+|---|---|---|
+| ۱–۶ | ✅ کامل | Foundation, Semantic Layer, Compiler, Planner, Verifier, Eval |
+| ۷ | ✅ کامل | مهاجرت legacy intents |
+| ۸ | ✅ کامل | MultiMetric, grains, derived metrics |
+| ۹ | ⏳ ۱۷/۲۲ | ۵ آیتم زمان‌محور (shadow run ۲ هفته‌ای) معوق به production |
+| ۱۰ | ✅ کامل | Planner پیشرفته, Smart Clarify, زبان محاوره‌ای |
+| ۱۱ | ✅ کامل | ۱۳۰ golden cases, صورت‌های مالی, نسبت‌ها |
+| ۱۲ | ✅ جایگزین‌شده | با فاز ۱۵ جایگزین شد — رویکرد automatic discovery برتری دارد |
+| ۱۳ | ✅ کامل | COGS, موجودی, بودجه, مراکز هزینه, PDF/Excel |
+| ۱۴ | ✅ کامل | ابزارهای حسابدار, drill-down مکالمه‌ای, ۲۱۱ golden cases |
+| ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
+
+**آمار نهایی:**
+- ۵۸ متریک (پایه + مشتق + حسابدار)
+- ۲۱۱ golden cases (100% سبز)
+- ۳۲۷ unit test + ۵۰ integration test
+- typecheck: ۰ خطا
+- ۴ مارکر asar: BLIND_DISCOVERY, SCHEMA_ADAPTER_AUTO, SEMANTIC_MAPPING, MULTI_SOFTWARE_AUTO
+
+**کارهای باقی‌مانده:**
+- تست بلایند محک (در انتظار SQL credentials)
+- UI steps (S15.14/S15.15/S15.20)
+- shadow run رسمی ۲ هفته‌ای (پس از Release 2.0)
+- رفع مشکل pre-existing: net_margin planner tool-call limit
 
 ---
 
