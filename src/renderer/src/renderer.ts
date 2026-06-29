@@ -311,6 +311,9 @@ window.addEventListener('DOMContentLoaded', () => {
   state.unsubscribeAgentEvents = window.api.agent.onEvent((payload) => {
     handleAgentProgressEvent(payload)
   })
+  window.api.ssh.onStatusChange((status) => {
+    updateSshChips(status)
+  })
   installRendererCrashTelemetryHooks()
   bindEvents()
   renderPromptTemplates()
@@ -2518,6 +2521,13 @@ function updateSshChips(status: SshTunnelStatus): void {
     return
   }
 
+  if (status.reconnecting) {
+    const reconnectText = `SSH: در حال اتصال مجدد (${status.reconnectAttempt})`
+    setChip(ui.sshStatusChipTop, reconnectText, 'warning')
+    setChip(ui.sshStatusChipAnalysis, reconnectText, 'warning')
+    return
+  }
+
   const normalizedMessage = localizeSshStatusMessage(status.message)
   setChip(ui.sshStatusChipTop, `SSH: قطع (${normalizedMessage})`, 'danger')
   setChip(ui.sshStatusChipAnalysis, `SSH: قطع (${normalizedMessage})`, 'danger')
@@ -2931,9 +2941,9 @@ function trimChatHistory(): void {
   state.chatHistory = state.chatHistory.slice(-MAX_CHAT_HISTORY)
 }
 
-function setChip(element: HTMLElement, text: string, kind: 'success' | 'danger' | 'neutral'): void {
+function setChip(element: HTMLElement, text: string, kind: 'success' | 'danger' | 'neutral' | 'warning'): void {
   element.textContent = text
-  element.classList.remove('chip-success', 'chip-danger', 'chip-neutral')
+  element.classList.remove('chip-success', 'chip-danger', 'chip-neutral', 'chip-warning')
   element.classList.add(`chip-${kind}`)
 }
 

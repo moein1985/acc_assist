@@ -49,7 +49,19 @@ const api = {
     start: (config?: SshTunnelConfig): Promise<IpcResponse<SshTunnelStatus>> =>
       ipcRenderer.invoke('ssh:start', config),
     stop: (): Promise<IpcResponse<SshTunnelStatus>> => ipcRenderer.invoke('ssh:stop'),
-    status: (): Promise<IpcResponse<SshTunnelStatus>> => ipcRenderer.invoke('ssh:status')
+    status: (): Promise<IpcResponse<SshTunnelStatus>> => ipcRenderer.invoke('ssh:status'),
+    onStatusChange: (listener: (status: SshTunnelStatus) => void): (() => void) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        status: SshTunnelStatus
+      ): void => {
+        listener(status)
+      }
+      ipcRenderer.on('ssh:status-changed', wrappedListener)
+      return (): void => {
+        ipcRenderer.removeListener('ssh:status-changed', wrappedListener)
+      }
+    }
   },
   sql: {
     listDatabases: (payload?: {

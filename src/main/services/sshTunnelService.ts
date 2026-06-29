@@ -1,18 +1,29 @@
 import net, { type AddressInfo } from 'node:net'
+import { EventEmitter } from 'node:events'
 import { Client, type ConnectConfig } from 'ssh2'
 
 import type { SshTunnelConfig, SshTunnelStatus } from '../../shared/contracts'
 
 const LOCAL_HOST = '127.0.0.1'
 const SHUTDOWN_TIMEOUT_MS = 1500
+const MAX_RECONNECT_ATTEMPTS = 3
+const RECONNECT_BASE_DELAY_MS = 1000
 
-export class SshTunnelService {
+export type SshTunnelEvent = 'status-changed'
+
+export class SshTunnelService extends EventEmitter {
   private client: Client | null = null
   private server: net.Server | null = null
   private readonly activeSockets = new Set<net.Socket>()
   private stopPromise: Promise<SshTunnelStatus> | null = null
+  private lastConfig: SshTunnelConfig | null = null
+  private manualStop = false
+  private reconnectAttempts = 0
+  private reconnectTimer: NodeJS.Timeout | null = null
   private status: SshTunnelStatus = {
     active: false,
+    reconnecting: false,
+    reconnectAttempt: 0,
     localHost: LOCAL_HOST,
     localPort: null,
     message: 'Tunnel is not started'
@@ -27,6 +38,11 @@ export class SshTunnelService {
       await this.stop('SSH tunnel is disabled by settings')
       return this.status
     }
+
+    this.manualStop = false
+    this.reconnectAttempts = 0
+    this.clearReconnectTimer()
+    this.lastConfig = config
 
     this.validateConfig(config)
     await this.stop('Restarting tunnel with new configuration')
@@ -44,12 +60,16 @@ export class SshTunnelService {
 
       this.client = client
       this.server = server
+      this.reconnectAttempts = 0
       this.status = {
         active: true,
+        reconnecting: false,
+        reconnectAttempt: 0,
         localHost: LOCAL_HOST,
         localPort,
         message: `تونل فعال شد: ${LOCAL_HOST}:${localPort} -> ${config.dstHost}:${config.dstPort}`
       }
+      this.emitStatusChanged()
 
       return this.status
     } catch (error) {
@@ -58,10 +78,13 @@ export class SshTunnelService {
       const persianMessage = this.translateSshError(message)
       this.status = {
         active: false,
+        reconnecting: false,
+        reconnectAttempt: 0,
         localHost: LOCAL_HOST,
         localPort: null,
         message: `خطا در برقراری تونل SSH: ${persianMessage}`
       }
+      this.emitStatusChanged()
 
       throw new Error(`امکان برقراری تونل SSH وجود ندارد: ${persianMessage}`)
     }
@@ -91,14 +114,21 @@ export class SshTunnelService {
   }
 
   async stop(message = 'Tunnel stopped'): Promise<SshTunnelStatus> {
+    this.manualStop = true
+    this.clearReconnectTimer()
+    this.reconnectAttempts = 0
+
     if (this.stopPromise) {
       await this.stopPromise
       this.status = {
         active: false,
+        reconnecting: false,
+        reconnectAttempt: 0,
         localHost: LOCAL_HOST,
         localPort: null,
         message
       }
+      this.emitStatusChanged()
       return this.status
     }
 
@@ -133,10 +163,13 @@ export class SshTunnelService {
 
     this.status = {
       active: false,
+      reconnecting: false,
+      reconnectAttempt: 0,
       localHost: LOCAL_HOST,
       localPort: null,
       message
     }
+    this.emitStatusChanged()
 
     return this.status
   }
@@ -224,22 +257,86 @@ export class SshTunnelService {
       if (this.client !== client) {
         return
       }
-      void this.stop(`SSH client error: ${error.message}`)
+      void this.handleTunnelError(`SSH client error: ${error.message}`)
     })
 
     client.on('close', () => {
       if (this.client !== client) {
         return
       }
-      void this.stop('SSH client closed')
+      void this.handleTunnelError('SSH client closed')
     })
 
     server.on('error', (error) => {
       if (this.server !== server) {
         return
       }
-      void this.stop(`SSH local forward server error: ${error.message}`)
+      void this.handleTunnelError(`SSH local forward server error: ${error.message}`)
     })
+  }
+
+  private async handleTunnelError(reason: string): Promise<void> {
+    await this.stopInternal(reason)
+
+    if (!this.manualStop && this.lastConfig?.enabled && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      this.scheduleReconnect()
+    }
+  }
+
+  private scheduleReconnect(): void {
+    this.reconnectAttempts++
+    const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1)
+
+    this.status = {
+      active: false,
+      reconnecting: true,
+      reconnectAttempt: this.reconnectAttempts,
+      localHost: LOCAL_HOST,
+      localPort: null,
+      message: `در حال اتصال مجدد... (تلاش ${this.reconnectAttempts} از ${MAX_RECONNECT_ATTEMPTS})`
+    }
+    this.emitStatusChanged()
+
+    this.clearReconnectTimer()
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      void this.attemptReconnect()
+    }, delay)
+  }
+
+  private async attemptReconnect(): Promise<void> {
+    if (!this.lastConfig?.enabled || this.manualStop) {
+      return
+    }
+
+    try {
+      await this.start(this.lastConfig)
+    } catch {
+      if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        this.scheduleReconnect()
+      } else {
+        this.status = {
+          active: false,
+          reconnecting: false,
+          reconnectAttempt: this.reconnectAttempts,
+          localHost: LOCAL_HOST,
+          localPort: null,
+          message: `تلاش اتصال مجدد ناموفق بود (${MAX_RECONNECT_ATTEMPTS} تلاش)`
+        }
+        this.emitStatusChanged()
+      }
+    }
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
+  private emitStatusChanged(): void {
+    this.emit('status-changed', this.status)
   }
 
   private async closeServer(server: net.Server): Promise<void> {

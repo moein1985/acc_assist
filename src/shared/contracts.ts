@@ -300,6 +300,8 @@ export interface SqlHealthCheck {
 
 export interface SshTunnelStatus {
   active: boolean
+  reconnecting: boolean
+  reconnectAttempt: number
   localHost: string
   localPort: number | null
   message: string

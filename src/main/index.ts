@@ -10,6 +10,7 @@ import type {
   AgentSendMessageRequest,
   AgentSendMessageResult,
   AppSettings,
+  ConnectionProfile,
   GeminiChatRequest,
   IpcResponse,
   RendererTelemetryEvent,
@@ -295,6 +296,63 @@ async function resolveRuntimeSqlConnection(
     ...connection,
     server: tunnelStatus.localHost,
     port: tunnelStatus.localPort
+  }
+}
+
+function resolveActiveProfile(settings: AppSettings): ConnectionProfile | null {
+  const profileId = settings.activeConnectionProfileId?.trim()
+  if (!profileId) {
+    return null
+  }
+  return settings.connectionProfiles.find((p) => p.id === profileId) ?? null
+}
+
+async function autoConnectOnStartup(): Promise<void> {
+  const settings = settingsStore.get()
+  const profile = resolveActiveProfile(settings)
+
+  if (!profile) {
+    return
+  }
+
+  if (profile.metadata.type === 'ssh' && profile.ssh.enabled) {
+    try {
+      const tunnelStatus = await sshTunnelService.start(profile.ssh)
+      if (tunnelStatus.active) {
+        const runtimeConnection: SqlConnectionConfig = {
+          ...profile.sql,
+          server: tunnelStatus.localHost,
+          port: tunnelStatus.localPort ?? profile.sql.port
+        }
+        await sqlConnectionManager.testConnection(runtimeConnection)
+        telemetryIngestService.capture({
+          process: 'main',
+          level: 'info',
+          category: 'ssh.auto-connect',
+          event: 'connected',
+          details: { profileId: profile.id, localPort: tunnelStatus.localPort }
+        })
+      }
+    } catch (error) {
+      telemetryIngestService.captureError('ssh.auto-connect', 'start-failed', error, 'main', {
+        profileId: profile.id
+      })
+    }
+  } else if (profile.metadata.type === 'direct') {
+    try {
+      await sqlConnectionManager.testConnection(profile.sql)
+      telemetryIngestService.capture({
+        process: 'main',
+        level: 'info',
+        category: 'sql.auto-connect',
+        event: 'connected',
+        details: { profileId: profile.id }
+      })
+    } catch (error) {
+      telemetryIngestService.captureError('sql.auto-connect', 'test-failed', error, 'main', {
+        profileId: profile.id
+      })
+    }
   }
 }
 
@@ -823,6 +881,12 @@ app.whenReady().then(() => {
     })
     registerIpcHandlers()
 
+    sshTunnelService.on('status-changed', (status: SshTunnelStatus) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ssh:status-changed', status)
+      }
+    })
+
     const mobileBridgeConfig = settingsStore.get().mobileBridge
     if (mobileBridgeConfig.enabled) {
       try {
@@ -877,6 +941,8 @@ app.whenReady().then(() => {
     if (!isAgentDebugServerOnly) {
       createWindow()
     }
+
+    void autoConnectOnStartup()
   })()
 
   app.on('activate', function () {

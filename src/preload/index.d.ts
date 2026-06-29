@@ -43,6 +43,7 @@ export interface AccAssistApi {
     start: (config?: SshTunnelConfig) => Promise<IpcResponse<SshTunnelStatus>>
     stop: () => Promise<IpcResponse<SshTunnelStatus>>
     status: () => Promise<IpcResponse<SshTunnelStatus>>
+    onStatusChange: (listener: (status: SshTunnelStatus) => void) => () => void
   }
   sql: {
     listDatabases: (payload?: {
