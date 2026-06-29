@@ -310,6 +310,18 @@ SELECT
     return this.pool !== null && this.pool.connected
   }
 
+  getPoolInfo(): { size: number; available: number; borrowed: number; pending: number } | null {
+    if (!this.pool) {
+      return null
+    }
+    return {
+      size: this.pool.size,
+      available: this.pool.available,
+      borrowed: this.pool.borrowed,
+      pending: this.pool.pending
+    }
+  }
+
   async close(): Promise<void> {
     const pool = this.pool
     const pending = this.connectPromise
@@ -344,11 +356,14 @@ SELECT
       await this.close()
     }
 
-    const newPool = new mssql.ConnectionPool(this.createMssqlConfig(connection))
-    this.poolSignature = signature
+    const retryCount = connection.connectionRetryCount ?? 0
+    const retryDelayMs = connection.connectionRetryDelayMs ?? 2000
 
-    this.connectPromise = newPool
-      .connect()
+    this.connectPromise = this.connectWithRetry(
+      () => new mssql.ConnectionPool(this.createMssqlConfig(connection)),
+      retryCount,
+      retryDelayMs
+    )
       .then((connectedPool) => {
         this.pool = connectedPool
         this.attachPoolListeners(connectedPool, signature)
@@ -357,9 +372,6 @@ SELECT
       .catch(async (error) => {
         this.pool = null
         this.poolSignature = null
-        await newPool.close().catch(() => {
-          // Ignore close errors after failed connect.
-        })
         throw error
       })
       .finally(() => {
@@ -367,6 +379,28 @@ SELECT
       })
 
     return this.connectPromise
+  }
+
+  private async connectWithRetry(
+    createPool: () => mssql.ConnectionPool,
+    retryCount: number,
+    retryDelayMs: number
+  ): Promise<mssql.ConnectionPool> {
+    let lastError: unknown
+    for (let attempt = 0; attempt <= retryCount; attempt++) {
+      const pool = createPool()
+      try {
+        const connected = await pool.connect()
+        return connected
+      } catch (error) {
+        lastError = error
+        await pool.close().catch(() => {})
+        if (attempt < retryCount) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+        }
+      }
+    }
+    throw lastError
   }
 
   private createMssqlConfig(connection: SqlConnectionConfig): mssql.config {

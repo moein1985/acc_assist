@@ -18,7 +18,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     encrypt: false,
     trustServerCertificate: true,
     connectionTimeoutMs: 15000,
-    requestTimeoutMs: 45000
+    requestTimeoutMs: 45000,
+    connectionRetryCount: 2,
+    connectionRetryDelayMs: 2000
   },
   sqlSecurity: {
     enforceReadOnlyLogin: false,
@@ -38,7 +40,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     dstPort: 1433,
     localPort: null,
     readyTimeoutMs: 15000,
-    keepaliveIntervalMs: 10000
+    keepaliveIntervalMs: 10000,
+    connectTimeoutMs: 10000,
+    reconnectEnabled: true,
+    maxReconnectAttempts: 3
   },
   mobileBridge: {
     enabled: true,
@@ -86,7 +91,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
         encrypt: false,
         trustServerCertificate: true,
         connectionTimeoutMs: 15000,
-        requestTimeoutMs: 45000
+        requestTimeoutMs: 45000,
+        connectionRetryCount: 2,
+        connectionRetryDelayMs: 2000
       },
       ssh: {
         enabled: false,
@@ -100,7 +107,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
         dstPort: 1433,
         localPort: null,
         readyTimeoutMs: 15000,
-        keepaliveIntervalMs: 10000
+        keepaliveIntervalMs: 10000,
+        connectTimeoutMs: 10000,
+        reconnectEnabled: true,
+        maxReconnectAttempts: 3
       }
     }
   ],

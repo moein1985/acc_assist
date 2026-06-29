@@ -495,8 +495,16 @@
           <p class="subtitle">????? ???? ?? SQL + ???? SSH + Gemini 2.5 Pro ?? ???? ?????? avalapis.ir</p>
         </div>
         <div class="status-row">
+          <span id="connectionHealthIndicator" class="chip chip-neutral" style="cursor:pointer" title="????? ??? ??????">????: ??? ?????...</span>
           <span id="sshStatusChipTop" class="chip chip-neutral">SSH: ?? ??? ?????...</span>
           <span id="bridgeStatusChipTop" class="chip chip-neutral">?? ??????: ?? ??? ?????...</span>
+        </div>
+        <div id="connectionHealthDetail" class="panel" style="display:none;position:absolute;top:60px;left:16px;z-index:1000;min-width:320px;padding:12px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>????? ??? ??????</strong>
+            <button id="connectionHealthDetailClose" class="btn" type="button" style="padding:2px 8px;font-size:12px">×</button>
+          </div>
+          <div id="connectionHealthDetailBody" style="font-size:13px;line-height:1.8"></div>
         </div>
       </header>
 
@@ -883,6 +891,33 @@
                 </div>
               </div>
             </fieldset>
+
+            <fieldset>
+              <legend>پنل تشخیص اتصال</legend>
+              <div class="field-grid">
+                <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                  <button id="diagRefreshBtn" class="btn" type="button">بازخوانی</button>
+                  <button id="diagTestBtn" class="btn" type="button">تست اتصال</button>
+                  <button id="diagResetBtn" class="btn btn-danger" type="button">بازنشانی اتصال</button>
+                </div>
+
+                <div id="diagStatusGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;margin-bottom:10px">
+                  <div><strong>SSH:</strong> <span id="diagSshStatus">—</span></div>
+                  <div><strong>SQL:</strong> <span id="diagSqlStatus">—</span></div>
+                  <div><strong>پورت محلی:</strong> <span id="diagLocalPort">—</span></div>
+                  <div><strong>مقصد:</strong> <span id="diagDst">—</span></div>
+                  <div><strong>اندازه Pool:</strong> <span id="diagPoolSize">—</span></div>
+                  <div><strong>اتصالات فعال:</strong> <span id="diagActiveConn">—</span></div>
+                  <div><strong>اتصالات بیکار:</strong> <span id="diagIdleConn">—</span></div>
+                  <div><strong>آخرین خطا:</strong> <span id="diagLastError" style="color:#f44336">—</span></div>
+                </div>
+
+                <div style="font-size:13px;margin-bottom:4px"><strong>لاگ‌های اتصال:</strong></div>
+                <div id="diagLogs" style="max-height:240px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:4px;padding:6px;font-size:12px;font-family:monospace;background:#fafafa">
+                  <div style="color:#999">برای مشاهده لاگ‌ها روی «بازخوانی» کلیک کنید.</div>
+                </div>
+              </div>
+            </fieldset>
           </div>
         </section>
 
@@ -897,6 +932,7 @@
 
           <div class="analysis-layout">
             <div class="analysis-status">
+              <span id="connectionHealthIndicatorAnalysis" class="chip chip-neutral" style="cursor:pointer" title="????? ??? ??????">????: ??? ?????...</span>
               <span id="sshStatusChipAnalysis" class="chip chip-neutral">SSH: ?? ??? ?????...</span>
               <span id="bridgeStatusChipAnalysis" class="chip chip-neutral">?? ??????: ?? ??? ?????...</span>
             </div>

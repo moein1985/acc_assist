@@ -110,7 +110,9 @@ function buildConnectionFromEnv(): SqlConnectionConfig {
     encrypt: parseBoolean(process.env['ACC_SQL_ENCRYPT'], true),
     trustServerCertificate: parseBoolean(process.env['ACC_SQL_TRUST_CERT'], true),
     connectionTimeoutMs: parseNumber(process.env['ACC_SQL_CONNECTION_TIMEOUT_MS'], 15000),
-    requestTimeoutMs: parseNumber(process.env['ACC_SQL_REQUEST_TIMEOUT_MS'], 45000)
+    requestTimeoutMs: parseNumber(process.env['ACC_SQL_REQUEST_TIMEOUT_MS'], 45000),
+    connectionRetryCount: parseNumber(process.env['ACC_SQL_CONNECTION_RETRY_COUNT'], 2),
+    connectionRetryDelayMs: parseNumber(process.env['ACC_SQL_CONNECTION_RETRY_DELAY_MS'], 2000)
   }
 }
 

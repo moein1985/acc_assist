@@ -28,7 +28,9 @@ import type {
   SshTunnelConfig,
   SshTunnelStatus,
   SshProgressEvent,
-  ConnectionHealthStatus
+  ConnectionHealthStatus,
+  ConnectionDiagnosticInfo,
+  ConnectionLogEntry
 } from '../shared/contracts'
 
 export interface AccAssistApi {
@@ -56,6 +58,8 @@ export interface AccAssistApi {
   }
   connection: {
     getHealth: () => Promise<IpcResponse<ConnectionHealthStatus>>
+    getDiagnostic: () => Promise<IpcResponse<ConnectionDiagnosticInfo>>
+    getLogs: () => Promise<IpcResponse<ConnectionLogEntry[]>>
   }
   sql: {
     listDatabases: (payload?: {

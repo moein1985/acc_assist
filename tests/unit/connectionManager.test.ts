@@ -32,7 +32,9 @@ function makeBaseSettings(): AppSettings {
       encrypt: false,
       trustServerCertificate: true,
       connectionTimeoutMs: 5000,
-      requestTimeoutMs: 10000
+      requestTimeoutMs: 10000,
+      connectionRetryCount: 2,
+      connectionRetryDelayMs: 2000
     },
     ssh: {
       enabled: false,
@@ -41,7 +43,12 @@ function makeBaseSettings(): AppSettings {
       username: '',
       password: '',
       localHost: '127.0.0.1',
-      localPort: 0
+      localPort: 0,
+      readyTimeoutMs: 15000,
+      keepaliveIntervalMs: 10000,
+      connectTimeoutMs: 10000,
+      reconnectEnabled: true,
+      maxReconnectAttempts: 3
     },
     sqlSecurity: {
       enforceReadOnlyLogin: false,

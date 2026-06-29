@@ -17,6 +17,8 @@ export interface SqlConnectionConfig {
   trustServerCertificate: boolean
   connectionTimeoutMs: number
   requestTimeoutMs: number
+  connectionRetryCount: number
+  connectionRetryDelayMs: number
 }
 
 export interface SshTunnelConfig {
@@ -32,6 +34,9 @@ export interface SshTunnelConfig {
   localPort: number | null
   readyTimeoutMs: number
   keepaliveIntervalMs: number
+  connectTimeoutMs: number
+  reconnectEnabled: boolean
+  maxReconnectAttempts: number
 }
 
 export interface MobileBridgeConfig {
@@ -323,9 +328,35 @@ export interface ConnectionHealthStatus {
   sqlConnected: boolean
   sqlMessage: string
   sqlServerVersion: string | null
+  sqlIsReadOnly: boolean | null
+  sqlWriteCapabilities: string[]
   profileType: 'ssh' | 'direct' | null
   lastError: string | null
   lastUpdatedAt: number
+}
+
+export interface ConnectionLogEntry {
+  timestamp: number
+  level: 'info' | 'warn' | 'error'
+  source: 'ssh' | 'sql' | 'system'
+  message: string
+}
+
+export interface ConnectionDiagnosticInfo {
+  logs: ConnectionLogEntry[]
+  sshActive: boolean
+  sshReconnecting: boolean
+  sshLocalHost: string
+  sshLocalPort: number | null
+  sshDstHost: string | null
+  sshDstPort: number | null
+  sshMessage: string
+  sqlConnected: boolean
+  sqlPoolSize: number | null
+  sqlActiveConnections: number | null
+  sqlIdleConnections: number | null
+  lastError: string | null
+  lastErrorAt: number | null
 }
 
 export interface GeminiMessage {

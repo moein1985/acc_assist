@@ -3,12 +3,13 @@ import { EventEmitter } from 'node:events'
 import { Client, type ConnectConfig } from 'ssh2'
 import { createHash } from 'node:crypto'
 
-import type { SshTunnelConfig, SshTunnelStatus } from '../../shared/contracts'
+import type { SshTunnelConfig, SshTunnelStatus, ConnectionLogEntry, ConnectionDiagnosticInfo } from '../../shared/contracts'
 
 const LOCAL_HOST = '127.0.0.1'
 const SHUTDOWN_TIMEOUT_MS = 1500
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_BASE_DELAY_MS = 1000
+const MAX_LOG_ENTRIES = 100
 
 export type SshTunnelEvent = 'status-changed' | 'hostkey-mismatch'
 
@@ -35,6 +36,9 @@ export class SshTunnelService extends EventEmitter {
   private reconnectAttempts = 0
   private reconnectTimer: NodeJS.Timeout | null = null
   private hostKeyStore: HostKeyStore | null = null
+  private readonly logBuffer: ConnectionLogEntry[] = []
+  private lastError: string | null = null
+  private lastErrorAt: number | null = null
   private status: SshTunnelStatus = {
     active: false,
     reconnecting: false,
@@ -52,6 +56,28 @@ export class SshTunnelService extends EventEmitter {
     this.hostKeyStore = store
   }
 
+  getDiagnosticInfo(): Pick<ConnectionDiagnosticInfo, 'logs' | 'sshActive' | 'sshReconnecting' | 'sshLocalHost' | 'sshLocalPort' | 'sshDstHost' | 'sshDstPort' | 'sshMessage' | 'lastError' | 'lastErrorAt'> {
+    return {
+      logs: [...this.logBuffer],
+      sshActive: this.status.active,
+      sshReconnecting: this.status.reconnecting,
+      sshLocalHost: this.status.localHost,
+      sshLocalPort: this.status.localPort,
+      sshDstHost: this.lastConfig?.dstHost ?? null,
+      sshDstPort: this.lastConfig?.dstPort ?? null,
+      sshMessage: this.status.message,
+      lastError: this.lastError,
+      lastErrorAt: this.lastErrorAt
+    }
+  }
+
+  private addLog(level: ConnectionLogEntry['level'], source: ConnectionLogEntry['source'], message: string): void {
+    this.logBuffer.push({ timestamp: Date.now(), level, source, message })
+    if (this.logBuffer.length > MAX_LOG_ENTRIES) {
+      this.logBuffer.shift()
+    }
+  }
+
   async start(config: SshTunnelConfig): Promise<SshTunnelStatus> {
     if (!config.enabled) {
       await this.stop('SSH tunnel is disabled by settings')
@@ -62,6 +88,8 @@ export class SshTunnelService extends EventEmitter {
     this.reconnectAttempts = 0
     this.clearReconnectTimer()
     this.lastConfig = config
+
+    this.addLog('info', 'ssh', `شروع اتصال به ${config.host}:${config.port}`)
 
     this.validateConfig(config)
     await this.stop('Restarting tunnel with new configuration')
@@ -92,6 +120,7 @@ export class SshTunnelService extends EventEmitter {
       }
       this.emitStatusChanged()
       this.emitProgress(5, 5, 'اتصال برقرار شد ✅')
+      this.addLog('info', 'ssh', `تونل فعال شد: ${LOCAL_HOST}:${localPort} -> ${config.dstHost}:${config.dstPort}`)
 
       return this.status
     } catch (error) {
@@ -99,6 +128,9 @@ export class SshTunnelService extends EventEmitter {
       const message = error instanceof Error ? error.message : String(error)
       const persianMessage = this.translateSshError(message)
       this.emitProgress(0, 5, `خطا: ${persianMessage}`, true)
+      this.lastError = persianMessage
+      this.lastErrorAt = Date.now()
+      this.addLog('error', 'ssh', `خطا در برقراری تونل: ${persianMessage}`)
       this.status = {
         active: false,
         reconnecting: false,
@@ -152,6 +184,7 @@ export class SshTunnelService extends EventEmitter {
     this.manualStop = true
     this.clearReconnectTimer()
     this.reconnectAttempts = 0
+    this.addLog('info', 'ssh', `توقف تونل: ${message}`)
 
     if (this.stopPromise) {
       await this.stopPromise
@@ -311,14 +344,19 @@ export class SshTunnelService extends EventEmitter {
   }
 
   private async handleTunnelError(reason: string): Promise<void> {
+    this.addLog('error', 'ssh', reason)
+    this.lastError = reason
+    this.lastErrorAt = Date.now()
     await this.stopInternal(reason)
 
-    if (!this.manualStop && this.lastConfig?.enabled && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      this.scheduleReconnect()
+    const maxAttempts = this.lastConfig?.maxReconnectAttempts ?? MAX_RECONNECT_ATTEMPTS
+    const reconnectEnabled = this.lastConfig?.reconnectEnabled ?? true
+    if (!this.manualStop && this.lastConfig?.enabled && reconnectEnabled && this.reconnectAttempts < maxAttempts) {
+      this.scheduleReconnect(maxAttempts)
     }
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(maxAttempts: number): void {
     this.reconnectAttempts++
     const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1)
 
@@ -328,11 +366,10 @@ export class SshTunnelService extends EventEmitter {
       reconnectAttempt: this.reconnectAttempts,
       localHost: LOCAL_HOST,
       localPort: null,
-      message: `در حال اتصال مجدد... (تلاش ${this.reconnectAttempts} از ${MAX_RECONNECT_ATTEMPTS})`
+      message: `در حال اتصال مجدد... (تلاش ${this.reconnectAttempts} از ${maxAttempts})`
     }
     this.emitStatusChanged()
-
-    this.clearReconnectTimer()
+    this.addLog('warn', 'ssh', `در حال اتصال مجدد... (تلاش ${this.reconnectAttempts} از ${maxAttempts})`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       void this.attemptReconnect()
@@ -347,8 +384,9 @@ export class SshTunnelService extends EventEmitter {
     try {
       await this.start(this.lastConfig)
     } catch {
-      if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        this.scheduleReconnect()
+      const maxAttempts = this.lastConfig?.maxReconnectAttempts ?? MAX_RECONNECT_ATTEMPTS
+      if (this.reconnectAttempts < maxAttempts) {
+        this.scheduleReconnect(maxAttempts)
       } else {
         this.status = {
           active: false,
@@ -356,9 +394,10 @@ export class SshTunnelService extends EventEmitter {
           reconnectAttempt: this.reconnectAttempts,
           localHost: LOCAL_HOST,
           localPort: null,
-          message: `تلاش اتصال مجدد ناموفق بود (${MAX_RECONNECT_ATTEMPTS} تلاش)`
+          message: `تلاش اتصال مجدد ناموفق بود (${maxAttempts} تلاش)`
         }
         this.emitStatusChanged()
+        this.addLog('error', 'ssh', `تلاش اتصال مجدد ناموفق بود (${maxAttempts} تلاش)`)
       }
     }
   }
@@ -444,7 +483,8 @@ export class SshTunnelService extends EventEmitter {
       port: config.port,
       username: config.username,
       readyTimeout: config.readyTimeoutMs,
-      keepaliveInterval: config.keepaliveIntervalMs
+      keepaliveInterval: config.keepaliveIntervalMs,
+      connectTimeout: config.connectTimeoutMs
     }
 
     if (config.privateKey.trim().length > 0) {

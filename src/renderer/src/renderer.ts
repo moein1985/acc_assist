@@ -26,7 +26,9 @@ import type {
   ReleaseUpdateStatus,
   SshTunnelConfig,
   SshTunnelStatus,
-  SshProgressEvent
+  SshProgressEvent,
+  ConnectionHealthStatus,
+  ConnectionLogEntry
 } from '../../shared/contracts'
 import { localizeAgentFallbackMessage, localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
 import {
@@ -270,6 +272,23 @@ const ui = {
   sshProgressFill: getById<HTMLElement>('sshProgressFill'),
   sshProgressStep: getById<HTMLElement>('sshProgressStep'),
   sshProgressMessage: getById<HTMLElement>('sshProgressMessage'),
+  connectionHealthIndicator: getById<HTMLElement>('connectionHealthIndicator'),
+  connectionHealthIndicatorAnalysis: getById<HTMLElement>('connectionHealthIndicatorAnalysis'),
+  connectionHealthDetail: getById<HTMLElement>('connectionHealthDetail'),
+  connectionHealthDetailBody: getById<HTMLElement>('connectionHealthDetailBody'),
+  connectionHealthDetailClose: getById<HTMLButtonElement>('connectionHealthDetailClose'),
+  diagRefreshBtn: getById<HTMLButtonElement>('diagRefreshBtn'),
+  diagTestBtn: getById<HTMLButtonElement>('diagTestBtn'),
+  diagResetBtn: getById<HTMLButtonElement>('diagResetBtn'),
+  diagSshStatus: getById<HTMLElement>('diagSshStatus'),
+  diagSqlStatus: getById<HTMLElement>('diagSqlStatus'),
+  diagLocalPort: getById<HTMLElement>('diagLocalPort'),
+  diagDst: getById<HTMLElement>('diagDst'),
+  diagPoolSize: getById<HTMLElement>('diagPoolSize'),
+  diagActiveConn: getById<HTMLElement>('diagActiveConn'),
+  diagIdleConn: getById<HTMLElement>('diagIdleConn'),
+  diagLastError: getById<HTMLElement>('diagLastError'),
+  diagLogs: getById<HTMLElement>('diagLogs'),
   sshPassphraseInput: getById<HTMLInputElement>('sshPassphraseInput'),
   sshTargetHostInput: getById<HTMLInputElement>('sshTargetHostInput'),
   sshTargetPortInput: getById<HTMLInputElement>('sshTargetPortInput'),
@@ -500,6 +519,14 @@ function bindEvents(): void {
   ui.startSshTunnelBtn.addEventListener('click', () => void startSshTunnel())
   ui.stopSshTunnelBtn.addEventListener('click', () => void stopSshTunnel())
   ui.refreshStatusBtn.addEventListener('click', () => void refreshRuntimeStatuses(false))
+  ui.connectionHealthIndicator.addEventListener('click', () => toggleConnectionHealthDetail())
+  ui.connectionHealthIndicatorAnalysis.addEventListener('click', () => toggleConnectionHealthDetail())
+  ui.connectionHealthDetailClose.addEventListener('click', () => {
+    ui.connectionHealthDetail.style.display = 'none'
+  })
+  ui.diagRefreshBtn.addEventListener('click', () => void refreshDiagnosticPanel())
+  ui.diagTestBtn.addEventListener('click', () => void testDiagnosticConnection())
+  ui.diagResetBtn.addEventListener('click', () => void resetDiagnosticConnection())
   ui.clearConversationBtn.addEventListener('click', () => void clearConversation())
   ui.runDryRunBtn.addEventListener('click', () => void runDryRunDiagnostic())
   ui.cancelPromptBtn.addEventListener('click', () => void cancelActivePrompt())
@@ -2545,10 +2572,11 @@ function isExportCancellationMessage(message: string): boolean {
 }
 
 async function refreshRuntimeStatuses(silent: boolean): Promise<void> {
-  const [sshResult, bridgeResult, releaseResult] = await Promise.all([
+  const [sshResult, bridgeResult, releaseResult, healthResult] = await Promise.all([
     window.api.ssh.status(),
     window.api.mobileBridge.status(),
-    window.api.release.getUpdateStatus()
+    window.api.release.getUpdateStatus(),
+    window.api.connection.getHealth()
   ])
 
   if (sshResult.ok && sshResult.data) {
@@ -2572,6 +2600,10 @@ async function refreshRuntimeStatuses(silent: boolean): Promise<void> {
   if (releaseResult.ok && releaseResult.data) {
     state.releaseUpdateStatus = releaseResult.data
     renderReleaseUpdateStatus(releaseResult.data)
+  }
+
+  if (healthResult.ok && healthResult.data) {
+    updateConnectionHealthIndicator(healthResult.data)
   }
 
   if (!silent) {
@@ -2878,6 +2910,211 @@ function updateSshProgress(progress: SshProgressEvent): void {
     setTimeout(() => {
       ui.sshProgressContainer.style.display = 'none'
     }, 3000)
+  }
+}
+
+let lastConnectionHealth: ConnectionHealthStatus | null = null
+
+function updateConnectionHealthIndicator(health: ConnectionHealthStatus): void {
+  lastConnectionHealth = health
+
+  let text: string
+  let kind: 'success' | 'danger' | 'neutral' | 'warning'
+
+  if (health.profileType === 'direct') {
+    if (health.sqlConnected) {
+      text = 'اتصال: مستقیم (SQL فعال)'
+      kind = 'success'
+    } else {
+      text = 'اتصال: مستقیم (SQL قطع)'
+      kind = 'danger'
+    }
+  } else if (health.profileType === 'ssh') {
+    if (health.sshActive && health.sqlConnected) {
+      text = 'اتصال: سالم'
+      kind = 'success'
+    } else if (health.sshActive && !health.sqlConnected) {
+      text = 'اتصال: SSH فعال، SQL قطع'
+      kind = 'warning'
+    } else if (health.sshReconnecting) {
+      text = 'اتصال: در حال اتصال مجدد SSH'
+      kind = 'warning'
+    } else {
+      text = 'اتصال: قطع'
+      kind = 'danger'
+    }
+  } else {
+    text = 'اتصال: نامشخص'
+    kind = 'neutral'
+  }
+
+  if (health.sqlConnected && health.sqlIsReadOnly === false) {
+    text += ' ⚠️ نوشتنی'
+    if (kind === 'success') kind = 'warning'
+  }
+
+  setChip(ui.connectionHealthIndicator, text, kind)
+  setChip(ui.connectionHealthIndicatorAnalysis, text, kind)
+
+  if (ui.connectionHealthDetail.style.display === 'block') {
+    renderConnectionHealthDetail(health)
+  }
+}
+
+function renderConnectionHealthDetail(health: ConnectionHealthStatus): void {
+  const parts: string[] = []
+
+  parts.push(`<div><strong>نوع پروفایل:</strong> ${health.profileType ?? 'نامشخص'}</div>`)
+
+  if (health.profileType === 'ssh') {
+    parts.push(`<div><strong>SSH:</strong> ${health.sshActive ? 'فعال' : 'قطع'}</div>`)
+    if (health.sshReconnecting) {
+      parts.push(`<div><strong>وضعیت:</strong> در حال اتصال مجدد</div>`)
+    }
+    if (health.sshLocalPort !== null) {
+      parts.push(`<div><strong>پورت محلی:</strong> ${health.sshLocalPort}</div>`)
+    }
+    if (health.sshMessage) {
+      parts.push(`<div><strong>پیام SSH:</strong> ${health.sshMessage}</div>`)
+    }
+  }
+
+  parts.push(`<div><strong>SQL:</strong> ${health.sqlConnected ? 'متصل' : 'قطع'}</div>`)
+  if (health.sqlMessage) {
+    parts.push(`<div><strong>پیام SQL:</strong> ${health.sqlMessage}</div>`)
+  }
+  if (health.sqlConnected) {
+    if (health.sqlIsReadOnly === true) {
+      parts.push(`<div style="color:#4caf50"><strong>دسترسی:</strong> فقط خواندنی (ایمن)</div>`)
+    } else if (health.sqlIsReadOnly === false) {
+      parts.push(`<div style="color:#ff9800"><strong>دسترسی:</strong> نوشتنی — کاربر دسترسی نوشتن دارد</div>`)
+      if (health.sqlWriteCapabilities.length > 0) {
+        parts.push(`<div style="color:#ff9800;font-size:11px"><strong>امکانات نوشتن:</strong> ${health.sqlWriteCapabilities.join('، ')}</div>`)
+      }
+    }
+  }
+  if (health.sqlServerVersion) {
+    parts.push(`<div><strong>نسخه SQL Server:</strong> ${health.sqlServerVersion}</div>`)
+  }
+
+  if (health.lastError) {
+    parts.push(`<div style="color:#f44336"><strong>آخرین خطا:</strong> ${health.lastError}</div>`)
+  }
+
+  const date = new Date(health.lastUpdatedAt)
+  parts.push(`<div style="color:#999;margin-top:4px"><strong>آخرین بررسی:</strong> ${date.toLocaleTimeString('fa-IR')}</div>`)
+
+  ui.connectionHealthDetailBody.innerHTML = parts.join('')
+}
+
+function toggleConnectionHealthDetail(): void {
+  if (ui.connectionHealthDetail.style.display === 'block') {
+    ui.connectionHealthDetail.style.display = 'none'
+  } else {
+    if (lastConnectionHealth) {
+      renderConnectionHealthDetail(lastConnectionHealth)
+    } else {
+      ui.connectionHealthDetailBody.innerHTML = '<div>در حال بارگذاری...</div>'
+    }
+    ui.connectionHealthDetail.style.display = 'block'
+  }
+}
+
+function formatLogTime(ts: number): string {
+  const d = new Date(ts)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${hh}:${mm}:${ss}`
+}
+
+function levelColor(level: ConnectionLogEntry['level']): string {
+  if (level === 'error') return '#f44336'
+  if (level === 'warn') return '#ff9800'
+  return '#4caf50'
+}
+
+function renderDiagnosticLogs(logs: ConnectionLogEntry[]): void {
+  if (logs.length === 0) {
+    ui.diagLogs.innerHTML = '<div style="color:#999">هیچ لاگی ثبت نشده است.</div>'
+    return
+  }
+  const html = logs
+    .map((entry) => {
+      const color = levelColor(entry.level)
+      const time = formatLogTime(entry.timestamp)
+      return `<div style="color:${color}">[${time}] [${entry.source}] ${entry.message}</div>`
+    })
+    .join('')
+  ui.diagLogs.innerHTML = html
+  ui.diagLogs.scrollTop = ui.diagLogs.scrollHeight
+}
+
+async function refreshDiagnosticPanel(): Promise<void> {
+  const res = await window.api.connection.getDiagnostic()
+  if (!res.ok || !res.data) {
+    ui.diagSshStatus.textContent = 'خطا در دریافت اطلاعات'
+    return
+  }
+  const d = res.data
+  ui.diagSshStatus.textContent = d.sshActive
+    ? `فعال (${d.sshLocalHost}:${d.sshLocalPort})`
+    : d.sshReconnecting
+      ? `در حال اتصال مجدد (${d.sshMessage})`
+      : 'غیرفعال'
+  ui.diagSqlStatus.textContent = d.sqlConnected ? 'متصل' : 'قطع'
+  ui.diagLocalPort.textContent = d.sshLocalPort != null ? String(d.sshLocalPort) : '—'
+  ui.diagDst.textContent =
+    d.sshDstHost != null && d.sshDstPort != null ? `${d.sshDstHost}:${d.sshDstPort}` : '—'
+  ui.diagPoolSize.textContent = d.sqlPoolSize != null ? String(d.sqlPoolSize) : '—'
+  ui.diagActiveConn.textContent = d.sqlActiveConnections != null ? String(d.sqlActiveConnections) : '—'
+  ui.diagIdleConn.textContent = d.sqlIdleConnections != null ? String(d.sqlIdleConnections) : '—'
+  ui.diagLastError.textContent = d.lastError ?? '—'
+  renderDiagnosticLogs(d.logs)
+}
+
+async function testDiagnosticConnection(): Promise<void> {
+  ui.diagTestBtn.disabled = true
+  try {
+    const healthRes = await window.api.connection.getHealth()
+    if (healthRes.ok && healthRes.data) {
+      ui.diagSshStatus.textContent = healthRes.data.sshActive
+        ? `فعال (${healthRes.data.sshLocalPort ?? '—'})`
+        : 'غیرفعال'
+      ui.diagSqlStatus.textContent = healthRes.data.sqlConnected
+        ? `متصل${healthRes.data.sqlIsReadOnly === false ? ' (نوشتنی ⚠️)' : healthRes.data.sqlIsReadOnly === true ? ' (فقط خواندنی)' : ''}`
+        : 'قطع'
+      ui.diagLastError.textContent = healthRes.data.lastError ?? '—'
+    }
+    await refreshDiagnosticPanel()
+  } finally {
+    ui.diagTestBtn.disabled = false
+  }
+}
+
+async function resetDiagnosticConnection(): Promise<void> {
+  ui.diagResetBtn.disabled = true
+  try {
+    const stopRes = await window.api.ssh.stop()
+    if (!stopRes.ok) {
+      ui.diagLastError.textContent = stopRes.error ?? 'خطا در توقف تونل'
+    }
+    const settingsRes = await window.api.settings.get()
+    if (settingsRes.ok && settingsRes.data) {
+      const data = settingsRes.data
+      const profile = data.connectionProfiles.find(
+        (p) => p.id === data.activeConnectionProfileId
+      )
+      if (profile?.ssh.enabled) {
+        const startRes = await window.api.ssh.start(profile.ssh)
+        if (!startRes.ok) {
+          ui.diagLastError.textContent = startRes.error ?? 'خطا در راه‌اندازی تونل'
+        }
+      }
+    }
+    await refreshDiagnosticPanel()
+  } finally {
+    ui.diagResetBtn.disabled = false
   }
 }
 
@@ -4248,7 +4485,9 @@ function createDefaultSettings(): AppSettings {
       encrypt: false,
       trustServerCertificate: true,
       connectionTimeoutMs: 15000,
-      requestTimeoutMs: 45000
+      requestTimeoutMs: 45000,
+      connectionRetryCount: 2,
+      connectionRetryDelayMs: 2000
     },
     sqlSecurity: {
       enforceReadOnlyLogin: false,
@@ -4268,7 +4507,10 @@ function createDefaultSettings(): AppSettings {
       dstPort: 1433,
       localPort: null,
       readyTimeoutMs: 15000,
-      keepaliveIntervalMs: 10000
+      keepaliveIntervalMs: 10000,
+      connectTimeoutMs: 10000,
+      reconnectEnabled: true,
+      maxReconnectAttempts: 3
     },
     mobileBridge: {
       enabled: true,
@@ -4304,7 +4546,9 @@ function createDefaultSettings(): AppSettings {
           encrypt: true,
           trustServerCertificate: true,
           connectionTimeoutMs: 15000,
-          requestTimeoutMs: 45000
+          requestTimeoutMs: 45000,
+          connectionRetryCount: 2,
+          connectionRetryDelayMs: 2000
         },
         ssh: {
           enabled: false,
@@ -4318,7 +4562,10 @@ function createDefaultSettings(): AppSettings {
           dstPort: 1433,
           localPort: null,
           readyTimeoutMs: 15000,
-          keepaliveIntervalMs: 10000
+          keepaliveIntervalMs: 10000,
+          connectTimeoutMs: 10000,
+          reconnectEnabled: true,
+          maxReconnectAttempts: 3
         }
       }
     ],

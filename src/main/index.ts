@@ -30,7 +30,9 @@ import type {
   SshTunnelConfig,
   SshTunnelStatus,
   SshProgressEvent,
-  ConnectionHealthStatus
+  ConnectionHealthStatus,
+  ConnectionDiagnosticInfo,
+  ConnectionLogEntry
 } from '../shared/contracts'
 import { AgentOrchestrator } from './services/agentOrchestrator'
 import { AgentDebugServer } from './services/agentDebugServer'
@@ -331,6 +333,111 @@ function resolveActiveProfile(settings: AppSettings): ConnectionProfile | null {
   return settings.connectionProfiles.find((p) => p.id === profileId) ?? null
 }
 
+const SCHEMA_CATALOG_STALE_DAYS = 30
+
+function findSchemaCatalog(
+  settings: AppSettings,
+  profileId: string,
+  databaseName: string
+): SchemaCatalogEntry | null {
+  const normalized = databaseName.trim().toLowerCase()
+  return (
+    settings.schemaCatalogs.find(
+      (entry) =>
+        entry.profileId === profileId &&
+        entry.databaseName.trim().toLowerCase() === normalized
+    ) ?? null
+  )
+}
+
+function isCatalogStale(catalog: SchemaCatalogEntry): boolean {
+  const discoveredAt = new Date(catalog.discoveredAt).getTime()
+  if (Number.isNaN(discoveredAt)) return true
+  const ageDays = (Date.now() - discoveredAt) / (1000 * 60 * 60 * 24)
+  return ageDays > SCHEMA_CATALOG_STALE_DAYS
+}
+
+async function autoDiscoverSchema(
+  profile: ConnectionProfile,
+  runtimeConnection: SqlConnectionConfig
+): Promise<void> {
+  const settings = settingsStore.get()
+  const existing = findSchemaCatalog(settings, profile.id, profile.sql.database)
+
+  if (existing && !isCatalogStale(existing)) {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'info',
+      category: 'schema.auto-discover',
+      event: 'cache-hit',
+      details: { profileId: profile.id, database: profile.sql.database }
+    })
+    return
+  }
+
+  try {
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'info',
+      category: 'schema.auto-discover',
+      event: 'started',
+      details: {
+        profileId: profile.id,
+        database: profile.sql.database,
+        reason: existing ? 'stale' : 'missing'
+      }
+    })
+
+    const discoveredCatalog = await schemaDiscoveryService.discoverCatalog({
+      profileId: profile.id,
+      databaseName: profile.sql.database,
+      previousSelectedMappings: existing?.selectedMappings ?? {},
+      executeSql: async (query: string) => {
+        return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'discovery')
+      }
+    })
+
+    const catalogToSave: SchemaCatalogEntry = {
+      ...discoveredCatalog,
+      selectedMappings: existing?.selectedMappings ?? {},
+      selectedSoftwareId: existing?.selectedSoftwareId ?? discoveredCatalog.detectedSoftware?.id ?? null,
+      selectedDateMode: existing?.selectedDateMode ?? null
+    }
+
+    const mergedCatalogs = [
+      catalogToSave,
+      ...settings.schemaCatalogs.filter(
+        (entry) => !isSameSchemaCatalog(entry, catalogToSave.profileId, catalogToSave.databaseName)
+      )
+    ].slice(0, 30)
+
+    const patch: Partial<AppSettings> = { schemaCatalogs: mergedCatalogs }
+
+    if (catalogToSave.detectedSoftware && !existing) {
+      patch.softwareMode = 'auto'
+    }
+
+    await settingsStore.save(patch)
+
+    telemetryIngestService.capture({
+      process: 'main',
+      level: 'info',
+      category: 'schema.auto-discover',
+      event: 'completed',
+      details: {
+        profileId: profile.id,
+        database: profile.sql.database,
+        totalTables: catalogToSave.totalTables
+      }
+    })
+  } catch (error) {
+    telemetryIngestService.captureError('schema.auto-discover', 'discovery-failed', error, 'main', {
+      profileId: profile.id,
+      database: profile.sql.database
+    })
+  }
+}
+
 async function autoConnectOnStartup(): Promise<void> {
   const settings = settingsStore.get()
   const profile = resolveActiveProfile(settings)
@@ -356,6 +463,7 @@ async function autoConnectOnStartup(): Promise<void> {
           event: 'connected',
           details: { profileId: profile.id, localPort: tunnelStatus.localPort }
         })
+        void autoDiscoverSchema(profile, runtimeConnection)
       }
     } catch (error) {
       telemetryIngestService.captureError('ssh.auto-connect', 'start-failed', error, 'main', {
@@ -372,6 +480,7 @@ async function autoConnectOnStartup(): Promise<void> {
         event: 'connected',
         details: { profileId: profile.id }
       })
+      void autoDiscoverSchema(profile, profile.sql)
     } catch (error) {
       telemetryIngestService.captureError('sql.auto-connect', 'test-failed', error, 'main', {
         profileId: profile.id
@@ -414,6 +523,13 @@ function registerIpcHandlers(): void {
 
         if (!updated.ssh.enabled) {
           await sshTunnelService.stop('SSH tunnel disabled from settings')
+        }
+
+        if (patch.activeConnectionProfileId) {
+          const newProfile = resolveActiveProfile(updated)
+          if (newProfile) {
+            void autoConnectOnStartup()
+          }
         }
 
         return ok(updated)
@@ -662,6 +778,22 @@ function registerIpcHandlers(): void {
         const sshStatus = sshTunnelService.getStatus()
         const sqlConnected = sqlConnectionManager.isConnected()
 
+        let sqlIsReadOnly: boolean | null = null
+        let sqlWriteCapabilities: string[] = []
+        let sqlServerVersion: string | null = null
+
+        if (sqlConnected && profile) {
+          try {
+            const runtimeConnection = await resolveRuntimeSqlConnection(profile.sql, profile.ssh.enabled ? profile.ssh : undefined)
+            const healthCheck = await sqlConnectionManager.getHealthCheck(runtimeConnection)
+            sqlIsReadOnly = healthCheck.isReadOnly
+            sqlWriteCapabilities = healthCheck.writeCapabilities
+            sqlServerVersion = healthCheck.serverVersion
+          } catch {
+            // Health check failed — leave as null/empty
+          }
+        }
+
         const health: ConnectionHealthStatus = {
           sshActive: sshStatus.active,
           sshReconnecting: sshStatus.reconnecting,
@@ -669,7 +801,9 @@ function registerIpcHandlers(): void {
           sshLocalPort: sshStatus.localPort,
           sqlConnected,
           sqlMessage: sqlConnected ? 'اتصال SQL برقرار است' : 'اتصال SQL قطع است',
-          sqlServerVersion: null,
+          sqlServerVersion,
+          sqlIsReadOnly,
+          sqlWriteCapabilities,
           profileType: profile?.metadata.type ?? null,
           lastError: sshStatus.active ? null : sshStatus.message,
           lastUpdatedAt: Date.now()
@@ -677,6 +811,48 @@ function registerIpcHandlers(): void {
         return ok(health)
       } catch (error) {
         return failWithContext(error, 'connection:health')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'connection:diagnostic',
+    async (): Promise<IpcResponse<ConnectionDiagnosticInfo>> => {
+      try {
+        const sshDiag = sshTunnelService.getDiagnosticInfo()
+        const poolInfo = sqlConnectionManager.getPoolInfo()
+        const sqlConnected = sqlConnectionManager.isConnected()
+
+        const diag: ConnectionDiagnosticInfo = {
+          logs: sshDiag.logs,
+          sshActive: sshDiag.sshActive,
+          sshReconnecting: sshDiag.sshReconnecting,
+          sshLocalHost: sshDiag.sshLocalHost,
+          sshLocalPort: sshDiag.sshLocalPort,
+          sshDstHost: sshDiag.sshDstHost,
+          sshDstPort: sshDiag.sshDstPort,
+          sshMessage: sshDiag.sshMessage,
+          sqlConnected,
+          sqlPoolSize: poolInfo?.size ?? null,
+          sqlActiveConnections: poolInfo?.borrowed ?? null,
+          sqlIdleConnections: poolInfo?.available ?? null,
+          lastError: sshDiag.lastError,
+          lastErrorAt: sshDiag.lastErrorAt
+        }
+        return ok(diag)
+      } catch (error) {
+        return failWithContext(error, 'connection:diagnostic')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'connection:logs',
+    async (): Promise<IpcResponse<ConnectionLogEntry[]>> => {
+      try {
+        return ok(sshTunnelService.getDiagnosticInfo().logs)
+      } catch (error) {
+        return failWithContext(error, 'connection:logs')
       }
     }
   )

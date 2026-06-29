@@ -160,7 +160,9 @@ test('S16.20: Migration from plain-text — plain-text values are loaded and re-
         encrypt: false,
         trustServerCertificate: true,
         connectionTimeoutMs: 15000,
-        requestTimeoutMs: 45000
+        requestTimeoutMs: 45000,
+        connectionRetryCount: 2,
+        connectionRetryDelayMs: 2000
       },
       gemini: {
         apiKey: 'legacy-api-key',
@@ -188,7 +190,9 @@ test('S16.20: Migration from plain-text — plain-text values are loaded and re-
             encrypt: false,
             trustServerCertificate: true,
             connectionTimeoutMs: 15000,
-            requestTimeoutMs: 45000
+            requestTimeoutMs: 45000,
+            connectionRetryCount: 2,
+            connectionRetryDelayMs: 2000
           },
           ssh: {
             enabled: false,
@@ -202,7 +206,10 @@ test('S16.20: Migration from plain-text — plain-text values are loaded and re-
             dstPort: 1433,
             localPort: null,
             readyTimeoutMs: 15000,
-            keepaliveIntervalMs: 10000
+            keepaliveIntervalMs: 10000,
+            connectTimeoutMs: 10000,
+            reconnectEnabled: true,
+            maxReconnectAttempts: 3
           }
         }
       ]

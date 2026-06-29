@@ -29,7 +29,9 @@ import type {
   SshTunnelConfig,
   SshTunnelStatus,
   SshProgressEvent,
-  ConnectionHealthStatus
+  ConnectionHealthStatus,
+  ConnectionDiagnosticInfo,
+  ConnectionLogEntry
 } from '../shared/contracts'
 
 const api = {
@@ -99,7 +101,11 @@ const api = {
   },
   connection: {
     getHealth: (): Promise<IpcResponse<ConnectionHealthStatus>> =>
-      ipcRenderer.invoke('connection:health')
+      ipcRenderer.invoke('connection:health'),
+    getDiagnostic: (): Promise<IpcResponse<ConnectionDiagnosticInfo>> =>
+      ipcRenderer.invoke('connection:diagnostic'),
+    getLogs: (): Promise<IpcResponse<ConnectionLogEntry[]>> =>
+      ipcRenderer.invoke('connection:logs')
   },
   sql: {
     listDatabases: (payload?: {

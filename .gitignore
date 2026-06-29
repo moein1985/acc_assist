@@ -5,5 +5,5 @@ out
 .DS_Store
 .eslintcache
 *.log*
-index.html
+/index.html
 index.js
