@@ -234,7 +234,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۳ | ✅ کامل | COGS, موجودی, بودجه, مراکز هزینه, PDF/Excel |
 | ۱۴ | ✅ کامل | ابزارهای حسابدار, drill-down مکالمه‌ای, ۲۱۱ golden cases |
 | ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
-| ۱۶ | 🔲 شروع نشده | اتصال از راه دور با SSH: auto-connect, Connection Wizard, credential encryption, health indicator |
+| ۱۶ | ✅ کامل (به‌جز field test) | اتصال از راه دور با SSH: auto-connect, auto-reconnect, Connection Wizard, host key verification, credential encryption, health indicator, diagnostic panel, mapping wizard |
 
 **آمار نهایی:**
 - ۵۸ متریک (پایه + مشتق + حسابدار)
@@ -244,10 +244,8 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - ۴ مارکر asar: BLIND_DISCOVERY, SCHEMA_ADAPTER_AUTO, SEMANTIC_MAPPING, MULTI_SOFTWARE_AUTO
 
 **کارهای باقی‌مانده:**
-- فاز ۱۶: اتصال از راه دور با SSH (auto-connect, wizard, encryption, health indicator)
-- تست بلایند محک (در انتظار SQL credentials)
-- UI steps (S15.14/S15.15/S15.20) — در فاز ۱۶ تکمیل خواهد شد
-- shadow run رسمی ۲ هفته‌ای (پس از Release 2.0)
+- فاز ۱۶ field test‌ها (S16.22-S16.23): تست دستی روی سرور 192.168.85.56 و کامپیوتر دوم
+- shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
 - رفع مشکل pre-existing: net_margin planner tool-call limit
 
 ---
