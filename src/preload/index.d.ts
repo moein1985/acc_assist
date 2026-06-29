@@ -26,7 +26,8 @@ import type {
   SqlHealthCheck,
   SqlQueryRow,
   SshTunnelConfig,
-  SshTunnelStatus
+  SshTunnelStatus,
+  SshProgressEvent
 } from '../shared/contracts'
 
 export interface AccAssistApi {
@@ -49,6 +50,8 @@ export interface AccAssistApi {
     onHostKeyMismatch: (
       listener: (info: { host: string; port: number; expected: string | undefined; got: string }) => void
     ) => () => void
+    pickPrivateKeyFile: () => Promise<IpcResponse<{ path: string; content: string }>>
+    onProgress: (listener: (event: SshProgressEvent) => void) => () => void
   }
   sql: {
     listDatabases: (payload?: {

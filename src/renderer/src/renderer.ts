@@ -25,7 +25,8 @@ import type {
   MobileBridgeStatus,
   ReleaseUpdateStatus,
   SshTunnelConfig,
-  SshTunnelStatus
+  SshTunnelStatus,
+  SshProgressEvent
 } from '../../shared/contracts'
 import { localizeAgentFallbackMessage, localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
 import {
@@ -146,6 +147,15 @@ interface SchemaMappingWizardState {
   draftSelections: SchemaConceptSelections
 }
 
+interface ConnectionWizardState {
+  open: boolean
+  step: number
+  type: ConnectionProfileType
+  sshTested: boolean
+  sqlTested: boolean
+  databases: string[]
+}
+
 const ui = {
   tabButtons: Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn')),
   settingsPanel: getById<HTMLElement>('settingsPanel'),
@@ -255,6 +265,11 @@ const ui = {
   sshUserInput: getById<HTMLInputElement>('sshUserInput'),
   sshPasswordInput: getById<HTMLInputElement>('sshPasswordInput'),
   sshPrivateKeyInput: getById<HTMLTextAreaElement>('sshPrivateKeyInput'),
+  sshPickKeyFileBtn: getById<HTMLButtonElement>('sshPickKeyFileBtn'),
+  sshProgressContainer: getById<HTMLElement>('sshProgressContainer'),
+  sshProgressFill: getById<HTMLElement>('sshProgressFill'),
+  sshProgressStep: getById<HTMLElement>('sshProgressStep'),
+  sshProgressMessage: getById<HTMLElement>('sshProgressMessage'),
   sshPassphraseInput: getById<HTMLInputElement>('sshPassphraseInput'),
   sshTargetHostInput: getById<HTMLInputElement>('sshTargetHostInput'),
   sshTargetPortInput: getById<HTMLInputElement>('sshTargetPortInput'),
@@ -266,7 +281,38 @@ const ui = {
   auditStageFilterInput: getById<HTMLSelectElement>('auditStageFilterInput'),
   auditLimitInput: getById<HTMLInputElement>('auditLimitInput'),
   auditLogList: getById<HTMLElement>('auditLogList'),
-  auditLogSummary: getById<HTMLElement>('auditLogSummary')
+  auditLogSummary: getById<HTMLElement>('auditLogSummary'),
+  connWizardOverlay: getById<HTMLElement>('connWizardOverlay'),
+  connWizardCloseBtn: getById<HTMLButtonElement>('connWizardCloseBtn'),
+  connWizardPrevBtn: getById<HTMLButtonElement>('connWizardPrevBtn'),
+  connWizardNextBtn: getById<HTMLButtonElement>('connWizardNextBtn'),
+  connWizardSaveBtn: getById<HTMLButtonElement>('connWizardSaveBtn'),
+  connWizardTypeSelect: getById<HTMLSelectElement>('connWizardTypeSelect'),
+  connWizardSshHost: getById<HTMLInputElement>('connWizardSshHost'),
+  connWizardSshPort: getById<HTMLInputElement>('connWizardSshPort'),
+  connWizardSshUser: getById<HTMLInputElement>('connWizardSshUser'),
+  connWizardSshPassword: getById<HTMLInputElement>('connWizardSshPassword'),
+  connWizardSshKey: getById<HTMLTextAreaElement>('connWizardSshKey'),
+  connWizardPickKeyFileBtn: getById<HTMLButtonElement>('connWizardPickKeyFileBtn'),
+  connWizardDstHost: getById<HTMLInputElement>('connWizardDstHost'),
+  connWizardDstPort: getById<HTMLInputElement>('connWizardDstPort'),
+  connWizardTestSshBtn: getById<HTMLButtonElement>('connWizardTestSshBtn'),
+  connWizardSshResult: getById<HTMLElement>('connWizardSshResult'),
+  connWizardSqlHost: getById<HTMLInputElement>('connWizardSqlHost'),
+  connWizardSqlPort: getById<HTMLInputElement>('connWizardSqlPort'),
+  connWizardSqlUser: getById<HTMLInputElement>('connWizardSqlUser'),
+  connWizardSqlPassword: getById<HTMLInputElement>('connWizardSqlPassword'),
+  connWizardSqlTrustCert: getById<HTMLInputElement>('connWizardSqlTrustCert'),
+  connWizardSqlEncrypt: getById<HTMLInputElement>('connWizardSqlEncrypt'),
+  connWizardTestSqlBtn: getById<HTMLButtonElement>('connWizardTestSqlBtn'),
+  connWizardSqlResult: getById<HTMLElement>('connWizardSqlResult'),
+  connWizardLoadDbsBtn: getById<HTMLButtonElement>('connWizardLoadDbsBtn'),
+  connWizardDbSelect: getById<HTMLSelectElement>('connWizardDbSelect'),
+  connWizardDbResult: getById<HTMLElement>('connWizardDbResult'),
+  connWizardSoftwareSelect: getById<HTMLSelectElement>('connWizardSoftwareSelect'),
+  connWizardProfileName: getById<HTMLInputElement>('connWizardProfileName'),
+  connWizardProfileDesc: getById<HTMLTextAreaElement>('connWizardProfileDesc'),
+  connWizardSaveResult: getById<HTMLElement>('connWizardSaveResult')
 }
 
 const state: {
@@ -285,6 +331,7 @@ const state: {
   unsubscribeAgentEvents: (() => void) | null
   selectedProfileId: string | null
   schemaWizard: SchemaMappingWizardState
+  connectionWizard: ConnectionWizardState
 } = {
   settings: null,
   chatHistory: [],
@@ -304,6 +351,14 @@ const state: {
     open: false,
     conceptIndex: 0,
     draftSelections: {}
+  },
+  connectionWizard: {
+    open: false,
+    step: 0,
+    type: 'direct',
+    sshTested: false,
+    sqlTested: false,
+    databases: []
   }
 }
 
@@ -313,6 +368,9 @@ window.addEventListener('DOMContentLoaded', () => {
   })
   window.api.ssh.onStatusChange((status) => {
     updateSshChips(status)
+  })
+  window.api.ssh.onProgress((progress) => {
+    updateSshProgress(progress)
   })
   window.api.ssh.onHostKeyMismatch((info) => {
     handleHostKeyMismatch(info)
@@ -420,11 +478,12 @@ function bindEvents(): void {
   }
 
   ui.saveAllSettingsBtn.addEventListener('click', () => void saveSettings())
-  ui.createProfileBtn.addEventListener('click', () => void createConnectionProfile())
+  ui.createProfileBtn.addEventListener('click', () => openConnectionWizard())
   ui.activateProfileBtn.addEventListener('click', () => void activateSelectedProfile())
   ui.deleteProfileBtn.addEventListener('click', () => void deleteSelectedProfile())
   ui.testSqlConnectionBtn.addEventListener('click', () => void testSqlConnection())
   ui.loadSqlDatabasesBtn.addEventListener('click', () => void loadDatabasesFromServer())
+  ui.sshPickKeyFileBtn.addEventListener('click', () => void pickPrivateKeyFile(ui.sshPrivateKeyInput))
   ui.discoverSchemaBtn.addEventListener('click', () => void discoverSchemaCatalog())
   ui.schemaOnboardingDiscoverBtn.addEventListener('click', () =>
     void discoverSchemaCatalog(collectSchemaSoftwareFromOnboarding())
@@ -457,6 +516,24 @@ function bindEvents(): void {
   })
   ui.releaseUpdateRefreshBtn.addEventListener('click', () => void loadReleaseUpdateStatus(false))
   ui.releaseUpdateInstallBtn.addEventListener('click', () => void installDownloadedReleaseUpdate())
+
+  ui.connWizardCloseBtn.addEventListener('click', () => closeConnectionWizard())
+  ui.connWizardPrevBtn.addEventListener('click', () => stepConnectionWizard(-1))
+  ui.connWizardNextBtn.addEventListener('click', () => stepConnectionWizard(1))
+  ui.connWizardSaveBtn.addEventListener('click', () => void saveConnectionWizardProfile())
+  ui.connWizardTypeSelect.addEventListener('change', () => {
+    state.connectionWizard.type = toConnectionProfileType(ui.connWizardTypeSelect.value)
+  })
+  ui.connWizardTestSshBtn.addEventListener('click', () => void testConnectionWizardSsh())
+  ui.connWizardTestSqlBtn.addEventListener('click', () => void testConnectionWizardSql())
+  ui.connWizardLoadDbsBtn.addEventListener('click', () => void loadConnectionWizardDatabases())
+  ui.connWizardPickKeyFileBtn.addEventListener('click', () => void pickPrivateKeyFile(ui.connWizardSshKey))
+  ui.connWizardDbSelect.addEventListener('change', () => {
+    const selected = ui.connWizardDbSelect.value.trim()
+    if (selected) {
+      showConnWizardResult(ui.connWizardDbResult, `دیتابیس انتخاب‌شده: ${selected}`, 'ok')
+    }
+  })
 
   ui.promptInput.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -752,52 +829,294 @@ async function saveSettings(): Promise<void> {
   await refreshRuntimeStatuses(true)
 }
 
-async function createConnectionProfile(): Promise<void> {
-  const baseline = state.settings ?? createDefaultSettings()
-  const activeProfile = getActiveConnectionProfile(baseline)
-  const newProfileId = `profile-${Date.now()}`
-  const newProfileName = `پروفایل ${baseline.connectionProfiles.length + 1}`
+function openConnectionWizard(): void {
+  state.connectionWizard = {
+    open: true,
+    step: 0,
+    type: 'direct',
+    sshTested: false,
+    sqlTested: false,
+    databases: []
+  }
+  ui.connWizardOverlay.hidden = false
+  ui.connWizardTypeSelect.value = 'direct'
+  ui.connWizardSshHost.value = ''
+  ui.connWizardSshPort.value = '22'
+  ui.connWizardSshUser.value = ''
+  ui.connWizardSshPassword.value = ''
+  ui.connWizardSshKey.value = ''
+  ui.connWizardDstHost.value = '127.0.0.1'
+  ui.connWizardDstPort.value = '1433'
+  ui.connWizardSqlHost.value = '127.0.0.1'
+  ui.connWizardSqlPort.value = '1433'
+  ui.connWizardSqlUser.value = ''
+  ui.connWizardSqlPassword.value = ''
+  ui.connWizardSqlTrustCert.checked = true
+  ui.connWizardSqlEncrypt.checked = false
+  ui.connWizardDbSelect.innerHTML = '<option value="">(ابتدا بارگذاری کنید)</option>'
+  ui.connWizardSoftwareSelect.value = 'sepidar'
+  ui.connWizardProfileName.value = ''
+  ui.connWizardProfileDesc.value = ''
+  hideConnWizardResult(ui.connWizardSshResult)
+  hideConnWizardResult(ui.connWizardSqlResult)
+  hideConnWizardResult(ui.connWizardDbResult)
+  hideConnWizardResult(ui.connWizardSaveResult)
+  renderConnWizardStep()
+}
 
-  const newProfile: ConnectionProfile = {
-    id: newProfileId,
-    metadata: {
-      ...activeProfile.metadata,
-      name: newProfileName,
-      description: '',
-      type: ui.sshEnabledInput.checked ? 'ssh' : 'direct',
-      lastTestStatus: 'never',
-      lastTestMessage: 'هنوز تستی اجرا نشده است.',
-      lastTestAt: null
-    },
-    sql: collectSqlConfigFromForm(),
-    ssh: collectSshConfigFromForm()
+function closeConnectionWizard(): void {
+  state.connectionWizard.open = false
+  ui.connWizardOverlay.hidden = true
+}
+
+const CONN_WIZARD_TOTAL_STEPS = 6
+
+function renderConnWizardStep(): void {
+  const step = state.connectionWizard.step
+  const isSsh = state.connectionWizard.type === 'ssh'
+
+  for (let i = 1; i <= CONN_WIZARD_TOTAL_STEPS; i++) {
+    const panel = getById<HTMLElement>(`connWizardPanel${i}`)
+    const indicator = getById<HTMLElement>(`connWizardStep${i}`)
+    if (!panel || !indicator) continue
+
+    panel.classList.toggle('is-active', i - 1 === step)
+    indicator.classList.remove('is-current', 'is-done')
+    if (i - 1 < step) {
+      indicator.classList.add('is-done')
+    } else if (i - 1 === step) {
+      indicator.classList.add('is-current')
+    }
   }
 
-  const updatedProfiles = [...baseline.connectionProfiles, newProfile]
+  const step2Panel = getById<HTMLElement>('connWizardPanel2')
+  if (step2Panel) {
+    step2Panel.style.display = isSsh ? '' : 'none'
+  }
 
-  toggleButton(ui.createProfileBtn, true, 'در حال ایجاد...')
+  const maxStep = CONN_WIZARD_TOTAL_STEPS - 1
 
-  const response = await window.api.settings.save({
-    connectionProfiles: updatedProfiles,
-    activeConnectionProfileId: newProfileId,
-    connectionProfile: newProfile.metadata,
-    sql: newProfile.sql,
-    ssh: newProfile.ssh
+  ui.connWizardPrevBtn.disabled = step === 0
+  ui.connWizardNextBtn.hidden = step >= maxStep
+  ui.connWizardSaveBtn.hidden = step < maxStep
+
+  if (!isSsh && step === 1) {
+    state.connectionWizard.step = 2
+    renderConnWizardStep()
+    return
+  }
+}
+
+function stepConnectionWizard(direction: number): void {
+  const isSsh = state.connectionWizard.type === 'ssh'
+  const maxStep = CONN_WIZARD_TOTAL_STEPS - 1
+  let next = state.connectionWizard.step + direction
+
+  if (!isSsh) {
+    if (next === 1) {
+      next = direction > 0 ? 2 : 0
+    }
+  }
+
+  if (next < 0 || next > maxStep) return
+
+  if (isSsh && next > 1 && !state.connectionWizard.sshTested) {
+    showConnWizardResult(ui.connWizardSshResult, 'ابتدا تست اتصال SSH را با موفقیت انجام دهید.', 'err')
+    return
+  }
+
+  if (next > 2 && !state.connectionWizard.sqlTested) {
+    showConnWizardResult(ui.connWizardSqlResult, 'ابتدا تست اتصال SQL را با موفقیت انجام دهید.', 'err')
+    return
+  }
+
+  state.connectionWizard.step = next
+  renderConnWizardStep()
+}
+
+function collectWizardSshConfig(): SshTunnelConfig {
+  const baseline = createDefaultSettings().ssh
+  return {
+    ...baseline,
+    enabled: true,
+    host: ui.connWizardSshHost.value.trim(),
+    port: toNumber(ui.connWizardSshPort.value, 22),
+    username: ui.connWizardSshUser.value.trim(),
+    password: ui.connWizardSshPassword.value,
+    privateKey: ui.connWizardSshKey.value,
+    passphrase: '',
+    dstHost: ui.connWizardDstHost.value.trim() || '127.0.0.1',
+    dstPort: toNumber(ui.connWizardDstPort.value, 1433),
+    localPort: null
+  }
+}
+
+function collectWizardSqlConfig(): SqlConnectionConfig {
+  const baseline = createDefaultSettings().sql
+  return {
+    ...baseline,
+    server: ui.connWizardSqlHost.value.trim(),
+    database: ui.connWizardDbSelect.value.trim() || baseline.database,
+    user: ui.connWizardSqlUser.value.trim(),
+    password: ui.connWizardSqlPassword.value,
+    port: toNumber(ui.connWizardSqlPort.value, 1433),
+    trustServerCertificate: ui.connWizardSqlTrustCert.checked,
+    encrypt: ui.connWizardSqlEncrypt.checked
+  }
+}
+
+async function testConnectionWizardSsh(): Promise<void> {
+  toggleButton(ui.connWizardTestSshBtn, true, 'در حال تست...')
+  const sshConfig = collectWizardSshConfig()
+  const response = await window.api.ssh.start(sshConfig)
+  toggleButton(ui.connWizardTestSshBtn, false, 'تست اتصال SSH')
+
+  if (!response.ok || !response.data?.active) {
+    const message = toFriendlyInfraError(response.error ?? response.data?.message ?? 'اتصال SSH ناموفق بود.')
+    showConnWizardResult(ui.connWizardSshResult, message, 'err')
+    state.connectionWizard.sshTested = false
+    await window.api.ssh.stop().catch(() => {})
+    return
+  }
+
+  showConnWizardResult(
+    ui.connWizardSshResult,
+    `اتصال SSH برقرار شد. پورت محلی: ${response.data.localHost}:${response.data.localPort ?? '-'}`,
+    'ok'
+  )
+  state.connectionWizard.sshTested = true
+  await window.api.ssh.stop().catch(() => {})
+}
+
+async function testConnectionWizardSql(): Promise<void> {
+  toggleButton(ui.connWizardTestSqlBtn, true, 'در حال تست...')
+  const sqlConfig = collectWizardSqlConfig()
+  const sshConfig = state.connectionWizard.type === 'ssh' ? collectWizardSshConfig() : undefined
+  const response = await window.api.sql.healthCheck({
+    connection: sqlConfig,
+    ssh: sshConfig
   })
-
-  toggleButton(ui.createProfileBtn, false, 'ایجاد پروفایل')
+  toggleButton(ui.connWizardTestSqlBtn, false, 'تست اتصال SQL')
 
   if (!response.ok || !response.data) {
-    const message = response.error ?? 'ایجاد پروفایل جدید انجام نشد.'
-    setSettingsFeedback(message, 'error')
-    setAppNotice(message, 'error')
+    const message = toFriendlyInfraError(response.error ?? 'بررسی سلامت اتصال SQL ناموفق بود.')
+    showConnWizardResult(ui.connWizardSqlResult, message, 'err')
+    state.connectionWizard.sqlTested = false
+    return
+  }
+
+  showConnWizardResult(
+    ui.connWizardSqlResult,
+    `اتصال SQL سالم است. نسخه سرور: ${response.data.serverVersion ?? 'نامشخص'}`,
+    'ok'
+  )
+  state.connectionWizard.sqlTested = true
+}
+
+async function loadConnectionWizardDatabases(): Promise<void> {
+  toggleButton(ui.connWizardLoadDbsBtn, true, 'در حال بارگذاری...')
+  const sqlConfig = collectWizardSqlConfig()
+  const sshConfig = state.connectionWizard.type === 'ssh' ? collectWizardSshConfig() : undefined
+  const response = await window.api.sql.listDatabases({
+    connection: sqlConfig,
+    ssh: sshConfig
+  })
+  toggleButton(ui.connWizardLoadDbsBtn, false, 'بارگذاری لیست دیتابیس‌ها')
+
+  if (!response.ok || !response.data) {
+    const message = toFriendlyInfraError(response.error ?? 'خواندن لیست دیتابیس‌ها ناموفق بود.')
+    showConnWizardResult(ui.connWizardDbResult, message, 'err')
+    return
+  }
+
+  const databases = response.data
+  state.connectionWizard.databases = databases
+  ui.connWizardDbSelect.innerHTML = databases
+    .map((db) => `<option value="${db}">${db}</option>`)
+    .join('')
+  showConnWizardResult(
+    ui.connWizardDbResult,
+    `${databases.length} دیتابیس یافت شد. یکی را انتخاب کنید.`,
+    'ok'
+  )
+}
+
+async function saveConnectionWizardProfile(): Promise<void> {
+  const name = ui.connWizardProfileName.value.trim()
+  if (!name) {
+    showConnWizardResult(ui.connWizardSaveResult, 'نام پروفایل الزامی است.', 'err')
+    return
+  }
+
+  const isSsh = state.connectionWizard.type === 'ssh'
+  const sqlConfig = collectWizardSqlConfig()
+  const sshConfig = isSsh ? collectWizardSshConfig() : { ...createDefaultSettings().ssh, enabled: false }
+  const profileId = `profile-${Date.now()}`
+  const newProfile: ConnectionProfile = {
+    id: profileId,
+    metadata: {
+      name,
+      description: ui.connWizardProfileDesc.value.trim(),
+      type: state.connectionWizard.type,
+      lastTestStatus: 'never',
+      lastTestMessage: 'ساخته شده توسط جادوگر اتصال.',
+      lastTestAt: null
+    },
+    sql: sqlConfig,
+    ssh: sshConfig
+  }
+
+  toggleButton(ui.connWizardSaveBtn, true, 'در حال ذخیره...')
+
+  const baseline = state.settings ?? createDefaultSettings()
+  const response = await window.api.settings.save({
+    connectionProfiles: [...baseline.connectionProfiles, newProfile],
+    activeConnectionProfileId: profileId,
+    connectionProfile: newProfile.metadata,
+    sql: newProfile.sql,
+    ssh: newProfile.ssh,
+    softwareMode: ui.connWizardSoftwareSelect.value as 'sepidar' | 'auto'
+  })
+
+  toggleButton(ui.connWizardSaveBtn, false, 'ذخیره پروفایل')
+
+  if (!response.ok || !response.data) {
+    const message = response.error ?? 'ذخیره پروفایل ناموفق بود.'
+    showConnWizardResult(ui.connWizardSaveResult, message, 'err')
     return
   }
 
   state.settings = response.data
   populateSettingsForm(response.data)
-  setSettingsFeedback('پروفایل اتصال جدید ایجاد و فعال شد.', 'success')
-  setAppNotice('پروفایل جدید فعال است. مقادیر را بررسی و ذخیره کنید.', 'success')
+  showConnWizardResult(ui.connWizardSaveResult, `پروفایل «${name}» ذخیره و فعال شد.`, 'ok')
+  setAppNotice(`پروفایل اتصال «${name}» با موفقیت ساخته شد.`, 'success')
+  setTimeout(() => closeConnectionWizard(), 1500)
+}
+
+function showConnWizardResult(element: HTMLElement, message: string, kind: 'ok' | 'err'): void {
+  element.textContent = message
+  element.className = `conn-wizard-result ${kind}`
+  element.hidden = false
+}
+
+function hideConnWizardResult(element: HTMLElement): void {
+  element.hidden = true
+  element.textContent = ''
+}
+
+async function pickPrivateKeyFile(target: HTMLTextAreaElement): Promise<void> {
+  const response = await window.api.ssh.pickPrivateKeyFile()
+  if (!response.ok || !response.data) {
+    setAppNotice(response.error ?? 'انتخاب فایل کلید خصوصی ناموفق بود.', 'error')
+    return
+  }
+  if (!response.data.path) {
+    return
+  }
+  target.value = response.data.content
+  target.readOnly = true
+  target.placeholder = `فایل انتخاب‌شده: ${response.data.path}`
+  setAppNotice(`کلید خصوصی از فایل بارگذاری شد: ${response.data.path}`, 'success')
 }
 
 async function activateSelectedProfile(): Promise<void> {
@@ -2534,6 +2853,32 @@ function updateSshChips(status: SshTunnelStatus): void {
   const normalizedMessage = localizeSshStatusMessage(status.message)
   setChip(ui.sshStatusChipTop, `SSH: قطع (${normalizedMessage})`, 'danger')
   setChip(ui.sshStatusChipAnalysis, `SSH: قطع (${normalizedMessage})`, 'danger')
+}
+
+function updateSshProgress(progress: SshProgressEvent): void {
+  if (progress.step === 0 && progress.failed) {
+    ui.sshProgressContainer.style.display = 'block'
+    ui.sshProgressFill.style.width = '100%'
+    ui.sshProgressFill.style.background = '#f44336'
+    ui.sshProgressStep.textContent = 'خطا'
+    ui.sshProgressMessage.textContent = progress.message
+    ui.sshProgressMessage.style.color = '#f44336'
+    return
+  }
+
+  const pct = progress.total > 0 ? (progress.step / progress.total) * 100 : 0
+  ui.sshProgressContainer.style.display = 'block'
+  ui.sshProgressFill.style.width = `${pct}%`
+  ui.sshProgressFill.style.background = progress.failed ? '#f44336' : '#4caf50'
+  ui.sshProgressStep.textContent = `${progress.step}/${progress.total}`
+  ui.sshProgressMessage.textContent = progress.message
+  ui.sshProgressMessage.style.color = progress.failed ? '#f44336' : '#333'
+
+  if (progress.step === progress.total && !progress.failed) {
+    setTimeout(() => {
+      ui.sshProgressContainer.style.display = 'none'
+    }, 3000)
+  }
 }
 
 function updateBridgeChips(status: MobileBridgeStatus): void {

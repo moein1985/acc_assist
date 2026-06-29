@@ -308,6 +308,13 @@ export interface SshTunnelStatus {
   message: string
 }
 
+export interface SshProgressEvent {
+  step: number
+  total: number
+  message: string
+  failed: boolean
+}
+
 export interface GeminiMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string

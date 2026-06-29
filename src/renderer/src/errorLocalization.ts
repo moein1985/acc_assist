@@ -35,6 +35,18 @@ export function localizeInfraErrorFa(error: string): string {
     return 'اتصال به سرور رد شد. آدرس میزبان، پورت و فعال بودن SQL Server را بررسی کنید.'
   }
 
+  if (normalized.includes('cannot connect to')) {
+    return 'اتصال به SQL Server برقرار نشد. آدرس و پورت را بررسی کنید.'
+  }
+
+  if (normalized.includes('network-related or instance-specific')) {
+    return 'SQL Server در دسترس نیست. ممکن است سرویس متوقف شده باشد.'
+  }
+
+  if (normalized.includes('ssl/tls') || normalized.includes('ssl error') || normalized.includes('tls error')) {
+    return 'خطای رمزگذاری در اتصال به SQL Server.'
+  }
+
   if (normalized.includes('enotfound') || normalized.includes('getaddrinfo') || normalized.includes('dns')) {
     return 'میزبان پیدا نشد یا DNS پاسخ نداد. آدرس میزبان و DNS را بررسی کنید.'
   }

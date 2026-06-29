@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import type {
@@ -28,7 +28,8 @@ import type {
   SqlHealthCheck,
   SqlQueryRow,
   SshTunnelConfig,
-  SshTunnelStatus
+  SshTunnelStatus,
+  SshProgressEvent
 } from '../shared/contracts'
 import { AgentOrchestrator } from './services/agentOrchestrator'
 import { AgentDebugServer } from './services/agentDebugServer'
@@ -676,6 +677,35 @@ function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
+    'ssh:pick-private-key-file',
+    async (): Promise<IpcResponse<{ path: string; content: string }>> => {
+      try {
+        const win = BrowserWindow.getFocusedWindow()
+        const opts: Electron.OpenDialogOptions = {
+          title: 'انتخاب فایل کلید خصوصی SSH',
+          filters: [
+            { name: 'Private Key', extensions: ['pem', 'ppk', 'key'] },
+            { name: 'All Files', extensions: ['*'] }
+          ],
+          properties: ['openFile']
+        }
+        const result = win
+          ? await dialog.showOpenDialog(win, opts)
+          : await dialog.showOpenDialog(opts)
+        if (result.canceled || result.filePaths.length === 0) {
+          return ok({ path: '', content: '' })
+        }
+        const filePath = result.filePaths[0]
+        const { readFile } = await import('node:fs/promises')
+        const content = await readFile(filePath, 'utf-8')
+        return ok({ path: filePath, content })
+      } catch (error) {
+        return failWithContext(error, 'ssh:pick-private-key-file')
+      }
+    }
+  )
+
+  ipcMain.handle(
     'sql:test-connection',
     async (
       _,
@@ -930,6 +960,12 @@ app.whenReady().then(() => {
     sshTunnelService.on('status-changed', (status: SshTunnelStatus) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('ssh:status-changed', status)
+      }
+    })
+
+    sshTunnelService.on('progress', (progress: SshProgressEvent) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ssh:progress', progress)
       }
     })
 

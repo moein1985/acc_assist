@@ -770,6 +770,15 @@
                 <div class="row">
                   <button id="startSshTunnelBtn" class="btn" type="button">???? ???? SSH</button>
                   <button id="stopSshTunnelBtn" class="btn btn-danger" type="button">???? ???? SSH</button>
+                <div id="sshProgressContainer" style="margin-top:8px;display:none">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                    <div id="sshProgressBar" style="flex:1;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden">
+                      <div id="sshProgressFill" style="width:0%;height:100%;background:#4caf50;transition:width 0.3s"></div>
+                    </div>
+                    <span id="sshProgressStep" style="font-size:11px;color:#666;white-space:nowrap">0/0</span>
+                  </div>
+                  <div id="sshProgressMessage" style="font-size:12px;color:#333"></div>
+                </div>
                 </div>
               </div>
             </fieldset>
@@ -1000,6 +1009,86 @@
       </footer>
     </div>
 
+
+    <div id="connWizardOverlay" class="conn-wizard-overlay" hidden>
+      <div class="conn-wizard-modal">
+        <div class="conn-wizard-header">
+          <span class="conn-wizard-title">جادوگر اتصال جدید</span>
+          <button id="connWizardCloseBtn" class="btn btn-danger" type="button">بستن</button>
+        </div>
+        <div class="conn-wizard-steps">
+          <span id="connWizardStep1" class="conn-wizard-step is-current">۱) نوع اتصال</span>
+          <span id="connWizardStep2" class="conn-wizard-step">۲) SSH</span>
+          <span id="connWizardStep3" class="conn-wizard-step">۳) SQL Server</span>
+          <span id="connWizardStep4" class="conn-wizard-step">۴) دیتابیس</span>
+          <span id="connWizardStep5" class="conn-wizard-step">۵) نرم‌افزار</span>
+          <span id="connWizardStep6" class="conn-wizard-step">۶) نام و ذخیره</span>
+        </div>
+        <div class="conn-wizard-body">
+          <div id="connWizardPanel1" class="conn-wizard-step-panel is-active">
+            <label>
+              نوع اتصال را انتخاب کنید:
+              <select id="connWizardTypeSelect">
+                <option value="direct">اتصال مستقیم (LAN)</option>
+                <option value="ssh">اتصال از راه دور (SSH Tunnel)</option>
+              </select>
+            </label>
+          </div>
+          <div id="connWizardPanel2" class="conn-wizard-step-panel">
+            <label>میزبان SSH <input id="connWizardSshHost" type="text" placeholder="192.168.x.x" /></label>
+            <div class="row two">
+              <label>پورت SSH <input id="connWizardSshPort" type="number" min="1" max="65535" value="22" /></label>
+              <label>نام کاربری SSH <input id="connWizardSshUser" type="text" /></label>
+            </div>
+            <label>رمز عبور SSH <input id="connWizardSshPassword" type="password" autocomplete="off" /></label>
+            <label>کلید خصوصی SSH (PEM) <textarea id="connWizardSshKey" rows="3" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea><button type="button" id="connWizardPickKeyFileBtn" class="btn btn-secondary btn-sm" style="margin-top:4px">📂 انتخاب فایل کلید</button></label>
+            <div class="row two">
+              <label>میزبان مقصد SQL <input id="connWizardDstHost" type="text" value="127.0.0.1" /></label>
+              <label>پورت مقصد SQL <input id="connWizardDstPort" type="number" min="1" max="65535" value="1433" /></label>
+            </div>
+            <button id="connWizardTestSshBtn" class="btn" type="button">تست اتصال SSH</button>
+            <div id="connWizardSshResult" class="conn-wizard-result" hidden></div>
+          </div>
+          <div id="connWizardPanel3" class="conn-wizard-step-panel">
+            <label>میزبان SQL Server <input id="connWizardSqlHost" type="text" placeholder="127.0.0.1" /></label>
+            <div class="row two">
+              <label>پورت SQL <input id="connWizardSqlPort" type="number" min="1" max="65535" value="1433" /></label>
+              <label>نام کاربری SQL <input id="connWizardSqlUser" type="text" /></label>
+            </div>
+            <label>رمز عبور SQL <input id="connWizardSqlPassword" type="password" autocomplete="off" /></label>
+            <label class="toggle"><input id="connWizardSqlTrustCert" type="checkbox" checked /> اعتماد به گواهی سرور</label>
+            <label class="toggle"><input id="connWizardSqlEncrypt" type="checkbox" /> رمزنگاری اتصال SQL</label>
+            <button id="connWizardTestSqlBtn" class="btn" type="button">تست اتصال SQL</button>
+            <div id="connWizardSqlResult" class="conn-wizard-result" hidden></div>
+          </div>
+          <div id="connWizardPanel4" class="conn-wizard-step-panel">
+            <button id="connWizardLoadDbsBtn" class="btn" type="button">بارگذاری لیست دیتابیس‌ها</button>
+            <label>انتخاب دیتابیس <select id="connWizardDbSelect"><option value="">(ابتدا بارگذاری کنید)</option></select></label>
+            <div id="connWizardDbResult" class="conn-wizard-result" hidden></div>
+          </div>
+          <div id="connWizardPanel5" class="conn-wizard-step-panel">
+            <label>
+              نرم‌افزار حسابداری:
+              <select id="connWizardSoftwareSelect">
+                <option value="sepidar">سپیدار (پیش‌فرض)</option>
+                <option value="auto">تشخیص خودکار</option>
+              </select>
+            </label>
+            <div id="connWizardSoftwareHint" class="inline-alert note-info">در حالت تشخیص خودکار، schema دیتابیس اسکن می‌شود.</div>
+          </div>
+          <div id="connWizardPanel6" class="conn-wizard-step-panel">
+            <label>نام پروفایل <input id="connWizardProfileName" type="text" placeholder="مثلاً: دفتر مرکزی - سپیدار" /></label>
+            <label>توضیحات <textarea id="connWizardProfileDesc" rows="2"></textarea></label>
+            <div id="connWizardSaveResult" class="conn-wizard-result" hidden></div>
+          </div>
+        </div>
+        <div class="conn-wizard-footer">
+          <button id="connWizardPrevBtn" class="btn" type="button" disabled>قبلی</button>
+          <button id="connWizardNextBtn" class="btn btn-primary" type="button">بعدی</button>
+          <button id="connWizardSaveBtn" class="btn btn-primary" type="button" hidden>ذخیره پروفایل</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./src/renderer.ts"></script>
   </body>
 </html>

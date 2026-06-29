@@ -27,7 +27,8 @@ import type {
   SqlHealthCheck,
   SqlQueryRow,
   SshTunnelConfig,
-  SshTunnelStatus
+  SshTunnelStatus,
+  SshProgressEvent
 } from '../shared/contracts'
 
 const api = {
@@ -78,6 +79,20 @@ const api = {
       ipcRenderer.on('ssh:hostkey-mismatch', wrappedListener)
       return (): void => {
         ipcRenderer.removeListener('ssh:hostkey-mismatch', wrappedListener)
+      }
+    },
+    pickPrivateKeyFile: (): Promise<IpcResponse<{ path: string; content: string }>> =>
+      ipcRenderer.invoke('ssh:pick-private-key-file'),
+    onProgress: (listener: (event: SshProgressEvent) => void): (() => void) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        progress: SshProgressEvent
+      ): void => {
+        listener(progress)
+      }
+      ipcRenderer.on('ssh:progress', wrappedListener)
+      return (): void => {
+        ipcRenderer.removeListener('ssh:progress', wrappedListener)
       }
     }
   },

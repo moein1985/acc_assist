@@ -22,6 +22,61 @@ test('localizeInfraErrorFa maps SSH auth failure', () => {
   assert.match(message, /احراز هویت SSH ناموفق/)
 })
 
+test('localizeInfraErrorFa maps ECONNREFUSED', () => {
+  const message = localizeInfraErrorFa('connect ECONNREFUSED 127.0.0.1:1433')
+  assert.match(message, /اتصال به سرور رد شد/)
+})
+
+test('localizeInfraErrorFa maps Cannot connect to', () => {
+  const message = localizeInfraErrorFa('Cannot connect to SQL Server')
+  assert.match(message, /اتصال به SQL Server برقرار نشد/)
+})
+
+test('localizeInfraErrorFa maps Network-related or instance-specific', () => {
+  const message = localizeInfraErrorFa('A network-related or instance-specific error occurred')
+  assert.match(message, /SQL Server در دسترس نیست/)
+})
+
+test('localizeInfraErrorFa maps SSL/TLS error', () => {
+  const message = localizeInfraErrorFa('SSL/TLS error during handshake')
+  assert.match(message, /خطای رمزگذاری/)
+})
+
+test('localizeInfraErrorFa maps ENOTFOUND', () => {
+  const message = localizeInfraErrorFa('getaddrinfo ENOTFOUND db.example.com')
+  assert.match(message, /میزبان پیدا نشد/)
+})
+
+test('localizeInfraErrorFa maps EHOSTUNREACH', () => {
+  const message = localizeInfraErrorFa('connect EHOSTUNREACH 10.0.0.1:1433')
+  assert.match(message, /مسیر شبکه به مقصد در دسترس نیست/)
+})
+
+test('localizeInfraErrorFa maps timeout', () => {
+  const message = localizeInfraErrorFa('Timeout expired. The timeout period elapsed')
+  assert.match(message, /مهلت اتصال تمام شد/)
+})
+
+test('localizeInfraErrorFa maps certificate error', () => {
+  const message = localizeInfraErrorFa('self-signed certificate in certificate chain')
+  assert.match(message, /خطای گواهی TLS/)
+})
+
+test('localizeInfraErrorFa maps SSH tunnel start failure', () => {
+  const message = localizeInfraErrorFa('Unable to start SSH tunnel')
+  assert.match(message, /شروع تونل SSH انجام نشد/)
+})
+
+test('localizeInfraErrorFa maps connection reset', () => {
+  const message = localizeInfraErrorFa('read ECONNRESET')
+  assert.match(message, /اتصال شبکه در میانه مسیر قطع شد/)
+})
+
+test('localizeInfraErrorFa maps unknown error to fallback', () => {
+  const message = localizeInfraErrorFa('Something completely unexpected happened')
+  assert.match(message, /خطا:/)
+})
+
 test('localizeChatErrorFa maps 429 provider limit', () => {
   const message = localizeChatErrorFa('Gemini API request failed (429): Too many requests')
   assert.match(message, /محدودیت نرخ درخواست/)

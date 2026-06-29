@@ -70,8 +70,10 @@ export class SshTunnelService extends EventEmitter {
     let server: net.Server | null = null
 
     try {
+      this.emitProgress(1, 5, 'در حال اتصال به سرور SSH...')
       await this.connectClient(client, config)
 
+      this.emitProgress(2, 5, 'در حال ساخت تونل...')
       server = this.createForwardServer(client, config)
       const localPort = await this.listenServer(server, config.localPort ?? 0)
 
@@ -89,12 +91,14 @@ export class SshTunnelService extends EventEmitter {
         message: `تونل فعال شد: ${LOCAL_HOST}:${localPort} -> ${config.dstHost}:${config.dstPort}`
       }
       this.emitStatusChanged()
+      this.emitProgress(5, 5, 'اتصال برقرار شد ✅')
 
       return this.status
     } catch (error) {
       await this.disposeTransientResources(server, client)
       const message = error instanceof Error ? error.message : String(error)
       const persianMessage = this.translateSshError(message)
+      this.emitProgress(0, 5, `خطا: ${persianMessage}`, true)
       this.status = {
         active: false,
         reconnecting: false,
@@ -128,6 +132,18 @@ export class SshTunnelService extends EventEmitter {
     }
     if (lower.includes('encrypted private key')) {
       return 'کلید خصوصی رمزگذاری شده است. لطفاً Passphrase را وارد کنید.'
+    }
+    if (lower.includes('host key verification failed')) {
+      return 'کلید سرور تغییر کرده است. این می‌تواند نشانه حمله باشد.'
+    }
+    if (lower.includes('socket hung up')) {
+      return 'اتصال شبکه قطع شد. ممکن است سرور در دسترس نباشد.'
+    }
+    if (lower.includes('keepalive timeout')) {
+      return 'سرور پاسخ نداد. ممکن است قطع شده باشد.'
+    }
+    if (lower.includes('channel open failure')) {
+      return 'باز کردن کانال تونل ناموفق بود. ممکن است پورت مقصد در دسترس نباشد.'
     }
     return message
   }
@@ -356,6 +372,10 @@ export class SshTunnelService extends EventEmitter {
 
   private emitStatusChanged(): void {
     this.emit('status-changed', this.status)
+  }
+
+  private emitProgress(step: number, total: number, message: string, failed = false): void {
+    this.emit('progress', { step, total, message, failed })
   }
 
   private async closeServer(server: net.Server): Promise<void> {
