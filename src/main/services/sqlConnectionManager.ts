@@ -426,11 +426,15 @@ SELECT
   ): Promise<mssql.ConnectionPool> {
     let lastError: unknown
     for (let attempt = 0; attempt <= retryCount; attempt++) {
+      console.error(`[DIAG connectWithRetry] attempt ${attempt + 1}/${retryCount + 1}`)
       const pool = createPool()
       try {
         const connected = await pool.connect()
+        console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} succeeded`)
         return connected
       } catch (error) {
+        const err = error as { message?: string; code?: string }
+        console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} failed: ${err.message} code=${err.code}`)
         lastError = error
         await pool.close().catch(() => {})
         if (attempt < retryCount) {
@@ -458,9 +462,24 @@ SELECT
         max: DEFAULT_POOL_MAX,
         min: DEFAULT_POOL_MIN,
         idleTimeoutMillis: DEFAULT_POOL_IDLE_TIMEOUT_MS
+      },
+      beforeConnect: (conn) => {
+        console.error('[DIAG tedious] beforeConnect called, state=' + (conn as unknown as { state?: { name?: string } }).state?.name)
+        conn.on('connect', () => console.error('[DIAG tedious] connect event'))
+        conn.on('secure', () => console.error('[DIAG tedious] secure event (TLS)'))
+        conn.on('login', () => console.error('[DIAG tedious] login event'))
+        conn.on('end', () => console.error('[DIAG tedious] end event'))
+        conn.on('error', (err: Error & { code?: string }) =>
+          console.error(`[DIAG tedious] error event: ${err.message} code=${err.code}`)
+        )
+        conn.on('prelogin', (packet: unknown) =>
+          console.error(`[DIAG tedious] prelogin event: ${JSON.stringify(packet)}`)
+        )
+        conn.on('debug', (msg: string) => console.error(`[DIAG tedious] debug: ${msg}`))
       }
     }
     console.error(`[DIAG createMssqlConfig] server=${connection.server} port=${connection.port} encrypt=${connection.encrypt} trustServerCertificate=${connection.trustServerCertificate} timeout=${connection.connectionTimeoutMs}`)
+    console.error(`[DIAG createMssqlConfig] full options: ${JSON.stringify(cfg.options)}`)
     return cfg
   }
 

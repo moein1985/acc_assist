@@ -309,7 +309,7 @@ export class SshTunnelService extends EventEmitter {
       })
 
       console.error(`[DIAG createForwardServer] new socket connection, calling forwardOut to ${config.dstHost}:${config.dstPort}`)
-      socket.pause()
+      console.error(`[DIAG createForwardServer] SSH client alive=${client._sock?.writable ?? 'unknown'}, socket readableLength=${socket.readableLength}, writableLength=${socket.writableLength}`)
       client.forwardOut(
         socket.remoteAddress ?? LOCAL_HOST,
         socket.remotePort ?? 0,
@@ -323,8 +323,11 @@ export class SshTunnelService extends EventEmitter {
           }
 
           console.error(`[DIAG createForwardServer] forwardOut succeeded, socket writable=${socket.writable}, destroyed=${socket.destroyed}, readable=${socket.readable}`)
+          console.error(`[DIAG createForwardServer] socket buffer: readableLength=${socket.readableLength}, writableLength=${socket.writableLength}, readableEnded=${socket.readableEnded}, writableEnded=${socket.writableEnded}`)
           console.error(`[DIAG createForwardServer] stream state: writable=${stream.writable}, readable=${stream.readable}, destroyed=${stream.destroyed}, ended=${stream.readableEnded}`)
-          stream.setNoDelay(true)
+          try {
+          socket.setNoDelay(true)
+          console.error(`[DIAG createForwardServer] after setNoDelay on socket`)
           stream.on('error', (err) => {
             console.error(`[DIAG createForwardServer] stream error: ${err.message}`)
             socket.destroy()
@@ -338,13 +341,22 @@ export class SshTunnelService extends EventEmitter {
           })
           stream.on('data', (data: Buffer) => {
             console.error(`[DIAG createForwardServer] stream->socket ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
+            const ok = socket.write(data)
+            console.error(`[DIAG createForwardServer] socket.write returned ${ok}`)
           })
           socket.on('data', (data: Buffer) => {
             console.error(`[DIAG createForwardServer] socket->stream ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
+            const ok = stream.write(data)
+            console.error(`[DIAG createForwardServer] stream.write returned ${ok}`)
           })
 
-          socket.pipe(stream).pipe(socket)
+          console.error(`[DIAG createForwardServer] before resume, readableLength=${socket.readableLength}, isPaused=${socket.isPaused?.()}`)
           socket.resume()
+          console.error(`[DIAG createForwardServer] after resume, readableLength=${socket.readableLength}`)
+          } catch (e: any) {
+            console.error(`[DIAG createForwardServer] CAUGHT ERROR in callback: ${e?.message ?? e}`)
+            socket.destroy(e)
+          }
         }
       )
     })
