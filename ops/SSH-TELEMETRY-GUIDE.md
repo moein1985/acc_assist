@@ -399,5 +399,210 @@ plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8
 
 ---
 
-**تاریخ آپدیت:** 2026-06-28 (سرور تست بلایند Mahak اضافه شد)
-**نسخه:** 2.1.0
+## 🖥️ اتصال برنامه ACC Assist به سرور از راه دور (SSH Remote Connection)
+
+> **فاز ۱۶** — قابلیت اتصال برنامه نصب‌شده روی کامپیوتر حسابدار به سرور از طریق تونل SSH.
+> برنامه روی کامپیوتر شخصی نصب می‌شود و از طریق شبکه (LAN/WAN) به سرور متصل می‌شود.
+
+### معماری اتصال
+
+```
+┌─────────────────────────────┐       SSH Tunnel (port forwarding)       ┌──────────────────────────┐
+│   کامپیوتر حسابدار (Client)  │  localPort ──────────────────────────►   │   سرور (Remote)          │
+│                              │                                          │                          │
+│   ACC Assist (Electron)      │          127.0.0.1:localPort             │   SSH Server (port 2211) │
+│     ├── SshTunnelService     │  ──────────────────────────────────────► │     └── forward to SQL   │
+│     │     └── ssh2 Client    │                                          │         127.0.0.1:1433   │
+│     ├── SqlConnectionManager │                                          │         (یا 50492)       │
+│     │     └── mssql Pool     │                                          │                          │
+│     └── ConnectionManager    │                                          │   SQL Server             │
+│         └── SchemaAdapter    │                                          │     ├── Sepidar01        │
+│                              │                                          │     └── Mahak DB         │
+└─────────────────────────────┘                                          └──────────────────────────┘
+```
+
+### روش ۱: اتصال با Connection Wizard (پیشنهادی)
+
+این روش از طریق رابط کاربری برنامه انجام می‌شود و نیازی به دانش فنی ندارد.
+
+#### مراحل:
+
+1. **نصب برنامه:** `ACC Assist` را روی کامپیوتر حسابدار نصب کنید (`npm run build:win` یا دانلود installer).
+2. **باز کردن برنامه:** در اولین اجرا، Connection Wizard خودکار نمایش داده می‌شود.
+3. **انتخاب نوع اتصال:** «SQL از طریق تونل SSH» را انتخاب کنید.
+4. **اطلاعات SSH:**
+   - **آدرس سرور SSH:** `192.168.85.56`
+   - **پورت SSH:** `2211`
+   - **نام کاربری:** `administrator`
+   - **رمز عبور:** `Hs-co@12321#`
+   - کلیک روی «تست اتصال SSH» → باید سبز شود.
+5. **اطلاعات SQL Server:**
+   - **آدرس:** `127.0.0.1` (محلی از طریق تونل)
+   - **پورت:** `58033` (پورت SQL Server روی سرور)
+   - **نام کاربری:** `damavand`
+   - **رمز عبور:** `damavand`
+   - کلیک روی «تست اتصال SQL» → باید سبز شود.
+6. **انتخاب دیتابیس:** از لیست، `Sepidar01` را انتخاب کنید.
+7. **انتخاب نرم‌افزار:** «سپیدار (پیش‌فرض)» را انتخاب کنید.
+8. **نام پروفایل:** مثلاً «دفتر مرکزی - سپیدار» → کلیک روی «ذخیره».
+
+بعد از این، برنامه خودکار در هر بار اجرا به سرور متصل می‌شود.
+
+### روش ۲: اتصال دستی از طریق تنظیمات
+
+اگر Connection Wizard در دسترس نیست، می‌توانید از صفحه تنظیمات استفاده کنید:
+
+#### تنظیمات SSH:
+
+| فیلد | مقدار |
+|------|-------|
+| **فعال‌سازی تونل SSH** | ✅ روشن |
+| **آدرس سرور SSH** | `192.168.85.56` |
+| **پورت SSH** | `2211` |
+| **نام کاربری SSH** | `administrator` |
+| **رمز عبور SSH** | `Hs-co@12321#` |
+| **آدرس مقصد SQL** | `127.0.0.1` |
+| **پورت مقصد SQL** | `58033` |
+| **پورت محلی** | (خالی — خودکار انتخاب می‌شود) |
+
+#### تنظیمات SQL:
+
+| فیلد | مقدار |
+|------|-------|
+| **آدرس سرور** | `127.0.0.1` |
+| **پورت** | (پورت محلی تونل — بعد از شروع تونل آپدیت می‌شود) |
+| **نام دیتابیس** | `Sepidar01` |
+| **نام کاربری** | `damavand` |
+| **رمز عبور** | `damavand` |
+| **رمزگذاری** | ✅ روشن |
+| **Trust Server Certificate** | ✅ روشن |
+
+#### مراحل اتصال:
+
+1. کلیک روی «شروع تونل SSH» → باید پیام «تونل فعال شد» نمایش داده شود.
+2. کلیک روی «تست اتصال SQL» → باید پیام «SQL connection is healthy» نمایش داده شود.
+3. ذخیره تنظیمات.
+
+### روش ۳: اتصال با کلید خصوصی (Private Key)
+
+برای امنیت بیشتر، می‌توانید به‌جای رمز عبور از کلید خصوصی SSH استفاده کنید:
+
+#### تولید کلید روی سرور (یکبار):
+
+```powershell
+# روی سرور 192.168.85.56
+ssh-keygen -t ed25519 -f C:\Users\Administrator\.ssh\acc_assist_key -N ""
+# کلید عمومی را به authorized_keys اضافه کنید:
+Add-Content C:\Users\Administrator\.ssh\authorized_keys (Get-Content C:\Users\Administrator\.ssh\acc_assist_key.pub)
+# کلید خصوصی (acc_assist_key) را به کامپیوتر حسابدار منتقل کنید
+```
+
+#### تنظیمات SSH با کلید خصوصی:
+
+| فیلد | مقدار |
+|------|-------|
+| **فعال‌سازی تونل SSH** | ✅ روشن |
+| **آدرس سرور SSH** | `192.168.85.56` |
+| **پورت SSH** | `2211` |
+| **نام کاربری SSH** | `administrator` |
+| **رمز عبور SSH** | (خالی) |
+| **کلید خصوصی SSH** | (محتوای فایل `acc_assist_key` — یا با file picker انتخاب کنید) |
+| **Passphrase** | (در صورت نیاز) |
+
+### اتصال به سرور Mahak (192.168.85.15)
+
+برای اتصال به سرور تست بلایند Mahak، از همان مراحل بالا با مقادیر زیر استفاده کنید:
+
+| فیلد | مقدار |
+|------|-------|
+| **آدرس سرور SSH** | `192.168.85.15` |
+| **پورت SSH** | `2211` |
+| **نام کاربری SSH** | `administrator` |
+| **رمز عبور SSH** | `Hs-co@12321#` |
+| **Host Key** | `ssh-ed25519 255 SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo` |
+| **آدرس مقصد SQL** | `127.0.0.1` |
+| **پورت مقصد SQL** | `50492` |
+| **نام کاربری SQL** | _TODO — بعداً اضافه شود_ |
+| **رمز عبور SQL** | _TODO — بعداً اضافه شود_ |
+
+> ⚠️ **توجه:** یوزر و پسورد SQL Server مهک هنوز در دسترس نیست. بعد از دریافت، در جدول بالا تکمیل خواهد شد.
+
+### عیب‌یابی اتصال SSH
+
+#### مشکل: تونل SSH برقرار نمی‌شود
+
+```powershell
+# ۱. بررسی دسترسی شبکه به سرور
+Test-NetConnection 192.168.85.56 -Port 2211
+
+# ۲. تست دستی SSH
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ" -pw "Hs-co@12321#" administrator@192.168.85.56 "echo connected"
+
+# ۳. بررسی سرویس SSH روی سرور
+Get-Service sshd  # روی سرور اجرا شود
+```
+
+#### مشکل: SQL متصل نمی‌شود (تونل برقرار است)
+
+```powershell
+# ۱. بررسی پورت SQL روی سرور
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ" -pw "Hs-co@12321#" administrator@192.168.85.56 "netstat -an | findstr 58033"
+
+# ۲. تست SQL از روی سرور
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ" -pw "Hs-co@12321#" administrator@192.168.85.56 "sqlcmd -S 127.0.0.1,58033 -U damavand -P damavand -Q 'SELECT 1 AS ok' -W"
+
+# ۳. بررسی فایروال روی سرور
+plink -P 2211 -ssh -batch -hostkey "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ" -pw "Hs-co@12321#" administrator@192.168.85.56 "Get-NetFirewallRule -DisplayName '*SQL*' | Select-Object DisplayName,Enabled,Direction"
+```
+
+#### مشکل: Host Key تغییر کرده
+
+اگر سرور بازسازی شده و host key تغییر کرده:
+
+1. در برنامه، هشدار «کلید سرور تغییر کرده» نمایش داده می‌شود.
+2. اگر مطمئن هستید سرور امن است، کلیک روی «اعتماد و ادامه».
+3. host key جدید خودکار ذخیره می‌شود.
+
+یا به‌صورت دستی:
+
+```powershell
+# حذف host key قدیمی از settings
+# در فایل settings.json، بخش sshHostKeys، کلید "192.168.85.56:2211" را حذف کنید
+# سپس برنامه را restart کنید
+```
+
+#### مشکل: اتصال قطع و وصل می‌شود
+
+- برنامه خودکار ۳ بار تلاش reconnect می‌کند (با delay افزایشی: ۱s, ۲s, ۴s).
+- اگر پس از ۳ تلاش موفق نشد، status chip قرمز می‌شود.
+- بررسی کنید: آیا شبکه پایدار است؟ آیا فایروال session‌های طولانی را قطع می‌کند؟
+- در تنظیمات پیشرفته، `keepaliveIntervalMs` را کاهش دهید (مثلاً ۱۵۰۰۰).
+
+### ساخت و نصب نسخه جدید
+
+```powershell
+cd "c:\Users\Moein\Documents\Codes\ACC Assist"
+
+# ساخت نسخه ویندوز
+npm run build:win
+
+# نصب روی کامپیوتر محلی (تست)
+# فایل installer از dist/ اجرا کنید
+
+# نصب روی سرور از راه دور (deploy)
+npm run remote:uninstall -- -ServerHost 192.168.85.56 -User administrator -Password 'Hs-co@12321#' -HostKey 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ'
+npm run remote:install -- -ServerHost 192.168.85.56 -User administrator -Password 'Hs-co@12321#' -HostKey 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ'
+npm run remote:start -- -ServerHost 192.168.85.56 -User administrator -Password 'Hs-co@12321#' -HostKey 'ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ'
+```
+
+### اطلاعات اتصال سریع (Quick Reference)
+
+| سرور | SSH Host | SSH Port | SQL Port | SQL User | SQL Pass | DB Name | Host Key |
+|------|----------|----------|----------|----------|----------|---------|----------|
+| **Sepidar** | 192.168.85.56 | 2211 | 58033 | damavand | damavand | Sepidar01 | `SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ` |
+| **Mahak** | 192.168.85.15 | 2211 | 50492 | _TODO_ | _TODO_ | _TODO_ | `SHA256:SYxH9M23XV3h6WgGMS++8rw9byMflH5SfHEwE+SIolo` |
+
+---
+
+**تاریخ آپدیت:** 2026-06-29 (بخش اتصال برنامه به سرور از راه دور — فاز ۱۶ اضافه شد)
+**نسخه:** 3.0.0
