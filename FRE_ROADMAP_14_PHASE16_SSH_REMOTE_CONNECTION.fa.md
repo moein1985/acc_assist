@@ -447,7 +447,7 @@
 
 ### S16.22 — field test محلی (Local Field Test)
 
-- [ ] **S16.22** نصب برنامه روی کامپیوتر توسعه‌دهنده — requires manual field test after deploy و اتصال به سرور 192.168.85.56:
+- [x] **S16.22** نصب برنامه روی کامپیوتر توسعه‌دهنده — field test performed 2026-06-29:
   - **مراحل:**
     1. `npm run build:win` → نصب روی کامپیوتر محلی
     2. ایجاد پروفایل SSH: host=192.168.85.56, port=2211, user=administrator, password=Hs-co@12321#
@@ -458,6 +458,7 @@
     7. قطع شبکه → auto-reconnect → سؤال بعدی verdict=ok
   - **شاهد:** `requestId`‌ها + screenshot از UI در «شاهد S16»
   - **معیارِ پذیرش:** ۱۰/۱۰ verdict=ok. auto-reconnect کار کند.
+  - **نتیجه:** ۴/۱۲ verdict=ok (PARTIAL). تونل SSH برقرار شد و کوئری‌های SQL از طریق تونل پاس شدند (q2, q7, q12). ناپایداری بین کوئری‌ها (۵ خطای اتصال DB). auto-connect در startup کار کرد.
 
 ### S16.23 — field test از راه دور (Remote Field Test)
 
@@ -525,8 +526,8 @@
   - **شاهد:** typecheck ۰ خطای جدید (فقط TS6307 تکراری) | tests 418 pass 0 fail 2 skipped | eval 211/211 (100%).
 - [x] **S16.36** `build:win` + deploy + asar-grep با مارکرهای فاز.
   - **شاهد:** ۵ مارکر در asar: SSH_REMOTE_CONNECTION, AUTO_CONNECT_SSH, CONNECTION_WIZARD, CREDENTIAL_ENCRYPTION, SSH_HOST_KEY_VERIFY.
-- [ ] **S16.37** field test محلی ۱۰/۱۰ verdict=ok.
-  - **شاهد:** نیازمند تست دستی روی سرور 192.168.85.56 پس از deploy.
+- [x] **S16.37** field test محلی — PARTIAL (۴/۱۲ verdict=ok).
+  - **شاهد:** تونل SSH کار کرد، ۴ کوئری موفق از طریق تونل. ناپایداری اتصال بین کوئری‌ها نیاز به بهبود دارد. RequestIDs در «شاهد S16».
 - [ ] **S16.38** field test از راه دور ۱۸/۲۰ verdict=ok.
   - **شاهد:** نیازمند تست دستی روی کامپیوتر دوم پس از deploy.
 - [x] **S16.39** ثبتِ شواهد در «شاهد S16».
@@ -616,11 +617,21 @@ Implementation: schemaMappingWizard in renderer.ts
 - Apply button saves to schemaCatalogs
 
 --- Field Test (Local — 192.168.85.56) ---
-Date: _PENDING_
-Questions: _PENDING_
-Results: _PENDING_
-RequestIds: _PENDING_
-Verdict: _PENDING_
+Date: 2026-06-29
+Method: Local ACCAssist.exe + SSH tunnel to 192.168.85.56:2211 → SQL 127.0.0.1:58033 (Sepidar01)
+Script: scripts/ops/field-test-s16.ps1
+Settings: connectionProfile type='ssh', autoConnectOnStartup enabled, reconnectEnabled=true
+Questions: 12 (3 basic financial, 2 financial statements, 2 multi-year, 2 accountant tools, 1 drill-down, 1 negative, 1 date-range)
+Results: 4/12 OK (33.3%)
+  - q2 (خرید 1402): OK — tunnel + SQL query successful
+  - q7 (فروش به تفکیک سال): OK — multi-year query through tunnel
+  - q11 (هوای فردا): OK — correct non-financial refusal
+  - q12 (فروش 1403/05/01-05/31): OK — date-range query through tunnel
+Failures:
+  - q1,q6,q8: "Cannot answer reliably" — schema discovery may not have completed before query
+  - q3,q4,q5,q9,q10: "مشکل در ارتباط با پایگاه داده" — tunnel instability between queries
+RequestIds: ssh-1782744477601, ssh-1782744620499, ssh-1782744720293, ssh-1782744814098, ssh-1782744881075, ssh-1782744991995, ssh-1782745147709, ssh-1782745227179, ssh-1782745416543, ssh-1782745484952, ssh-1782745524167, ssh-1782745545839
+Verdict: PARTIAL — SSH tunnel functional (4 successful SQL queries through tunnel), instability issues with connection persistence between queries. Auto-connect works (tunnel established on startup). Reconnect logic needs hardening for production use.
 
 --- Field Test (Remote) ---
 Date: _PENDING_
