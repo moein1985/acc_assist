@@ -1,0 +1,71 @@
+=== TUNNEL DIAGNOSTIC ===
+[1] Settings written.
+[2] Starting ACC Assist... READY
+[3] Waiting 15s for SSH tunnel + SQL auto-connect... done
+[4] Sending test query: "SELECT 1 AS ok"... DONE
+  ok: True
+  requestId: ssh-1782759308885
+  finalText (565 chars): ### Summary
+Cannot answer reliably: ???? ???? ???? ????? ???? ???? ????.
+### Findings
+- ???? ????: ???? ???? ???? ???? ????? ????? read-only ????? ?? ? ???? ???? ????.
+### Evidence
+- Evidence-first contract ???? ?? ? ?? ????? ???? ???? ??????? ???? ??????? ???.
+### Assumptions
+- ???? ?? ??? ?? ???? ????? ????? ???? ????? ?/?? ????? read-only ???? ???? ????? ??.
+### Actions
+- ????? ????: ???? ?? ?? scope ??????? ????? ????: ????? ???? ??????? ????
+- ??? ??????? ???? ?????? ???? ?????/??? ????/???
+
+[5] Checking app logs for tunnel/SQL status...
+  {"timestamp":"2026-06-29T18:25:00.784Z","requestId":"field-test-s16","stage":"tool-error","toolName":"sales_growth_fallback","error":"Failed to connect to 127.0.0.1:63789 - Could not connect (sequence)","errorCategory":"deterministic-tool-failure"}
+  {"timestamp":"2026-06-29T18:25:24.283Z","requestId":"ssh-1782757490843","stage":"tool-start","toolName":"list_database_tables","round":1}
+  {"timestamp":"2026-06-29T18:25:29.258Z","requestId":"ssh-1782757490843","stage":"tool-error","toolName":"list_database_tables","round":1,"error":"Failed to connect to 127.0.0.1:64953 - Could not connect (sequence)","errorCode":"ESOCKET"}
+  {"timestamp":"2026-06-29T18:25:41.205Z","requestId":"ssh-1782757490843","stage":"tool-start","toolName":"list_database_tables","round":3}
+  {"timestamp":"2026-06-29T18:25:46.145Z","requestId":"ssh-1782757490843","stage":"tool-error","toolName":"list_database_tables","round":3,"error":"Failed to connect to 127.0.0.1:54123 - Could not connect (sequence)","errorCode":"ESOCKET"}
+  {"timestamp":"2026-06-29T18:25:53.876Z","requestId":"ssh-1782757490843","conversationId":"field-test-s16","stage":"final","durationMs":58054,"round":4,"recoveryAttempts":1,"failureKind":"PROVIDER_ERROR"}
+  {"timestamp":"2026-06-29T18:25:58.895Z","requestId":"ssh-1782757558895","conversationId":"field-test-s16","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:26:03.840Z","requestId":"ssh-1782757558895","conversationId":"field-test-s16","stage":"start","prompt":"???? ?? ????? ???","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:26:03.840Z","requestId":"ssh-1782757558895","conversationId":"field-test-s16","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:26:03.840Z","requestId":"ssh-1782757558895","conversationId":"field-test-s16","stage":"engine-mode","prompt":"engine-no-result: execution-error"}
+  {"timestamp":"2026-06-29T18:26:11.264Z","requestId":"ssh-1782757558895","stage":"tool-start","toolName":"list_database_tables","round":1}
+  {"timestamp":"2026-06-29T18:26:16.222Z","requestId":"ssh-1782757558895","stage":"tool-error","toolName":"list_database_tables","round":1,"error":"Failed to connect to 127.0.0.1:58339 - Could not connect (sequence)","errorCode":"ESOCKET"}
+  {"timestamp":"2026-06-29T18:26:21.454Z","requestId":"ssh-1782757558895","conversationId":"field-test-s16","stage":"final","durationMs":17615,"round":2,"recoveryAttempts":0,"failureKind":"PROVIDER_ERROR"}
+  {"timestamp":"2026-06-29T18:30:40.278Z","requestId":"ssh-1782757840202","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:30:40.202Z","requestId":"ssh-1782757840202","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:30:40.279Z","requestId":"ssh-1782757840202","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:30:40.278Z","requestId":"ssh-1782757840202","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:30:51.009Z","requestId":"ssh-1782757840202","stage":"tool-start","toolName":"list_database_tables","round":1}
+  {"timestamp":"2026-06-29T18:30:55.946Z","requestId":"ssh-1782757840202","stage":"tool-error","toolName":"list_database_tables","round":1,"error":"Failed to connect to 127.0.0.1:49193 - Could not connect (sequence)","errorCode":"ESOCKET"}
+  {"timestamp":"2026-06-29T18:31:15.180Z","requestId":"ssh-1782757840202","conversationId":"diag-test","stage":"final","durationMs":34901,"round":2,"recoveryAttempts":0,"failureKind":"PROVIDER_ERROR"}
+  {"timestamp":"2026-06-29T18:38:49.025Z","requestId":"ssh-1782758329025","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:38:49.074Z","requestId":"ssh-1782758329025","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:38:49.075Z","requestId":"ssh-1782758329025","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:38:49.074Z","requestId":"ssh-1782758329025","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:40:26.909Z","requestId":"ssh-1782758329025","conversationId":"diag-test","stage":"final","durationMs":97834,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}
+  {"timestamp":"2026-06-29T18:43:37.179Z","requestId":"ssh-1782758617132","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:43:37.179Z","requestId":"ssh-1782758617132","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:43:37.132Z","requestId":"ssh-1782758617132","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:43:37.180Z","requestId":"ssh-1782758617132","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:43:57.318Z","requestId":"ssh-1782758617132","conversationId":"diag-test","stage":"final","durationMs":20138,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}
+  {"timestamp":"2026-06-29T18:44:27.381Z","requestId":"ssh-1782758667381","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:44:27.426Z","requestId":"ssh-1782758667381","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:44:27.426Z","requestId":"ssh-1782758667381","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:44:27.425Z","requestId":"ssh-1782758667381","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:44:34.124Z","requestId":"ssh-1782758667381","conversationId":"diag-test","stage":"final","durationMs":6698,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}
+  {"timestamp":"2026-06-29T18:48:05.462Z","requestId":"ssh-1782758885387","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:48:05.462Z","requestId":"ssh-1782758885387","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:48:05.463Z","requestId":"ssh-1782758885387","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:48:05.387Z","requestId":"ssh-1782758885387","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:48:17.487Z","requestId":"ssh-1782758885387","conversationId":"diag-test","stage":"final","durationMs":12024,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}
+  {"timestamp":"2026-06-29T18:51:41.699Z","requestId":"ssh-1782759101698","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:51:41.749Z","requestId":"ssh-1782759101698","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:51:41.750Z","requestId":"ssh-1782759101698","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:51:41.749Z","requestId":"ssh-1782759101698","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:52:22.018Z","requestId":"ssh-1782759101698","conversationId":"diag-test","stage":"final","durationMs":40268,"round":3,"recoveryAttempts":2,"failureKind":"NO_FETCH"}
+  {"timestamp":"2026-06-29T18:55:08.885Z","requestId":"ssh-1782759308885","conversationId":"diag-test","stage":"engine-mode","prompt":"FINANCIAL_ENGINE_MODE=engine"}
+  {"timestamp":"2026-06-29T18:55:08.931Z","requestId":"ssh-1782759308885","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-no-result: no-metric-match"}
+  {"timestamp":"2026-06-29T18:55:08.931Z","requestId":"ssh-1782759308885","conversationId":"diag-test","stage":"engine-mode","prompt":"engine-degraded-to-legacy"}
+  {"timestamp":"2026-06-29T18:55:08.932Z","requestId":"ssh-1782759308885","conversationId":"diag-test","stage":"start","prompt":"????? ???? ??????? ????","contextMode":"fresh","contextReason":"No refinement cues detected; the prompt should be treated as a fresh analysis request."}
+  {"timestamp":"2026-06-29T18:55:16.808Z","requestId":"ssh-1782759308885","conversationId":"diag-test","stage":"final","durationMs":7876,"round":1,"recoveryAttempts":0,"failureKind":"NO_FETCH"}
+[6] Settings restored.

@@ -87,7 +87,10 @@ const agentOrchestrator = new AgentOrchestrator({
   getSettings: () => settingsStore.get(),
   executeReadOnlySql: async (query: string, signal?: AbortSignal) => {
     const saved = settingsStore.get()
-    const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+    const profile = resolveActiveProfile(saved)
+    const sqlConfig = profile?.sql ?? saved.sql
+    const sshConfig = profile?.ssh ?? saved.ssh
+    const runtimeConnection = await resolveRuntimeSqlConnection(sqlConfig, sshConfig)
     return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'agent-data', signal, {
       enforceReadOnlyLogin: saved.sqlSecurity.enforceReadOnlyLogin,
       forbidWildcardSelect: saved.sqlSecurity.forbidWildcardSelect,
@@ -97,7 +100,10 @@ const agentOrchestrator = new AgentOrchestrator({
   },
   executeMetadataSql: async (query: string, signal?: AbortSignal) => {
     const saved = settingsStore.get()
-    const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+    const profile = resolveActiveProfile(saved)
+    const sqlConfig = profile?.sql ?? saved.sql
+    const sshConfig = profile?.ssh ?? saved.ssh
+    const runtimeConnection = await resolveRuntimeSqlConnection(sqlConfig, sshConfig)
     return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'metadata', signal)
   },
   auditLog: auditLogService,
@@ -314,15 +320,19 @@ async function resolveRuntimeSqlConnection(
 
   const tunnelStatus = await sshTunnelService.start(sshConfig)
 
+  console.error(`[DIAG resolveRuntimeSqlConnection] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
+
   if (!tunnelStatus.active || !tunnelStatus.localPort) {
     throw new Error(tunnelStatus.message)
   }
 
-  return {
+  const runtimeConn = {
     ...connection,
     server: tunnelStatus.localHost,
     port: tunnelStatus.localPort
   }
+  console.error(`[DIAG resolveRuntimeSqlConnection] runtimeConn server=${runtimeConn.server} port=${runtimeConn.port}`)
+  return runtimeConn
 }
 
 function resolveActiveProfile(settings: AppSettings): ConnectionProfile | null {
@@ -449,13 +459,16 @@ async function autoConnectOnStartup(): Promise<void> {
   if (profile.metadata.type === 'ssh' && profile.ssh.enabled) {
     try {
       const tunnelStatus = await sshTunnelService.start(profile.ssh)
+      console.error(`[DIAG autoConnect] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
       if (tunnelStatus.active) {
         const runtimeConnection: SqlConnectionConfig = {
           ...profile.sql,
           server: tunnelStatus.localHost,
           port: tunnelStatus.localPort ?? profile.sql.port
         }
+        console.error(`[DIAG autoConnect] testing SQL to ${runtimeConnection.server}:${runtimeConnection.port}`)
         await sqlConnectionManager.testConnection(runtimeConnection)
+        console.error(`[DIAG autoConnect] SQL test succeeded`)
         telemetryIngestService.capture({
           process: 'main',
           level: 'info',
@@ -466,6 +479,7 @@ async function autoConnectOnStartup(): Promise<void> {
         void autoDiscoverSchema(profile, runtimeConnection)
       }
     } catch (error) {
+      console.error(`[DIAG autoConnect] FAILED: ${error instanceof Error ? error.message : String(error)}`)
       telemetryIngestService.captureError('ssh.auto-connect', 'start-failed', error, 'main', {
         profileId: profile.id
       })
@@ -935,7 +949,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle('sql:execute-query', async (_, query: string): Promise<IpcResponse<SqlQueryRow[]>> => {
     try {
       const saved = settingsStore.get()
-      const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+      const profile = resolveActiveProfile(saved)
+      const sqlConfig = profile?.sql ?? saved.sql
+      const sshConfig = profile?.ssh ?? saved.ssh
+      const runtimeConnection = await resolveRuntimeSqlConnection(sqlConfig, sshConfig)
       const rows = await sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'generic', undefined, {
         enforceReadOnlyLogin: saved.sqlSecurity.enforceReadOnlyLogin,
         forbidWildcardSelect: saved.sqlSecurity.forbidWildcardSelect,

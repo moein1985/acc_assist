@@ -212,7 +212,7 @@ export class FinancialEngine {
       }
     }
 
-    const ENGINE_TIMEOUT_MS = 15_000
+    const ENGINE_TIMEOUT_MS = 30_000
     const timeoutController = new AbortController()
     const timeoutId = setTimeout(() => timeoutController.abort(), ENGINE_TIMEOUT_MS)
 

@@ -87,11 +87,19 @@ export class SshTunnelService extends EventEmitter {
     this.manualStop = false
     this.reconnectAttempts = 0
     this.clearReconnectTimer()
-    this.lastConfig = config
 
     this.addLog('info', 'ssh', `شروع اتصال به ${config.host}:${config.port}`)
 
     this.validateConfig(config)
+
+    // If tunnel is already active with the same config, skip restart
+    if (this.status.active && this.lastConfig && this.isSameConfig(config, this.lastConfig)) {
+      this.addLog('info', 'ssh', 'تونل از قبل فعال است — نیاز به راه‌اندازی مجدد نیست')
+      return this.status
+    }
+
+    this.lastConfig = config
+
     await this.stop('Restarting tunnel with new configuration')
 
     const client = new Client()
@@ -267,19 +275,41 @@ export class SshTunnelService extends EventEmitter {
     }
   }
 
+  private isSameConfig(a: SshTunnelConfig, b: SshTunnelConfig): boolean {
+    return (
+      a.host === b.host &&
+      a.port === b.port &&
+      a.username === b.username &&
+      a.password === b.password &&
+      a.privateKey === b.privateKey &&
+      a.passphrase === b.passphrase &&
+      a.dstHost === b.dstHost &&
+      a.dstPort === b.dstPort &&
+      a.enabled === b.enabled
+    )
+  }
+
   private createForwardServer(client: Client, config: SshTunnelConfig): net.Server {
     return net.createServer((socket) => {
       this.activeSockets.add(socket)
       socket.setNoDelay(true)
 
       socket.once('close', () => {
+        console.error(`[DIAG createForwardServer] socket closed, destroyed=${socket.destroyed}, hadError=${socket.errored instanceof Error ? socket.errored.message : String(socket.errored)}`)
         this.activeSockets.delete(socket)
       })
 
-      socket.on('error', () => {
+      socket.on('end', () => {
+        console.error(`[DIAG createForwardServer] socket end received (remote closed write)`)
+      })
+
+      socket.on('error', (err) => {
+        console.error(`[DIAG createForwardServer] socket error: ${err.message}`)
         socket.destroy()
       })
 
+      console.error(`[DIAG createForwardServer] new socket connection, calling forwardOut to ${config.dstHost}:${config.dstPort}`)
+      socket.pause()
       client.forwardOut(
         socket.remoteAddress ?? LOCAL_HOST,
         socket.remotePort ?? 0,
@@ -287,15 +317,34 @@ export class SshTunnelService extends EventEmitter {
         config.dstPort,
         (error, stream) => {
           if (error) {
+            console.error(`[DIAG createForwardServer] forwardOut FAILED: ${error.message}`)
             socket.destroy(new Error(`SSH forwardOut failed: ${error.message}`))
             return
           }
 
+          console.error(`[DIAG createForwardServer] forwardOut succeeded, socket writable=${socket.writable}, destroyed=${socket.destroyed}, readable=${socket.readable}`)
+          console.error(`[DIAG createForwardServer] stream state: writable=${stream.writable}, readable=${stream.readable}, destroyed=${stream.destroyed}, ended=${stream.readableEnded}`)
           stream.setNoDelay(true)
-          stream.on('error', () => socket.destroy())
-          stream.on('close', () => socket.end())
+          stream.on('error', (err) => {
+            console.error(`[DIAG createForwardServer] stream error: ${err.message}`)
+            socket.destroy()
+          })
+          stream.on('close', () => {
+            console.error(`[DIAG createForwardServer] stream closed`)
+            socket.end()
+          })
+          stream.on('end', () => {
+            console.error(`[DIAG createForwardServer] stream end (remote SQL closed write)`)
+          })
+          stream.on('data', (data: Buffer) => {
+            console.error(`[DIAG createForwardServer] stream->socket ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
+          })
+          socket.on('data', (data: Buffer) => {
+            console.error(`[DIAG createForwardServer] socket->stream ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
+          })
 
           socket.pipe(stream).pipe(socket)
+          socket.resume()
         }
       )
     })

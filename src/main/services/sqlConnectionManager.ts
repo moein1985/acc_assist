@@ -4,8 +4,8 @@ import { Parser } from 'node-sql-parser'
 import type { SqlConnectionConfig, SqlHealthCheck, SqlQueryRequest, SqlQueryResult, SqlQueryRow } from '../../shared/contracts'
 
 const DEFAULT_POOL_MAX = 8
-const DEFAULT_POOL_MIN = 0
-const DEFAULT_POOL_IDLE_TIMEOUT_MS = 30000
+const DEFAULT_POOL_MIN = 1
+const DEFAULT_POOL_IDLE_TIMEOUT_MS = 120000
 const FORBIDDEN_SQL_KEYWORDS =
   /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|MERGE|EXEC|EXECUTE|GRANT|REVOKE|DENY|BACKUP|RESTORE|DBCC|USE|WAITFOR)\b/i
 const FORBIDDEN_EXTERNAL_DATA_ACCESS_PATTERN =
@@ -145,10 +145,18 @@ export class SqlConnectionManager {
   >()
 
   async testConnection(connection: SqlConnectionConfig): Promise<string> {
-    const pool = await this.getOrCreatePool(connection)
-    const result = await pool.request().query('SELECT 1 AS ok')
-    const okValue = result.recordset?.[0]?.ok
-    return okValue === 1 ? 'SQL connection is healthy' : 'SQL connection established'
+    console.error(`[DIAG testConnection] server=${connection.server} port=${connection.port} db=${connection.database} user=${connection.user} timeout=${connection.connectionTimeoutMs}`)
+    try {
+      const pool = await this.getOrCreatePool(connection)
+      console.error(`[DIAG testConnection] pool connected=${pool.connected}`)
+      const result = await pool.request().query('SELECT 1 AS ok')
+      const okValue = result.recordset?.[0]?.ok
+      return okValue === 1 ? 'SQL connection is healthy' : 'SQL connection established'
+    } catch (error) {
+      const err = error as { message?: string; code?: string; originalError?: { message?: string; code?: string } }
+      console.error(`[DIAG testConnection] FAILED: message=${err.message} code=${err.code} originalError=${JSON.stringify(err.originalError)}`)
+      throw error
+    }
   }
 
   async listDatabases(connection: SqlConnectionConfig): Promise<string[]> {
@@ -247,7 +255,9 @@ SELECT
     options?: ReadOnlyExecutionOptions
   ): Promise<SqlQueryRow[]> {
     const validatedQuery = this.validateReadOnlyQuery(query, scope, options)
+    console.error(`[DIAG executeReadOnlyQuery] server=${connection.server} port=${connection.port} db=${connection.database} scope=${scope}`)
     const pool = await this.getOrCreatePool(connection)
+    console.error(`[DIAG executeReadOnlyQuery] pool acquired, connected=${pool.connected}`)
 
     if (options?.enforceReadOnlyLogin && (scope === 'generic' || scope === 'agent-data')) {
       await this.assertReadOnlyLogin(connection, pool)
@@ -289,7 +299,29 @@ SELECT
         throw this.createReadOnlyCancellationError(signal.reason)
       }
 
-      throw this.mapReadOnlyExecutionError(error, effectiveTimeoutMs)
+      const mappedError = this.mapReadOnlyExecutionError(error, effectiveTimeoutMs)
+
+      if (this.isTransientConnectionError(mappedError) && !signal?.aborted) {
+        console.warn('[SqlConnectionManager] Transient connection error, resetting pool and retrying once:', mappedError.message)
+        this.pool = null
+        this.poolSignature = null
+        const retryPool = await this.getOrCreatePool(connection)
+        const retryRequest = retryPool.request() as mssql.Request & {
+          timeout?: number
+          cancel?: () => void
+        }
+        retryRequest.timeout = effectiveTimeoutMs
+        try {
+          result = await retryRequest.query(validatedQuery)
+        } catch (retryError) {
+          if (signal?.aborted) {
+            throw this.createReadOnlyCancellationError(signal.reason)
+          }
+          throw this.mapReadOnlyExecutionError(retryError, effectiveTimeoutMs)
+        }
+      } else {
+        throw mappedError
+      }
     } finally {
       if (signal) {
         signal.removeEventListener('abort', onAbort)
@@ -348,6 +380,12 @@ SELECT
       return this.pool
     }
 
+    if (this.pool && !this.pool.connected) {
+      await this.pool.close().catch(() => {})
+      this.pool = null
+      this.poolSignature = null
+    }
+
     if (this.connectPromise && this.poolSignature === signature) {
       return this.connectPromise
     }
@@ -404,7 +442,7 @@ SELECT
   }
 
   private createMssqlConfig(connection: SqlConnectionConfig): mssql.config {
-    return {
+    const cfg: mssql.config = {
       server: connection.server,
       database: connection.database,
       user: connection.user,
@@ -422,6 +460,8 @@ SELECT
         idleTimeoutMillis: DEFAULT_POOL_IDLE_TIMEOUT_MS
       }
     }
+    console.error(`[DIAG createMssqlConfig] server=${connection.server} port=${connection.port} encrypt=${connection.encrypt} trustServerCertificate=${connection.trustServerCertificate} timeout=${connection.connectionTimeoutMs}`)
+    return cfg
   }
 
   private attachPoolListeners(pool: ConnectionPool, signature: string): void {
@@ -811,6 +851,29 @@ SELECT
     }
 
     return error
+  }
+
+  private isTransientConnectionError(error: Error): boolean {
+    const typedError = error as Error & { code?: unknown }
+    const errorCode = typeof typedError.code === 'string' ? typedError.code.toUpperCase() : ''
+    const errorMessage = error.message.toLowerCase()
+
+    if (errorCode === 'ESOCKET' || errorCode === 'ECONNRESET' || errorCode === 'EPIPE' || errorCode === 'ECONNREFUSED') {
+      return true
+    }
+
+    if (
+      errorMessage.includes('connection') &&
+      (errorMessage.includes('closed') || errorMessage.includes('lost') || errorMessage.includes('reset') || errorMessage.includes('broken'))
+    ) {
+      return true
+    }
+
+    if (errorMessage.includes('failed to connect to') || errorMessage.includes('connection is closed') || errorMessage.includes('connection lost')) {
+      return true
+    }
+
+    return false
   }
 
   private createReadOnlyCancellationError(reason: unknown): Error & {
