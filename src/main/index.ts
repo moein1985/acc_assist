@@ -39,7 +39,7 @@ import { ReportExportService } from './services/reportExportService'
 import { SchemaDiscoveryService } from './services/schemaDiscoveryService'
 import { SettingsStore } from './services/settingsStore'
 import { SqlConnectionManager } from './services/sqlConnectionManager'
-import { SshTunnelService } from './services/sshTunnelService'
+import { SshTunnelService, type HostKeyStore, type HostKeyMismatchInfo } from './services/sshTunnelService'
 import { TelemetryIngestService } from './services/telemetryIngestService'
 import { resolveAgentDebugToken, shouldStartAgentDebugServer } from './services/agentDebugConfig'
 import { UpdateManager } from './services/updateManager'
@@ -48,6 +48,28 @@ import icon from '../../resources/icon.png?asset'
 const settingsStore = new SettingsStore()
 const sqlConnectionManager = new SqlConnectionManager()
 const sshTunnelService = new SshTunnelService()
+
+function hostKeyFor(host: string, port: number): string {
+  return `${host}:${port}`
+}
+
+const settingsHostKeyStore: HostKeyStore = {
+  getHostKey(host: string, port: number): string | undefined {
+    const keys = settingsStore.get().sshHostKeys ?? {}
+    return keys[hostKeyFor(host, port)]
+  },
+  saveHostKey(host: string, port: number, fingerprint: string): void {
+    const keys = { ...(settingsStore.get().sshHostKeys ?? {}) }
+    keys[hostKeyFor(host, port)] = fingerprint
+    settingsStore.save({ sshHostKeys: keys })
+  },
+  removeHostKey(host: string, port: number): void {
+    const keys = { ...(settingsStore.get().sshHostKeys ?? {}) }
+    delete keys[hostKeyFor(host, port)]
+    settingsStore.save({ sshHostKeys: keys })
+  }
+}
+sshTunnelService.setHostKeyStore(settingsHostKeyStore)
 const geminiClient = new GeminiClient()
 const mobileBridgeServer = new MobileBridgeServer()
 const schemaDiscoveryService = new SchemaDiscoveryService()
@@ -630,6 +652,30 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(
+    'ssh:accept-host-key',
+    async (_, payload: { host: string; port: number; fingerprint: string }): Promise<IpcResponse<void>> => {
+      try {
+        settingsHostKeyStore.saveHostKey(payload.host, payload.port, payload.fingerprint)
+        return ok(undefined)
+      } catch (error) {
+        return failWithContext(error, 'ssh:accept-host-key')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'ssh:remove-host-key',
+    async (_, payload: { host: string; port: number }): Promise<IpcResponse<void>> => {
+      try {
+        settingsHostKeyStore.removeHostKey(payload.host, payload.port)
+        return ok(undefined)
+      } catch (error) {
+        return failWithContext(error, 'ssh:remove-host-key')
+      }
+    }
+  )
+
+  ipcMain.handle(
     'sql:test-connection',
     async (
       _,
@@ -884,6 +930,12 @@ app.whenReady().then(() => {
     sshTunnelService.on('status-changed', (status: SshTunnelStatus) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('ssh:status-changed', status)
+      }
+    })
+
+    sshTunnelService.on('hostkey-mismatch', (info: HostKeyMismatchInfo) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ssh:hostkey-mismatch', info)
       }
     })
 

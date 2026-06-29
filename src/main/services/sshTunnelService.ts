@@ -1,6 +1,7 @@
 import net, { type AddressInfo } from 'node:net'
 import { EventEmitter } from 'node:events'
 import { Client, type ConnectConfig } from 'ssh2'
+import { createHash } from 'node:crypto'
 
 import type { SshTunnelConfig, SshTunnelStatus } from '../../shared/contracts'
 
@@ -9,7 +10,20 @@ const SHUTDOWN_TIMEOUT_MS = 1500
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_BASE_DELAY_MS = 1000
 
-export type SshTunnelEvent = 'status-changed'
+export type SshTunnelEvent = 'status-changed' | 'hostkey-mismatch'
+
+export interface HostKeyStore {
+  getHostKey(host: string, port: number): string | undefined
+  saveHostKey(host: string, port: number, fingerprint: string): void
+  removeHostKey(host: string, port: number): void
+}
+
+export interface HostKeyMismatchInfo {
+  host: string
+  port: number
+  expected: string | undefined
+  got: string
+}
 
 export class SshTunnelService extends EventEmitter {
   private client: Client | null = null
@@ -20,6 +34,7 @@ export class SshTunnelService extends EventEmitter {
   private manualStop = false
   private reconnectAttempts = 0
   private reconnectTimer: NodeJS.Timeout | null = null
+  private hostKeyStore: HostKeyStore | null = null
   private status: SshTunnelStatus = {
     active: false,
     reconnecting: false,
@@ -31,6 +46,10 @@ export class SshTunnelService extends EventEmitter {
 
   getStatus(): SshTunnelStatus {
     return this.status
+  }
+
+  setHostKeyStore(store: HostKeyStore | null): void {
+    this.hostKeyStore = store
   }
 
   async start(config: SshTunnelConfig): Promise<SshTunnelStatus> {
@@ -417,6 +436,28 @@ export class SshTunnelService extends EventEmitter {
       connectConfig.password = config.password
     }
 
+    if (this.hostKeyStore) {
+      connectConfig.hostVerifier = (key: Buffer): boolean => {
+        const fingerprint = this.computeHostFingerprint(key)
+        const stored = this.hostKeyStore!.getHostKey(config.host, config.port)
+        if (!stored) {
+          this.hostKeyStore!.saveHostKey(config.host, config.port, fingerprint)
+          return true
+        }
+        if (fingerprint !== stored) {
+          const mismatchInfo: HostKeyMismatchInfo = {
+            host: config.host,
+            port: config.port,
+            expected: stored,
+            got: fingerprint
+          }
+          this.emit('hostkey-mismatch', mismatchInfo)
+          return false
+        }
+        return true
+      }
+    }
+
     return new Promise<void>((resolve, reject) => {
       const onReady = (): void => {
         cleanup()
@@ -448,5 +489,10 @@ export class SshTunnelService extends EventEmitter {
 
   private normalizePrivateKey(privateKey: string): string {
     return privateKey.includes('\\n') ? privateKey.replace(/\\n/g, '\n') : privateKey
+  }
+
+  private computeHostFingerprint(key: Buffer): string {
+    const hash = createHash('sha256').update(key).digest('base64')
+    return `SHA256:${hash}`
   }
 }

@@ -107,7 +107,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeConnectionProfileId: DEFAULT_PROFILE_ID,
   schemaCatalogs: [],
   promptTemplates: [],
-  financialEngineMode: 'legacy'
+  financialEngineMode: 'legacy',
+  sshHostKeys: {}
 }
 
 export function mergeSettings(current: AppSettings, patch: Partial<AppSettings>): AppSettings {
@@ -147,6 +148,7 @@ export function mergeSettings(current: AppSettings, patch: Partial<AppSettings>)
     schemaCatalogs: patch.schemaCatalogs ? [...patch.schemaCatalogs] : [...current.schemaCatalogs],
     promptTemplates: patch.promptTemplates ? [...patch.promptTemplates] : [...current.promptTemplates],
     discoveredAdapters: patch.discoveredAdapters ? { ...patch.discoveredAdapters } : { ...(current.discoveredAdapters ?? {}) },
-    softwareMode: patch.softwareMode ?? current.softwareMode
+    softwareMode: patch.softwareMode ?? current.softwareMode,
+    sshHostKeys: patch.sshHostKeys ? { ...patch.sshHostKeys } : { ...(current.sshHostKeys ?? {}) }
   }
 }

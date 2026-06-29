@@ -61,6 +61,24 @@ const api = {
       return (): void => {
         ipcRenderer.removeListener('ssh:status-changed', wrappedListener)
       }
+    },
+    acceptHostKey: (host: string, port: number, fingerprint: string): Promise<IpcResponse<void>> =>
+      ipcRenderer.invoke('ssh:accept-host-key', { host, port, fingerprint }),
+    removeHostKey: (host: string, port: number): Promise<IpcResponse<void>> =>
+      ipcRenderer.invoke('ssh:remove-host-key', { host, port }),
+    onHostKeyMismatch: (
+      listener: (info: { host: string; port: number; expected: string | undefined; got: string }) => void
+    ): (() => void) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        info: { host: string; port: number; expected: string | undefined; got: string }
+      ): void => {
+        listener(info)
+      }
+      ipcRenderer.on('ssh:hostkey-mismatch', wrappedListener)
+      return (): void => {
+        ipcRenderer.removeListener('ssh:hostkey-mismatch', wrappedListener)
+      }
     }
   },
   sql: {

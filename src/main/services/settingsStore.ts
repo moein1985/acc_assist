@@ -81,13 +81,21 @@ function resolveForcedGeminiOverride(env: NodeJS.ProcessEnv = process.env): Part
   }
 }
 
+export interface SafeStorageProvider {
+  isEncryptionAvailable(): boolean
+  encryptString(value: string): Buffer
+  decryptString(buffer: Buffer): string
+}
+
 export class SettingsStore {
   private readonly filePath: string
   private cache: AppSettings = mergeSettings(DEFAULT_SETTINGS, {})
   private warnedEncryptionUnavailable = false
+  private readonly storage: SafeStorageProvider | null
 
-  constructor(filePath?: string) {
+  constructor(filePath?: string, storage?: SafeStorageProvider | null) {
     this.filePath = filePath ?? join(app.getPath('userData'), 'acc-assist.settings.json')
+    this.storage = storage ?? safeStorage
   }
 
   async load(): Promise<AppSettings> {
@@ -447,7 +455,7 @@ export class SettingsStore {
     }
 
     try {
-      const encryptedBuffer = safeStorage.encryptString(value)
+      const encryptedBuffer = this.storage!.encryptString(value)
       return `${ENCRYPTED_PREFIX}${encryptedBuffer.toString('base64')}`
     } catch (error) {
       console.warn('[SettingsStore] Unable to encrypt value with safeStorage. Falling back to plain text.', error)
@@ -474,7 +482,7 @@ export class SettingsStore {
     try {
       const cipherText = value.slice(ENCRYPTED_PREFIX.length)
       const encryptedBuffer = Buffer.from(cipherText, 'base64')
-      return safeStorage.decryptString(encryptedBuffer)
+      return this.storage!.decryptString(encryptedBuffer)
     } catch (error) {
       console.warn('[SettingsStore] Unable to decrypt value with safeStorage. Returning empty string.', error)
       return ''
@@ -493,12 +501,12 @@ export class SettingsStore {
   }
 
   private isSafeStorageEncryptionAvailable(): boolean {
-    if (!safeStorage || typeof safeStorage.isEncryptionAvailable !== 'function') {
+    if (!this.storage || typeof this.storage.isEncryptionAvailable !== 'function') {
       return false
     }
 
     try {
-      return safeStorage.isEncryptionAvailable()
+      return this.storage.isEncryptionAvailable()
     } catch {
       return false
     }

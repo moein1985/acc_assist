@@ -267,6 +267,7 @@ export interface AppSettings {
   financialEngineMode?: 'legacy' | 'shadow' | 'engine'
   discoveredAdapters?: Record<string, DiscoveredAdapterEntry>
   softwareMode?: SoftwareMode
+  sshHostKeys?: Record<string, string>
 }
 
 export interface SqlParameter {

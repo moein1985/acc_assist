@@ -314,6 +314,9 @@ window.addEventListener('DOMContentLoaded', () => {
   window.api.ssh.onStatusChange((status) => {
     updateSshChips(status)
   })
+  window.api.ssh.onHostKeyMismatch((info) => {
+    handleHostKeyMismatch(info)
+  })
   installRendererCrashTelemetryHooks()
   bindEvents()
   renderPromptTemplates()
@@ -2548,6 +2551,23 @@ function updateBridgeChips(status: MobileBridgeStatus): void {
 function setSshUnavailable(message: string): void {
   setChip(ui.sshStatusChipTop, `SSH: در دسترس نیست (${localizeSshStatusMessage(message)})`, 'danger')
   setChip(ui.sshStatusChipAnalysis, `SSH: در دسترس نیست (${localizeSshStatusMessage(message)})`, 'danger')
+}
+
+function handleHostKeyMismatch(info: {
+  host: string
+  port: number
+  expected: string | undefined
+  got: string
+}): void {
+  const mismatchText = `SSH: عدم تطابق کلید هاست (${info.host}:${info.port})`
+  setChip(ui.sshStatusChipTop, mismatchText, 'danger')
+  setChip(ui.sshStatusChipAnalysis, mismatchText, 'danger')
+  setAppNotice(
+    `هشدار امنیتی: کلید هاست سرور ${info.host}:${info.port} تغییر کرده است. ` +
+      'این ممکن است نشانه حمله مردی در میان (MITM) باشد. ' +
+      'در صورت اطمینان از صحت سرور، کلید جدید را تأیید کنید.',
+    'error'
+  )
 }
 
 function setBridgeUnavailable(message: string): void {

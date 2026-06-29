@@ -44,6 +44,11 @@ export interface AccAssistApi {
     stop: () => Promise<IpcResponse<SshTunnelStatus>>
     status: () => Promise<IpcResponse<SshTunnelStatus>>
     onStatusChange: (listener: (status: SshTunnelStatus) => void) => () => void
+    acceptHostKey: (host: string, port: number, fingerprint: string) => Promise<IpcResponse<void>>
+    removeHostKey: (host: string, port: number) => Promise<IpcResponse<void>>
+    onHostKeyMismatch: (
+      listener: (info: { host: string; port: number; expected: string | undefined; got: string }) => void
+    ) => () => void
   }
   sql: {
     listDatabases: (payload?: {
