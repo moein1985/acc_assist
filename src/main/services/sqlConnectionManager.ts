@@ -306,6 +306,10 @@ SELECT
     })
   }
 
+  isConnected(): boolean {
+    return this.pool !== null && this.pool.connected
+  }
+
   async close(): Promise<void> {
     const pool = this.pool
     const pending = this.connectPromise

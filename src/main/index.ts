@@ -29,7 +29,8 @@ import type {
   SqlQueryRow,
   SshTunnelConfig,
   SshTunnelStatus,
-  SshProgressEvent
+  SshProgressEvent,
+  ConnectionHealthStatus
 } from '../shared/contracts'
 import { AgentOrchestrator } from './services/agentOrchestrator'
 import { AgentDebugServer } from './services/agentDebugServer'
@@ -651,6 +652,34 @@ function registerIpcHandlers(): void {
   ipcMain.handle('ssh:status', async (): Promise<IpcResponse<SshTunnelStatus>> => {
     return ok(sshTunnelService.getStatus())
   })
+
+  ipcMain.handle(
+    'connection:health',
+    async (): Promise<IpcResponse<ConnectionHealthStatus>> => {
+      try {
+        const settings = settingsStore.get()
+        const profile = resolveActiveProfile(settings)
+        const sshStatus = sshTunnelService.getStatus()
+        const sqlConnected = sqlConnectionManager.isConnected()
+
+        const health: ConnectionHealthStatus = {
+          sshActive: sshStatus.active,
+          sshReconnecting: sshStatus.reconnecting,
+          sshMessage: sshStatus.message,
+          sshLocalPort: sshStatus.localPort,
+          sqlConnected,
+          sqlMessage: sqlConnected ? 'اتصال SQL برقرار است' : 'اتصال SQL قطع است',
+          sqlServerVersion: null,
+          profileType: profile?.metadata.type ?? null,
+          lastError: sshStatus.active ? null : sshStatus.message,
+          lastUpdatedAt: Date.now()
+        }
+        return ok(health)
+      } catch (error) {
+        return failWithContext(error, 'connection:health')
+      }
+    }
+  )
 
   ipcMain.handle(
     'ssh:accept-host-key',

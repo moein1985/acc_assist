@@ -27,7 +27,8 @@ import type {
   SqlQueryRow,
   SshTunnelConfig,
   SshTunnelStatus,
-  SshProgressEvent
+  SshProgressEvent,
+  ConnectionHealthStatus
 } from '../shared/contracts'
 
 export interface AccAssistApi {
@@ -52,6 +53,9 @@ export interface AccAssistApi {
     ) => () => void
     pickPrivateKeyFile: () => Promise<IpcResponse<{ path: string; content: string }>>
     onProgress: (listener: (event: SshProgressEvent) => void) => () => void
+  }
+  connection: {
+    getHealth: () => Promise<IpcResponse<ConnectionHealthStatus>>
   }
   sql: {
     listDatabases: (payload?: {

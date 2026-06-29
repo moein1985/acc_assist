@@ -28,7 +28,8 @@ import type {
   SqlQueryRow,
   SshTunnelConfig,
   SshTunnelStatus,
-  SshProgressEvent
+  SshProgressEvent,
+  ConnectionHealthStatus
 } from '../shared/contracts'
 
 const api = {
@@ -95,6 +96,10 @@ const api = {
         ipcRenderer.removeListener('ssh:progress', wrappedListener)
       }
     }
+  },
+  connection: {
+    getHealth: (): Promise<IpcResponse<ConnectionHealthStatus>> =>
+      ipcRenderer.invoke('connection:health')
   },
   sql: {
     listDatabases: (payload?: {

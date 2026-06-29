@@ -315,6 +315,19 @@ export interface SshProgressEvent {
   failed: boolean
 }
 
+export interface ConnectionHealthStatus {
+  sshActive: boolean
+  sshReconnecting: boolean
+  sshMessage: string
+  sshLocalPort: number | null
+  sqlConnected: boolean
+  sqlMessage: string
+  sqlServerVersion: string | null
+  profileType: 'ssh' | 'direct' | null
+  lastError: string | null
+  lastUpdatedAt: number
+}
+
 export interface GeminiMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
