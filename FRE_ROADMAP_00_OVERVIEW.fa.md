@@ -75,8 +75,12 @@ flowchart TB
 | ۱۵ | `FRE_ROADMAP_13_PHASE15_BLIND_SCHEMA_DISCOVERY.fa.md` | کشف کور schema: SchemaAdapter interface، INFORMATION_SCHEMA scan، LLM semantic mapping، human-in-the-loop، مسیر دوگانه (سپیدار + auto-detect) | متوسط–بزرگ | متوسط |
 | ۱۶ | `FRE_ROADMAP_14_PHASE16_SSH_REMOTE_CONNECTION.fa.md` | اتصال از راه دور با SSH: auto-connect، auto-reconnect، Connection Wizard، host key verification، credential encryption، health indicator، ادغام با Blind Schema Discovery | متوسط–بزرگ | متوسط |
 | ۱۷ | `FRE_ROADMAP_15_PHASE17_ARCH_FIXES.fa.md` | رفع مسائل معماری: backpressure در تونل SSH، بستن pool SQL هنگام قطع تونل، گیت کردن DIAG logs، کش کردن resolveRuntimeSqlConnection، رفع فراخوانی مضاعف eventLogEntries، surfacing خطای autoDiscoverSchema به UI | کوچک–متوسط | پایین |
+| ۱۸ | `FRE_ROADMAP_16_PHASE18_PYTHON_SANDBOX.fa.md` | محیط اجرای پایتون embedded: sandbox امن، AST validation، whitelist کتابخانه‌ها، ادغام با Planner (PythonOutputPlan)، رندر نمودار/اکسل/PDF در چت، pip با repo fallback ایرانی | متوسط–بزرگ | متوسط |
+| ۱۹ | `FRE_ROADMAP_17_PHASE19_ADVANCED_FINANCIAL_METRICS.fa.md` | متریک‌های مالی پیشرفته: صورت جریان وجوه نقد، نسبت‌های سودآوری (ROE/ROA)، نسبت‌های نقدی و گردش، تحلیل روند و CAGR، دارایی‌های ثابت، بهای تمام‌شده تفصیلی، تطبیق بانک، مالیات پیشرفته | متوسط–بزرگ | متوسط |
+| ۲۰ | `FRE_ROADMAP_18_PHASE20_ADVANCED_PLANNER.fa.md` | Planner هوشمند: چندمرحله‌ای (MultiStepPlan)، حافظه مکالمه v2، پیشنهادهای هوشمند (Smart Suggestions)، کشف خودکار anomaly، دانش دامنه حسابداری، Clarify پیشرفته | متوسط–بزرگ | متوسط |
+| ۲۱ | `FRE_ROADMAP_19_PHASE21_UX_REPORTING.fa.md` | تجربه کاربری و گزارش‌گیری: شفافیت SQL، اعتماد-score، نمودار تعاملی (Chart.js)، گزارش‌های زمان‌بندی‌شده، پشتیبانی چندزبانه (فارسی+انگلیسی)، chat history persistence، quick actions | متوسط | پایین–متوسط |
 
-**ترتیب اجرا:** ۱ → ۲ → ۳ → ۴ → ... → ۱۳ → ۱۴ → ۱۵ → ۱۶ → ۱۷. هیچ فازی قبل از سبزشدنِ کاملِ فاز قبل (تست + typecheck + شواهد) شروع نشود.
+**ترتیب اجرا:** ۱ → ۲ → ۳ → ۴ → ... → ۱۳ → ۱۴ → ۱۵ → ۱۶ → ۱۷ → ۱۸ → ۱۹ → ۲۰ → ۲۱. هیچ فازی قبل از سبزشدنِ کاملِ فاز قبل (تست + typecheck + شواهد) شروع نشود.
 
 ---
 
@@ -237,18 +241,29 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
 | ۱۶ | ✅ کامل (به‌جز field test) | اتصال از راه دور با SSH: auto-connect, auto-reconnect, Connection Wizard, host key verification, credential encryption, health indicator, diagnostic panel, mapping wizard |
 | ۱۷ | ✅ کامل | اصلاحات معماری: backpressure, pool cleanup, DIAG log gating, runtime connection cache, double-read fix, schema failure UI notification |
+| ۱۸ | 📋 برنامه‌ریزی‌شده | Python Sandbox: embedded Python, AST validation, نمودار/اکسل/PDF در چت |
+| ۱۹ | 📋 برنامه‌ریزی‌شده | متریک‌های مالی پیشرفته: جریان وجوه نقد, ROE/ROA, تحلیل روند, دارایی ثابت, بهای تمام‌شده |
+| ۲۰ | 📋 برنامه‌ریزی‌شده | Planner هوشمند: multi-step, حافظه v2, smart suggestions, anomaly detection |
+| ۲۱ | 📋 برنامه‌ریزی‌شده | UX و گزارش‌گیری: SQL transparency, confidence score, نمودار تعاملی, گزارش زمان‌بندی, چندزبانه |
 
-**آمار نهایی:**
+**آمار فعلی (فاز ۱۷):**
 - ۵۸ متریک (پایه + مشتق + حسابدار)
 - ۲۱۱ golden cases (100% سبز)
 - ۳۶۱ unit test + ۵۵ integration test
 - typecheck: ۰ خطا
 - ۴ مارکر asar: BLIND_DISCOVERY, SCHEMA_ADAPTER_AUTO, SEMANTIC_MAPPING, MULTI_SOFTWARE_AUTO
 
+**آمار هدف (پس از فاز ۲۱):**
+- ~۸۰+ متریک (۵۸ فعلی + ~۲۲ جدید)
+- ~۲۵۹ golden cases (۲۱۱ فعلی + ~۴۸ جدید)
+- ~۳۸۰+ unit test
+- Python embedded + sandbox امن
+- نمودار تعاملی + گزارش زمان‌بندی + چندزبانه
+
 **کارهای باقی‌مانده:**
 - فاز ۱۶ field test‌ها (S16.22-S16.23): تست دستی روی سرور 192.168.85.56 و کامپیوتر دوم
 - shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
-- رفع مشکل pre-existing: net_margin planner tool-call limit
+- فاز ۱۸-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
 
 ---
 
