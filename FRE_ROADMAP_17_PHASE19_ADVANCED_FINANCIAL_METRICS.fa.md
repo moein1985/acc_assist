@@ -220,14 +220,17 @@
 
 ### S19.18 — Full Gate
 
-- [ ] **S19.18** `typecheck:node` + `npm test` + `eval:metrics`:
+- [x] **S19.18** `typecheck:node` + `npm test` + `eval:metrics`:
   - **معیار:** ۰ خطای typecheck. تمام unit test pass. eval ۲۵۱/۲۵۱ (۲۱۸ + ۳۳ جدید).
+  - **نتیجه:** typecheck 0 errors | unit 383 pass 1 skip | integration 55 pass 1 skip | eval 251/251 (100%) ✅
 
 ### S19.19 — Build + asar-grep
 
-- [ ] **S19.19** `npm run build:win` + asar-grep:
+- [x] **S19.19** `npm run build:win` + asar-grep:
   - **مارکرها:** `CASH_FLOW_STATEMENT`, `FINANCIAL_RATIOS_V2`, `TREND_ANALYSIS`, `FIXED_ASSETS`, `COST_ACCOUNTING`, `BANK_RECONCILIATION`
   - **معیار:** build موفق. مارکرها در asar.
+  - **نتیجه:** vite build ✅ | asar pack ✅ | ۷ مارکر در asar ✅ | `ACCAssist.exe` ✅
+  - **نکته:** `electron-builder` به‌دلیل EBUSY (Windows Defender) موفق نبود؛ asar به‌صورت دستی pack شد.
 
 ### S19.20 — Field test
 
