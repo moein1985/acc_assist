@@ -489,8 +489,9 @@ export class TelemetryIngestService {
     const pruneList = (items: PersistedTelemetryEvent[]): PersistedTelemetryEvent[] =>
       items.filter((item) => new Date(item.timestamp).getTime() >= cutoff)
 
-    const eventEntries = pruneList(this.eventLogEntries())
-    if (eventEntries.length !== this.eventLogEntries().length) {
+    const currentEntries = this.eventLogEntries()
+    const eventEntries = pruneList(currentEntries)
+    if (eventEntries.length !== currentEntries.length) {
       writeFileSync(this.eventLogFilePath, eventEntries.map((item) => JSON.stringify(item)).join('\n') + (eventEntries.length ? '\n' : ''), 'utf8')
     }
 

@@ -10,6 +10,7 @@ const SHUTDOWN_TIMEOUT_MS = 1500
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_BASE_DELAY_MS = 1000
 const MAX_LOG_ENTRIES = 100
+const DEBUG_SSH = process.env.ACC_DEBUG_SSH === '1'
 
 export type SshTunnelEvent = 'status-changed' | 'hostkey-mismatch'
 
@@ -295,21 +296,20 @@ export class SshTunnelService extends EventEmitter {
       socket.setNoDelay(true)
 
       socket.once('close', () => {
-        console.error(`[DIAG createForwardServer] socket closed, destroyed=${socket.destroyed}, hadError=${socket.errored instanceof Error ? socket.errored.message : String(socket.errored)}`)
+        if (DEBUG_SSH) console.error(`[DIAG createForwardServer] socket closed, destroyed=${socket.destroyed}`)
         this.activeSockets.delete(socket)
       })
 
       socket.on('end', () => {
-        console.error(`[DIAG createForwardServer] socket end received (remote closed write)`)
+        if (DEBUG_SSH) console.error(`[DIAG createForwardServer] socket end received (remote closed write)`)
       })
 
       socket.on('error', (err) => {
-        console.error(`[DIAG createForwardServer] socket error: ${err.message}`)
+        if (DEBUG_SSH) console.error(`[DIAG createForwardServer] socket error: ${err.message}`)
         socket.destroy()
       })
 
-      console.error(`[DIAG createForwardServer] new socket connection, calling forwardOut to ${config.dstHost}:${config.dstPort}`)
-      console.error(`[DIAG createForwardServer] SSH client alive=${client._sock?.writable ?? 'unknown'}, socket readableLength=${socket.readableLength}, writableLength=${socket.writableLength}`)
+      if (DEBUG_SSH) console.error(`[DIAG createForwardServer] new socket connection, calling forwardOut to ${config.dstHost}:${config.dstPort}`)
       client.forwardOut(
         socket.remoteAddress ?? LOCAL_HOST,
         socket.remotePort ?? 0,
@@ -317,44 +317,44 @@ export class SshTunnelService extends EventEmitter {
         config.dstPort,
         (error, stream) => {
           if (error) {
-            console.error(`[DIAG createForwardServer] forwardOut FAILED: ${error.message}`)
+            if (DEBUG_SSH) console.error(`[DIAG createForwardServer] forwardOut FAILED: ${error.message}`)
             socket.destroy(new Error(`SSH forwardOut failed: ${error.message}`))
             return
           }
 
-          console.error(`[DIAG createForwardServer] forwardOut succeeded, socket writable=${socket.writable}, destroyed=${socket.destroyed}, readable=${socket.readable}`)
-          console.error(`[DIAG createForwardServer] socket buffer: readableLength=${socket.readableLength}, writableLength=${socket.writableLength}, readableEnded=${socket.readableEnded}, writableEnded=${socket.writableEnded}`)
-          console.error(`[DIAG createForwardServer] stream state: writable=${stream.writable}, readable=${stream.readable}, destroyed=${stream.destroyed}, ended=${stream.readableEnded}`)
+          if (DEBUG_SSH) console.error(`[DIAG createForwardServer] forwardOut succeeded, socket writable=${socket.writable}, destroyed=${socket.destroyed}, readable=${socket.readable}`)
           try {
-          socket.setNoDelay(true)
-          console.error(`[DIAG createForwardServer] after setNoDelay on socket`)
           stream.on('error', (err) => {
-            console.error(`[DIAG createForwardServer] stream error: ${err.message}`)
+            if (DEBUG_SSH) console.error(`[DIAG createForwardServer] stream error: ${err.message}`)
             socket.destroy()
           })
           stream.on('close', () => {
-            console.error(`[DIAG createForwardServer] stream closed`)
+            if (DEBUG_SSH) console.error(`[DIAG createForwardServer] stream closed`)
             socket.end()
           })
           stream.on('end', () => {
-            console.error(`[DIAG createForwardServer] stream end (remote SQL closed write)`)
+            if (DEBUG_SSH) console.error(`[DIAG createForwardServer] stream end (remote SQL closed write)`)
           })
           stream.on('data', (data: Buffer) => {
-            console.error(`[DIAG createForwardServer] stream->socket ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
             const ok = socket.write(data)
-            console.error(`[DIAG createForwardServer] socket.write returned ${ok}`)
+            if (!ok) {
+              stream.pause()
+              socket.once('drain', () => stream.resume())
+            }
           })
           socket.on('data', (data: Buffer) => {
-            console.error(`[DIAG createForwardServer] socket->stream ${data.length} bytes: ${data.subarray(0, 32).toString('hex')}`)
             const ok = stream.write(data)
-            console.error(`[DIAG createForwardServer] stream.write returned ${ok}`)
+            if (!ok) {
+              socket.pause()
+              stream.once('drain', () => socket.resume())
+            }
           })
 
-          console.error(`[DIAG createForwardServer] before resume, readableLength=${socket.readableLength}, isPaused=${socket.isPaused?.()}`)
+          if (DEBUG_SSH) console.error(`[DIAG createForwardServer] before resume, readableLength=${socket.readableLength}`)
           socket.resume()
-          console.error(`[DIAG createForwardServer] after resume, readableLength=${socket.readableLength}`)
+          if (DEBUG_SSH) console.error(`[DIAG createForwardServer] after resume, readableLength=${socket.readableLength}`)
           } catch (e: any) {
-            console.error(`[DIAG createForwardServer] CAUGHT ERROR in callback: ${e?.message ?? e}`)
+            if (DEBUG_SSH) console.error(`[DIAG createForwardServer] CAUGHT ERROR in callback: ${e?.message ?? e}`)
             socket.destroy(e)
           }
         }

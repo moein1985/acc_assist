@@ -6,6 +6,7 @@ import type { SqlConnectionConfig, SqlHealthCheck, SqlQueryRequest, SqlQueryResu
 const DEFAULT_POOL_MAX = 8
 const DEFAULT_POOL_MIN = 1
 const DEFAULT_POOL_IDLE_TIMEOUT_MS = 120000
+const DEBUG_SQL = process.env.ACC_DEBUG_SQL === '1'
 const FORBIDDEN_SQL_KEYWORDS =
   /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|MERGE|EXEC|EXECUTE|GRANT|REVOKE|DENY|BACKUP|RESTORE|DBCC|USE|WAITFOR)\b/i
 const FORBIDDEN_EXTERNAL_DATA_ACCESS_PATTERN =
@@ -145,16 +146,16 @@ export class SqlConnectionManager {
   >()
 
   async testConnection(connection: SqlConnectionConfig): Promise<string> {
-    console.error(`[DIAG testConnection] server=${connection.server} port=${connection.port} db=${connection.database} user=${connection.user} timeout=${connection.connectionTimeoutMs}`)
+    if (DEBUG_SQL) console.error(`[DIAG testConnection] server=${connection.server} port=${connection.port} db=${connection.database} user=${connection.user} timeout=${connection.connectionTimeoutMs}`)
     try {
       const pool = await this.getOrCreatePool(connection)
-      console.error(`[DIAG testConnection] pool connected=${pool.connected}`)
+      if (DEBUG_SQL) console.error(`[DIAG testConnection] pool connected=${pool.connected}`)
       const result = await pool.request().query('SELECT 1 AS ok')
       const okValue = result.recordset?.[0]?.ok
       return okValue === 1 ? 'SQL connection is healthy' : 'SQL connection established'
     } catch (error) {
       const err = error as { message?: string; code?: string; originalError?: { message?: string; code?: string } }
-      console.error(`[DIAG testConnection] FAILED: message=${err.message} code=${err.code} originalError=${JSON.stringify(err.originalError)}`)
+      if (DEBUG_SQL) console.error(`[DIAG testConnection] FAILED: message=${err.message} code=${err.code} originalError=${JSON.stringify(err.originalError)}`)
       throw error
     }
   }
@@ -255,9 +256,9 @@ SELECT
     options?: ReadOnlyExecutionOptions
   ): Promise<SqlQueryRow[]> {
     const validatedQuery = this.validateReadOnlyQuery(query, scope, options)
-    console.error(`[DIAG executeReadOnlyQuery] server=${connection.server} port=${connection.port} db=${connection.database} scope=${scope}`)
+    if (DEBUG_SQL) console.error(`[DIAG executeReadOnlyQuery] server=${connection.server} port=${connection.port} db=${connection.database} scope=${scope}`)
     const pool = await this.getOrCreatePool(connection)
-    console.error(`[DIAG executeReadOnlyQuery] pool acquired, connected=${pool.connected}`)
+    if (DEBUG_SQL) console.error(`[DIAG executeReadOnlyQuery] pool acquired, connected=${pool.connected}`)
 
     if (options?.enforceReadOnlyLogin && (scope === 'generic' || scope === 'agent-data')) {
       await this.assertReadOnlyLogin(connection, pool)
@@ -302,7 +303,7 @@ SELECT
       const mappedError = this.mapReadOnlyExecutionError(error, effectiveTimeoutMs)
 
       if (this.isTransientConnectionError(mappedError) && !signal?.aborted) {
-        console.warn('[SqlConnectionManager] Transient connection error, resetting pool and retrying once:', mappedError.message)
+        if (DEBUG_SQL) console.warn('[SqlConnectionManager] Transient connection error, resetting pool and retrying once:', mappedError.message)
         this.pool = null
         this.poolSignature = null
         const retryPool = await this.getOrCreatePool(connection)
@@ -426,15 +427,15 @@ SELECT
   ): Promise<mssql.ConnectionPool> {
     let lastError: unknown
     for (let attempt = 0; attempt <= retryCount; attempt++) {
-      console.error(`[DIAG connectWithRetry] attempt ${attempt + 1}/${retryCount + 1}`)
+      if (DEBUG_SQL) console.error(`[DIAG connectWithRetry] attempt ${attempt + 1}/${retryCount + 1}`)
       const pool = createPool()
       try {
         const connected = await pool.connect()
-        console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} succeeded`)
+        if (DEBUG_SQL) console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} succeeded`)
         return connected
       } catch (error) {
         const err = error as { message?: string; code?: string }
-        console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} failed: ${err.message} code=${err.code}`)
+        if (DEBUG_SQL) console.error(`[DIAG connectWithRetry] attempt ${attempt + 1} failed: ${err.message} code=${err.code}`)
         lastError = error
         await pool.close().catch(() => {})
         if (attempt < retryCount) {
@@ -464,6 +465,7 @@ SELECT
         idleTimeoutMillis: DEFAULT_POOL_IDLE_TIMEOUT_MS
       },
       beforeConnect: (conn) => {
+        if (!DEBUG_SQL) return
         console.error('[DIAG tedious] beforeConnect called, state=' + (conn as unknown as { state?: { name?: string } }).state?.name)
         conn.on('connect', () => console.error('[DIAG tedious] connect event'))
         conn.on('secure', () => console.error('[DIAG tedious] secure event (TLS)'))
@@ -478,8 +480,8 @@ SELECT
         conn.on('debug', (msg: string) => console.error(`[DIAG tedious] debug: ${msg}`))
       }
     }
-    console.error(`[DIAG createMssqlConfig] server=${connection.server} port=${connection.port} encrypt=${connection.encrypt} trustServerCertificate=${connection.trustServerCertificate} timeout=${connection.connectionTimeoutMs}`)
-    console.error(`[DIAG createMssqlConfig] full options: ${JSON.stringify(cfg.options)}`)
+    if (DEBUG_SQL) console.error(`[DIAG createMssqlConfig] server=${connection.server} port=${connection.port} encrypt=${connection.encrypt} trustServerCertificate=${connection.trustServerCertificate} timeout=${connection.connectionTimeoutMs}`)
+    if (DEBUG_SQL) console.error(`[DIAG createMssqlConfig] full options: ${JSON.stringify(cfg.options)}`)
     return cfg
   }
 

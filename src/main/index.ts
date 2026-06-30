@@ -49,9 +49,17 @@ import { resolveAgentDebugToken, shouldStartAgentDebugServer } from './services/
 import { UpdateManager } from './services/updateManager'
 import icon from '../../resources/icon.png?asset'
 
+const DEBUG_MAIN = process.env.ACC_DEBUG_MAIN === '1'
 const settingsStore = new SettingsStore()
 const sqlConnectionManager = new SqlConnectionManager()
 const sshTunnelService = new SshTunnelService()
+
+let cachedRuntimeConnection: { signature: string; connection: SqlConnectionConfig } | null = null
+
+function buildSqlConnectionSignature(connection: SqlConnectionConfig, sshConfig?: SshTunnelConfig): string {
+  const sshPart = sshConfig?.enabled ? `${sshConfig.host}:${sshConfig.port}:${sshConfig.username}` : 'none'
+  return `${connection.server}:${connection.port}:${connection.database}:${connection.user}:${sshPart}`
+}
 
 function hostKeyFor(host: string, port: number): string {
   return `${host}:${port}`
@@ -318,9 +326,14 @@ async function resolveRuntimeSqlConnection(
     return connection
   }
 
+  const signature = buildSqlConnectionSignature(connection, sshConfig)
+  if (cachedRuntimeConnection && cachedRuntimeConnection.signature === signature) {
+    return cachedRuntimeConnection.connection
+  }
+
   const tunnelStatus = await sshTunnelService.start(sshConfig)
 
-  console.error(`[DIAG resolveRuntimeSqlConnection] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
+  if (DEBUG_MAIN) console.error(`[DIAG resolveRuntimeSqlConnection] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
 
   if (!tunnelStatus.active || !tunnelStatus.localPort) {
     throw new Error(tunnelStatus.message)
@@ -331,7 +344,9 @@ async function resolveRuntimeSqlConnection(
     server: tunnelStatus.localHost,
     port: tunnelStatus.localPort
   }
-  console.error(`[DIAG resolveRuntimeSqlConnection] runtimeConn server=${runtimeConn.server} port=${runtimeConn.port}`)
+  if (DEBUG_MAIN) console.error(`[DIAG resolveRuntimeSqlConnection] runtimeConn server=${runtimeConn.server} port=${runtimeConn.port}`)
+
+  cachedRuntimeConnection = { signature, connection: runtimeConn }
   return runtimeConn
 }
 
@@ -445,6 +460,13 @@ async function autoDiscoverSchema(
       profileId: profile.id,
       database: profile.sql.database
     })
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('schema:discovery-failed', {
+        profileId: profile.id,
+        database: profile.sql.database,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 }
 
@@ -459,16 +481,16 @@ async function autoConnectOnStartup(): Promise<void> {
   if (profile.metadata.type === 'ssh' && profile.ssh.enabled) {
     try {
       const tunnelStatus = await sshTunnelService.start(profile.ssh)
-      console.error(`[DIAG autoConnect] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
+      if (DEBUG_MAIN) console.error(`[DIAG autoConnect] tunnelActive=${tunnelStatus.active} localPort=${tunnelStatus.localPort} message=${tunnelStatus.message}`)
       if (tunnelStatus.active) {
         const runtimeConnection: SqlConnectionConfig = {
           ...profile.sql,
           server: tunnelStatus.localHost,
           port: tunnelStatus.localPort ?? profile.sql.port
         }
-        console.error(`[DIAG autoConnect] testing SQL to ${runtimeConnection.server}:${runtimeConnection.port}`)
+        if (DEBUG_MAIN) console.error(`[DIAG autoConnect] testing SQL to ${runtimeConnection.server}:${runtimeConnection.port}`)
         await sqlConnectionManager.testConnection(runtimeConnection)
-        console.error(`[DIAG autoConnect] SQL test succeeded`)
+        if (DEBUG_MAIN) console.error(`[DIAG autoConnect] SQL test succeeded`)
         telemetryIngestService.capture({
           process: 'main',
           level: 'info',
@@ -479,7 +501,7 @@ async function autoConnectOnStartup(): Promise<void> {
         void autoDiscoverSchema(profile, runtimeConnection)
       }
     } catch (error) {
-      console.error(`[DIAG autoConnect] FAILED: ${error instanceof Error ? error.message : String(error)}`)
+      if (DEBUG_MAIN) console.error(`[DIAG autoConnect] FAILED: ${error instanceof Error ? error.message : String(error)}`)
       telemetryIngestService.captureError('ssh.auto-connect', 'start-failed', error, 'main', {
         profileId: profile.id
       })
@@ -520,6 +542,7 @@ function registerIpcHandlers(): void {
           Boolean(patch.activeConnectionProfileId) ||
           Boolean(patch.connectionProfiles)
         if (shouldResetSqlRuntime) {
+          cachedRuntimeConnection = null
           await sqlConnectionManager.close()
         }
 
@@ -1182,6 +1205,10 @@ app.whenReady().then(() => {
     sshTunnelService.on('status-changed', (status: SshTunnelStatus) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('ssh:status-changed', status)
+      }
+      if (!status.active) {
+        cachedRuntimeConnection = null
+        void sqlConnectionManager.close().catch(() => {})
       }
     })
 
