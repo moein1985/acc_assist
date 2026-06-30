@@ -7,3 +7,9 @@ out
 *.log*
 /index.html
 index.js
+
+# Temp/debug files
+tmp-*
+test_output*
+test-output*
+telemetry-test-output*
