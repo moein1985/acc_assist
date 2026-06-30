@@ -1413,6 +1413,201 @@
       "expectedMetricId": "inventory_reconciliation",
       "expectedGrain": "total",
       "expect": "any_rows"
+    },
+    {
+      "id": "s19-cash-flow-statement-a",
+      "prompt": "صورت جریان وجوه نقد سال ۱۴۰۲",
+      "expectedMetricId": "cash_flow_statement",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-cash-flow-statement-b",
+      "prompt": "جریان نقدینگی ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "cash_flow_statement",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-cash-flow-direct",
+      "prompt": "جریان نقد مستقیم سال ۱۴۰۲",
+      "expectedMetricId": "cash_flow_direct",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-derived-roe-1402",
+      "prompt": "بازده حقوق صاحبان سهام ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "roe"
+    },
+    {
+      "id": "s19-derived-roa-1402",
+      "prompt": "بازده دارایی‌ها ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "roa"
+    },
+    {
+      "id": "s19-derived-operating-margin-1402",
+      "prompt": "حاشیه سود عملیاتی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "operating_margin"
+    },
+    {
+      "id": "s19-derived-gross-margin-v2-1402",
+      "prompt": "حاشیه سود ناخالص ۱۴۰۲ چقدر است؟",
+      "expect": "derived_metric",
+      "expectedDerivedId": "gross_margin"
+    },
+    {
+      "id": "s19-derived-cash-ratio-1402",
+      "prompt": "نسبت نقد ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "cash_ratio"
+    },
+    {
+      "id": "s19-derived-asset-turnover-1402",
+      "prompt": "گردش دارایی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "asset_turnover"
+    },
+    {
+      "id": "s19-derived-inventory-turnover-1402",
+      "prompt": "نسبت گردش موجودی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "inventory_turnover_ratio"
+    },
+    {
+      "id": "s19-derived-receivables-turnover-1402",
+      "prompt": "نسبت گردش دریافتنی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "receivables_turnover"
+    },
+    {
+      "id": "s19-derived-payable-turnover-1402",
+      "prompt": "نسبت گردش پرداختنی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "accounts_payable_turnover"
+    },
+    {
+      "id": "s19-derived-interest-coverage-1402",
+      "prompt": "پوشش هزینه مالی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "interest_coverage"
+    },
+    {
+      "id": "s19-derived-debt-service-coverage-1402",
+      "prompt": "پوشش بدهی ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "debt_service_coverage"
+    },
+    {
+      "id": "s19-trend-analysis-a",
+      "prompt": "تحلیل روند فروش ۵ سال اخیر",
+      "expectedMetricId": "trend_analysis",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-trend-analysis-b",
+      "prompt": "تحلیل روند فروش چند ساله",
+      "expectedMetricId": "trend_analysis",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-trend-analysis-c",
+      "prompt": "تحلیل روند فروش سالانه",
+      "expectedMetricId": "trend_analysis",
+      "expectedGrain": "by_year",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-derived-growth-rate-a",
+      "prompt": "نرخ رشد فروش ۱۴۰۲",
+      "expect": "derived_metric",
+      "expectedDerivedId": "growth_rate"
+    },
+    {
+      "id": "s19-derived-growth-rate-b",
+      "prompt": "نرخ رشد فروش سال ۱۴۰۳",
+      "expect": "derived_metric",
+      "expectedDerivedId": "growth_rate"
+    },
+    {
+      "id": "s19-derived-cagr-a",
+      "prompt": "نرخ رشد مرکب سالانه فروش",
+      "expect": "derived_metric",
+      "expectedDerivedId": "cagr"
+    },
+    {
+      "id": "s19-derived-cagr-b",
+      "prompt": "نرخ رشد مرکب سالانه فروش ۳ سال",
+      "expect": "derived_metric",
+      "expectedDerivedId": "cagr"
+    },
+    {
+      "id": "s19-fixed-assets-register",
+      "prompt": "دارایی‌های ثابت سال ۱۴۰۲",
+      "expectedMetricId": "fixed_assets_register",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-depreciation-summary",
+      "prompt": "خلاصه استهلاک سال ۱۴۰۲",
+      "expectedMetricId": "depreciation_summary",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-cost-center-detailed",
+      "prompt": "تحلیل مرکز هزینه سال ۱۴۰۲",
+      "expectedMetricId": "cost_center_detailed",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-project-profitability",
+      "prompt": "سودآوری پروژه سال ۱۴۰۲",
+      "expectedMetricId": "project_profitability",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-cogs-detailed",
+      "prompt": "بهای تمام شده تفصیلی سال ۱۴۰۲",
+      "expectedMetricId": "cogs_detailed",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-bank-reconciliation",
+      "prompt": "تطبیق حساب بانکی سال ۱۴۰۲",
+      "expectedMetricId": "bank_reconciliation",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-vat-detailed-a",
+      "prompt": "تفکیک مالیات بر ارزش افزوده سال ۱۴۰۲",
+      "expectedMetricId": "vat_detailed",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-vat-detailed-b",
+      "prompt": "VAT تفصیلی فروش ۱۴۰۲",
+      "expectedMetricId": "vat_detailed",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s19-tax-liability-summary",
+      "prompt": "بدهی مالیاتی سال ۱۴۰۲",
+      "expectedMetricId": "tax_liability_summary",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "negative": [

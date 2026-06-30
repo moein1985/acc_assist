@@ -44,7 +44,7 @@
 
 ### S19.1 — Cash Flow Statement (indirect method)
 
-- [ ] **S19.1** متریک `cash_flow_statement` در `metricCatalog.ts`:
+- [x] **S19.1** متریک `cash_flow_statement` در `metricCatalog.ts`:
   - **منطق:** روش غیرمستقیم (indirect method) — از سود خالص شروع، تعدیل‌های غیرنقدی
   - **سه بخش:**
     1. فعالیت‌های عملیاتی: سود خالص + استهلاک ± تغییرات دارایی‌های جاری و بدهی‌های جاری
@@ -56,7 +56,7 @@
 
 ### S19.2 — Cash Flow از سندها (direct method fallback)
 
-- [ ] **S19.2** متریک `cash_flow_direct` — روش مستقیم از سندهای نقدی:
+- [x] **S19.2** متریک `cash_flow_direct` — روش مستقیم از سندهای نقدی:
   - **SQL:** فیلتر روی حساب‌های نقدی و بانکی (`a.Code LIKE '0101%' OR a.Code LIKE '0102%'`)
   - **تفکیک:** بر اساس نوع حساب طرف حساب (مشتری/تأمین‌کننده/بانک)
   - **معیار:** `typecheck:node` تمیز. مقایسه با indirect method در golden case.
@@ -67,7 +67,7 @@
 
 ### S19.3 — نسبت‌های سودآوری
 
-- [ ] **S19.3** متریک‌های مشتق جدید در `derivedCatalog.ts`:
+- [x] **S19.3** متریک‌های مشتق جدید در `derivedCatalog.ts`:
   - `roe` (Return on Equity) = سود خالص / حقوق صاحبان سهام
   - `roa` (Return on Assets) = سود خالص / کل دارایی‌ها
   - `operating_margin` = سود عملیاتی / درآمد عملیاتی
@@ -76,7 +76,7 @@
 
 ### S19.4 — نسبت‌های نقدی و گردش
 
-- [ ] **S19.4** متریک‌های مشتق:
+- [x] **S19.4** متریک‌های مشتق:
   - `cash_ratio` = (نقد + بانک) / بدهی‌های جاری
   - `asset_turnover` = درآمد / کل دارایی‌ها
   - `inventory_turnover` = بهای تمام‌شده / میانگین موجودی
@@ -86,7 +86,7 @@
 
 ### S19.5 — نسبت‌های پوشش
 
-- [ ] **S19.5** متریک‌های مشتق:
+- [x] **S19.5** متریک‌های مشتق:
   - `interest_coverage` = سود عملیاتی / هزینه مالی
   - `debt_service_coverage` = سود عملیاتی / (اقساط وام + هزینه مالی)
   - **نکته:** نیاز به شناسایی هزینه مالی از کدهای حساب (مثلاً `05xx` زیرگروه هزینه مالی)
@@ -98,7 +98,7 @@
 
 ### S19.6 — Trend Analysis metric
 
-- [ ] **S19.6** متریک `trend_analysis` در `metricCatalog.ts`:
+- [x] **S19.6** متریک `trend_analysis` در `metricCatalog.ts`:
   - **منطق:** اجرای کوئری برای چند سال متوالی، محاسبه نرخ رشد سالانه و میانگین
   - **grain:** `by_year` با ۳+ سال
   - **خروجی:** جدول سال، مقدار، نرخ رشد درصد، میانگین رشد
@@ -106,7 +106,7 @@
 
 ### S19.7 — Growth Rate derived metric
 
-- [ ] **S19.7** متریک مشتق `growth_rate`:
+- [x] **S19.7** متریک مشتق `growth_rate`:
   - **ورودی:** هر متریک پایه + سال مبنا + سال مقایسه
   - **فرمول:** ((مقدار سال جدید - مقدار سال مبنا) / مقدار سال مبنا) × ۱۰۰
   - **نکته:** قابل اعمال روی هر متریک (فروش، خرید، سود، هزینه و غیره)
@@ -114,7 +114,7 @@
 
 ### S19.8 — Compound Annual Growth Rate (CAGR)
 
-- [ ] **S19.8** متریک مشتق `cagr`:
+- [x] **S19.8** متریک مشتق `cagr`:
   - **فرمول:** (مقدار نهایی / مقدار اولیه)^(۱/تعداد سال‌ها) - ۱
   - **معیار:** `typecheck:node` تمیز. ۲ golden case.
 
@@ -124,7 +124,7 @@
 
 ### S19.9 — Fixed Assets Register
 
-- [ ] **S19.9** متریک `fixed_assets_register` در `metricCatalog.ts`:
+- [x] **S19.9** متریک `fixed_assets_register` در `metricCatalog.ts`:
   - **SQL:** فیلتر روی حساب‌های دارایی ثابت (`a.Code LIKE '0106%'` یا کشف خودکار)
   - **ستون‌ها:** حساب، مانده اول دوره، افزایشات، کاهشات، استهلاک، مانده پایان دوره
   - **grain:** `total`, `by_account`, `by_year`
@@ -132,7 +132,7 @@
 
 ### S19.10 — Depreciation Summary
 
-- [ ] **S19.10** متریک `depreciation_summary`:
+- [x] **S19.10** متریک `depreciation_summary`:
   - **SQL:** فیلتر روی حساب‌های استهلاک تجمعی (`a.Code LIKE '0106xx%'` با نوع متمایز)
   - **خروجی:** استهلاک دوره، استهلاک تجمعی، خالص دفتری
   - **معیار:** `typecheck:node` تمیز. golden case.
@@ -143,7 +143,7 @@
 
 ### S19.11 — Cost Center Detailed Analysis
 
-- [ ] **S19.11** متریک `cost_center_detailed` در `metricCatalog.ts`:
+- [x] **S19.11** متریک `cost_center_detailed` در `metricCatalog.ts`:
   - **SQL:** تجمیع هزینه‌ها بر اساس مرکز هزینه + نوع هزینه
   - **grain:** `by_cost_center`, `by_cost_type`, `by_month`
   - **خروجی:** ماتریکس مرکز هزینه × نوع هزینه
@@ -151,14 +151,14 @@
 
 ### S19.12 — Project Profitability
 
-- [ ] **S19.12** متریک `project_profitability`:
+- [x] **S19.12** متریک `project_profitability`:
   - **SQL:** درآمد پروژه - هزینه پروژه = سود/زیان
   - **grain:** `by_project`, `by_month`
   - **معیار:** `typecheck:node` تمیز. golden case.
 
 ### S19.13 — COGS Detailed
 
-- [ ] **S19.13** متریک `cogs_detailed`:
+- [x] **S19.13** متریک `cogs_detailed`:
   - **SQL:** بهای تمام‌شده کالای فروش‌رفته با تفکیک مواد، دستمزد، سربار
   - **grain:** `by_component` (materials/labor/overhead), `by_year`
   - **معیار:** `typecheck:node` تمیز. golden case.
@@ -169,7 +169,7 @@
 
 ### S19.14 — Bank Reconciliation
 
-- [ ] **S19.14** متریک `bank_reconciliation` در `metricCatalog.ts`:
+- [x] **S19.14** متریک `bank_reconciliation` در `metricCatalog.ts`:
   - **SQL:** مانده دفتری بانک (از سندها) در مقابل مانده بانک (از RPA.BankAccountBalance)
   - **خروجی:** مانده دفتری، مانده بانک، اختلاف، اقلام تطبیق‌نشده
   - **grain:** `by_account`, `by_month`
@@ -181,14 +181,14 @@
 
 ### S19.15 — VAT Detailed Breakdown
 
-- [ ] **S19.15** متریک `vat_detailed`:
+- [x] **S19.15** متریک `vat_detailed`:
   - **SQL:** فاکتورهای فروش + VAT تفصیلی (نرخ ۹٪، معاف، صفر)
   - **grain:** `by_rate`, `by_month`, `by_customer`
   - **معیار:** `typecheck:node` تمیز. golden case.
 
 ### S19.16 — Tax Liability Summary
 
-- [ ] **S19.16** متریک `tax_liability_summary`:
+- [x] **S19.16** متریک `tax_liability_summary`:
   - **SQL:** VAT پرداختنی - VAT قابل کسر = VAT علی‌الحساب/پرداختنی
   - **خروجی:** VAT فروش، VAT خرید، خالص قابل پرداخت
   - **معیار:** `typecheck:node` تمیز. golden case.
@@ -199,7 +199,7 @@
 
 ### S19.17 — Golden cases
 
-- [ ] **S19.17** golden cases جدید در `golden-metrics.json`:
+- [x] **S19.17** golden cases جدید در `golden-metrics.json`:
   - ۲ case برای cash_flow_statement
   - ۴ case برای نسبت‌های سودآوری
   - ۵ case برای نسبت‌های نقدی و گردش
@@ -215,13 +215,13 @@
   - ۱ case برای bank_reconciliation
   - ۲ case برای VAT detailed
   - ۱ case برای tax_liability_summary
-  - **مجموع:** ~۲۹ golden case جدید
-  - **معیار:** eval سبز. `typecheck:node` تمیز.
+  - **مجموع:** ۳۳ golden case جدید (۲۹ پایه + ۴ اضافی برای CAGR/growth)
+  - **معیار:** eval سبز ۲۵۱/۲۵۱ (۱۰۰%). `typecheck:node` تمیز.
 
 ### S19.18 — Full Gate
 
 - [ ] **S19.18** `typecheck:node` + `npm test` + `eval:metrics`:
-  - **معیار:** ۰ خطای typecheck. تمام unit test pass. eval ۲۴۶/۲۴۶ (۲۱۷ + ۲۹ جدید).
+  - **معیار:** ۰ خطای typecheck. تمام unit test pass. eval ۲۵۱/۲۵۱ (۲۱۸ + ۳۳ جدید).
 
 ### S19.19 — Build + asar-grep
 

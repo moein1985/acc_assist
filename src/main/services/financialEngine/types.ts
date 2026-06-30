@@ -60,6 +60,16 @@ export type MetricId =
   | 'sales_reconciliation'
   | 'purchase_reconciliation'
   | 'inventory_reconciliation'
+  | 'cash_flow_statement'
+  | 'cash_flow_direct'
+  | 'trend_analysis'
+  | 'fixed_assets_register'
+  | 'depreciation_summary'
+  | 'cost_center_detailed'
+  | 'cogs_detailed'
+  | 'bank_reconciliation'
+  | 'vat_detailed'
+  | 'tax_liability_summary'
 
 export type Grain =
   | 'total'
@@ -75,6 +85,11 @@ export type Grain =
   | 'by_age_bucket'
   | 'by_voucher'
   | 'by_direction'
+  | 'by_category'
+  | 'by_cost_type'
+  | 'by_project'
+  | 'by_rate'
+  | 'by_component'
 
 export type AggregateKind =
   | { kind: 'sum'; column: string }
@@ -492,7 +507,17 @@ export const metricPlanSchema = z.object({
     'period_comparison',
     'sales_reconciliation',
     'purchase_reconciliation',
-    'inventory_reconciliation'
+    'inventory_reconciliation',
+    'cash_flow_statement',
+    'cash_flow_direct',
+    'trend_analysis',
+    'fixed_assets_register',
+    'depreciation_summary',
+    'cost_center_detailed',
+    'cogs_detailed',
+    'bank_reconciliation',
+    'vat_detailed',
+    'tax_liability_summary'
   ]),
   grain: z.enum([
     'total',
@@ -504,7 +529,12 @@ export const metricPlanSchema = z.object({
     'by_customer',
     'by_age_bucket',
     'by_voucher',
-    'by_direction'
+    'by_direction',
+    'by_category',
+    'by_cost_type',
+    'by_project',
+    'by_rate',
+    'by_component'
   ]),
   filters: z.array(planFilterSchema),
   comparison: z

@@ -14,7 +14,7 @@ const catalog: MetricDefinition[] = [
     id: 'net_sales',
     titleFa: 'فروش خالص',
     anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت'],
-    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق', 'تحلیل', 'نرخ رشد', 'CAGR', 'VAT', 'ارزش افزوده'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -317,7 +317,7 @@ const catalog: MetricDefinition[] = [
     id: 'payables',
     titleFa: 'پرداختنی‌ها',
     anchors: ['پرداختنی', 'مانده پرداختنی', 'حساب‌های پرداختنی', 'طرف حساب پرداختنی', 'بدهی', 'بدهی‌ها'],
-    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی', 'VAT', 'ارزش افزوده'],
+    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی', 'VAT', 'ارزش افزوده', 'مالیاتی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -352,7 +352,7 @@ const catalog: MetricDefinition[] = [
     id: 'cashflow',
     titleFa: 'جریان نقد',
     anchors: ['جریان نقد', 'جریان وجه نقد', 'نقد و بانک', 'جریان نقدی'],
-    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی', 'مستقیم', 'وجوه نقد', 'صورت', 'نقدینگی'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -603,7 +603,7 @@ const catalog: MetricDefinition[] = [
     id: 'total_assets',
     titleFa: 'کل دارایی‌ها',
     anchors: ['کل دارایی', 'مجموع دارایی', 'دارایی کل', 'دارایی‌ها'],
-    excludeSignals: ['بدهی', 'حقوق', 'درآمد', 'هزینه', 'ترازنامه', 'آزمایشی'],
+    excludeSignals: ['بدهی', 'حقوق', 'درآمد', 'هزینه', 'ترازنامه', 'آزمایشی', 'ثابت'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -818,7 +818,7 @@ const catalog: MetricDefinition[] = [
     id: 'cogs',
     titleFa: 'بهای تمام‌شده کالای فروش‌رفته',
     anchors: ['بهای تمام شده', 'COGS', 'هزینه فروش', 'بهای کالای فروش‌رفته'],
-    excludeSignals: ['فروش خالص', 'درآمد', 'خرید'],
+    excludeSignals: ['فروش خالص', 'درآمد', 'خرید', 'تفصیلی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -2066,6 +2066,467 @@ const catalog: MetricDefinition[] = [
     dimensions: [],
     mandatoryFilters: [],
     dateColumn: 'ir.IssueDate'
+  },
+  // ── Phase 19: Advanced Financial Metrics ─────────────────────────────────
+  {
+    id: 'cash_flow_statement',
+    titleFa: 'صورت جریان وجوه نقد',
+    anchors: ['جریان وجوه نقد', 'صورت جریان نقد', 'cash flow', 'جریان نقدینگی', 'گردش نقد'],
+    excludeSignals: ['ترازنامه', 'سود و زیان', 'تراز آزمایشی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year', 'by_category'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_category',
+        labelColumn: "CASE WHEN a.Code LIKE '01%' THEN 'operating' WHEN a.Code LIKE '0106%' THEN 'investing' WHEN a.Code LIKE '02%' THEN 'financing' ELSE 'operating' END",
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'cash_flow_direct',
+    titleFa: 'جریان نقد مستقیم',
+    anchors: ['جریان نقد مستقیم', 'ورود خروج نقد', 'جریان نقد عملیاتی', 'نقد ورودی و خروجی'],
+    excludeSignals: ['ترازنامه', 'سود و زیان', 'تراز آزمایشی', 'صورت جریان وجوه نقد'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year', 'by_account'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_account',
+        join: {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '0101%' OR a.Code LIKE '0102%'", description: 'فقط حساب‌های نقدی و بانکی' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'trend_analysis',
+    titleFa: 'تحلیل روند',
+    anchors: ['تحلیل روند', 'روند چند ساله', 'روند سالانه'],
+    excludeSignals: ['ترازنامه', 'تراز آزمایشی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'src'
+    },
+    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    dateColumn: 'src.Date'
+  },
+  {
+    id: 'fixed_assets_register',
+    titleFa: 'ثبت دارایی‌های ثابت',
+    anchors: ['دارایی ثابت', 'ثبت دارایی ثابت', 'دارایی‌های ثابت', '固定资产', 'fixed assets'],
+    excludeSignals: ['استهلاک', 'دارایی جاری', 'کل دارایی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year', 'by_account'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_account',
+        join: {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '0106%'", description: 'فقط حساب‌های دارایی ثابت' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'depreciation_summary',
+    titleFa: 'خلاصه استهلاک',
+    anchors: ['استهلاک', 'استهلاک تجمعی', 'خلاصه استهلاک', 'depreciation', 'کارکرد دارایی'],
+    excludeSignals: ['دارایی ثابت', 'خرید دارایی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year', 'by_account'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Credit', creditColumn: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_account',
+        join: {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '0106%' AND a.Title LIKE N'%استهلاک%'", description: 'فقط حساب‌های استهلاک تجمعی' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'cost_center_detailed',
+    titleFa: 'تحلیل تفصیلی مرکز هزینه',
+    anchors: ['مرکز هزینه', 'تحلیل مرکز هزینه', 'هزینه به تفکیک مرکز', 'گزارش مرکز هزینه'],
+    excludeSignals: ['بودجه', 'پروژه'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_cost_center', 'by_cost_type', 'by_month'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Credit' },
+    dimensions: [
+      {
+        dimension: 'by_cost_center',
+        labelColumn: 'vi.CostCenterRef',
+        labelType: 'int'
+      },
+      {
+        dimension: 'by_cost_type',
+        join: {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_month',
+        labelColumn: 'MONTH(v.Date)',
+        labelType: 'int'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'cogs_detailed',
+    titleFa: 'بهای تمام‌شده تفصیلی',
+    anchors: ['بهای تمام شده تفصیلی', 'تفکیک بهای تمام شده', 'اجزای بهای تمام شده', 'مواد دستمزد سربار'],
+    excludeSignals: ['فروش', 'درآمد', 'خرید'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_component', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'sum', column: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_component',
+        labelColumn: "CASE WHEN a.Code LIKE '0501%' THEN 'materials' WHEN a.Code LIKE '0502%' THEN 'labor' WHEN a.Code LIKE '0503%' THEN 'overhead' ELSE 'other' END",
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'bank_reconciliation',
+    titleFa: 'تطبیق حساب بانکی',
+    anchors: ['تطبیق بانک', 'تطبیق حساب بانکی', 'اختلاف بانک', 'مانده بانک دفتری'],
+    excludeSignals: ['تطبیق فروش', 'تطبیق خرید', 'تطبیق موجودی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_account', 'by_month'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    dimensions: [
+      {
+        dimension: 'by_account',
+        join: {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        },
+        labelColumn: 'a.Title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_month',
+        labelColumn: 'MONTH(v.Date)',
+        labelType: 'int'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '0102%'", description: 'فقط حساب‌های بانکی' }
+    ],
+    dateColumn: 'v.Date'
+  },
+  {
+    id: 'vat_detailed',
+    titleFa: 'تفکیک مالیات بر ارزش افزوده',
+    anchors:['مالیات بر ارزش افزوده تفصیلی', 'VAT تفصیلی', 'تفکیک VAT', 'مالیات فروش تفصیلی', 'تفکیک مالیات بر ارزش افزوده', 'مالیات بر ارزش افزوده'],
+    excludeSignals: ['تطبیق', 'اختلاف'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_rate', 'by_month', 'by_customer'],
+    source: {
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv'
+    },
+    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    dimensions: [
+      {
+        dimension: 'by_rate',
+        labelColumn: "CASE WHEN inv.VatAmount > 0 THEN 'standard' ELSE 'exempt' END",
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_month',
+        labelColumn: 'MONTH(inv.IssueDate)',
+        labelType: 'int'
+      },
+      {
+        dimension: 'by_customer',
+        join: {
+          table: 'SLS.Customer',
+          alias: 'c',
+          on: { sourceColumn: 'CustomerRef', targetColumn: 'CustomerId' }
+        },
+        labelColumn: 'c.Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [],
+    dateColumn: 'inv.IssueDate'
+  },
+  {
+    id: 'tax_liability_summary',
+    titleFa: 'خلاصه بدهی مالیاتی',
+    anchors: ['بدهی مالیاتی', 'مالیات پرداختنی', 'خالص مالیات', 'مالیات علی‌الحساب', 'VAT پرداختنی'],
+    excludeSignals: ['تطبیق', 'اختلاف', 'تفصیلی'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: {
+      primaryTable: 'ACC.VoucherItem',
+      alias: 'vi',
+      requiredJoins: [
+        {
+          table: 'ACC.Voucher',
+          alias: 'v',
+          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+        }
+      ]
+    },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Credit', creditColumn: 'Debit' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.Code LIKE '02%' AND a.Title LIKE N'%مالیات%'", description: 'فقط حساب‌های بدهی مالیاتی' }
+    ],
+    dateColumn: 'v.Date'
   }
 ]
 

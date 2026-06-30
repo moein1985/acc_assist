@@ -241,14 +241,14 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
 | ۱۶ | ✅ کامل (به‌جز field test) | اتصال از راه دور با SSH: auto-connect, auto-reconnect, Connection Wizard, host key verification, credential encryption, health indicator, diagnostic panel, mapping wizard |
 | ۱۷ | ✅ کامل | اصلاحات معماری: backpressure, pool cleanup, DIAG log gating, runtime connection cache, double-read fix, schema failure UI notification |
-| ۱۸ | ✅ کامل (به‌جز S18.8/S18.12) | Python Sandbox: embedded Python 3.12, AST validation, template engine, IPC handlers, ۲۲ unit test, ۱۰ golden case, field test ۱۲/۱۲ |
-| ۱۹ | 📋 برنامه‌ریزی‌شده | متریک‌های مالی پیشرفته: جریان وجوه نقد, ROE/ROA, تحلیل روند, دارایی ثابت, بهای تمام‌شده |
+| ۱۸ | ✅ کامل (به‌جز S18.8/S18.12) | Python Sandbox: embedded Python 3.12, AST validation, template engine, IPC handlers, ۲۲ unit test, ۱۰ golden case, field test ۱۲/۱۲ (SSH) + ۱۰/۱۲ (direct install) |
+| ۱۹ | � در حال پیاده‌سازی (S19.1-S19.17 ✅) | متریک‌های مالی پیشرفته: جریان وجوه نقد, ROE/ROA, تحلیل روند, دارایی ثابت, بهای تمام‌شده — ۳۳ golden case جدید، eval ۲۵۱/۲۵۱ |
 | ۲۰ | 📋 برنامه‌ریزی‌شده | Planner هوشمند: multi-step, حافظه v2, smart suggestions, anomaly detection |
 | ۲۱ | 📋 برنامه‌ریزی‌شده | UX و گزارش‌گیری: SQL transparency, confidence score, نمودار تعاملی, گزارش زمان‌بندی, چندزبانه |
 
-**آمار فعلی (فاز ۱۸):**
-- ۵۸ متریک (پایه + مشتق + حسابدار)
-- ۲۲۱ golden cases (100% سبز)
+**آمار فعلی (فاز ۱۹ در حال اجرا):**
+- ۷۳ متریک (۵۸ قبلی + ۱۵ پایه جدید + ۱۱ مشتق جدید)
+- ۲۵۱ golden cases (100% سبز)
 - ۴۳۸ unit test + integration test
 - typecheck: ۰ خطای جدید
 - Python 3.12 embedded + sandbox امن
@@ -264,7 +264,8 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 **کارهای باقی‌مانده:**
 - فاز ۱۸: S18.8 (planner few-shot) و S18.12 (renderer UI component) — اولویت متوسط
 - shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
-- فاز ۱۹-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
+- فاز ۱۹: S19.18-S19.22 باقی‌مانده (full gate, build, field test, witness, OVERVIEW)
+- فاز ۲۰-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
 
 ---
 

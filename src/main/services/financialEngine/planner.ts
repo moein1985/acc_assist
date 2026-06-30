@@ -424,6 +424,16 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     grain = 'by_month'
   }
 
+  // S19.6: trend_analysis — "روند" with "چند سال" or "سالانه" or "اخیر" → by_year
+  if (
+    grain === 'total' &&
+    def.id === 'trend_analysis' &&
+    def.grainSupported.includes('by_year') &&
+    /روند|چند\s*سال|سالانه|اخیر/u.test(normalized)
+  ) {
+    grain = 'by_year'
+  }
+
   if (comparison) {
     grain = 'total'
   }

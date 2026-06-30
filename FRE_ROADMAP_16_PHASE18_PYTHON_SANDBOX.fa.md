@@ -339,4 +339,9 @@ S18.17 — Field test:
   - tests/unit/pythonSandbox.test.ts (جدید — ۲۲ تست)
   - scripts/fixtures/golden-metrics.json (۱۰ pythonOutput cases)
   - scripts/ops/goldenMetricEval.ts (ارزیابی pythonOutput)
+  - scripts/ops/install-python-deps.ps1 (نصب کتابخانه‌های Python)
+  - scripts/ops/field-test-s18.ps1 (تست میدانی — SSH tunnel)
+  - scripts/ops/field-test-s18-remote.ps1 (تست میدانی — نصب مستقیم روی سرور)
+  - FRE_ROADMAP_16_PHASE18_PYTHON_SANDBOX.fa.md (چک‌لیست + شاهد)
+  - FRE_ROADMAP_00_OVERVIEW.fa.md (وضعیت فاز ۱۸)
 ```
