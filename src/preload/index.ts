@@ -167,6 +167,12 @@ const api = {
     checkForUpdates: (): Promise<IpcResponse<ReleaseUpdateStatus>> => ipcRenderer.invoke('release:check-updates'),
     installDownloadedUpdate: (): Promise<IpcResponse<boolean>> =>
       ipcRenderer.invoke('release:install-downloaded-update')
+  },
+  python: {
+    status: (): Promise<IpcResponse<{ available: boolean; version: string | null }>> =>
+      ipcRenderer.invoke('python:status'),
+    readFile: (filePath: string): Promise<IpcResponse<string>> =>
+      ipcRenderer.invoke('python:read-file', filePath)
   }
 }
 

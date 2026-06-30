@@ -7,7 +7,7 @@
  * @see FRE_ROADMAP_00_OVERVIEW.fa.md
  */
 
-import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId, MetricDefinition } from './types'
+import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId, MetricDefinition, PythonOutputPlan } from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { routeMetric } from './router'
 import { routeDerivedMetric } from './router'
@@ -36,6 +36,15 @@ export interface EngineDeps extends CompilerDeps {
 export interface EngineRunResult {
   verdict: EngineVerdict
   result: EngineResult | null
+  pythonOutput?: PythonOutputResult | null
+}
+
+export interface PythonOutputResult {
+  success: boolean
+  outputFiles: string[]
+  outputData?: unknown
+  error?: string
+  outputType: string
 }
 
 export interface MultiMetricResult {
@@ -52,14 +61,15 @@ export class FinancialEngine {
   async run(
     prompt: string,
     signal?: AbortSignal,
-    lastPlan?: MetricPlan | null
+    lastPlan?: MetricPlan | null,
+    pythonPlan?: PythonOutputPlan | null
   ): Promise<EngineRunOutcome> {
     // S14.40: Conversational drill-down — if prompt is a follow-up and we have a lastPlan,
     // build a plan that inherits metricId and filters from the previous turn
     if (lastPlan && isDrillDownPrompt(prompt)) {
       const followUpPlan = buildFollowUpPlan(prompt, lastPlan)
       if (followUpPlan) {
-        return this.runPlan(followUpPlan, signal)
+        return this.runPlan(followUpPlan, signal, pythonPlan)
       }
     }
 
@@ -72,7 +82,7 @@ export class FinancialEngine {
     // Step 0: Try multi-metric plan first
     const multiPlan = buildDeterministicMultiPlan(prompt)
     if (multiPlan) {
-      return this.runMultiMetric(multiPlan, signal)
+      return this.runMultiMetric(multiPlan, signal, pythonPlan)
     }
 
     const route = routeMetric(prompt, this.deps.softwareId)
@@ -81,7 +91,7 @@ export class FinancialEngine {
     if (route.metricId && route.confidence >= 0.7) {
       const plan = buildDeterministicPlan(prompt, route.metricId)
       if (plan) {
-        return this.runPlan(plan, signal)
+        return this.runPlan(plan, signal, pythonPlan)
       }
     }
 
@@ -91,11 +101,11 @@ export class FinancialEngine {
 
       // MultiMetricPlan from model
       if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        return this.runMultiMetric(modelResult.multiPlan, signal)
+        return this.runMultiMetric(modelResult.multiPlan, signal, pythonPlan)
       }
 
       if (modelResult.plan && modelResult.plan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        return this.runPlan(modelResult.plan, signal)
+        return this.runPlan(modelResult.plan, signal, pythonPlan)
       }
 
       // Step 3: Low confidence or invalid plan → clarify
@@ -188,12 +198,12 @@ export class FinancialEngine {
     }
   }
 
-  async runMultiMetric(plan: MultiMetricPlan, signal?: AbortSignal): Promise<MultiMetricResult> {
+  async runMultiMetric(plan: MultiMetricPlan, signal?: AbortSignal, pythonPlan?: PythonOutputPlan | null): Promise<MultiMetricResult> {
     const results: EngineResult[] = []
     const verdicts: EngineVerdict[] = []
 
     for (const subPlan of plan.plans) {
-      const runResult = await this.runPlan(subPlan, signal)
+      const runResult = await this.runPlan(subPlan, signal, pythonPlan)
       if (runResult.result) {
         results.push(runResult.result)
       }
@@ -203,7 +213,7 @@ export class FinancialEngine {
     return { results, verdicts, plan }
   }
 
-  async runPlan(plan: MetricPlan, signal?: AbortSignal): Promise<EngineRunResult> {
+  async runPlan(plan: MetricPlan, signal?: AbortSignal, pythonPlan?: PythonOutputPlan | null): Promise<EngineRunResult> {
     const def = findMetricById(plan.metricId)
     if (!def) {
       return {
@@ -302,7 +312,14 @@ export class FinancialEngine {
 
       const finalResult: EngineResult = { rows, plan, compiled }
       const finalVerdict = verifyResult(finalResult, plan, def)
-      return { verdict: finalVerdict, result: finalResult }
+
+      // S18.10: If PythonOutputPlan is enabled, run Python sandbox on the results
+      let pythonOutput: PythonOutputResult | null = null
+      if (pythonPlan && pythonPlan.enabled && finalVerdict.ok) {
+        pythonOutput = await this.runPythonOutput(pythonPlan, plan.metricId, rows, signal)
+      }
+
+      return { verdict: finalVerdict, result: finalResult, pythonOutput: pythonOutput }
     } catch (error) {
       void error
       return {
@@ -311,6 +328,71 @@ export class FinancialEngine {
       }
     } finally {
       clearTimeout(timeoutId)
+    }
+  }
+
+  // S18.10 — Run Python sandbox on SQL results to generate chart/excel/pdf
+  private async runPythonOutput(
+    plan: PythonOutputPlan,
+    metricId: string,
+    rows: SqlQueryRow[],
+    signal?: AbortSignal
+  ): Promise<PythonOutputResult | null> {
+    try {
+      // Lazy import to avoid loading PythonRunnerService in test environments
+      const { PythonRunnerService, validatePythonCode, runPythonCode } = await import('../pythonRunnerService')
+      const { generatePythonCode } = await import('./pythonTemplates')
+
+      const runner = new PythonRunnerService()
+      if (!runner.isAvailable()) {
+        return null
+      }
+
+      const code = generatePythonCode(plan, metricId)
+
+      // Validate code via AST
+      const validationError = await validatePythonCode(
+        runner.getPythonPath(),
+        runner.getValidatorPath(),
+        code
+      )
+      if (validationError) {
+        return {
+          success: false,
+          outputFiles: [],
+          error: `Code validation failed: ${validationError}`,
+          outputType: plan.outputType
+        }
+      }
+
+      // Execute in sandbox
+      const result = await runPythonCode(
+        runner.getPythonPath(),
+        runner.getWrapperPath(),
+        code,
+        { rows, plan: { title: plan.title, outputType: plan.outputType } },
+        { timeoutMs: 30_000 }
+      )
+
+      if (signal?.aborted) {
+        return null
+      }
+
+      return {
+        success: result.success,
+        outputFiles: result.outputFiles,
+        outputData: result.outputData,
+        error: result.error,
+        outputType: plan.outputType
+      }
+    } catch (error) {
+      void error
+      return {
+        success: false,
+        outputFiles: [],
+        error: `Python execution error: ${String(error)}`,
+        outputType: plan.outputType
+      }
     }
   }
 }

@@ -25,6 +25,10 @@ files:
   - '!dist_*/**/*'
   - '!dist_v3_extracted/**/*'
   - '!dist/**/*'
+extraResources:
+  - from: resources/python
+    to: python
+    filter: ["**/*"]
 asarUnpack:
   - resources/**
 win:

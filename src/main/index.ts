@@ -1137,6 +1137,34 @@ function registerIpcHandlers(): void {
       return failWithContext(error, 'release:install-downloaded-update')
     }
   })
+
+  // S18.11 — Python sandbox IPC handlers
+  ipcMain.handle('python:status', async (): Promise<IpcResponse<{ available: boolean; version: string | null }>> => {
+    try {
+      const { PythonRunnerService } = await import('./services/pythonRunnerService')
+      const runner = new PythonRunnerService()
+      return ok({
+        available: runner.isAvailable(),
+        version: runner.getVersion()
+      })
+    } catch (error) {
+      return failWithContext(error, 'python:status')
+    }
+  })
+
+  ipcMain.handle(
+    'python:read-file',
+    async (_, filePath: string): Promise<IpcResponse<string>> => {
+      try {
+        const { readFile } = await import('node:fs/promises')
+        const buffer = await readFile(filePath)
+        const base64 = buffer.toString('base64')
+        return ok(base64)
+      } catch (error) {
+        return failWithContext(error, 'python:read-file')
+      }
+    }
+  )
 }
 
 async function cleanupServices(): Promise<void> {

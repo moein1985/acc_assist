@@ -58,11 +58,20 @@ interface GoldenConversationCase {
   steps: GoldenConversationStep[]
 }
 
+interface GoldenPythonOutputCase {
+  id: string
+  prompt: string
+  expectedOutputType: string
+  expectedChartType?: string
+  expectedCodeContains: string[]
+}
+
 interface GoldenFixture {
   metrics: GoldenMetricCase[]
   negative: GoldenNegativeCase[]
   clarify: GoldenClarifyCase[]
   conversations?: GoldenConversationCase[]
+  pythonOutput?: GoldenPythonOutputCase[]
 }
 
 interface CaseResult {
@@ -656,6 +665,42 @@ async function main(): Promise<void> {
           : `FAIL: ${result.reason}`
         console.log(`  ${status} ${result.id}: ${detail}`)
       }
+    }
+  }
+
+  // Python output cases (S18.14)
+  if (fixture.pythonOutput && fixture.pythonOutput.length > 0) {
+    console.log('\n── Python Output Cases (S18.14) ──')
+    const { generatePythonCode } = await import('../../src/main/services/financialEngine/pythonTemplates')
+    for (const case_ of fixture.pythonOutput) {
+      const plan = {
+        enabled: true,
+        outputType: case_.expectedOutputType as 'chart' | 'excel' | 'pdf' | 'csv' | 'html' | 'table',
+        chartType: case_.expectedChartType as 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'heatmap' | undefined,
+        title: 'Test',
+        xAxis: 'x',
+        yAxis: 'y'
+      }
+      const code = generatePythonCode(plan, 'net_sales')
+      let passed = true
+      const missing: string[] = []
+      for (const expected of case_.expectedCodeContains) {
+        if (!code.includes(expected)) {
+          passed = false
+          missing.push(expected)
+        }
+      }
+      results.push({
+        id: case_.id,
+        prompt: case_.prompt,
+        passed,
+        reason: passed ? undefined : `missing code fragments: ${missing.join(', ')}`
+      })
+      const status = passed ? '✓' : '✗'
+      const detail = passed
+        ? `outputType=${case_.expectedOutputType}`
+        : `FAIL: missing ${missing.join(', ')}`
+      console.log(`  ${status} ${case_.id}: ${detail}`)
     }
   }
 

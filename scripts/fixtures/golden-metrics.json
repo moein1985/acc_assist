@@ -1539,5 +1539,72 @@
         }
       ]
     }
+  ],
+  "pythonOutput": [
+    {
+      "id": "s18-python-chart-line",
+      "prompt": "نمودار روند فروش ۱۴۰۲",
+      "expectedOutputType": "chart",
+      "expectedChartType": "line",
+      "expectedCodeContains": ["matplotlib", "ax.plot", "chart.png"]
+    },
+    {
+      "id": "s18-python-chart-bar",
+      "prompt": "نمودار میله‌ای فروش ماهانه ۱۴۰۲",
+      "expectedOutputType": "chart",
+      "expectedChartType": "bar",
+      "expectedCodeContains": ["matplotlib", "ax.bar", "chart.png"]
+    },
+    {
+      "id": "s18-python-chart-pie",
+      "prompt": "نمودار دایره‌ای سهم فروش",
+      "expectedOutputType": "chart",
+      "expectedChartType": "pie",
+      "expectedCodeContains": ["matplotlib", "ax.pie", "chart.png"]
+    },
+    {
+      "id": "s18-python-excel",
+      "prompt": "خروجی اکسل فروش ۱۴۰۲",
+      "expectedOutputType": "excel",
+      "expectedCodeContains": ["to_excel", "report.xlsx"]
+    },
+    {
+      "id": "s18-python-pdf",
+      "prompt": "گزارش PDF فروش",
+      "expectedOutputType": "pdf",
+      "expectedCodeContains": ["reportlab", "report.pdf"]
+    },
+    {
+      "id": "s18-python-csv",
+      "prompt": "خروجی CSV فروش",
+      "expectedOutputType": "csv",
+      "expectedCodeContains": ["to_csv", "report.csv"]
+    },
+    {
+      "id": "s18-python-html",
+      "prompt": "گزارش HTML فروش",
+      "expectedOutputType": "html",
+      "expectedCodeContains": ["to_html", "report.html"]
+    },
+    {
+      "id": "s18-python-table",
+      "prompt": "جدول فروش ۱۴۰۲",
+      "expectedOutputType": "table",
+      "expectedCodeContains": ["to_dict", "_output_data"]
+    },
+    {
+      "id": "s18-python-chart-area",
+      "prompt": "نمودار سطحی روند فروش",
+      "expectedOutputType": "chart",
+      "expectedChartType": "area",
+      "expectedCodeContains": ["matplotlib", "fill_between", "chart.png"]
+    },
+    {
+      "id": "s18-python-chart-scatter",
+      "prompt": "نمودار پراکندگی فروش و خرید",
+      "expectedOutputType": "chart",
+      "expectedChartType": "scatter",
+      "expectedCodeContains": ["matplotlib", "ax.scatter", "chart.png"]
+    }
   ]
 }
