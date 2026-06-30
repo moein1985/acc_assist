@@ -236,11 +236,12 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۴ | ✅ کامل | ابزارهای حسابدار, drill-down مکالمه‌ای, ۲۱۱ golden cases |
 | ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
 | ۱۶ | ✅ کامل (به‌جز field test) | اتصال از راه دور با SSH: auto-connect, auto-reconnect, Connection Wizard, host key verification, credential encryption, health indicator, diagnostic panel, mapping wizard |
+| ۱۷ | ✅ کامل | اصلاحات معماری: backpressure, pool cleanup, DIAG log gating, runtime connection cache, double-read fix, schema failure UI notification |
 
 **آمار نهایی:**
 - ۵۸ متریک (پایه + مشتق + حسابدار)
 - ۲۱۱ golden cases (100% سبز)
-- ۳۲۷ unit test + ۵۰ integration test
+- ۳۶۱ unit test + ۵۵ integration test
 - typecheck: ۰ خطا
 - ۴ مارکر asar: BLIND_DISCOVERY, SCHEMA_ADAPTER_AUTO, SEMANTIC_MAPPING, MULTI_SOFTWARE_AUTO
 

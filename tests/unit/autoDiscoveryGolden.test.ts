@@ -533,7 +533,7 @@ test('S15.27: Compiler — account classification uses AccountCode from mock sch
   const adapter = buildMockAdapter()
   const filter = adapter.getAccountClassification(AccountCategory.liability)
   assert.ok(filter.includes('AccountCode'), 'Filter should use AccountCode column')
-  assert.ok(filter.includes("'2'"), 'Filter should use prefix 2 for liabilities')
+  assert.ok(filter.includes("'02'"), 'Filter should use prefix 02 for liabilities')
 })
 
 // --- 3 cases for confidence levels (high/medium/low) ---

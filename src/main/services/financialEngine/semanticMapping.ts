@@ -618,18 +618,18 @@ class DiscoveredAdapter implements SchemaAdapter {
   }
 
   getAccountClassification(category: string): string {
-    // Default: use code prefix (1=assets, 2=liabilities, 3=equity, 4=revenue, 5=expenses)
+    // Default: use 2-digit code prefix (01=assets, 02=liabilities, 03=equity, 04=revenue, 05=expenses)
     const prefixMap: Record<string, string> = {
-      asset: '1',
-      liability: '2',
-      equity: '3',
-      revenue: '4',
-      expense: '5',
+      asset: '01',
+      liability: '02',
+      equity: '03',
+      revenue: '04',
+      expense: '05',
     }
     const prefix = prefixMap[category]
     if (!prefix) return '1=1'
     const codeCol = this.columns.account?.codeColumn?.column ?? 'Code'
-    return "SUBSTRING(a." + codeCol + ", 1, 1) = '" + prefix + "'"
+    return "SUBSTRING(a." + codeCol + ", 1, 2) = '" + prefix + "'"
   }
 
   getPersianTextFoldExpression(column: string): string {

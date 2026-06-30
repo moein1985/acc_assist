@@ -542,7 +542,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '1%' OR a.Code LIKE '2%' OR a.Code LIKE '3%'", description: 'فقط حساب‌های دارایی، بدهی و حقوق صاحبان سهام' }
+      { sql: "a.Code LIKE '01%' OR a.Code LIKE '02%' OR a.Code LIKE '03%'", description: 'فقط حساب‌های دارایی، بدهی و حقوق صاحبان سهام' }
     ],
     dateColumn: 'v.Date'
   },
@@ -595,7 +595,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'فقط حساب‌های درآمد و هزینه' }
+      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'فقط حساب‌های درآمد و هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -638,7 +638,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '1%'", description: 'فقط حساب‌های دارایی' }
+      { sql: "a.Code LIKE '01%'", description: 'فقط حساب‌های دارایی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -681,7 +681,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '2%'", description: 'فقط حساب‌های بدهی' }
+      { sql: "a.Code LIKE '02%'", description: 'فقط حساب‌های بدهی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -724,7 +724,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '3%'", description: 'فقط حساب‌های حقوق صاحبان سهام' }
+      { sql: "a.Code LIKE '03%'", description: 'فقط حساب‌های حقوق صاحبان سهام' }
     ],
     dateColumn: 'v.Date'
   },
@@ -767,7 +767,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '4%'", description: 'فقط حساب‌های درآمد' }
+      { sql: "a.Code LIKE '04%'", description: 'فقط حساب‌های درآمد' }
     ],
     dateColumn: 'v.Date'
   },
@@ -810,7 +810,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1025,7 +1025,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "(a.Code LIKE '4%' OR a.Code LIKE '5%')", description: 'درآمد و هزینه‌ها' }
+      { sql: "(a.Code LIKE '04%' OR a.Code LIKE '05%')", description: 'درآمد و هزینه‌ها' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1172,7 +1172,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' },
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' },
       { sql: 'vi.DLRef IS NOT NULL', description: 'فقط آیتم‌های دارای تفصیلی' },
       { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
       { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
@@ -1282,7 +1282,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'درآمد و هزینه‌ها' },
+      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'درآمد و هزینه‌ها' },
       { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' }
     ],
     dateColumn: 'v.Date'
@@ -1341,7 +1341,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' },
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' },
       { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
       { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
     ],
@@ -1386,7 +1386,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '5%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1429,7 +1429,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '4%' OR a.Code LIKE '5%'", description: 'درآمد و هزینه‌ها' }
+      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'درآمد و هزینه‌ها' }
     ],
     dateColumn: 'v.Date'
   },

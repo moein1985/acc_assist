@@ -459,6 +459,7 @@
   - **شاهد:** `requestId`‌ها + screenshot از UI در «شاهد S16»
   - **معیارِ پذیرش:** ۱۰/۱۰ verdict=ok. auto-reconnect کار کند.
   - **نتیجه:** ۴/۱۲ verdict=ok (PARTIAL). تونل SSH برقرار شد و کوئری‌های SQL از طریق تونل پاس شدند (q2, q7, q12). ناپایداری بین کوئری‌ها (۵ خطای اتصال DB). auto-connect در startup کار کرد.
+  - **re-test پس از فاز ۱۷ (۱۴۰۵/۰۴/۱۰):** ۱۲/۱۲ verdict=ok (۱۰۰٪). تغییرات فاز ۱۷ (backpressure, pool cleanup, connection cache) پایداری تونل را کاملاً بهبود داد. تمام ۱۲ سؤال بدون مشکل اتصال پاس شدند. RequestIds: ssh-1782804436936 تا ssh-1782804569366.
 
 ### S16.23 — field test از راه دور (Remote Field Test)
 

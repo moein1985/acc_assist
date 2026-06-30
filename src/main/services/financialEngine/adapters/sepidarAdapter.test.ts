@@ -111,27 +111,27 @@ test('SepidarAdapter', (t) => {
 
   t.test('getAccountClassification - return correct filter for assets', () => {
     const filter = adapter.getAccountClassification(AccountCategory.asset)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 1) = '1'")
+    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '01'")
   })
 
   t.test('getAccountClassification - return correct filter for liabilities', () => {
     const filter = adapter.getAccountClassification(AccountCategory.liability)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 1) = '2'")
+    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '02'")
   })
 
   t.test('getAccountClassification - return correct filter for equity', () => {
     const filter = adapter.getAccountClassification(AccountCategory.equity)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 1) = '3'")
+    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '03'")
   })
 
   t.test('getAccountClassification - return correct filter for revenue', () => {
     const filter = adapter.getAccountClassification(AccountCategory.revenue)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 1) = '4'")
+    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '04'")
   })
 
   t.test('getAccountClassification - return correct filter for expenses', () => {
     const filter = adapter.getAccountClassification(AccountCategory.expense)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 1) = '5'")
+    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '05'")
   })
 
   t.test('getPersianTextFoldExpression - return COLLATE expression', () => {

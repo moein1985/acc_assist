@@ -237,14 +237,14 @@ export class SepidarAdapter implements SchemaAdapter {
   }
 
   getAccountClassification(category: AccountCategory): string {
-    // Sepidar uses account code prefixes:
-    // 1% = assets, 2% = liabilities, 3% = equity, 4% = revenue, 5% = expenses
+    // Sepidar uses 2-digit account code prefixes:
+    // 01 = assets, 02 = liabilities, 03 = equity, 04 = revenue, 05 = expenses
     const prefixMap: Record<AccountCategory, string> = {
-      [AccountCategory.asset]: "SUBSTRING(a.Code, 1, 1) = '1'",
-      [AccountCategory.liability]: "SUBSTRING(a.Code, 1, 1) = '2'",
-      [AccountCategory.equity]: "SUBSTRING(a.Code, 1, 1) = '3'",
-      [AccountCategory.revenue]: "SUBSTRING(a.Code, 1, 1) = '4'",
-      [AccountCategory.expense]: "SUBSTRING(a.Code, 1, 1) = '5'"
+      [AccountCategory.asset]: "SUBSTRING(a.Code, 1, 2) = '01'",
+      [AccountCategory.liability]: "SUBSTRING(a.Code, 1, 2) = '02'",
+      [AccountCategory.equity]: "SUBSTRING(a.Code, 1, 2) = '03'",
+      [AccountCategory.revenue]: "SUBSTRING(a.Code, 1, 2) = '04'",
+      [AccountCategory.expense]: "SUBSTRING(a.Code, 1, 2) = '05'"
     }
     return prefixMap[category]
   }
