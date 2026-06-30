@@ -257,6 +257,21 @@ export interface DiscoveredAdapterEntry {
 
 export type SoftwareMode = 'sepidar' | 'auto'
 
+export interface ScheduledReport {
+  id: string
+  name: string
+  prompt: string
+  schedule: {
+    frequency: 'daily' | 'weekly' | 'monthly'
+    dayOfWeek?: number
+    dayOfMonth?: number
+    time: string
+  }
+  outputFormat: 'text' | 'chart' | 'excel' | 'pdf'
+  delivery: 'save' | 'open' | 'notify'
+  enabled: boolean
+}
+
 export interface AppSettings {
   gemini: GeminiConfig
   sql: SqlConnectionConfig
@@ -273,6 +288,7 @@ export interface AppSettings {
   discoveredAdapters?: Record<string, DiscoveredAdapterEntry>
   softwareMode?: SoftwareMode
   sshHostKeys?: Record<string, string>
+  scheduledReports?: ScheduledReport[]
 }
 
 export interface SqlParameter {
@@ -418,6 +434,27 @@ export interface AgentCancelMessageResult {
   cancelled: boolean
 }
 
+export interface ResponseEvidenceEntry {
+  metric: string
+  value: string | number
+  sqlColumn: string
+  rowCount: number
+}
+
+export interface ResponseMetadata {
+  sql?: string
+  evidence?: ResponseEvidenceEntry[]
+  confidenceScore?: number
+  confidenceFactors?: {
+    sqlRowsReturned: boolean
+    evidenceMatch: boolean
+    anomalyDetected: boolean
+    planConfidence: 'high' | 'medium' | 'low'
+    fallbackUsed: boolean
+  }
+  metricId?: string
+}
+
 export interface AgentSendMessageResult {
   history: GeminiMessage[]
   finalText: string
@@ -425,6 +462,8 @@ export interface AgentSendMessageResult {
   toolCallsUsed: number
   /** S20.8 — Smart suggestion chips to display after the response */
   suggestions?: string[]
+  /** S21.1-S21.3 — Response metadata for SQL transparency, confidence, evidence */
+  responseMetadata?: ResponseMetadata
 }
 
 export type AgentProgressPhase =

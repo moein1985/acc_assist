@@ -13,8 +13,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'net_sales',
     titleFa: 'فروش خالص',
-    anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت'],
-    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق', 'تحلیل', 'نرخ رشد', 'CAGR', 'VAT', 'ارزش افزوده'],
+    anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت', 'sales', 'revenue', 'total sales', 'net sales'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق', 'تحلیل', 'نرخ رشد', 'CAGR', 'VAT', 'ارزش افزوده', 'purchase', 'expense', 'cost'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -47,8 +47,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'purchases',
     titleFa: 'خرید',
-    anchors: ['خرید', 'مبلغ خرید', 'خرید کالا'],
-    excludeSignals: ['فروش', 'درآمد', 'تطبیق', 'اختلاف'],
+    anchors: ['خرید', 'مبلغ خرید', 'خرید کالا', 'purchases', 'buy', 'procurement'],
+    excludeSignals: ['فروش', 'درآمد', 'تطبیق', 'اختلاف', 'sales', 'revenue'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -71,8 +71,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'account_balance',
     titleFa: 'مانده حساب',
-    anchors: ['مانده حساب', 'مانده سرفصل', 'بدهکار بستانکار حساب'],
-    excludeSignals: ['تراز', 'حساب‌ها', 'بانک', 'صندوق', 'کش', 'نقد'],
+    anchors: ['مانده حساب', 'مانده سرفصل', 'بدهکار بستانکار حساب', 'account balance', 'balance', 'ledger balance'],
+    excludeSignals: ['تراز', 'حساب‌ها', 'بانک', 'صندوق', 'کش', 'نقد', 'balance sheet'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_account'],
     source: {
@@ -117,7 +117,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'trial_balance',
     titleFa: 'تراز آزمایشی',
-    anchors: ['تراز آزمایشی', 'بدهکار بستانکار حساب‌ها', 'تراز'],
+    anchors: ['تراز آزمایشی', 'بدهکار بستانکار حساب‌ها', 'تراز', 'trial balance', 'ledger summary', 'balance sheet'],
     excludeSignals: ['ترازنامه', 'تراز نشده', 'تراز ندارن', 'تراز ندارند', 'ترازنشده', 'تراز نیستند', 'تراز نشده\u200cاند', 'ناتراز', 'می\u200cبندد', 'اختلاف تراز', 'بررسی تراز'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_account'],
@@ -167,7 +167,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cash_bank_balance',
     titleFa: 'مانده نقد و بانک',
-    anchors: ['مانده نقد', 'مانده بانک', 'مانده صندوق', 'مانده کش', 'مانده حساب بانکی'],
+    anchors: ['مانده نقد', 'مانده بانک', 'مانده صندوق', 'مانده کش', 'مانده حساب بانکی', 'cash balance', 'bank balance', 'cash and bank'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -731,7 +731,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'total_revenue',
     titleFa: 'کل درآمد‌ها',
-    anchors: ['کل درآمد', 'مجموع درآمد', 'درآمد کل', 'درآمدی'],
+    anchors: ['کل درآمد', 'مجموع درآمد', 'درآمد کل', 'درآمدی', 'total revenue', 'total income'],
     excludeSignals: ['هزینه', 'دارایی', 'بدهی', 'حقوق', 'ترازنامه', 'فروش خالص'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
@@ -774,7 +774,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'total_expenses',
     titleFa: 'کل هزینه‌ها',
-    anchors: ['کل هزینه', 'مجموع هزینه', 'هزینه کل', 'هزینه‌ها کل'],
+    anchors: ['کل هزینه', 'مجموع هزینه', 'هزینه کل', 'هزینه‌ها کل', 'total expenses', 'total costs', 'expenses'],
     excludeSignals: ['درآمد', 'دارایی', 'بدهی', 'حقوق', 'ترازنامه', 'خرید'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],

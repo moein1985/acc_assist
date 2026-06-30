@@ -28,9 +28,12 @@ import type {
   SshTunnelStatus,
   SshProgressEvent,
   ConnectionHealthStatus,
-  ConnectionLogEntry
+  ConnectionLogEntry,
+  ResponseMetadata,
+  ScheduledReport
 } from '../../shared/contracts'
 import { localizeAgentFallbackMessage, localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
+import { renderInteractiveChart, exportChartAsPng, destroyChart, type ChartSeriesData } from './charts'
 import {
   buildAgentRecoverySummary,
   buildManagerKpiCards,
@@ -185,8 +188,19 @@ const ui = {
   promptTemplateList: getById<HTMLElement>('promptTemplateList'),
   trendChartPanel: getById<HTMLElement>('trendChartPanel'),
   trendChartMeta: getById<HTMLElement>('trendChartMeta'),
-  trendChartBars: getById<HTMLElement>('trendChartBars'),
+  trendChartCanvas: getById<HTMLCanvasElement>('trendChartCanvas'),
   trendChartEmpty: getById<HTMLElement>('trendChartEmpty'),
+  chartTypeSelector: getById<HTMLSelectElement>('chartTypeSelector'),
+  chartSaveImageBtn: getById<HTMLButtonElement>('chartSaveImageBtn'),
+  scheduledReportsList: getById<HTMLElement>('scheduledReportsList'),
+  scheduledReportsEmpty: getById<HTMLElement>('scheduledReportsEmpty'),
+  srName: getById<HTMLInputElement>('srName'),
+  srPrompt: getById<HTMLInputElement>('srPrompt'),
+  srFrequency: getById<HTMLSelectElement>('srFrequency'),
+  srTime: getById<HTMLInputElement>('srTime'),
+  srOutputFormat: getById<HTMLSelectElement>('srOutputFormat'),
+  srAddBtn: getById<HTMLButtonElement>('srAddBtn'),
+  exportConversationBtn: getById<HTMLButtonElement>('exportConversationBtn'),
   kpiCardsPanel: getById<HTMLElement>('kpiCardsPanel'),
   kpiCardsGrid: getById<HTMLElement>('kpiCardsGrid'),
   kpiCardsEmpty: getById<HTMLElement>('kpiCardsEmpty'),
@@ -534,6 +548,35 @@ function bindEvents(): void {
   ui.exportPdfBtn.addEventListener('click', () => void exportLatestReport('pdf'))
   ui.exportExcelBtn.addEventListener('click', () => void exportLatestReport('excel'))
   ui.printReportBtn.addEventListener('click', () => void printLatestReport())
+  ui.chartTypeSelector.addEventListener('change', () => {
+    if (state.latestReportSnapshot) {
+      renderTrendChart(state.latestReportSnapshot)
+    }
+  })
+  ui.chartSaveImageBtn.addEventListener('click', () => {
+    const dataUrl = exportChartAsPng()
+    if (!dataUrl) {
+      setAppNotice('نموداری برای ذخیره وجود ندارد.', 'error')
+      return
+    }
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = `chart-${Date.now()}.png`
+    link.click()
+    setAppNotice('تصویر نمودار ذخیره شد.', 'success')
+  })
+  ui.srAddBtn.addEventListener('click', () => void addScheduledReport())
+  ui.exportConversationBtn.addEventListener('click', () => void exportConversation())
+  document.querySelectorAll('.quick-action-card').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const prompt = (btn as HTMLElement).dataset.prompt
+      if (prompt) {
+        ui.promptInput.value = prompt
+        ui.promptInput.dispatchEvent(new Event('input', { bubbles: true }))
+        ui.promptInput.focus()
+      }
+    })
+  })
   ui.auditRefreshBtn.addEventListener('click', () => void loadAuditLogViewer())
   ui.savePromptTemplateBtn.addEventListener('click', () => void saveCurrentPromptTemplate())
   ui.clearPromptInputBtn.addEventListener('click', () => {
@@ -811,6 +854,7 @@ async function bootstrap(): Promise<void> {
   await refreshRuntimeStatuses(true)
   await loadReleaseUpdateStatus(true)
   await loadAuditLogViewer()
+  await loadScheduledReports()
   startStatusPolling()
 }
 
@@ -1795,6 +1839,11 @@ async function submitChatPrompt(prompt: string, mode: 'manual' | 'dry-run'): Pro
       renderSuggestionChips(response.data.suggestions)
     }
 
+    // S21.1-S21.3: Render SQL transparency, confidence badge, evidence panel
+    if (response.data.responseMetadata) {
+      renderResponseMetadata(response.data.responseMetadata)
+    }
+
     state.latestReportSnapshot = {
       prompt,
       responseMarkdown: resolveLatestAssistantResponseFromHistory(response.data.history, response.data.finalText),
@@ -2237,7 +2286,7 @@ function formatKpiNumber(value: number): string {
 }
 
 function renderTrendChart(snapshot: ReportSnapshot | null): void {
-  ui.trendChartBars.innerHTML = ''
+  destroyChart()
   ui.trendChartMeta.textContent = ''
   ui.trendChartEmpty.hidden = true
 
@@ -2258,37 +2307,16 @@ function renderTrendChart(snapshot: ReportSnapshot | null): void {
 
   ui.trendChartMeta.textContent = `${series.dimensionColumn} -> ${series.metricColumn} | ابزار: ${series.sourceTool}`
 
-  const maxAbsValue = Math.max(...series.points.map((point) => Math.abs(point.value)), 1)
-
-  for (const point of series.points) {
-    const column = document.createElement('div')
-    column.className = 'trend-chart-column'
-
-    const track = document.createElement('div')
-    track.className = 'trend-chart-track'
-
-    const fill = document.createElement('div')
-    fill.className = 'trend-chart-fill'
-
-    if (point.value < 0) {
-      fill.classList.add('is-negative')
-    }
-
-    const heightPercent = Math.max(10, Math.round((Math.abs(point.value) / maxAbsValue) * 100))
-    fill.style.height = `${heightPercent}%`
-
-    const label = document.createElement('span')
-    label.className = 'trend-chart-label'
-    label.textContent = point.label
-
-    const value = document.createElement('span')
-    value.className = 'trend-chart-value'
-    value.textContent = formatTrendValue(point.value)
-
-    track.appendChild(fill)
-    column.append(track, label, value)
-    ui.trendChartBars.appendChild(column)
+  const chartData: ChartSeriesData = {
+    labels: series.points.map((p) => p.label),
+    values: series.points.map((p) => p.value),
+    dimensionColumn: series.dimensionColumn,
+    metricColumn: series.metricColumn,
+    sourceTool: series.sourceTool
   }
+
+  const selectedType = ui.chartTypeSelector.value as 'auto' | 'bar' | 'line' | 'pie' | 'doughnut'
+  renderInteractiveChart(ui.trendChartCanvas, chartData, selectedType)
 }
 
 function extractTrendChartSeries(evidenceItems: ReportExportEvidenceItem[]): TrendChartSeries | null {
@@ -2430,12 +2458,6 @@ function toTrendChartLabel(value: unknown): string {
   }
 
   return raw.length > 16 ? `${raw.slice(0, 16)}...` : raw
-}
-
-function formatTrendValue(value: number): string {
-  return new Intl.NumberFormat('fa-IR', {
-    maximumFractionDigits: 2
-  }).format(value)
 }
 
 async function exportLatestReport(format: ReportExportFormat): Promise<void> {
@@ -3432,6 +3454,272 @@ function renderSuggestionChips(suggestions: string[]): void {
 
   ui.chatHistory.appendChild(container)
   ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
+}
+
+// S21.1-S21.3: Render SQL transparency panel, confidence badge, and evidence panel
+function renderResponseMetadata(metadata: ResponseMetadata): void {
+  const container = document.createElement('div')
+  container.className = 'response-metadata-container'
+  container.style.cssText = 'padding:8px 12px;margin-bottom:8px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;'
+
+  // S21.2: Confidence score badge
+  if (typeof metadata.confidenceScore === 'number') {
+    const score = metadata.confidenceScore
+    const badgeClass = score >= 80 ? 'confidence-high' : score >= 50 ? 'confidence-medium' : 'confidence-low'
+    const badgeColor = score >= 80 ? '#16a34a' : score >= 50 ? '#ca8a04' : '#dc2626'
+    const badgeBg = score >= 80 ? '#dcfce7' : score >= 50 ? '#fef9c3' : '#fee2e2'
+    const label = score >= 80 ? 'بالا' : score >= 50 ? 'متوسط' : 'پایین'
+
+    const badge = document.createElement('div')
+    badge.className = `confidence-badge ${badgeClass}`
+    badge.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:12px;background:${badgeBg};color:${badgeColor};font-size:12px;font-weight:600;margin-bottom:8px;`
+    badge.innerHTML = `<span style="font-size:14px;">🎯</span> اعتماد: ${score}/100 (${label})`
+    container.appendChild(badge)
+
+    // Show confidence factors in a collapsible details
+    if (metadata.confidenceFactors) {
+      const factorsDetails = document.createElement('details')
+      factorsDetails.style.cssText = 'margin-bottom:8px;font-size:11px;color:#64748b;'
+      const factorsSummary = document.createElement('summary')
+      factorsSummary.textContent = 'عوامل اعتماد'
+      factorsSummary.style.cssText = 'cursor:pointer;color:#94a3b8;'
+      factorsDetails.appendChild(factorsSummary)
+
+      const factorsList = document.createElement('ul')
+      factorsList.style.cssText = 'list-style:none;padding:4px 0;margin:4px 0;'
+      const factors = metadata.confidenceFactors
+      const factorItems = [
+        `بازگشت ردیف SQL: ${factors.sqlRowsReturned ? '✅' : '❌'}`,
+        `تطابق شواهد: ${factors.evidenceMatch ? '✅' : '❌'}`,
+        `ناهنجاری: ${factors.anomalyDetected ? '⚠️' : '✅'}`,
+        `اعتماد برنامه: ${factors.planConfidence}`,
+        `استفاده از fallback: ${factors.fallbackUsed ? '⚠️' : '✅'}`
+      ]
+      for (const item of factorItems) {
+        const li = document.createElement('li')
+        li.textContent = item
+        li.style.cssText = 'padding:2px 0;'
+        factorsList.appendChild(li)
+      }
+      factorsDetails.appendChild(factorsList)
+      container.appendChild(factorsDetails)
+    }
+  }
+
+  // S21.1: SQL transparency panel
+  if (metadata.sql && metadata.sql.trim()) {
+    const sqlDetails = document.createElement('details')
+    sqlDetails.className = 'sql-transparency-panel'
+    sqlDetails.style.cssText = 'margin-bottom:8px;'
+
+    const sqlSummary = document.createElement('summary')
+    sqlSummary.textContent = '🔍 SQL اجرا شده'
+    sqlSummary.style.cssText = 'cursor:pointer;font-size:12px;color:#3b82f6;font-weight:600;padding:4px 0;'
+    sqlDetails.appendChild(sqlSummary)
+
+    const sqlPre = document.createElement('pre')
+    sqlPre.className = 'sql-transparency-code'
+    sqlPre.style.cssText = 'background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;white-space:pre-wrap;direction:ltr;text-align:left;margin:4px 0;'
+    sqlPre.textContent = metadata.sql
+    sqlDetails.appendChild(sqlPre)
+
+    container.appendChild(sqlDetails)
+  }
+
+  // S21.3: Evidence panel
+  if (metadata.evidence && metadata.evidence.length > 0) {
+    const evidenceDetails = document.createElement('details')
+    evidenceDetails.className = 'evidence-panel'
+    evidenceDetails.style.cssText = 'margin-bottom:8px;'
+
+    const evidenceSummary = document.createElement('summary')
+    evidenceSummary.textContent = `📊 شواهد (${metadata.evidence.length} مورد)`
+    evidenceSummary.style.cssText = 'cursor:pointer;font-size:12px;color:#7c3aed;font-weight:600;padding:4px 0;'
+    evidenceDetails.appendChild(evidenceSummary)
+
+    const tableWrap = document.createElement('div')
+    tableWrap.style.cssText = 'overflow-x:auto;margin:4px 0;'
+
+    const table = document.createElement('table')
+    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;'
+
+    const thead = document.createElement('thead')
+    const headerRow = document.createElement('tr')
+    for (const col of ['معیار', 'ستون SQL', 'مقدار', 'تعداد ردیف']) {
+      const th = document.createElement('th')
+      th.textContent = col
+      th.style.cssText = 'padding:4px 8px;border:1px solid #e2e8f0;background:#f1f5f9;text-align:right;'
+      headerRow.appendChild(th)
+    }
+    thead.appendChild(headerRow)
+
+    const tbody = document.createElement('tbody')
+    for (const entry of metadata.evidence) {
+      const tr = document.createElement('tr')
+      for (const val of [entry.metric, entry.sqlColumn, String(entry.value), String(entry.rowCount)]) {
+        const td = document.createElement('td')
+        td.textContent = val
+        td.style.cssText = 'padding:4px 8px;border:1px solid #e2e8f0;direction:ltr;text-align:left;'
+        tr.appendChild(td)
+      }
+      tbody.appendChild(tr)
+    }
+
+    table.append(thead, tbody)
+    tableWrap.appendChild(table)
+    evidenceDetails.appendChild(tableWrap)
+    container.appendChild(evidenceDetails)
+  }
+
+  ui.chatHistory.appendChild(container)
+  ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
+}
+
+// S21.8: Scheduled reports UI
+let scheduledReports: ScheduledReport[] = []
+
+function renderScheduledReports(): void {
+  ui.scheduledReportsList.innerHTML = ''
+  if (scheduledReports.length === 0) {
+    ui.scheduledReportsEmpty.hidden = false
+    ui.scheduledReportsList.appendChild(ui.scheduledReportsEmpty)
+    return
+  }
+  ui.scheduledReportsEmpty.hidden = true
+
+  for (const report of scheduledReports) {
+    const row = document.createElement('div')
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;'
+
+    const info = document.createElement('div')
+    info.style.cssText = 'flex:1;'
+    info.innerHTML = `<strong>${escapeHtml(report.name)}</strong> — ${report.schedule.frequency} @ ${report.schedule.time} | خروجی: ${report.outputFormat} | ${report.enabled ? '✅ فعال' : '⬜ غیرفعال'}`
+    row.appendChild(info)
+
+    const toggleBtn = document.createElement('button')
+    toggleBtn.textContent = report.enabled ? 'غیرفعال' : 'فعال'
+    toggleBtn.style.cssText = 'padding:2px 8px;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;font-size:11px;'
+    toggleBtn.addEventListener('click', () => {
+      report.enabled = !report.enabled
+      void saveScheduledReports()
+      renderScheduledReports()
+    })
+    row.appendChild(toggleBtn)
+
+    const runBtn = document.createElement('button')
+    runBtn.textContent = '▶ اجرا'
+    runBtn.style.cssText = 'padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;cursor:pointer;font-size:11px;background:#eff6ff;color:#1e40af;'
+    runBtn.addEventListener('click', () => {
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement | null
+      if (input) {
+        input.value = report.prompt
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        input.focus()
+      }
+    })
+    row.appendChild(runBtn)
+
+    const delBtn = document.createElement('button')
+    delBtn.textContent = '🗑'
+    delBtn.style.cssText = 'padding:2px 8px;border:1px solid #ef4444;border-radius:4px;cursor:pointer;font-size:11px;background:#fee2e2;color:#dc2626;'
+    delBtn.addEventListener('click', () => {
+      scheduledReports = scheduledReports.filter((r) => r.id !== report.id)
+      void saveScheduledReports()
+      renderScheduledReports()
+    })
+    row.appendChild(delBtn)
+
+    ui.scheduledReportsList.appendChild(row)
+  }
+}
+
+async function addScheduledReport(): Promise<void> {
+  const name = ui.srName.value.trim()
+  const prompt = ui.srPrompt.value.trim()
+  const frequency = ui.srFrequency.value as 'daily' | 'weekly' | 'monthly'
+  const time = ui.srTime.value.trim()
+  const outputFormat = ui.srOutputFormat.value as 'text' | 'chart' | 'excel' | 'pdf'
+
+  if (!name || !prompt) {
+    setAppNotice('نام و درخواست گزارش الزامی است.', 'error')
+    return
+  }
+
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    setAppNotice('ساعت باید به فرمت HH:MM باشد.', 'error')
+    return
+  }
+
+  const report: ScheduledReport = {
+    id: `sr-${Date.now()}`,
+    name,
+    prompt,
+    schedule: { frequency, time },
+    outputFormat,
+    delivery: 'save',
+    enabled: true
+  }
+
+  scheduledReports.push(report)
+  await saveScheduledReports()
+  renderScheduledReports()
+
+  ui.srName.value = ''
+  ui.srPrompt.value = ''
+  setAppNotice(`گزارش «${name}» اضافه شد.`, 'success')
+}
+
+async function saveScheduledReports(): Promise<void> {
+  try {
+    await window.api.settings.save({
+      scheduledReports
+    })
+  } catch {
+    // Settings save may fail if API not available — non-critical
+  }
+}
+
+async function loadScheduledReports(): Promise<void> {
+  try {
+    const response = await window.api.settings.get()
+    if (response.ok && response.data) {
+      scheduledReports = response.data.scheduledReports ?? []
+    }
+    renderScheduledReports()
+  } catch {
+    // Non-critical — start with empty list
+    renderScheduledReports()
+  }
+}
+
+// S21.12: Export conversation as text
+async function exportConversation(): Promise<void> {
+  const messages = ui.chatHistory.querySelectorAll('.chat-message')
+  if (messages.length === 0) {
+    setAppNotice('مکالمه‌ای برای خروجی گرفتن وجود ندارد.', 'info')
+    return
+  }
+
+  const lines: string[] = []
+  lines.push(`# مکالمه ACC Assist — ${new Date().toLocaleString('fa-IR')}`)
+  lines.push('')
+
+  for (const msg of messages) {
+    const isUser = msg.classList.contains('user-message')
+    const text = msg.textContent?.trim() ?? ''
+    lines.push(`## ${isUser ? 'کاربر' : 'دستیار'}`)
+    lines.push(text)
+    lines.push('')
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `conversation-${Date.now()}.txt`
+  link.click()
+  URL.revokeObjectURL(url)
+  setAppNotice('مکالمه به‌صورت متن ذخیره شد.', 'success')
 }
 
 function markdownToSafeHtml(markdown: string): string {

@@ -58,6 +58,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "chart.js": "^4.5.1",
     "electron-updater": "^6.6.2",
     "mssql": "^12.5.4",
     "node-sql-parser": "^5.4.0",

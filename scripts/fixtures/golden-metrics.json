@@ -1608,6 +1608,48 @@
       "expectedMetricId": "tax_liability_summary",
       "expectedGrain": "total",
       "expect": "any_rows"
+    },
+    {
+      "id": "s21-en-sales-1402",
+      "prompt": "What were total sales in 1402?",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s21-en-balance-sheet",
+      "prompt": "Show me the balance sheet for 1402",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s21-en-expenses-compare",
+      "prompt": "Compare expenses 1402 vs 1403",
+      "expectedMetricId": "total_expenses",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s21-en-cash-balance",
+      "prompt": "Cash and bank balance",
+      "expectedMetricId": "cash_bank_balance",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s21-mixed-compare",
+      "prompt": "فروش 1402 رو با 1403 compare کن",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s21-mixed-expenses",
+      "prompt": "total expenses سال 1402 چقدره؟",
+      "expectedMetricId": "total_expenses",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "negative": [

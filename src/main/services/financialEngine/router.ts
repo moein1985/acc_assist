@@ -125,7 +125,7 @@ export function routeDerivedMetric(prompt: string): DerivedMetric | null {
 }
 
 export function routeMetric(prompt: string, softwareId?: string): RouterResult {
-  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  const normalized = normalizePersianText(normalizePersianDigits(prompt)).toLowerCase()
   if (!normalized) return { metricId: null, confidence: 0 }
 
   const cacheKey = softwareId ? `${softwareId}:${normalized}` : normalized
@@ -146,7 +146,7 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
       : metric.anchors
 
     for (const anchor of anchors) {
-      const normalizedAnchor = normalizePersianText(anchor)
+      const normalizedAnchor = normalizePersianText(anchor).toLowerCase()
       if (normalized.includes(normalizedAnchor)) {
         score += 2
       }
@@ -154,7 +154,7 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
 
     if (metric.excludeSignals) {
       for (const signal of metric.excludeSignals) {
-        const normalizedSignal = normalizePersianText(signal)
+        const normalizedSignal = normalizePersianText(signal).toLowerCase()
         if (normalized.includes(normalizedSignal)) {
           excluded = true
           break

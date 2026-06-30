@@ -11,6 +11,8 @@ import type {
   GeminiMessage,
   GeminiToolCall,
   GeminiToolDefinition,
+  ResponseEvidenceEntry,
+  ResponseMetadata,
   SchemaCatalogEntry,
   SchemaColumnCatalogItem,
   SqlQueryRow
@@ -509,12 +511,47 @@ export class AgentOrchestrator {
         finalTextWithAnomalies += '\n\n---\n\n⚠️ **هشدار ناهنجاری:**\n' + anomalyLines.join('\n')
       }
 
+      // S21.1-S21.3: Build response metadata for SQL transparency, confidence score, evidence
+      const { computeConfidenceScore } = await import('./financialEngine/confidenceScore')
+      const sqlText = engineRun.result.compiled.sql
+      const rowCount = engineRun.result.rows.length
+      const evidenceEntries: ResponseEvidenceEntry[] = []
+      if (rowCount > 0) {
+        const firstRow = engineRun.result.rows[0]
+        for (const [col, val] of Object.entries(firstRow)) {
+          if (typeof val === 'number' || typeof val === 'string') {
+            evidenceEntries.push({
+              metric: engineRun.result.plan.metricId,
+              value: val,
+              sqlColumn: col,
+              rowCount
+            })
+          }
+        }
+      }
+      const confidence = computeConfidenceScore({
+        sqlRowsReturned: rowCount > 0,
+        evidenceMatch: rowCount > 0 && engineRun.verdict.ok,
+        anomalyDetected: anomalies.length > 0,
+        planConfidence: engineRun.result.plan.confidence >= 0.8 ? 'high' : engineRun.result.plan.confidence >= 0.5 ? 'medium' : 'low',
+        fallbackUsed: false
+      })
+
+      const responseMetadata: ResponseMetadata = {
+        sql: sqlText,
+        evidence: evidenceEntries.slice(0, 10),
+        confidenceScore: confidence.score,
+        confidenceFactors: confidence.factors,
+        metricId: engineRun.result.plan.metricId
+      }
+
       return {
         history: [],
         finalText: finalTextWithAnomalies,
         rounds: 1,
         toolCallsUsed: 1,
-        suggestions: suggestions.map((s) => s.text)
+        suggestions: suggestions.map((s) => s.text),
+        responseMetadata
       }
     } catch (error) {
       void this.safeAuditWrite({

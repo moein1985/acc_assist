@@ -8,6 +8,13 @@ import type {
 } from './types'
 import { metricPlanSchema, multiMetricPlanSchema, multiStepPlanSchema } from './types'
 import { findMetricById, getMetricCatalog } from './metricCatalog'
+
+// S21.9 — Detect query language (Persian vs English)
+export function detectQueryLanguage(prompt: string): 'fa' | 'en' {
+  const persianChars = (prompt.match(/[\u0600-\u06FF]/g) ?? []).length
+  const latinChars = (prompt.match(/[a-zA-Z]/g) ?? []).length
+  return latinChars > persianChars ? 'en' : 'fa'
+}
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
 import { routeMultiMetric } from './router'
 import {
@@ -721,6 +728,42 @@ ${metricList}
 مثال ۱۵:
 سؤال: پرفروش‌ترین مشتری رو پیدا کن و بعد گردش حسابش رو نشون بده
 پاسخ: {"steps":[{"metricId":"net_sales","grain":"by_customer","filters":[],"topN":1,"confidence":0.85},{"metricId":"party_turnover","grain":"total","filters":[],"confidence":0.8}],"combineStrategy":"cascade","confidence":0.8}
+
+English examples (S21.9):
+
+Example 16:
+Question: What were total sales in 1402?
+Answer: {"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.95}
+
+Example 17:
+Question: Show me the balance sheet
+Answer: {"metricId":"trial_balance","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1403"]}],"confidence":0.85}
+
+Example 18:
+Question: Compare expenses 1402 vs 1403
+Answer: {"metricId":"total_expenses","grain":"total","filters":[],"comparison":{"dimension":"by_year","baseValue":"1402","targetValue":"1403"},"confidence":0.9}
+
+Example 19:
+Question: What is the current ratio for 1402?
+Answer: {"metricId":"current_ratio","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.85}
+
+Example 20:
+Question: How much did we sell this year?
+Answer: {"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1403"]}],"confidence":0.8}
+
+Example 21:
+Question: Cash and bank balance
+Answer: {"metricId":"cash_bank_balance","grain":"total","filters":[],"confidence":0.85}
+
+Mixed language examples (S21.10):
+
+Example 22:
+Question: فروش 1402 رو با 1403 compare کن
+Answer: {"metricId":"net_sales","grain":"total","filters":[],"comparison":{"dimension":"by_year","baseValue":"1402","targetValue":"1403"},"confidence":0.9}
+
+Example 23:
+Question: total expenses سال 1402 چقدره؟
+Answer: {"metricId":"total_expenses","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
 
 ${DOMAIN_KNOWLEDGE}
 

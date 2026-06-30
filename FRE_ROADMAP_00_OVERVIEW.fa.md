@@ -243,30 +243,25 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۷ | ✅ کامل | اصلاحات معماری: backpressure, pool cleanup, DIAG log gating, runtime connection cache, double-read fix, schema failure UI notification |
 | ۱۸ | ✅ کامل (به‌جز S18.8/S18.12) | Python Sandbox: embedded Python 3.12, AST validation, template engine, IPC handlers, ۲۲ unit test, ۱۰ golden case, field test ۱۲/۱۲ (SSH) + ۱۰/۱۲ (direct install) |
 | ۱۹ | ✅ کامل | متریک‌های مالی پیشرفته: جریان وجوه نقد, ROE/ROA, تحلیل روند, دارایی ثابت, بهای تمام‌شده — ۳۳ golden case جدید، eval ۲۵۱/۲۵۱، field test روی سرور با اتصال مستقیم SQL |
-| ۲۰ | 📋 برنامه‌ریزی‌شده | Planner هوشمند: multi-step, حافظه v2, smart suggestions, anomaly detection |
-| ۲۱ | 📋 برنامه‌ریزی‌شده | UX و گزارش‌گیری: SQL transparency, confidence score, نمودار تعاملی, گزارش زمان‌بندی, چندزبانه |
+| ۲۰ | ✅ کامل | Planner هوشمند: multi-step, حافظه v2, smart suggestions, anomaly detection — field test ۷/۸ |
+| ۲۱ | ✅ کامل | UX و گزارش‌گیری: SQL transparency, confidence score, نمودار تعاملی, گزارش زمان‌بندی, چندزبانه — field test ۸/۸ |
 
-**آمار فعلی (فاز ۱۹ کامل):**
-- ۷۳ متریک (۵۸ قبلی + ۱۵ پایه جدید + ۱۱ مشتق جدید)
-- ۲۵۱ golden cases (100% سبز)
-- ۴۳۸ unit test + integration test
+**آمار فعلی (فاز ۲۱ کامل):**
+- ۷۳ متریک
+- ۲۶۵ golden cases (100% سبز)
+- ۴۰۰ unit test + ۵۵ integration test (+۱ skip)
 - typecheck: ۰ خطای جدید
 - Python 3.12 embedded + sandbox امن
-- مارکر asar: PYTHON_SANDBOX
-
-**آمار هدف (پس از فاز ۲۱):**
-- ~۸۰+ متریک (۵۸ فعلی + ~۲۲ جدید)
-- ~۲۵۹ golden cases (۲۱۱ فعلی + ~۴۸ جدید)
-- ~۳۸۰+ unit test
-- Python embedded + sandbox امن
-- نمودار تعاملی + گزارش زمان‌بندی + چندزبانه
+- نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)
+- ۱۰ مارکر asar فاز ۲۱
 
 **کارهای باقی‌مانده:**
-- فاز ۱۸: S18.8 (planner few-shot) و S18.12 (renderer UI component) — اولویت متوسط
-- shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
-- فاز ۱۹: کامل ✅ (تمام ۲۲ آیتم تیک خورد)
-- فاز ۲۰: کامل ✅ (تمام ۱۹ آیتم تیک خورد — MultiStepPlan, ConversationMemory v2, SmartSuggestions, AnomalyDetection, DomainKnowledge, AdvancedClarify)
-- فاز ۲۱: پیاده‌سازی بر اساس roadmap
+- فاز ۹: ۵ آیتم زمان‌محور (S9.3-S9.5, S9.17, S9.19) — shadow run رسمی ۲ هفته‌ای در production
+- فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test)
+- فاز ۱۸: S18.8 (planner few-shot برای Python) و S18.12 (renderer UI component برای Python output) — اولویت متوسط
+- فاز ۱۹: کامل ✅
+- فاز ۲۰: کامل ✅ (field test ۷/۸ — ۱ clarify قابل‌قبول)
+- فاز ۲۱: کامل ✅ (field test ۸/۸ — 100% PASS)
 
 ---
 
