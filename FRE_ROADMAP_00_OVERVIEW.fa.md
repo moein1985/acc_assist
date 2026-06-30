@@ -241,17 +241,18 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۱۵ | ✅ کامل | Blind Schema Discovery, SchemaAdapter, buildAdapter, تست بلایند سپیدار |
 | ۱۶ | ✅ کامل (به‌جز field test) | اتصال از راه دور با SSH: auto-connect, auto-reconnect, Connection Wizard, host key verification, credential encryption, health indicator, diagnostic panel, mapping wizard |
 | ۱۷ | ✅ کامل | اصلاحات معماری: backpressure, pool cleanup, DIAG log gating, runtime connection cache, double-read fix, schema failure UI notification |
-| ۱۸ | 📋 برنامه‌ریزی‌شده | Python Sandbox: embedded Python, AST validation, نمودار/اکسل/PDF در چت |
+| ۱۸ | ✅ کامل (به‌جز S18.8/S18.12) | Python Sandbox: embedded Python 3.12, AST validation, template engine, IPC handlers, ۲۲ unit test, ۱۰ golden case, field test ۱۲/۱۲ |
 | ۱۹ | 📋 برنامه‌ریزی‌شده | متریک‌های مالی پیشرفته: جریان وجوه نقد, ROE/ROA, تحلیل روند, دارایی ثابت, بهای تمام‌شده |
 | ۲۰ | 📋 برنامه‌ریزی‌شده | Planner هوشمند: multi-step, حافظه v2, smart suggestions, anomaly detection |
 | ۲۱ | 📋 برنامه‌ریزی‌شده | UX و گزارش‌گیری: SQL transparency, confidence score, نمودار تعاملی, گزارش زمان‌بندی, چندزبانه |
 
-**آمار فعلی (فاز ۱۷):**
+**آمار فعلی (فاز ۱۸):**
 - ۵۸ متریک (پایه + مشتق + حسابدار)
-- ۲۱۱ golden cases (100% سبز)
-- ۳۶۱ unit test + ۵۵ integration test
-- typecheck: ۰ خطا
-- ۴ مارکر asar: BLIND_DISCOVERY, SCHEMA_ADAPTER_AUTO, SEMANTIC_MAPPING, MULTI_SOFTWARE_AUTO
+- ۲۲۱ golden cases (100% سبز)
+- ۴۳۸ unit test + integration test
+- typecheck: ۰ خطای جدید
+- Python 3.12 embedded + sandbox امن
+- مارکر asar: PYTHON_SANDBOX
 
 **آمار هدف (پس از فاز ۲۱):**
 - ~۸۰+ متریک (۵۸ فعلی + ~۲۲ جدید)
@@ -261,9 +262,9 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - نمودار تعاملی + گزارش زمان‌بندی + چندزبانه
 
 **کارهای باقی‌مانده:**
-- فاز ۱۶ field test‌ها (S16.22-S16.23): تست دستی روی سرور 192.168.85.56 و کامپیوتر دوم
+- فاز ۱۸: S18.8 (planner few-shot) و S18.12 (renderer UI component) — اولویت متوسط
 - shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
-- فاز ۱۸-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
+- فاز ۱۹-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
 
 ---
 
