@@ -1165,6 +1165,35 @@ function registerIpcHandlers(): void {
       }
     }
   )
+
+  // S18.12 — Save Python output file to user-chosen location
+  ipcMain.handle(
+    'python:save-file',
+    async (_, filePath: string): Promise<IpcResponse<string>> => {
+      try {
+        const { readFile } = await import('node:fs/promises')
+        const { basename, extname } = await import('node:path')
+        const buffer = await readFile(filePath)
+        const defaultName = basename(filePath)
+        const ext = extname(filePath).slice(1) || 'png'
+
+        const result = await dialog.showSaveDialog({
+          defaultPath: defaultName,
+          filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
+        })
+
+        if (result.canceled || !result.filePath) {
+          return ok('')
+        }
+
+        const { writeFile } = await import('node:fs/promises')
+        await writeFile(result.filePath, buffer)
+        return ok(result.filePath)
+      } catch (error) {
+        return failWithContext(error, 'python:save-file')
+      }
+    }
+  )
 }
 
 async function cleanupServices(): Promise<void> {

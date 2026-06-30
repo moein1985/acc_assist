@@ -453,6 +453,9 @@ export interface ResponseMetadata {
     fallbackUsed: boolean
   }
   metricId?: string
+  /** S18.12 — Python output files (PNG/XLSX/PDF/HTML) for renderer display */
+  pythonOutputFiles?: string[]
+  pythonOutputType?: string
 }
 
 export interface AgentSendMessageResult {

@@ -172,7 +172,9 @@ const api = {
     status: (): Promise<IpcResponse<{ available: boolean; version: string | null }>> =>
       ipcRenderer.invoke('python:status'),
     readFile: (filePath: string): Promise<IpcResponse<string>> =>
-      ipcRenderer.invoke('python:read-file', filePath)
+      ipcRenderer.invoke('python:read-file', filePath),
+    saveFile: (filePath: string): Promise<IpcResponse<string>> =>
+      ipcRenderer.invoke('python:save-file', filePath)
   }
 }
 

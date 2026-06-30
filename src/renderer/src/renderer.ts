@@ -3571,6 +3571,104 @@ function renderResponseMetadata(metadata: ResponseMetadata): void {
     container.appendChild(evidenceDetails)
   }
 
+  // S18.12: Python output files (PNG/XLSX/PDF/CSV/HTML)
+  if (metadata.pythonOutputFiles && metadata.pythonOutputFiles.length > 0) {
+    const outputType = metadata.pythonOutputType ?? 'file'
+    const outputSection = document.createElement('div')
+    outputSection.className = 'python-output-section'
+    outputSection.style.cssText = 'margin-bottom:8px;padding:8px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;'
+
+    const header = document.createElement('div')
+    header.style.cssText = 'font-size:12px;font-weight:600;color:#15803d;margin-bottom:6px;'
+    const icon = outputType === 'chart' ? '📈' : outputType === 'excel' ? '📊' : outputType === 'pdf' ? '📄' : '📎'
+    header.textContent = `${icon} خروجی ${outputType === 'chart' ? 'نمودار' : outputType === 'excel' ? 'اکسل' : outputType === 'pdf' ? 'PDF' : 'فایل'}`
+    outputSection.appendChild(header)
+
+    for (const filePath of metadata.pythonOutputFiles) {
+      const fileName = filePath.split(/[/\\]/).pop() ?? filePath
+      const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+
+      if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'svg') {
+        // Image: load via IPC and display inline
+        const imgCard = document.createElement('div')
+        imgCard.style.cssText = 'margin:4px 0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;background:#fff;'
+
+        const img = document.createElement('img')
+        img.style.cssText = 'max-width:100%;display:block;'
+        img.alt = fileName
+
+        // Load image via IPC (base64) to avoid file:// protocol issues
+        window.api.python.readFile(filePath).then((resp) => {
+          if (resp.ok && resp.data) {
+            const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png'
+            img.src = `data:${mime};base64,${resp.data}`
+          }
+        }).catch(() => { /* ignore */ })
+
+        imgCard.appendChild(img)
+
+        // Save button
+        const btnRow = document.createElement('div')
+        btnRow.style.cssText = 'display:flex;gap:8px;padding:6px;background:#f8fafc;'
+        const saveBtn = document.createElement('button')
+        saveBtn.textContent = '💾 ذخیره'
+        saveBtn.style.cssText = 'padding:4px 12px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;'
+        saveBtn.addEventListener('click', () => {
+          window.api.python.saveFile(filePath).catch(() => { /* ignore */ })
+        })
+        btnRow.appendChild(saveBtn)
+        imgCard.appendChild(btnRow)
+
+        outputSection.appendChild(imgCard)
+      } else if (ext === 'html') {
+        // HTML: sandboxed iframe
+        const iframeCard = document.createElement('div')
+        iframeCard.style.cssText = 'margin:4px 0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;'
+
+        const iframe = document.createElement('iframe')
+        iframe.sandbox.add('allow-same-origin')
+        iframe.style.cssText = 'width:100%;height:300px;border:none;'
+        iframe.title = fileName
+
+        window.api.python.readFile(filePath).then((resp) => {
+          if (resp.ok && resp.data) {
+            const html = atob(resp.data)
+            iframe.srcdoc = html
+          }
+        }).catch(() => { /* ignore */ })
+
+        iframeCard.appendChild(iframe)
+        outputSection.appendChild(iframeCard)
+      } else {
+        // XLSX/PDF/CSV: download card
+        const fileCard = document.createElement('div')
+        fileCard.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;margin:4px 0;border:1px solid #e2e8f0;border-radius:6px;background:#fff;'
+
+        const fileIcon = document.createElement('span')
+        fileIcon.style.cssText = 'font-size:20px;'
+        fileIcon.textContent = ext === 'xlsx' || ext === 'xls' ? '📋' : ext === 'pdf' ? '📄' : '📃'
+        fileCard.appendChild(fileIcon)
+
+        const fileNameLabel = document.createElement('span')
+        fileNameLabel.textContent = fileName
+        fileNameLabel.style.cssText = 'flex:1;font-size:12px;color:#475569;direction:ltr;text-align:left;'
+        fileCard.appendChild(fileNameLabel)
+
+        const dlBtn = document.createElement('button')
+        dlBtn.textContent = '⬇️ دانلود'
+        dlBtn.style.cssText = 'padding:4px 12px;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;font-size:11px;'
+        dlBtn.addEventListener('click', () => {
+          window.api.python.saveFile(filePath).catch(() => { /* ignore */ })
+        })
+        fileCard.appendChild(dlBtn)
+
+        outputSection.appendChild(fileCard)
+      }
+    }
+
+    container.appendChild(outputSection)
+  }
+
   ui.chatHistory.appendChild(container)
   ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
 }

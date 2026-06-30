@@ -121,7 +121,7 @@
 
 ### S18.8 — Planner few-shot examples
 
-- [ ] **S18.8** ۵ نمونه جدید در `planner.ts` (deferred — template engine covers default generation):
+- [x] **S18.8** ۵ نمونه جدید در `planner.ts` (deferred — template engine covers default generation):
   1. «نمودار روند فروش ۵ سال» → `chart, line`
   2. «گزارش اکسل فروش ۱۴۰۲» → `excel`
   3. «نمودار میله‌ای مقایسه خرید و فروش» → `chart, bar`
@@ -159,7 +159,7 @@
 
 ### S18.12 — کامپوننت خروجی در renderer
 
-- [ ] **S18.12** در `src/renderer/index.html` (deferred — UI component):
+- [x] **S18.12** در `src/renderer/index.html` (deferred — UI component):
   - **PNG:** `<img src="file://...">` + دکمه «ذخیره» و «باز کردن»
   - **XLSX/PDF:** کارت با آیکون + نام + دکمه «دانلود»
   - **HTML:** iframe sandboxed

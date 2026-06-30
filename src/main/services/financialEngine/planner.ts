@@ -633,7 +633,8 @@ export function buildPlannerPrompt(
 ۹. اگر سالی ذکر نشد و متریک by_year پشتیبانی می‌کند، سال جاری شمسی را در filter قرار بده.
 ۱۰. topN فقط برای متریک‌های list (مثل recent_documents).
 ۱۱. اگر سؤال چندمرحله‌ای است (خروجی یک متریک ورودی متریک بعدی است)، MultiStepPlan تولید کن با steps: [...] و combineStrategy.
-۱۲. combineStrategy یکی از: compare (مقایسه نتایج), cascade (خروجی مرحله قبل ورودی مرحله بعد), explain (مرحله اول عدد، مرحله دوم توضیح).
+۱۲. combineStrategy یکی از: compare (مقایسه نتایج), cascade (خروجی مرحله قبل ورودی مرحله بعد), explain (مرحله اول عدد, مرحله دوم توضیح).
+۱۳. اگر کاربر نمودار یا گزارش خواست (نمودار, چارت, diagram, excel, اکسل, PDF, گزارش), فیلد pythonOutput را به MetricPlan اضافه کن با enabled=true و outputType/chartType مناسب.
 
 متریک‌های موجود:
 ${metricList}
@@ -764,6 +765,28 @@ Answer: {"metricId":"net_sales","grain":"total","filters":[],"comparison":{"dime
 Example 23:
 Question: total expenses سال 1402 چقدره؟
 Answer: {"metricId":"total_expenses","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
+Python output examples (S18.8):
+
+Example 24:
+Question: نمودار روند فروش ۵ سال
+Answer: {"metricId":"net_sales","grain":"by_year","filters":[],"pythonOutput":{"enabled":true,"outputType":"chart","chartType":"line","title":"روند فروش ۵ سال","xAxis":"year","yAxis":"value"},"confidence":0.9}
+
+Example 25:
+Question: گزارش اکسل فروش ۱۴۰۲
+Answer: {"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"pythonOutput":{"enabled":true,"outputType":"excel","title":"گزارش فروش ۱۴۰۲"},"confidence":0.9}
+
+Example 26:
+Question: نمودار میله‌ای مقایسه خرید و فروش
+Answer: {"metricId":"net_sales","grain":"total","filters":[],"pythonOutput":{"enabled":true,"outputType":"chart","chartType":"bar","title":"مقایسه خرید و فروش","xAxis":"category","yAxis":"value"},"confidence":0.85}
+
+Example 27:
+Question: گزارش PDF ترازنامه
+Answer: {"metricId":"trial_balance","grain":"total","filters":[],"pythonOutput":{"enabled":true,"outputType":"pdf","title":"ترازنامه"},"confidence":0.85}
+
+Example 28:
+Question: نمودار دایره‌ای ترکیب هزینه‌ها
+Answer: {"metricId":"total_expenses","grain":"by_account","filters":[],"pythonOutput":{"enabled":true,"outputType":"chart","chartType":"pie","title":"ترکیب هزینه‌ها","xAxis":"account","yAxis":"value"},"confidence":0.85}
 
 ${DOMAIN_KNOWLEDGE}
 

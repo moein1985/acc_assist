@@ -542,7 +542,9 @@ export class AgentOrchestrator {
         evidence: evidenceEntries.slice(0, 10),
         confidenceScore: confidence.score,
         confidenceFactors: confidence.factors,
-        metricId: engineRun.result.plan.metricId
+        metricId: engineRun.result.plan.metricId,
+        pythonOutputFiles: engineRun.pythonOutput?.outputFiles,
+        pythonOutputType: engineRun.pythonOutput?.outputType
       }
 
       return {

@@ -62,12 +62,14 @@ export interface MultiMetricResult {
   results: EngineResult[]
   verdicts: EngineVerdict[]
   plan: MultiMetricPlan
+  pythonOutput?: PythonOutputResult | null
 }
 
 export interface MultiStepResult {
   results: EngineResult[]
   verdicts: EngineVerdict[]
   plan: MultiStepPlan
+  pythonOutput?: PythonOutputResult | null
 }
 
 export type EngineRunOutcome = EngineRunResult | MultiMetricResult | MultiStepResult
@@ -119,16 +121,22 @@ export class FinancialEngine {
 
       // MultiStepPlan from model
       if (modelResult.stepPlan && modelResult.stepPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        return this.runMultiStep(modelResult.stepPlan, signal, pythonPlan)
+        // S18.8: Extract pythonOutput from the first step that has it
+        const stepPython = modelResult.stepPlan.steps.find(s => s.pythonOutput)?.pythonOutput ?? pythonPlan
+        return this.runMultiStep(modelResult.stepPlan, signal, stepPython ?? null)
       }
 
       // MultiMetricPlan from model
       if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        return this.runMultiMetric(modelResult.multiPlan, signal, pythonPlan)
+        // S18.8: Extract pythonOutput from the first plan that has it
+        const multiPython = modelResult.multiPlan.plans.find(p => p.pythonOutput)?.pythonOutput ?? pythonPlan
+        return this.runMultiMetric(modelResult.multiPlan, signal, multiPython ?? null)
       }
 
       if (modelResult.plan && modelResult.plan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        return this.runPlan(modelResult.plan, signal, pythonPlan)
+        // S18.8: Use pythonOutput from the plan if present
+        const planPython = modelResult.plan.pythonOutput ?? pythonPlan
+        return this.runPlan(modelResult.plan, signal, planPython ?? null)
       }
 
       // Step 3: Low confidence or invalid plan → clarify
@@ -224,16 +232,20 @@ export class FinancialEngine {
   async runMultiMetric(plan: MultiMetricPlan, signal?: AbortSignal, pythonPlan?: PythonOutputPlan | null): Promise<MultiMetricResult> {
     const results: EngineResult[] = []
     const verdicts: EngineVerdict[] = []
+    let pythonOutput: PythonOutputResult | null = null
 
     for (const subPlan of plan.plans) {
       const runResult = await this.runPlan(subPlan, signal, pythonPlan)
       if (runResult.result) {
         results.push(runResult.result)
       }
+      if (runResult.pythonOutput) {
+        pythonOutput = runResult.pythonOutput
+      }
       verdicts.push(runResult.verdict)
     }
 
-    return { results, verdicts, plan }
+    return { results, verdicts, plan, pythonOutput }
   }
 
   // S20.3 — Run MultiStepPlan with cascade/compare/explain strategies
@@ -244,6 +256,7 @@ export class FinancialEngine {
   ): Promise<MultiStepResult> {
     const results: EngineResult[] = []
     const verdicts: EngineVerdict[] = []
+    let lastPythonOutput: PythonOutputResult | null = null
     const strategy = plan.combineStrategy ?? 'compare'
     const STEP_TIMEOUT_MS = 60_000
     const stepController = new AbortController()
@@ -266,6 +279,9 @@ export class FinancialEngine {
           const runResult = await this.runPlan(adjustedPlan, combinedSignal, i === plan.steps.length - 1 ? pythonPlan : null)
           if (runResult.result) {
             results.push(runResult.result)
+            if (runResult.pythonOutput) {
+              lastPythonOutput = runResult.pythonOutput
+            }
             // Extract entity name from first row for next step
             if (i === 0 && runResult.result.rows.length > 0) {
               const row = runResult.result.rows[0]!
@@ -283,11 +299,14 @@ export class FinancialEngine {
           if (runResult.result) {
             results.push(runResult.result)
           }
+          if (runResult.pythonOutput) {
+            lastPythonOutput = runResult.pythonOutput
+          }
           verdicts.push(runResult.verdict)
         }
       }
 
-      return { results, verdicts, plan }
+      return { results, verdicts, plan, pythonOutput: lastPythonOutput }
     } catch (error) {
       void error
       return {

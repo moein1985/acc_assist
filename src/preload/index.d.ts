@@ -103,6 +103,11 @@ export interface AccAssistApi {
     checkForUpdates: () => Promise<IpcResponse<ReleaseUpdateStatus>>
     installDownloadedUpdate: () => Promise<IpcResponse<boolean>>
   }
+  python: {
+    status: () => Promise<IpcResponse<{ available: boolean; version: string | null }>>
+    readFile: (filePath: string) => Promise<IpcResponse<string>>
+    saveFile: (filePath: string) => Promise<IpcResponse<string>>
+  }
 }
 
 declare global {

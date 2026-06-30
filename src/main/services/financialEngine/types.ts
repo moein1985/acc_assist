@@ -273,6 +273,8 @@ export interface MetricPlan {
   voucherNumber?: string
   /** Voucher type filter for vouchers_by_type — S14.8 */
   voucherType?: string
+  /** S18.8 — Python output plan for chart/excel/pdf generation */
+  pythonOutput?: PythonOutputPlan
   confidence: number
 }
 
@@ -478,6 +480,17 @@ const planFilterSchema = z.object({
   values: z.array(z.string())
 })
 
+// S18.7 — Zod schema for PythonOutputPlan (defined before metricPlanSchema which references it)
+export const pythonOutputPlanSchema = z.object({
+  enabled: z.boolean(),
+  outputType: z.enum(['chart', 'excel', 'pdf', 'csv', 'html', 'table']),
+  chartType: z.enum(['line', 'bar', 'pie', 'scatter', 'area', 'heatmap']).optional(),
+  title: z.string().optional(),
+  xAxis: z.string().optional(),
+  yAxis: z.string().optional(),
+  code: z.string().optional()
+})
+
 export const metricPlanSchema = z.object({
   metricId: z.enum([
     'net_sales',
@@ -571,6 +584,7 @@ export const metricPlanSchema = z.object({
     .optional(),
   voucherNumber: z.string().optional(),
   voucherType: z.string().optional(),
+  pythonOutput: pythonOutputPlanSchema.optional(),
   confidence: z.number()
 })
 
@@ -578,17 +592,6 @@ export const multiMetricPlanSchema = z.object({
   plans: z.array(metricPlanSchema).min(1).max(5),
   joinMode: z.enum(['side_by_side', 'comparison', 'trend']),
   confidence: z.number()
-})
-
-// S18.7 — Zod schema for PythonOutputPlan
-export const pythonOutputPlanSchema = z.object({
-  enabled: z.boolean(),
-  outputType: z.enum(['chart', 'excel', 'pdf', 'csv', 'html', 'table']),
-  chartType: z.enum(['line', 'bar', 'pie', 'scatter', 'area', 'heatmap']).optional(),
-  title: z.string().optional(),
-  xAxis: z.string().optional(),
-  yAxis: z.string().optional(),
-  code: z.string().optional()
 })
 
 // S20.1 — Zod schema for MultiStepPlan

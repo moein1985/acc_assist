@@ -258,7 +258,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 **کارهای باقی‌مانده:**
 - فاز ۹: ۵ آیتم زمان‌محور (S9.3-S9.5, S9.17, S9.19) — shadow run رسمی ۲ هفته‌ای در production
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test)
-- فاز ۱۸: S18.8 (planner few-shot برای Python) و S18.12 (renderer UI component برای Python output) — اولویت متوسط
+- فاز ۱۸: کامل ✅ (S18.8 و S18.12 پیاده‌سازی شد)
 - فاز ۱۹: کامل ✅
 - فاز ۲۰: کامل ✅ (field test ۷/۸ — ۱ clarify قابل‌قبول)
 - فاز ۲۱: کامل ✅ (field test ۸/۸ — 100% PASS)
