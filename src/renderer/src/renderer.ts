@@ -1790,6 +1790,11 @@ async function submitChatPrompt(prompt: string, mode: 'manual' | 'dry-run'): Pro
       renderFinalAssistantMessage(response.data.finalText)
     }
 
+    // S20.8: Render smart suggestion chips after the response
+    if (response.data.suggestions && response.data.suggestions.length > 0) {
+      renderSuggestionChips(response.data.suggestions)
+    }
+
     state.latestReportSnapshot = {
       prompt,
       responseMarkdown: resolveLatestAssistantResponseFromHistory(response.data.history, response.data.finalText),
@@ -3399,6 +3404,34 @@ function renderFinalAssistantMessage(finalText: string): void {
 
   appendChatMessage('assistant', resolvedFinalText, true)
   clearStreamingAssistantTracking()
+}
+
+// S20.8: Render smart suggestion chips below the latest assistant message
+function renderSuggestionChips(suggestions: string[]): void {
+  const container = document.createElement('div')
+  container.className = 'suggestion-chips-container'
+  container.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px;margin-bottom:8px;'
+
+  for (const text of suggestions) {
+    const chip = document.createElement('button')
+    chip.className = 'suggestion-chip'
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1px solid #3b82f6;border-radius:16px;background:#eff6ff;color:#1e40af;font-size:13px;cursor:pointer;transition:background 0.2s;'
+    chip.innerHTML = `<span style="font-size:14px;">💡</span> ${escapeHtml(text)}`
+    chip.addEventListener('mouseenter', () => { chip.style.background = '#dbeafe' })
+    chip.addEventListener('mouseleave', () => { chip.style.background = '#eff6ff' })
+    chip.addEventListener('click', () => {
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement | null
+      if (input) {
+        input.value = text
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        input.focus()
+      }
+    })
+    container.appendChild(chip)
+  }
+
+  ui.chatHistory.appendChild(container)
+  ui.chatHistory.scrollTop = ui.chatHistory.scrollHeight
 }
 
 function markdownToSafeHtml(markdown: string): string {

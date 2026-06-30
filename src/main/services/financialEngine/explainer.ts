@@ -9,7 +9,7 @@
 
 import type { EngineResult, MetricPlan } from './types'
 import type { EngineVerdict } from './types'
-import type { MultiMetricResult } from './index'
+import type { MultiMetricResult, MultiStepResult } from './index'
 import { findMetricById } from './metricCatalog'
 
 /**
@@ -244,6 +244,68 @@ export function composeMultiMetricMarkdown(
     const title = def?.titleFa ?? results[i].plan.metricId
     const sql = results[i].compiled.sql.replace(/\s+/g, ' ').slice(0, 180)
     lines.push(`- ${title}: ${sql}`)
+  }
+
+  lines.push('', '### Assumptions', '- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.')
+
+  return lines.join('\n')
+}
+
+// S20.4 — composeMultiStepMarkdown for MultiStepPlan results
+export function composeMultiStepMarkdown(
+  stepResult: MultiStepResult,
+  _prompt: string
+): string {
+  const { results, verdicts, plan } = stepResult
+  const strategy = plan.combineStrategy ?? 'compare'
+
+  const lines: string[] = ['### Summary']
+
+  const vals = results.map((r) => extractResultValue(r))
+
+  if (strategy === 'compare') {
+    lines.push('مقایسهٔ مراحل:')
+    for (let i = 0; i < results.length; i++) {
+      const def = findMetricById(results[i].plan.metricId)
+      const title = def?.titleFa ?? results[i].plan.metricId
+      lines.push(`- ${title}: ${vals[i] !== null ? vals[i]!.toLocaleString('en-US') : 'ناموجود'}`)
+    }
+    if (vals.length === 2 && vals[0] !== null && vals[1] !== null && vals[0] !== 0) {
+      const pct = (((vals[1]! - vals[0]!) / Math.abs(vals[0]!)) * 100).toFixed(1)
+      lines.push(`- درصد تفاوت: ${pct}%`)
+    }
+  } else if (strategy === 'cascade') {
+    lines.push('نتایج زنجیره‌ای:')
+    for (let i = 0; i < results.length; i++) {
+      const def = findMetricById(results[i].plan.metricId)
+      const title = def?.titleFa ?? results[i].plan.metricId
+      lines.push(`- مرحله ${i + 1} — ${title}: ${vals[i] !== null ? vals[i]!.toLocaleString('en-US') : 'ناموجود'}`)
+    }
+  } else {
+    // explain
+    lines.push('تحلیل توضیحی:')
+    for (let i = 0; i < results.length; i++) {
+      const def = findMetricById(results[i].plan.metricId)
+      const title = def?.titleFa ?? results[i].plan.metricId
+      lines.push(`- ${title}: ${vals[i] !== null ? vals[i]!.toLocaleString('en-US') : 'ناموجود'}`)
+    }
+  }
+
+  lines.push('', '### Findings', `- مسیر پاسخ: engine (multi-step, strategy=${strategy})`)
+
+  for (let i = 0; i < results.length; i++) {
+    const def = findMetricById(results[i].plan.metricId)
+    const title = def?.titleFa ?? results[i].plan.metricId
+    const vok = verdicts[i]?.ok ?? false
+    lines.push(`- مرحله ${i + 1} — ${title}: ${vals[i] !== null ? vals[i]!.toLocaleString('en-US') : 'ناموجود'} (verdict: ${vok ? 'ok' : 'failed'})`)
+  }
+
+  lines.push('', '### Evidence')
+  for (let i = 0; i < results.length; i++) {
+    const def = findMetricById(results[i].plan.metricId)
+    const title = def?.titleFa ?? results[i].plan.metricId
+    const sql = results[i].compiled.sql.replace(/\s+/g, ' ').slice(0, 180)
+    lines.push(`- مرحله ${i + 1} — ${title}: ${sql}`)
   }
 
   lines.push('', '### Assumptions', '- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.')

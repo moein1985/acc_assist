@@ -5,7 +5,22 @@
  */
 import type { AccountingConceptKey } from '../../../shared/contracts'
 import { normalizePersianDigits } from '../textNormalization'
-import type { MetricPlan } from '../financialEngine/types'
+import type { MetricPlan, MultiStepPlan } from '../financialEngine/types'
+
+// S20.5 — ConversationTurn for history tracking
+export interface ConversationTurn {
+  userMessage: string
+  plan: MetricPlan | MultiStepPlan
+  resultSummary: string
+  timestamp: number
+}
+
+// S20.5 — ContextEntities for cross-turn entity tracking
+export interface ContextEntities {
+  years: number[]
+  accounts: string[]
+  parties: string[]
+}
 
 export type ConversationMemoryFacts = {
   companyNames: string[]
@@ -23,6 +38,9 @@ export type ConversationMemoryState = {
   lastAssistantOutcome: string | null
   lastToolTrace: string[]
   lastMetricPlan: MetricPlan | null
+  // S20.5 — ConversationMemory v2
+  history: ConversationTurn[]
+  contextEntities: ContextEntities
   touchedAt: number
 }
 
@@ -101,6 +119,12 @@ export function createInitialConversationMemory(conversationId: string): Convers
     lastAssistantOutcome: null,
     lastToolTrace: [],
     lastMetricPlan: null,
+    history: [],
+    contextEntities: {
+      years: [],
+      accounts: [],
+      parties: []
+    },
     touchedAt: Date.now()
   }
 }
@@ -199,6 +223,55 @@ export function rememberToolTrace(
   }
 
   pushConversationMemoryNote(memory, `Tool trace: ${normalizedTrace}`)
+}
+
+// S20.5 — Max history turns kept in conversation memory
+export const MAX_CONVERSATION_HISTORY_TURNS = 5
+
+// S20.5 — Push a conversation turn into history (keeps last 5)
+export function pushConversationTurn(
+  memory: ConversationMemoryState,
+  turn: ConversationTurn
+): void {
+  memory.history.push(turn)
+  if (memory.history.length > MAX_CONVERSATION_HISTORY_TURNS) {
+    memory.history.splice(0, memory.history.length - MAX_CONVERSATION_HISTORY_TURNS)
+  }
+}
+
+// S20.5 — Update contextEntities from a user prompt
+export function updateContextEntities(
+  memory: ConversationMemoryState,
+  prompt: string
+): void {
+  const normalized = normalizePersianDigits(prompt)
+
+  // Extract years (1300-1500 Persian or 1900-2100 Gregorian)
+  const yearMatches = normalized.match(/\b((?:13|14)\d{2})\b/g) ?? []
+  for (const y of yearMatches) {
+    const num = parseInt(y, 10)
+    if (!memory.contextEntities.years.includes(num)) {
+      memory.contextEntities.years.push(num)
+    }
+  }
+
+  // Extract account names (after حساب/سرفصل/معین)
+  const accountMatches = prompt.match(/(?:حساب|سرفصل|معین|تفضیلی)\s+([\u0600-\u06FF]+)/gu) ?? []
+  for (const m of accountMatches) {
+    const name = m.replace(/(?:حساب|سرفصل|معین|تفضیلی)\s+/, '').trim()
+    if (name && !memory.contextEntities.accounts.includes(name)) {
+      memory.contextEntities.accounts.push(name)
+    }
+  }
+
+  // Extract party names (after طرف حساب/مشتری/فروشنده)
+  const partyMatches = prompt.match(/(?:طرف\s*حساب|مشتری|فروشنده|تأمین‌کننده)\s+([\u0600-\u06FF]+)/gu) ?? []
+  for (const m of partyMatches) {
+    const name = m.replace(/(?:طرف\s*حساب|مشتری|فروشنده|تأمین‌کننده)\s+/, '').trim()
+    if (name && !memory.contextEntities.parties.includes(name)) {
+      memory.contextEntities.parties.push(name)
+    }
+  }
 }
 
 export function updateConversationMemoryFromAssistant(

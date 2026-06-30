@@ -1,5 +1,12 @@
-import type { MetricPlan, MetricId, Grain, PlanFilter, MultiMetricPlan } from './types'
-import { metricPlanSchema, multiMetricPlanSchema } from './types'
+import type {
+  MetricPlan,
+  MetricId,
+  Grain,
+  PlanFilter,
+  MultiMetricPlan,
+  MultiStepPlan
+} from './types'
+import { metricPlanSchema, multiMetricPlanSchema, multiStepPlanSchema } from './types'
 import { findMetricById, getMetricCatalog } from './metricCatalog'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
 import { routeMultiMetric } from './router'
@@ -517,7 +524,82 @@ function buildSchemaContext(softwareId?: string): string {
   return `\n\nنکته: این سیستم به نرم‌افزار «${softwareId}» متصل است. متریک‌های موجود فقط آن‌هایی هستند که با این نرم‌افزار سازگارند.`
 }
 
-export function buildPlannerPrompt(userPrompt: string, softwareId?: string): string {
+// S20.6 — Conversation context for planner prompt injection
+export interface PlannerConversationContext {
+  history: Array<{
+    userMessage: string
+    resultSummary: string
+  }>
+  contextEntities: {
+    years: number[]
+    accounts: string[]
+    parties: string[]
+  }
+}
+
+// S20.6 — Build conversation context string for planner prompt
+function buildConversationContext(ctx?: PlannerConversationContext): string {
+  if (!ctx) return ''
+  const parts: string[] = []
+
+  if (ctx.history.length > 0) {
+    parts.push('\n\nتاریخچه مکالمه (آخرین سؤال‌ها):')
+    for (const turn of ctx.history) {
+      parts.push(`- کاربر: ${turn.userMessage} → نتیجه: ${turn.resultSummary}`)
+    }
+  }
+
+  const { years, accounts, parties } = ctx.contextEntities
+  if (years.length > 0 || accounts.length > 0 || parties.length > 0) {
+    parts.push('\nموجودیت‌های ذکرشده در مکالمه:')
+    if (years.length > 0) parts.push(`- سال‌ها: ${years.join(', ')}`)
+    if (accounts.length > 0) parts.push(`- حساب‌ها: ${accounts.join(', ')}`)
+    if (parties.length > 0) parts.push(`- طرف‌حساب‌ها: ${parties.join(', ')}`)
+  }
+
+  return parts.length > 0 ? '\n' + parts.join('\n') : ''
+}
+
+// S20.11 — Domain Knowledge injection in planner prompt
+const DOMAIN_KNOWLEDGE = `دانش حسابداری (برای انتخاب درست metricId):
+
+صورت‌های مالی:
+- ترازنامه (Balance Sheet): لیست دارایی‌ها، بدهی‌ها و حقوق صاحبان سهام → metricId: trial_balance
+- صورت سود و زیان (Income Statement): درآمد‌ها و هزینه‌ها → metricId: total_revenue, total_expenses, net_margin
+- صورت جریان وجوه نقد (Cash Flow Statement): جریان نقدی عملیاتی/سرمایه‌گذاری/تأمین مالی → metricId: cash_flow_statement
+
+نسبت‌های مالی:
+- نسبت جاری (Current Ratio) = دارایی‌های جاری / بدهی‌های جاری → metricId: current_ratio
+- بازده دارایی‌ها (ROA) = سود خالص / کل دارایی‌ها → metricId: roa
+- بازده حقوق صاحبان سهام (ROE) = سود خالص / حقوق صاحبان سهام → metricId: roe
+- حاشیه سود عملیاتی (Operating Margin) = سود عملیاتی / درآمد → metricId: operating_margin
+- حاشیه سود ناخالص (Gross Margin) = (درآمد - بهای تمام شده) / درآمد → metricId: gross_margin
+- نسبت پوشش بهره (Interest Coverage) = سود عملیاتی / هزینه بهره → metricId: interest_coverage
+- گردش دارایی‌ها (Asset Turnover) = درآمد / کل دارایی‌ها → metricId: asset_turnover
+- گردش موجودی (Inventory Turnover) = بهای تمام شده / میانگین موجودی → metricId: inventory_turnover
+
+ترجمه اصطلاحات:
+- حاشیه سود = margin (gross_margin یا operating_margin)
+- گردش = turnover (asset_turnover, inventory_turnover, receivables_turnover)
+- سود خالص = net income (net_margin)
+- سود عملیاتی = operating income (operating_margin)
+- سود ناخالص = gross profit (gross_margin)
+- مانده = balance (account_balance)
+- دریافتنی = receivable (account_balance با entityName)
+- پرداختنی = payable (account_balance با entityName)
+- فروش = sales (net_sales)
+- خرید = purchases (purchases)
+
+قوانین مالیاتی ایران:
+- VAT (مالیات بر ارزش افزوده) = ۹٪
+- معافیت‌های مالیاتی: صادرات، کالاهای اساسی
+- metricId برای VAT: vat_detailed, tax_liability_summary`
+
+export function buildPlannerPrompt(
+  userPrompt: string,
+  softwareId?: string,
+  conversationContext?: PlannerConversationContext
+): string {
   const catalog = getMetricCatalog()
   // S15.18: Filter metrics by softwareId when adapter is active
   const filteredCatalog = softwareId && softwareId !== 'sepidar'
@@ -543,6 +625,8 @@ export function buildPlannerPrompt(userPrompt: string, softwareId?: string): str
 ۸. joinMode یکی از: side_by_side, comparison, trend.
 ۹. اگر سالی ذکر نشد و متریک by_year پشتیبانی می‌کند، سال جاری شمسی را در filter قرار بده.
 ۱۰. topN فقط برای متریک‌های list (مثل recent_documents).
+۱۱. اگر سؤال چندمرحله‌ای است (خروجی یک متریک ورودی متریک بعدی است)، MultiStepPlan تولید کن با steps: [...] و combineStrategy.
+۱۲. combineStrategy یکی از: compare (مقایسه نتایج), cascade (خروجی مرحله قبل ورودی مرحله بعد), explain (مرحله اول عدد، مرحله دوم توضیح).
 
 متریک‌های موجود:
 ${metricList}
@@ -565,6 +649,16 @@ ${metricList}
     { "metricId": "purchases", "grain": "total", "filters": [...], "confidence": 0.9 }
   ],
   "joinMode": "side_by_side | comparison | trend",
+  "confidence": 0.9
+}
+
+شِمای خروجی (MultiStepPlan — چندمرحله‌ای):
+{
+  "steps": [
+    { "metricId": "net_sales", "grain": "total", "filters": [...], "confidence": 0.9 },
+    { "metricId": "net_sales", "grain": "total", "filters": [...], "confidence": 0.9 }
+  ],
+  "combineStrategy": "compare | cascade | explain",
   "confidence": 0.9
 }
 
@@ -616,7 +710,21 @@ ${metricList}
 سؤال: آب‌وهوای تهران
 پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.05}
 
-سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}
+مثال ۱۳:
+سؤال: فروش امسال چقدره و نسبت به پارسال چند درصد تغییر کرده؟
+پاسخ: {"steps":[{"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1403"]}],"confidence":0.9},{"metricId":"net_sales","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}],"combineStrategy":"compare","confidence":0.85}
+
+مثال ۱۴:
+سؤال: ترازنامه بگو و بعد حاشیه سود رو هم محاسبه کن
+پاسخ: {"steps":[{"metricId":"trial_balance","grain":"total","filters":[],"confidence":0.85},{"metricId":"net_sales","grain":"total","filters":[],"confidence":0.8}],"combineStrategy":"explain","confidence":0.8}
+
+مثال ۱۵:
+سؤال: پرفروش‌ترین مشتری رو پیدا کن و بعد گردش حسابش رو نشون بده
+پاسخ: {"steps":[{"metricId":"net_sales","grain":"by_customer","filters":[],"topN":1,"confidence":0.85},{"metricId":"party_turnover","grain":"total","filters":[],"confidence":0.8}],"combineStrategy":"cascade","confidence":0.8}
+
+${DOMAIN_KNOWLEDGE}
+
+سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}${buildConversationContext(conversationContext)}
 پاسخ JSON:`
 }
 
@@ -626,6 +734,7 @@ ${metricList}
 export interface ParsePlannerResult {
   plan: MetricPlan | null
   multiPlan?: MultiMetricPlan
+  stepPlan?: MultiStepPlan
   error?: string
 }
 
@@ -673,7 +782,23 @@ export function parsePlannerOutput(raw: string): ParsePlannerResult {
     return { plan: null, error: 'json-parse-failed' }
   }
 
-  // Try MultiMetricPlan first (has "plans" array)
+  // Try MultiStepPlan first (has "steps" array with combineStrategy)
+  const stepZodResult = multiStepPlanSchema.safeParse(parsed)
+  if (stepZodResult.success) {
+    const stepPlan = stepZodResult.data as MultiStepPlan
+    for (const step of stepPlan.steps) {
+      const def = findMetricById(step.metricId)
+      if (!def) {
+        return { plan: null, error: `step-plan-metric-not-in-catalog: ${step.metricId}` }
+      }
+      if (!def.grainSupported.includes(step.grain)) {
+        return { plan: null, error: `grain-${step.grain}-not-supported-for-${step.metricId}` }
+      }
+    }
+    return { plan: null, stepPlan }
+  }
+
+  // Try MultiMetricPlan (has "plans" array with joinMode)
   const multiZodResult = multiMetricPlanSchema.safeParse(parsed)
   if (multiZodResult.success) {
     const multiPlan = multiZodResult.data as MultiMetricPlan
@@ -743,9 +868,10 @@ export interface PlannerModelDeps {
 export async function buildModelPlan(
   userPrompt: string,
   deps: PlannerModelDeps,
-  softwareId?: string
+  softwareId?: string,
+  conversationContext?: PlannerConversationContext
 ): Promise<ParsePlannerResult> {
-  const plannerPrompt = buildPlannerPrompt(userPrompt, softwareId)
+  const plannerPrompt = buildPlannerPrompt(userPrompt, softwareId, conversationContext)
   try {
     const raw = await deps.callModel(plannerPrompt)
     return parsePlannerOutput(raw)
@@ -766,7 +892,80 @@ export interface ClarifyResult {
 
 // ─── S10.6 — buildClarify ────────────────────────────────────────────────────
 
+// S20.12 — Ambiguous term → multiple metricId mapping for advanced clarify
+const AMBIGUOUS_TERMS: Array<{
+  signal: string[]
+  question: string
+  options: Array<{ label: string; metricId: MetricId }>
+}> = [
+  {
+    signal: ['سود', 'پروفیت', 'profit'],
+    question: 'کدام نوع سود؟',
+    options: [
+      { label: 'سود خالص (حاشیه سود خالص)', metricId: 'net_margin' as MetricId },
+      { label: 'سود عملیاتی (حاشیه سود عملیاتی)', metricId: 'operating_margin' as MetricId },
+      { label: 'سود ناخالص (حاشیه سود ناخالص)', metricId: 'gross_margin' as MetricId }
+    ]
+  },
+  {
+    signal: ['حاشیه', 'margin'],
+    question: 'کدام حاشیه سود؟',
+    options: [
+      { label: 'حاشیه سود خالص', metricId: 'net_margin' as MetricId },
+      { label: 'حاشیه سود عملیاتی', metricId: 'operating_margin' as MetricId },
+      { label: 'حاشیه سود ناخالص', metricId: 'gross_margin' as MetricId }
+    ]
+  },
+  {
+    signal: ['گردش', 'turnover'],
+    question: 'کدام نوع گردش؟',
+    options: [
+      { label: 'گردش دارایی‌ها', metricId: 'asset_turnover' as MetricId },
+      { label: 'گردش موجودی', metricId: 'inventory_turnover' as MetricId },
+      { label: 'گردش دریافتنی‌ها', metricId: 'receivables_turnover' as MetricId }
+    ]
+  },
+  {
+    signal: ['نسبت', 'ratio'],
+    question: 'کدام نسبت مالی؟',
+    options: [
+      { label: 'نسبت جاری', metricId: 'current_ratio' as MetricId },
+      { label: 'بازده دارایی‌ها (ROA)', metricId: 'roa' as MetricId },
+      { label: 'بازده حقوق سهامداران (ROE)', metricId: 'roe' as MetricId }
+    ]
+  }
+]
+
+function detectAmbiguousTerm(prompt: string): Array<{ label: string; metricId: MetricId }> | null {
+  const normalized = normalizePersianText(normalizePersianDigits(prompt))
+  for (const entry of AMBIGUOUS_TERMS) {
+    const matched = entry.signal.some((sig) => normalized.includes(normalizePersianText(sig)))
+    if (matched) {
+      // Check that the prompt doesn't already specify which type (e.g., "سود خالص")
+      // Use the second word of each label as the specifier (first word is the ambiguous term itself)
+      const specifierWords = entry.options.map((opt) => {
+        const words = opt.label.split(' ')
+        return words.length > 1 ? normalizePersianText(words[1]!) : ''
+      }).filter(w => w.length > 0)
+      const hasSpecifier = specifierWords.some((w) => normalized.includes(w))
+      if (!hasSpecifier) {
+        return entry.options
+      }
+    }
+  }
+  return null
+}
+
 export function buildClarify(prompt: string, metricId: MetricId): ClarifyResult {
+  // S20.12: Check for ambiguous terms first using domain knowledge
+  const ambiguousOptions = detectAmbiguousTerm(prompt)
+  if (ambiguousOptions && ambiguousOptions.length >= 3) {
+    return {
+      question: 'سؤال شما مبهم است. لطفاً مشخص‌تر بپرسید:',
+      suggestions: ambiguousOptions.slice(0, 3).map((opt) => opt.label)
+    }
+  }
+
   const def = findMetricById(metricId)
   const catalog = getMetricCatalog()
 

@@ -45,7 +45,9 @@ import {
   pruneConversationMemory as pruneConversationMemoryFn,
   pushConversationMemoryNote as pushConversationMemoryNoteFn,
   rememberToolTrace as rememberToolTraceFn,
-  updateConversationMemoryFromAssistant as updateConversationMemoryFromAssistantFn
+  updateConversationMemoryFromAssistant as updateConversationMemoryFromAssistantFn,
+  updateContextEntities as updateContextEntitiesFn,
+  pushConversationTurn as pushConversationTurnFn
 } from './agentOrchestrator/conversationMemory'
 import {
   type ResponseContractDeps,
@@ -350,8 +352,10 @@ export class AgentOrchestrator {
       const { FinancialEngine } = await import('./financialEngine/index')
       const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
       const { normalizePersianText } = await import('./textNormalization')
-      const { composeEngineResponseMarkdown, composeMultiMetricMarkdown } = await import('./financialEngine/explainer')
+      const { composeEngineResponseMarkdown, composeMultiMetricMarkdown, composeMultiStepMarkdown } = await import('./financialEngine/explainer')
       const { checkIntentAlignment } = await import('./financialEngine/verifier')
+      const { generateSmartSuggestions } = await import('./financialEngine/smartSuggestions')
+      const { detectAnomalies } = await import('./financialEngine/anomalyDetector')
 
       // S15.22: Resolve adapter based on softwareMode
       const { adapter, softwareId } = await this.resolveAdapter()
@@ -366,10 +370,16 @@ export class AgentOrchestrator {
       })
 
       // S14.41: Pass lastMetricPlan from conversation memory for drill-down follow-up
+      // S20.6: Pass conversation context (history + contextEntities) for planner
       const memory = this.getOrCreateConversationMemory(payload.conversationId)
-      const engineRun = await engine.run(payload.prompt, undefined, memory.lastMetricPlan)
+      updateContextEntitiesFn(memory, payload.prompt)
+      const conversationContext = {
+        history: memory.history.map(t => ({ userMessage: t.userMessage, resultSummary: t.resultSummary })),
+        contextEntities: memory.contextEntities
+      }
+      const engineRun = await engine.run(payload.prompt, undefined, memory.lastMetricPlan, undefined, conversationContext)
 
-      // Handle multi-metric result (has 'results' array)
+      // Handle multi-metric or multi-step result (has 'results' array)
       if ('results' in engineRun && 'verdicts' in engineRun) {
         const multi = engineRun
         const allOk = multi.verdicts.every((v) => v.ok)
@@ -384,7 +394,29 @@ export class AgentOrchestrator {
           return null
         }
 
-        const finalText = composeMultiMetricMarkdown(multi, payload.prompt)
+        // S20.4: MultiStepResult — compose combined explanation
+        if ('steps' in multi.plan) {
+          const stepResult = multi as import('./financialEngine/index').MultiStepResult
+          const finalText = composeMultiStepMarkdown(stepResult, payload.prompt)
+          const metricIds = stepResult.results.map((r) => r.plan.metricId).join(' → ')
+
+          void this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId: payload.requestId,
+            conversationId: payload.conversationId,
+            stage: 'engine-mode',
+            prompt: `engine-served: multi-step [${metricIds}] verdict=ok`
+          })
+
+          return {
+            history: [],
+            finalText,
+            rounds: 1,
+            toolCallsUsed: stepResult.results.length
+          }
+        }
+
+        const finalText = composeMultiMetricMarkdown(multi as import('./financialEngine/index').MultiMetricResult, payload.prompt)
         const metricIds = multi.results.map((r) => r.plan.metricId).join(', ')
 
         void this.safeAuditWrite({
@@ -444,11 +476,45 @@ export class AgentOrchestrator {
       // S14.41: Store the successful plan for future drill-down
       memory.lastMetricPlan = engineRun.result.plan
 
+      // S20.5: Push conversation turn into history
+      pushConversationTurnFn(memory, {
+        userMessage: payload.prompt,
+        plan: engineRun.result.plan,
+        resultSummary: finalText.slice(0, 200),
+        timestamp: Date.now()
+      })
+
+      // S20.9: Detect anomalies in the result data
+      const anomalies = detectAnomalies({
+        metricId: engineRun.result.plan.metricId,
+        rows: engineRun.result.rows,
+        plan: engineRun.result.plan
+      })
+
+      // S20.7: Generate smart suggestions based on the executed metric
+      const suggestions = generateSmartSuggestions({
+        metricId: engineRun.result.plan.metricId,
+        filters: engineRun.result.plan.filters,
+        contextEntities: memory.contextEntities,
+        hasAnomaly: anomalies.length > 0
+      })
+
+      // S20.10: Append anomaly warnings to the final text
+      let finalTextWithAnomalies = finalText
+      if (anomalies.length > 0) {
+        const anomalyLines = anomalies.map((a) => {
+          const icon = a.severity === 'high' ? '🔴' : a.severity === 'medium' ? '🟡' : '🟢'
+          return `${icon} **${a.description}**`
+        })
+        finalTextWithAnomalies += '\n\n---\n\n⚠️ **هشدار ناهنجاری:**\n' + anomalyLines.join('\n')
+      }
+
       return {
         history: [],
-        finalText,
+        finalText: finalTextWithAnomalies,
         rounds: 1,
-        toolCallsUsed: 1
+        toolCallsUsed: 1,
+        suggestions: suggestions.map((s) => s.text)
       }
     } catch (error) {
       void this.safeAuditWrite({

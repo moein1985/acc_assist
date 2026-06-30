@@ -39,7 +39,7 @@ test('U0.3: get_trial_balance returns null (legacy removed)', async () => {
   const conversationMemory = {
     conversationId: 'test', notes: [],
     facts: { companyNames: [], fiscalYears: [], branchNames: [], dateRange: null, confirmedMappings: {} },
-    lastUserPrompt: 'تراز آزمایشی سال ۱۴۰۲', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, touchedAt: Date.now()
+    lastUserPrompt: 'تراز آزمایشی سال ۱۴۰۲', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, history: [], contextEntities: { years: [], accounts: [], parties: [] }, touchedAt: Date.now()
   }
   const result = await orchestrator['tryResolveDeterministicFinancialTool'](
     'get_trial_balance' as never, settings, conversationMemory, new AbortController().signal
@@ -55,7 +55,7 @@ test('U0.4: get_account_balance returns null (legacy removed)', async () => {
   const conversationMemory = {
     conversationId: 'test', notes: [],
     facts: { companyNames: [], fiscalYears: [], branchNames: [], dateRange: null, confirmedMappings: {} },
-    lastUserPrompt: 'مانده بدهکار حساب بانک', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, touchedAt: Date.now()
+    lastUserPrompt: 'مانده بدهکار حساب بانک', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, history: [], contextEntities: { years: [], accounts: [], parties: [] }, touchedAt: Date.now()
   }
   const result = await orchestrator['tryResolveDeterministicFinancialTool'](
     'get_account_balance' as never, settings, conversationMemory, new AbortController().signal
@@ -71,7 +71,7 @@ test('U0.4: get_cash_bank_balance returns null (legacy removed)', async () => {
   const conversationMemory = {
     conversationId: 'test', notes: [],
     facts: { companyNames: [], fiscalYears: [], branchNames: [], dateRange: null, confirmedMappings: {} },
-    lastUserPrompt: 'مانده نقد و بانک', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, touchedAt: Date.now()
+    lastUserPrompt: 'مانده نقد و بانک', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, history: [], contextEntities: { years: [], accounts: [], parties: [] }, touchedAt: Date.now()
   }
   const result = await orchestrator['tryResolveDeterministicFinancialTool'](
     'get_cash_bank_balance' as never, settings, conversationMemory, new AbortController().signal
@@ -87,7 +87,7 @@ test('U2.3: get_account_balance with fiscal year returns null (legacy removed)',
   const conversationMemory = {
     conversationId: 'test', notes: [],
     facts: { companyNames: [], fiscalYears: [], branchNames: [], dateRange: null, confirmedMappings: {} },
-    lastUserPrompt: 'مانده بدهکار حساب سال ۱۴۰۲', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, touchedAt: Date.now()
+    lastUserPrompt: 'مانده بدهکار حساب سال ۱۴۰۲', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, history: [], contextEntities: { years: [], accounts: [], parties: [] }, touchedAt: Date.now()
   }
   const result = await orchestrator['tryResolveDeterministicFinancialTool'](
     'get_account_balance' as never, settings, conversationMemory, new AbortController().signal,
@@ -104,7 +104,7 @@ test('U2.4: get_account_balance with account name and fiscal year returns null (
   const conversationMemory = {
     conversationId: 'test', notes: [],
     facts: { companyNames: [], fiscalYears: [], branchNames: [], dateRange: null, confirmedMappings: {} },
-    lastUserPrompt: 'مانده بدهکار حساب بانک سال ۱۴۰۳', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, touchedAt: Date.now()
+    lastUserPrompt: 'مانده بدهکار حساب بانک سال ۱۴۰۳', lastAssistantOutcome: null, lastToolTrace: [], lastMetricPlan: null, history: [], contextEntities: { years: [], accounts: [], parties: [] }, touchedAt: Date.now()
   }
   const result = await orchestrator['tryResolveDeterministicFinancialTool'](
     'get_account_balance' as never, settings, conversationMemory, new AbortController().signal,

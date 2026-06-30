@@ -161,7 +161,7 @@ test('engine multi-metric: فروش و خرید ۱۴۰۲ — two metrics, side_b
   const outcome = await engine.run('فروش و خرید ۱۴۰۲')
 
   assert.ok('results' in outcome, 'should be a MultiMetricResult')
-  if ('results' in outcome) {
+  if ('results' in outcome && 'joinMode' in outcome.plan) {
     assert.equal(outcome.results.length, 2, 'should have 2 results')
     assert.equal(outcome.plan.joinMode, 'side_by_side')
     assert.ok(outcome.verdicts.every((v) => v.ok), 'all verdicts should be ok')

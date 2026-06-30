@@ -265,7 +265,8 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - فاز ۱۸: S18.8 (planner few-shot) و S18.12 (renderer UI component) — اولویت متوسط
 - shadow run رسمی ۲ هفته‌ای (پس از Release ۲.۰)
 - فاز ۱۹: کامل ✅ (تمام ۲۲ آیتم تیک خورد)
-- فاز ۲۰-۲۱: پیاده‌سازی بر اساس roadmapهای جدید
+- فاز ۲۰: کامل ✅ (تمام ۱۹ آیتم تیک خورد — MultiStepPlan, ConversationMemory v2, SmartSuggestions, AnomalyDetection, DomainKnowledge, AdvancedClarify)
+- فاز ۲۱: پیاده‌سازی بر اساس roadmap
 
 ---
 

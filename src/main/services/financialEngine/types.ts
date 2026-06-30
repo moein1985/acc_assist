@@ -284,6 +284,15 @@ export interface MultiMetricPlan {
   confidence: number
 }
 
+// S20.1 — MultiStepPlan for chained metric execution
+export type CombineStrategy = 'compare' | 'cascade' | 'explain'
+
+export interface MultiStepPlan {
+  steps: MetricPlan[]
+  combineStrategy?: CombineStrategy
+  confidence: number
+}
+
 export interface DerivedMetric {
   id: string
   titleFa: string
@@ -580,4 +589,11 @@ export const pythonOutputPlanSchema = z.object({
   xAxis: z.string().optional(),
   yAxis: z.string().optional(),
   code: z.string().optional()
+})
+
+// S20.1 — Zod schema for MultiStepPlan
+export const multiStepPlanSchema = z.object({
+  steps: z.array(metricPlanSchema).min(2).max(5),
+  combineStrategy: z.enum(['compare', 'cascade', 'explain']).optional(),
+  confidence: z.number()
 })

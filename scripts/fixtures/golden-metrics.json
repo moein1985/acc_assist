@@ -1697,6 +1697,43 @@
       "id": "s11-clarify-vague-documents",
       "prompt": "اسناد چطورن؟",
       "expect": "clarify"
+    },
+    {
+      "id": "s20-multi-step-compare-sales",
+      "prompt": "فروش امسال و پارسال رو مقایسه کن",
+      "expect": "multi_step",
+      "expectedCombineStrategy": "compare"
+    },
+    {
+      "id": "s20-multi-step-explain-trial-margin",
+      "prompt": "ترازنامه بگو و بعد حاشیه سود رو هم محاسبه کن",
+      "expect": "multi_step",
+      "expectedCombineStrategy": "explain"
+    },
+    {
+      "id": "s20-multi-step-top-customer-turnover",
+      "prompt": "پرفروش‌ترین مشتری رو پیدا کن و بعد گردش حسابش رو نشون بده",
+      "expect": "multi_step",
+      "expectedCombineStrategy": "cascade"
+    },
+    {
+      "id": "s20-suggestion-after-revenue",
+      "prompt": "درآمد عملیاتی ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "total_revenue",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s20-anomaly-sales-drop",
+      "prompt": "مقایسه فروش ۱۴۰۲ و ۱۴۰۳",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s20-clarify-profit-ambiguous",
+      "prompt": "سود چقدره؟",
+      "expect": "clarify"
     }
   ],
   "conversations": [
@@ -1731,6 +1768,21 @@
           "prompt": "به تفکیک ماه",
           "expectedMetricId": "net_sales",
           "expectedGrain": "by_month"
+        }
+      ]
+    },
+    {
+      "id": "s20-conv-ref-last-year",
+      "steps": [
+        {
+          "prompt": "فروش ۱۴۰۲ چقدر بود؟",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "total"
+        },
+        {
+          "prompt": "فروش ۱۴۰۱ چقدر بود؟",
+          "expectedMetricId": "net_sales",
+          "expectedGrain": "total"
         }
       ]
     }

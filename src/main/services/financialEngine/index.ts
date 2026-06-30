@@ -7,7 +7,17 @@
  * @see FRE_ROADMAP_00_OVERVIEW.fa.md
  */
 
-import type { EngineResult, EngineVerdict, MetricPlan, MultiMetricPlan, DerivedMetric, MetricId, MetricDefinition, PythonOutputPlan } from './types'
+import type {
+  EngineResult,
+  EngineVerdict,
+  MetricPlan,
+  MultiMetricPlan,
+  MultiStepPlan,
+  DerivedMetric,
+  MetricId,
+  MetricDefinition,
+  PythonOutputPlan
+} from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { routeMetric } from './router'
 import { routeDerivedMetric } from './router'
@@ -20,6 +30,7 @@ import {
   isDrillDownPrompt,
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps,
+  type PlannerConversationContext,
   type ClarifyResult
 } from './planner'
 import { findMetricById } from './metricCatalog'
@@ -53,7 +64,13 @@ export interface MultiMetricResult {
   plan: MultiMetricPlan
 }
 
-export type EngineRunOutcome = EngineRunResult | MultiMetricResult
+export interface MultiStepResult {
+  results: EngineResult[]
+  verdicts: EngineVerdict[]
+  plan: MultiStepPlan
+}
+
+export type EngineRunOutcome = EngineRunResult | MultiMetricResult | MultiStepResult
 
 export class FinancialEngine {
   constructor(private deps: EngineDeps) {}
@@ -62,7 +79,8 @@ export class FinancialEngine {
     prompt: string,
     signal?: AbortSignal,
     lastPlan?: MetricPlan | null,
-    pythonPlan?: PythonOutputPlan | null
+    pythonPlan?: PythonOutputPlan | null,
+    conversationContext?: PlannerConversationContext
   ): Promise<EngineRunOutcome> {
     // S14.40: Conversational drill-down — if prompt is a follow-up and we have a lastPlan,
     // build a plan that inherits metricId and filters from the previous turn
@@ -97,7 +115,12 @@ export class FinancialEngine {
 
     // Step 2: If model planner is available, try it for ambiguous/complex prompts
     if (this.deps.plannerModel) {
-      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel, this.deps.softwareId)
+      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel, this.deps.softwareId, conversationContext)
+
+      // MultiStepPlan from model
+      if (modelResult.stepPlan && modelResult.stepPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
+        return this.runMultiStep(modelResult.stepPlan, signal, pythonPlan)
+      }
 
       // MultiMetricPlan from model
       if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
@@ -211,6 +234,70 @@ export class FinancialEngine {
     }
 
     return { results, verdicts, plan }
+  }
+
+  // S20.3 — Run MultiStepPlan with cascade/compare/explain strategies
+  async runMultiStep(
+    plan: MultiStepPlan,
+    signal?: AbortSignal,
+    pythonPlan?: PythonOutputPlan | null
+  ): Promise<MultiStepResult> {
+    const results: EngineResult[] = []
+    const verdicts: EngineVerdict[] = []
+    const strategy = plan.combineStrategy ?? 'compare'
+    const STEP_TIMEOUT_MS = 60_000
+    const stepController = new AbortController()
+    const stepTimeoutId = setTimeout(() => stepController.abort(), STEP_TIMEOUT_MS)
+
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, stepController.signal])
+      : stepController.signal
+
+    try {
+      if (strategy === 'cascade') {
+        // cascade: output of step N becomes filter for step N+1
+        let cascadeEntity: string | undefined
+        for (let i = 0; i < plan.steps.length; i++) {
+          const step = plan.steps[i]!
+          const adjustedPlan: MetricPlan = {
+            ...step,
+            entityName: cascadeEntity ?? step.entityName
+          }
+          const runResult = await this.runPlan(adjustedPlan, combinedSignal, i === plan.steps.length - 1 ? pythonPlan : null)
+          if (runResult.result) {
+            results.push(runResult.result)
+            // Extract entity name from first row for next step
+            if (i === 0 && runResult.result.rows.length > 0) {
+              const row = runResult.result.rows[0]!
+              cascadeEntity = (row['entity_name'] ?? row['party_name'] ?? row['customer_name']) as string | undefined
+            }
+          }
+          verdicts.push(runResult.verdict)
+          if (!runResult.verdict.ok) break
+        }
+      } else {
+        // compare & explain: each step runs independently
+        for (let i = 0; i < plan.steps.length; i++) {
+          const step = plan.steps[i]!
+          const runResult = await this.runPlan(step, combinedSignal, i === plan.steps.length - 1 ? pythonPlan : null)
+          if (runResult.result) {
+            results.push(runResult.result)
+          }
+          verdicts.push(runResult.verdict)
+        }
+      }
+
+      return { results, verdicts, plan }
+    } catch (error) {
+      void error
+      return {
+        results,
+        verdicts: [...verdicts, { ok: false, reason: 'multistep-execution-error', reconciliations: [] }],
+        plan
+      }
+    } finally {
+      clearTimeout(stepTimeoutId)
+    }
   }
 
   async runPlan(plan: MetricPlan, signal?: AbortSignal, pythonPlan?: PythonOutputPlan | null): Promise<EngineRunResult> {

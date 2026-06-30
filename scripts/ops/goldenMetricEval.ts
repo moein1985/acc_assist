@@ -11,8 +11,9 @@
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
 import { routeMetric, routeMultiMetric, routeDerivedMetric } from '../../src/main/services/financialEngine/router'
-import { buildDeterministicPlan, buildDeterministicMultiPlan, buildFollowUpPlan, isDrillDownPrompt } from '../../src/main/services/financialEngine/planner'
+import { buildDeterministicPlan, buildDeterministicMultiPlan, buildFollowUpPlan, isDrillDownPrompt, buildPlannerPrompt } from '../../src/main/services/financialEngine/planner'
 import { compileMetricPlan } from '../../src/main/services/financialEngine/compiler'
 import { verifyResult } from '../../src/main/services/financialEngine/verifier'
 import { composeEngineResponseMarkdown } from '../../src/main/services/financialEngine/explainer'
@@ -27,9 +28,10 @@ interface GoldenMetricCase {
   expectedGrain?: string
   expectedValue?: number
   tolerance?: number
-  expect?: 'any_rows' | 'any_number' | 'multi_metric' | 'derived_metric'
+  expect?: 'any_rows' | 'any_number' | 'multi_metric' | 'derived_metric' | 'multi_step'
   expectedMetricIds?: string[]
   expectedDerivedId?: string
+  expectedCombineStrategy?: string
   expectedDateRange?: { start?: string; end?: string }
   expectedVoucherNumber?: string
   expectedVoucherType?: string
@@ -158,6 +160,21 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
       prompt: case_.prompt,
       passed: true,
       metricId: gotIds.join(', ')
+    }
+  }
+
+  // Handle multi-step cases (S20)
+  if (case_.expect === 'multi_step') {
+    const prompt = buildPlannerPrompt(case_.prompt)
+    assert.ok(prompt.includes('MultiStepPlan'), 'prompt should include MultiStepPlan schema')
+    assert.ok(prompt.includes('combineStrategy'), 'prompt should include combineStrategy')
+    // Verify the prompt includes domain knowledge (S20.11)
+    assert.ok(prompt.includes('دانش حسابداری'), 'prompt should include domain knowledge')
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      metricId: 'multi_step'
     }
   }
 

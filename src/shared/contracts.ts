@@ -423,6 +423,8 @@ export interface AgentSendMessageResult {
   finalText: string
   rounds: number
   toolCallsUsed: number
+  /** S20.8 — Smart suggestion chips to display after the response */
+  suggestions?: string[]
 }
 
 export type AgentProgressPhase =
