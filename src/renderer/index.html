@@ -517,18 +517,18 @@
     <div id="app" class="app-shell">
       <header class="topbar panel">
         <div>
-          <p class="eyebrow">??? ???? ??????</p>
+          <p class="eyebrow">هوش مالی دسکتاپ</p>
           <h1>ACC Assist</h1>
-          <p class="subtitle">????? ???? ?? SQL + ???? SSH + Gemini 2.5 Pro ?? ???? ?????? avalapis.ir</p>
+          <p class="subtitle">اتصال پویا به SQL + تونل SSH + Gemini 2.5 Pro از طریق پراکسی avalapis.ir</p>
         </div>
         <div class="status-row">
-          <span id="connectionHealthIndicator" class="chip chip-neutral" style="cursor:pointer" title="????? ??? ??????">????: ??? ?????...</span>
-          <span id="sshStatusChipTop" class="chip chip-neutral">SSH: ?? ??? ?????...</span>
-          <span id="bridgeStatusChipTop" class="chip chip-neutral">?? ??????: ?? ??? ?????...</span>
+          <span id="connectionHealthIndicator" class="chip chip-neutral" style="cursor:pointer" title="بررسی سلامت اتصال">اتصال: در حال بررسی...</span>
+          <span id="sshStatusChipTop" class="chip chip-neutral">SSH: در حال بررسی...</span>
+          <span id="bridgeStatusChipTop" class="chip chip-neutral">پل موبایل: در حال بررسی...</span>
         </div>
         <div id="connectionHealthDetail" class="panel" style="display:none;position:absolute;top:60px;left:16px;z-index:1000;min-width:320px;padding:12px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <strong>????? ??? ??????</strong>
+            <strong>بررسی سلامت اتصال</strong>
             <button id="connectionHealthDetailClose" class="btn" type="button" style="padding:2px 8px;font-size:12px">×</button>
           </div>
           <div id="connectionHealthDetailBody" style="font-size:13px;line-height:1.8"></div>
@@ -545,7 +545,7 @@
           aria-controls="settingsPanel"
           aria-selected="true"
         >
-          ??????? ?????
+          تنظیمات سیستم
         </button>
         <button
           id="tabAnalysisBtn"
@@ -556,55 +556,55 @@
           aria-controls="analysisPanel"
           aria-selected="false"
         >
-          ????? ???? ?? ??? ??????
+          تحلیل مالی با هوش مصنوعی
         </button>
       </nav>
 
       <main class="tab-panels">
         <section id="settingsPanel" class="panel tab-panel active" role="tabpanel" aria-labelledby="tabSettingsBtn">
           <div class="panel-header">
-            <h2>??????? ?????</h2>
-            <button id="saveAllSettingsBtn" class="btn btn-primary" type="button">????? ??? ???????</button>
+            <h2>تنظیمات سیستم</h2>
+            <button id="saveAllSettingsBtn" class="btn btn-primary" type="button">ذخیره همه تنظیمات</button>
           </div>
 
-          <div id="settingsFeedback" class="inline-alert note-info">??????? ?? ???????? ???? ? ????? ?? ????? ????.</div>
+          <div id="settingsFeedback" class="inline-alert note-info">تنظیمات را بارگذاری کنید و اتصال را بررسی کنید.</div>
 
           <div class="settings-grid">
             <fieldset>
-              <legend>??????? ?????</legend>
+              <legend>پروفایل اتصال</legend>
               <div class="field-grid">
                 <label>
-                  ??????? ??? ????? ???
+                  پروفایل های ذخیره شده
                   <select id="profileSelectorInput">
-                    <option value="">(???? ???????)</option>
+                    <option value="">(بدون پروفایل)</option>
                   </select>
                 </label>
                 <div class="row">
-                  <button id="createProfileBtn" class="btn" type="button">????? ???????</button>
-                  <button id="activateProfileBtn" class="btn" type="button">???? ???? ?????? ???</button>
-                  <button id="deleteProfileBtn" class="btn btn-danger" type="button">??? ?????? ???</button>
+                  <button id="createProfileBtn" class="btn" type="button">ایجاد پروفایل</button>
+                  <button id="activateProfileBtn" class="btn" type="button">فعال سازی انتخاب شده</button>
+                  <button id="deleteProfileBtn" class="btn btn-danger" type="button">حذف انتخاب شده</button>
                 </div>
                 <label>
-                  ??? ???????
-                  <input id="profileNameInput" type="text" placeholder="????? ???? ????????" />
+          تنظیمات سیستم
+                  <input id="profileNameInput" type="text" placeholder="اتصال اصلی حسابداری" />
                 </label>
                 <label>
-                  ???????
+                  توضیحات
                   <textarea
                     id="profileDescriptionInput"
                     rows="3"
-                    placeholder="????: ????? ?????? LAN ?? SQL ???? ????????"
+                    placeholder="مثال: اتصال مستقیم LAN به SQL سرور حسابداری"
                   ></textarea>
                 </label>
                 <label>
-                  ??? ?????
+          تنظیمات سیستم
                   <select id="profileTypeInput">
-                    <option value="direct">SQL ??????</option>
-                    <option value="ssh">SQL ?? ???? ???? SSH</option>
+                    <option value="direct">SQL مستقیم</option>
+                    <option value="ssh">SQL از طریق تونل SSH</option>
                   </select>
                 </label>
                 <label>
-                  ????? ????? ???
+                  وضعیت آخرین تست
                   <input id="profileLastTestInput" type="text" readonly />
                 </label>
               </div>
@@ -614,119 +614,119 @@
               <legend>SQL Server</legend>
               <div class="field-grid">
                 <label>
-                  ??????
+                  توضیحات
                   <input id="sqlHostInput" type="text" placeholder="127.0.0.1" />
                 </label>
                 <label>
-                  ?????? ????
+          تنظیمات سیستم
                   <input id="sqlDatabaseInput" type="text" />
                 </label>
                 <label>
-                  ?????? ??? ???? ??????? ???
+          تحلیل مالی با هوش مصنوعی
                   <select id="sqlDatabaseSelect">
-                    <option value="">(???????? ????)</option>
+                    <option value="">(بدون پروفایل)</option>
                   </select>
                 </label>
-                <button id="loadSqlDatabasesBtn" class="btn" type="button">???????? ?????? ??? ???? ?? ????</button>
+                <button id="loadSqlDatabasesBtn" class="btn" type="button">بارگذاری پایگاه های داده از سرور</button>
                 <label>
-                  ??? ??????
+          تنظیمات سیستم
                   <input id="sqlUserInput" type="text" />
                 </label>
                 <label>
-                  ??? ????
+          تنظیمات سیستم
                   <input id="sqlPasswordInput" type="password" autocomplete="off" />
                 </label>
                 <div class="row two">
                   <label>
-                    ????
+                  توضیحات
                     <input id="sqlPortInput" type="number" min="1" max="65535" />
                   </label>
                   <label class="toggle">
                     <input id="sqlTrustCertInput" type="checkbox" />
-                    ?????? ?? ????? ????
+                  پروفایل های ذخیره شده
                   </label>
                 </div>
                 <label class="toggle">
                   <input id="sqlEncryptInput" type="checkbox" />
-                  ???????? ????? SQL
+                  رمزنگاری اتصال SQL
                 </label>
-                <button id="testSqlConnectionBtn" class="btn" type="button">??? ????? SQL</button>
-                <div id="sqlHealthCheckResult" class="inline-alert note-info">???? ????? ????? ????? ???? ???? ???.</div>
+                <button id="testSqlConnectionBtn" class="btn" type="button">تست اتصال SQL</button>
+                <div id="sqlHealthCheckResult" class="inline-alert note-info">هنوز بررسی سلامت اتصال اجرا نشده است.</div>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend>??? ?????? ???????</legend>
+              <legend>کشف ساختار دیتابیس</legend>
               <div class="field-grid">
                 <div id="schemaOnboardingPanel" class="field-grid">
                   <div class="inline-alert note-info">
-                    ???? ????: ??? ??? ????? ???????? ?? ?? ??????? ???? ????? ?????? ???? ?? ??? schema ?? ???? ??????? ????? ???.
+                    شروع سریع: اگر نرم افزار حسابداری را می شناسید، همان ابتدا انتخاب کنید تا کشف schema با همان پروفایل انجام شود.
                   </div>
-                  <div class="onboarding-steps" id="schemaOnboardingSteps" aria-label="????? ??? ?????">
-                    <span id="schemaOnboardingStepSoftware" class="onboarding-step is-current">1) ?????? ??? ?????</span>
-                    <span id="schemaOnboardingStepDiscover" class="onboarding-step">2) ??? ??????</span>
-                    <span id="schemaOnboardingStepMappings" class="onboarding-step">3) ????? ????? ????????</span>
+                  <div class="onboarding-steps" id="schemaOnboardingSteps" aria-label="مراحل راه انداز">
+                    <span id="schemaOnboardingStepSoftware" class="onboarding-step is-current">1) انتخاب نرم افزار</span>
+                    <span id="schemaOnboardingStepDiscover" class="onboarding-step">2) کشف ساختار</span>
+                    <span id="schemaOnboardingStepMappings" class="onboarding-step">3) اعمال نگاشت پیشنهادی</span>
                   </div>
                   <label>
-                    ?????? ??? ????? ??? (Onboarding)
+                    انتخاب نرم افزار هدف (Onboarding)
                     <select id="schemaOnboardingSoftwareSelect">
-                      <option value="auto">?????? (????? ?? ???? ???)</option>
+                      <option value="auto">خودکار (تشخیص در زمان کشف)</option>
                       <option value="sepidar">Sepidar</option>
                       <option value="mahak">Mahak</option>
                     </select>
                   </label>
-                  <button id="schemaOnboardingDiscoverBtn" class="btn btn-primary" type="button">????? ? ??? ??????</button>
-                  <button id="schemaOnboardingApplyMappingsBtn" class="btn" type="button">????? ????? ????????</button>
+                  <button id="schemaOnboardingDiscoverBtn" class="btn btn-primary" type="button">اعمال و کشف ساختار</button>
+                  <button id="schemaOnboardingApplyMappingsBtn" class="btn" type="button">اعمال نگاشت پیشنهادی</button>
                   <div id="schemaOnboardingSummary" class="inline-alert note-info">
-                    ?? ?? ??? schema? ??????? ????? ?????? ???? ????? ????? ???? ?? ???.
+                    پس از کشف schema، پیشنهاد نگاشت مفاهیم مالی اینجا نمایش داده می شود.
                   </div>
                   <div id="schemaOnboardingHint" class="inline-alert note-info">
-                    ???? catalog ??? ??????? ????? ???? ???. ?? ???? ???? ??? ????? ??? ?? ?????? ????.
+                    هنوز catalog این دیتابیس ساخته نشده است. در صورت نیاز نرم افزار هدف را انتخاب کنید.
                   </div>
                 </div>
                 <hr />
-                <button id="discoverSchemaBtn" class="btn" type="button">??? ?????? ????</button>
+                <button id="discoverSchemaBtn" class="btn" type="button">کشف ساختار مالی</button>
                 <div id="schemaDiscoveryResult" class="inline-alert note-info">
-                  ???? catalog ??? ??????? ????? ???? ???.
+                  هنوز catalog این دیتابیس ساخته نشده است.
                 </div>
                 <div id="schemaMappingEditor" class="field-grid" hidden>
                   <div class="inline-alert note-info">
-                    ????? ?????? ???? ?? ?? ??? ???? ??? ??????? ??? ?????? ????.
+                    نگاشت مفاهیم مالی را از بین جدول های شناسایی شده انتخاب کنید.
                   </div>
                   <div class="row">
-                    <button id="startSchemaWizardBtn" class="btn" type="button">???? wizard ????? ????</button>
+                    <button id="startSchemaWizardBtn" class="btn" type="button">شروع wizard نگاشت دستی</button>
                   </div>
                   <div id="schemaMappingWizard" class="wizard-panel" hidden>
-                    <div id="schemaWizardSummary" class="wizard-meta">wizard ????? ????? ???? ???.</div>
+                    <div id="schemaWizardSummary" class="wizard-meta">wizard نگاشت آماده اجرا است.</div>
                     <div id="schemaWizardConceptTitle" class="wizard-concept-title">-</div>
                     <label>
-                      ?????? ???? ???? ????? ????
+          تحلیل مالی با هوش مصنوعی
                       <select id="schemaWizardSelect"></select>
                     </label>
-                    <div id="schemaWizardSuggestions" class="wizard-suggestions">?????????: -</div>
+                    <div id="schemaWizardSuggestions" class="wizard-suggestions">پیشنهادها: -</div>
                     <div class="row">
-                      <button id="schemaWizardPrevBtn" class="btn" type="button">????</button>
-                      <button id="schemaWizardSkipBtn" class="btn" type="button">?? ????</button>
-                      <button id="schemaWizardApplyBtn" class="btn" type="button">??? ??? ?????</button>
-                      <button id="schemaWizardNextBtn" class="btn" type="button">????</button>
-                      <button id="schemaWizardCloseBtn" class="btn btn-danger" type="button">???? wizard</button>
+                      <button id="schemaWizardPrevBtn" class="btn" type="button">قبلی</button>
+                      <button id="schemaWizardSkipBtn" class="btn" type="button">رد کردن</button>
+                      <button id="schemaWizardApplyBtn" class="btn" type="button">ثبت این مرحله</button>
+                      <button id="schemaWizardNextBtn" class="btn" type="button">بعدی</button>
+                      <button id="schemaWizardCloseBtn" class="btn btn-danger" type="button">بستن wizard</button>
                     </div>
                   </div>
                   <label>
-                    ??? ????? ??? ???? ?????
+          تحلیل مالی با هوش مصنوعی
                     <select id="schemaSoftwareSelect">
-                      <option value="auto">?????? (?? ???? ???)</option>
+                      <option value="auto">خودکار (بر اساس کشف)</option>
                       <option value="sepidar">Sepidar</option>
                       <option value="mahak">Mahak</option>
                     </select>
                   </label>
                   <div id="schemaSoftwareHint" class="inline-alert note-info">
-                    ??? ????? ???? ???? ???? ??? catalog ????? ???? ???.
+                    نرم افزار موثر هنوز برای این catalog تعیین نشده است.
                   </div>
                   <label>
-                    ???? ????? ???? ?????
+                  پروفایل های ذخیره شده
                     <select id="schemaDateModeSelect">
-                      <option value="auto">?????? (?? ???? ???)</option>
+                      <option value="auto">خودکار (بر اساس کشف)</option>
                       <option value="gregorian">Gregorian</option>
                       <option value="shamsiText">Shamsi Text</option>
                       <option value="shamsiNumeric">Shamsi Numeric</option>
@@ -736,15 +736,15 @@
                     </select>
                   </label>
                   <div id="schemaDateModeHint" class="inline-alert note-info">
-                    ????? ???? ???? ???? ??? catalog ????? ???? ???.
+                    تاریخ موثر هنوز برای این catalog تعیین نشده است.
                   </div>
                   <div id="schemaMappingRows" class="field-grid"></div>
                   <div class="row">
                     <button id="saveSchemaMappingsBtn" class="btn btn-primary" type="button">
-                      ????? ????? ??? ?????? ???
+          تحلیل مالی با هوش مصنوعی
                     </button>
                     <button id="resetSchemaMappingsBtn" class="btn" type="button">
-                      ???????? ?? ?????????
+                  وضعیت آخرین تست
                     </button>
                   </div>
                 </div>
@@ -752,32 +752,32 @@
             </fieldset>
 
             <fieldset>
-              <legend>???? SSH</legend>
+              <legend>تونل SSH</legend>
               <div class="field-grid">
                 <label class="toggle">
                   <input id="sshEnabledInput" type="checkbox" />
-                  ???? ???? ???? SSH
+                  فعال سازی تونل SSH
                 </label>
                 <div class="row two">
                   <label>
-                    ?????? SSH
+                    میزبان SSH
                     <input id="sshHostInput" type="text" />
                   </label>
                   <label>
-                    ???? SSH
+                    میزبان SSH
                     <input id="sshPortInput" type="number" min="1" max="65535" />
                   </label>
                 </div>
                 <label>
-                  ????? SSH
+                    میزبان SSH
                   <input id="sshUserInput" type="text" />
                 </label>
                 <label>
-                  ??? ???? SSH
+                  رمز عبور SSH
                   <input id="sshPasswordInput" type="password" autocomplete="off" />
                 </label>
                 <label>
-                  ???? ????? SSH (PEM)
+                  کلید خصوصی SSH (PEM)
                   <textarea
                     id="sshPrivateKeyInput"
                     rows="5"
@@ -785,26 +785,26 @@
                   ></textarea>
                 </label>
                 <label>
-                  ??????? ???? SSH
+                  رمز عبور SSH
                   <input id="sshPassphraseInput" type="password" autocomplete="off" />
                 </label>
                 <div class="row two">
                   <label>
-                    ?????? ???? SQL
+                  رمزنگاری اتصال SQL
                     <input id="sshTargetHostInput" type="text" placeholder="127.0.0.1" />
                   </label>
                   <label>
-                    ???? ???? SQL
+                  رمزنگاری اتصال SQL
                     <input id="sshTargetPortInput" type="number" min="1" max="65535" />
                   </label>
                 </div>
                 <label>
-                  ???? ??????? ????
-                  <input id="sshLocalPortInput" type="number" min="1" max="65535" placeholder="?? ???? ???? ???? ??????" />
+                  وضعیت آخرین تست
+                  <input id="sshLocalPortInput" type="number" min="1" max="65535" placeholder="در صورت خالی بودن خودکار" />
                 </label>
                 <div class="row">
-                  <button id="startSshTunnelBtn" class="btn" type="button">???? ???? SSH</button>
-                  <button id="stopSshTunnelBtn" class="btn btn-danger" type="button">???? ???? SSH</button>
+                  <button id="startSshTunnelBtn" class="btn" type="button">شروع تونل SSH</button>
+                  <button id="stopSshTunnelBtn" class="btn btn-danger" type="button">توقف تونل SSH</button>
                 <div id="sshProgressContainer" style="margin-top:8px;display:none">
                   <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
                     <div id="sshProgressBar" style="flex:1;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden">
@@ -830,14 +830,14 @@
                   <input id="geminiBaseUrlInput" type="text" placeholder="https://api.avalapis.ir/v1" />
                 </label>
                 <label>
-                  ????
+                  توضیحات
                   <select id="geminiModeInput">
-                    <option value="openai">?????? ?? OpenAI</option>
-                    <option value="google">?????? ?? Google Gemini</option>
+                    <option value="openai">سازگار با OpenAI</option>
+                    <option value="google">سازگار با Google Gemini</option>
                   </select>
                 </label>
                 <label>
-                  ???
+                  توضیحات
                   <input id="geminiModelInput" type="text" placeholder="gemini-2.5-flash" />
                 </label>
               </div>
@@ -848,7 +848,7 @@
               <div class="field-grid">
                 <label class="toggle">
                   <input id="telemetryEnabledInput" type="checkbox" />
-                  ????? ??????? ?? collector
+                  ارسال رخدادها به collector
                 </label>
                 <label>
                   Ingest URL
@@ -860,45 +860,45 @@
                 </label>
                 <div class="row two">
                   <label>
-                    ??? ???
+          تنظیمات سیستم
                     <select id="telemetryLogLevelInput">
-                      <option value="debug">debug (?????)</option>
+                      <option value="debug">debug (پرحجم)</option>
                       <option value="info">info</option>
                       <option value="warn">warn</option>
-                      <option value="error">error (??????)</option>
+                      <option value="error">error (حداقلی)</option>
                     </select>
                   </label>
                   <label>
-                    ????? ????? (ms)
+                    فاصله ارسال (ms)
                     <input id="telemetryFlushIntervalInput" type="number" min="1000" max="60000" />
                   </label>
                 </div>
                 <div class="row two">
                   <label>
-                    timeout ??????? (ms)
+                    timeout درخواست (ms)
                     <input id="telemetryRequestTimeoutInput" type="number" min="1000" max="60000" />
                   </label>
                   <label>
-                    ?????? batch
+                    حداکثر batch
                     <input id="telemetryMaxBatchSizeInput" type="number" min="1" max="200" />
                   </label>
                   <label>
-                    ??????? ??? (???)
+                    نگهداری لاگ (روز)
                     <input id="telemetryRetentionDaysInput" type="number" min="1" max="365" />
                   </label>
                 </div>
                 <div class="row two">
                   <label>
-                    ?????? ?? ????
+                  وضعیت آخرین تست
                     <input id="telemetryMaxQueueSizeInput" type="number" min="100" max="50000" />
                   </label>
                   <label class="toggle">
                     <input id="telemetryIncludeRendererErrorsInput" type="checkbox" />
-                    ??? ?????? Renderer
+                    ثبت خطاهای Renderer
                   </label>
                 </div>
                 <div class="inline-alert note-info">
-                  ???? ??? ?? ??? ???? ?????? ??????? ????? ?? ???? ???? ?? ?? ???? ? ?? ???? ????? ?? collector ????? ?????? ??.
+                  برای عدم از دست رفتن خطاها، رخدادها همیشه به صورت محلی صف می شوند و در زمان اتصال به collector ارسال خواهند شد.
                 </div>
               </div>
             </fieldset>
@@ -907,14 +907,14 @@
               <legend>Release Update</legend>
               <div class="field-grid">
                 <div class="inline-alert note-info" id="releaseUpdateStatus">
-                  ????? auto-update ???? ???????? ???? ???.
+                  وضعیت auto-update هنوز بارگذاری نشده است.
                 </div>
                 <div class="row">
-                  <button id="releaseUpdateRefreshBtn" class="btn" type="button">????? ?????</button>
-                  <button id="releaseUpdateInstallBtn" class="btn" type="button" disabled>??? ????? ?????????</button>
+                  <button id="releaseUpdateRefreshBtn" class="btn" type="button">بررسی آپدیت</button>
+                  <button id="releaseUpdateInstallBtn" class="btn" type="button" disabled>نصب آپدیت دانلودشده</button>
                 </div>
                 <div class="inline-alert note-info">
-                  auto-update ??? ?? ???? ???? ???? ???????? ????? ????? ?? release ???? ?????? ? ?? ???? ??? ??? ????? ???.
+                  auto-update فقط در صورت فعال بودن متغیرهای محیطی مربوط به release اجرا می‌شود و در حالت پیش فرض خاموش است.
                 </div>
               </div>
             </fieldset>
@@ -991,23 +991,23 @@
 
         <section id="analysisPanel" class="panel tab-panel" role="tabpanel" aria-labelledby="tabAnalysisBtn">
           <div class="panel-header">
-            <h2>????? ???? ?? ??? ??????</h2>
+            <h2>تحلیل مالی با هوش مصنوعی</h2>
             <div class="row">
-              <button id="refreshStatusBtn" class="btn" type="button">?? ???????? ?????</button>
-              <button id="clearConversationBtn" class="btn" type="button">??? ???? ??? ???</button>
-              <button id="exportConversationBtn" class="btn" type="button">S21.12: ????? ???? ???</button>
+              <button id="refreshStatusBtn" class="btn" type="button">به روزرسانی وضعیت</button>
+              <button id="clearConversationBtn" class="btn" type="button">پاک کردن گفت وگو</button>
+              <button id="exportConversationBtn" class="btn" type="button">S21.12: خروجی گفتگو</button>
             </div>
           </div>
 
           <div class="analysis-layout">
             <div class="analysis-status">
-              <span id="connectionHealthIndicatorAnalysis" class="chip chip-neutral" style="cursor:pointer" title="????? ??? ??????">????: ??? ?????...</span>
-              <span id="sshStatusChipAnalysis" class="chip chip-neutral">SSH: ?? ??? ?????...</span>
-              <span id="bridgeStatusChipAnalysis" class="chip chip-neutral">?? ??????: ?? ??? ?????...</span>
+              <span id="connectionHealthIndicatorAnalysis" class="chip chip-neutral" style="cursor:pointer" title="بررسی سلامت اتصال">اتصال: در حال بررسی...</span>
+              <span id="sshStatusChipAnalysis" class="chip chip-neutral">SSH: در حال بررسی...</span>
+              <span id="bridgeStatusChipAnalysis" class="chip chip-neutral">پل موبایل: در حال بررسی...</span>
             </div>
 
             <div id="chatToolState" class="inline-alert note-info" hidden>
-              ??? ?????? ?? ??? ??????? ???? ?? ??????? ???...
+              هوش مصنوعی در حال استخراج داده از دیتابیس است...
             </div>
 
             <section id="quickActionsPanel" class="quick-actions" aria-label="S21.13: Quick action buttons">
@@ -1019,33 +1019,33 @@
               </div>
             </section>
 
-            <section id="chatHistory" class="chat-history" aria-live="polite" aria-label="??????? ??? ???"></section>
+            <section id="chatHistory" class="chat-history" aria-live="polite" aria-label="تاریخچه گفت وگو"></section>
 
-            <section class="prompt-templates" aria-label="???? ??? ??????? ???? ????">
+            <section class="prompt-templates" aria-label="قالب های پرتکرار سوال مالی">
               <div class="prompt-templates-header">
-                <span class="prompt-templates-title">???? ??? ??????? ???? ????</span>
+                <span class="prompt-templates-title">قالب های پرتکرار سوال مالی</span>
                 <div class="row">
-                  <button id="savePromptTemplateBtn" class="btn" type="button">????? ???? ????</button>
-                  <button id="clearPromptInputBtn" class="btn" type="button">??? ???? ???</button>
+                  <button id="savePromptTemplateBtn" class="btn" type="button">ذخیره قالب جاری</button>
+                  <button id="clearPromptInputBtn" class="btn" type="button">پاک کردن متن</button>
                 </div>
               </div>
               <div id="promptTemplateList" class="prompt-template-list"></div>
             </section>
 
-            <section id="kpiCardsPanel" class="kpi-panel" aria-label="????? KPI ????" hidden>
-              <div class="kpi-title">????? KPI ?? ????? ????</div>
+            <section id="kpiCardsPanel" class="kpi-panel" aria-label="خلاصه KPI پاسخ" hidden>
+              <div class="kpi-title">خلاصه KPI از شواهد پاسخ</div>
               <div id="kpiCardsGrid" class="kpi-grid"></div>
               <div id="kpiCardsEmpty" class="inline-alert note-info" hidden>
-                ???? ??? ???? KPI ???? ?????? ?? ????? ??????? ???.
+                برای این پاسخ KPI قابل اعتماد از شواهد استخراج نشد.
               </div>
             </section>
 
-            <section id="qualityDashboardPanel" class="quality-panel" aria-label="??????? ????? ????" hidden>
-              <div class="kpi-title">??????? ????? ????</div>
+            <section id="qualityDashboardPanel" class="quality-panel" aria-label="داشبورد کیفیت عامل" hidden>
+              <div class="kpi-title">داشبورد کیفیت عامل</div>
               <div id="qualityDashboardGrid" class="quality-grid"></div>
               <div id="qualityStageBreakdown" class="quality-stage-row"></div>
               <div id="qualityDashboardEmpty" class="inline-alert note-info" hidden>
-                ???? ???? ???? ???? ?????? ????? ?? ??? ??????? ???? ?????.
+                هنوز داده کافی برای محاسبه کیفیت در لاگ حسابرسی وجود ندارد.
               </div>
             </section>
 
@@ -1072,15 +1072,15 @@
               </div>
             </section>
 
-            <section class="audit-viewer" aria-label="?????? ??? ???????">
+            <section class="audit-viewer" aria-label="مشاهده لاگ حسابرسی">
               <div class="audit-viewer-header">
                 <span class="audit-viewer-title">Audit Viewer (Read-Only)</span>
-                <span id="auditLogSummary" class="inline-alert note-info">?? ??? ???????? ??? ???????...</span>
+                <span id="auditLogSummary" class="inline-alert note-info">در حال بارگذاری لاگ حسابرسی...</span>
               </div>
               <div class="audit-filter-grid">
                 <label>
-                  ????? requestId
-                  <input id="auditRequestIdInput" type="text" placeholder="????: req-..." />
+                  فیلتر requestId
+                  <input id="auditRequestIdInput" type="text" placeholder="مثال: req-..." />
                 </label>
                 <label>
                   Stage
@@ -1098,40 +1098,40 @@
                   Limit
                   <input id="auditLimitInput" type="number" min="10" max="500" value="80" />
                 </label>
-                <button id="auditRefreshBtn" class="btn" type="button">?? ???????? ???</button>
+                <button id="auditRefreshBtn" class="btn" type="button">به روزرسانی لاگ</button>
               </div>
               <div id="auditLogList" class="audit-list"></div>
             </section>
 
             <label>
-              ??????? ???? ????? ??? ??????
+          تحلیل مالی با هوش مصنوعی
               <textarea
                 id="promptInput"
                 rows="5"
-                placeholder="????: ??????? ????? ??? ?????? ?? ?? ??? ????? ????? ?? ? ????? ??? ???? ????? ??????? ???. ????: ???? ????? ???? ?????? ????? /dry-run ?? ???? ????."
+                placeholder="مثال: تغییرات حاشیه سود ناخالص را در فصل گذشته تحلیل کن و اقدام های کاهش هزینه پیشنهاد بده. نکته: برای اجرای مسیر تشخیصی عبارت /dry-run را وارد کنید."
               ></textarea>
             </label>
             <div class="row chat-actions">
-              <button id="exportPdfBtn" class="btn btn-compact" type="button" disabled>????? PDF</button>
-              <button id="exportExcelBtn" class="btn btn-compact" type="button" disabled>????? Excel</button>
+              <button id="exportPdfBtn" class="btn btn-compact" type="button" disabled>خروجی PDF</button>
+              <button id="exportExcelBtn" class="btn btn-compact" type="button" disabled>خروجی Excel</button>
               <button id="printReportBtn" class="btn btn-compact" type="button" disabled>چاپ</button>
               <button
                 id="runDryRunBtn"
                 class="btn btn-compact"
                 type="button"
-                title="????? ????? ?????-??-?????: Gemini -> Tool Call -> SQL -> Gemini"
+                title="اجرای تشخیص انتها-به-انتها: Gemini -> Tool Call -> SQL -> Gemini"
               >
-                ????? ????? Dry-run
+                جریان ابزار Dry-run
               </button>
-              <button id="cancelPromptBtn" class="btn btn-danger" type="button" disabled>???? ????</button>
-              <button id="sendPromptBtn" class="btn btn-primary" type="button">????? ?? Gemini</button>
+              <button id="cancelPromptBtn" class="btn btn-danger" type="button" disabled>توقف پاسخ</button>
+              <button id="sendPromptBtn" class="btn btn-primary" type="button">ارسال به Gemini</button>
             </div>
           </div>
         </section>
       </main>
 
       <footer id="appNotice" class="footer-note note-info">
-        ????? ???. ??????? ?? ???????? ????? ????? ?? ?? ????? ???? ? ??? ????? ?? ???? ????.
+        آماده است. تنظیمات را بارگذاری کنید، سرویس ها را بررسی کنید و سپس تحلیل را شروع کنید.
       </footer>
     </div>
 
