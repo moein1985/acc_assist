@@ -117,7 +117,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeConnectionProfileId: DEFAULT_PROFILE_ID,
   schemaCatalogs: [],
   promptTemplates: [],
-  financialEngineMode: 'legacy',
+  financialEngineMode: 'engine',
   sshHostKeys: {}
 }
 
