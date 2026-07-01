@@ -284,6 +284,23 @@ export class AgentOrchestrator {
   }
 
   /**
+   * Wrapper to call Gemini model for the financial engine planner.
+   * Returns the raw text response from the model.
+   */
+  private async callPlannerModel(plannerPrompt: string): Promise<string> {
+    const settings = this.getSettings()
+    const response = await this.geminiClient.chat(
+      {
+        messages: [{ role: 'user', content: plannerPrompt }],
+        temperature: 0,
+        maxOutputTokens: 2048
+      },
+      settings.gemini
+    )
+    return response.text
+  }
+
+  /**
    * S15.22: Resolve adapter and softwareId for the current settings.
    * Returns { adapter, softwareId } for injection into FinancialEngine.
    */
@@ -368,7 +385,10 @@ export class AgentOrchestrator {
         normalizePersianText,
         executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
         adapter,
-        softwareId
+        softwareId,
+        plannerModel: {
+          callModel: (plannerPrompt: string) => this.callPlannerModel(plannerPrompt)
+        }
       })
 
       // S14.41: Pass lastMetricPlan from conversation memory for drill-down follow-up
@@ -585,7 +605,10 @@ export class AgentOrchestrator {
         normalizePersianText,
         executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
         adapter,
-        softwareId
+        softwareId,
+        plannerModel: {
+          callModel: (plannerPrompt: string) => this.callPlannerModel(plannerPrompt)
+        }
       })
 
       const engineResult = await engine.run(payload.prompt)
