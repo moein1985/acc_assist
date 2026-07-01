@@ -72,7 +72,7 @@ export function routeMultiMetric(prompt: string, softwareId?: string): MultiMetr
 
   if (joinMode === 'trend') {
     const route = routeMetric(prompt, softwareId)
-    if (route.metricId && route.confidence >= 0.7) {
+    if (route.metricId && route.confidence >= 0.5) {
       return { metricIds: [route.metricId], joinMode, confidence: route.confidence }
     }
     return { metricIds: [], joinMode, confidence: 0 }
@@ -91,7 +91,7 @@ export function routeMultiMetric(prompt: string, softwareId?: string): MultiMetr
   const metricIds: MetricId[] = []
   for (const seg of segments) {
     const route = routeMetric(seg.trim(), softwareId)
-    if (route.metricId && route.confidence >= 0.7) {
+    if (route.metricId && route.confidence >= 0.5) {
       metricIds.push(route.metricId)
     }
   }
@@ -128,9 +128,17 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt)).toLowerCase()
   if (!normalized) return { metricId: null, confidence: 0 }
 
-  const cacheKey = softwareId ? `${softwareId}:${normalized}` : normalized
+  // S22.5: Cache key includes version to invalidate after weighting changes
+  const cacheKey = `v2:${softwareId ? softwareId + ':' : ''}${normalized}`
   const cached = getCachedRoute(cacheKey)
   if (cached) return cached
+
+  // S22.2: Generic anchors (short, common words) get penalized
+  const GENERIC_ANCHORS = new Set([
+    'فروش', 'خرید', 'تراز', 'حساب', 'مالیات', 'سود', 'مانده',
+    'هزینه', 'درآمد', 'پرداختنی', 'دریافتنی', 'پروژه',
+    'sales', 'buy', 'balance', 'profit', 'expenses', 'revenue'
+  ])
 
   const catalog = getMetricCatalog()
   let bestId: MetricId | null = null
@@ -148,7 +156,13 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
     for (const anchor of anchors) {
       const normalizedAnchor = normalizePersianText(anchor).toLowerCase()
       if (normalized.includes(normalizedAnchor)) {
-        score += 2
+        // S22.1: Weight by anchor length (longer = more specific = more weight)
+        // S22.2: Penalize generic short anchors
+        if (GENERIC_ANCHORS.has(normalizedAnchor) && normalizedAnchor.length <= 5) {
+          score += 0.5
+        } else {
+          score += 1 + Math.floor(normalizedAnchor.length / 6)
+        }
       }
     }
 
@@ -170,7 +184,11 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
     }
   }
 
-  const confidence = bestScore >= 4 ? 1.0 : bestScore >= 2 ? 0.7 : 0
+  // S22.1: Adjusted thresholds for new weighting system
+  // score >= 3 → 1.0 (one specific long anchor, e.g. "بدهکار و بستانکار حساب" = 4+1=5, "گردش حساب" = 2)
+  // score >= 1.5 → 0.7 (one medium anchor or multiple generic)
+  // score >= 0.5 → 0.5 (at least one generic anchor match — low confidence, let planner decide)
+  const confidence = bestScore >= 3 ? 1.0 : bestScore >= 1.5 ? 0.7 : bestScore >= 0.5 ? 0.5 : 0
   const result = { metricId: bestId, confidence }
   setCachedRoute(cacheKey, result)
   return result

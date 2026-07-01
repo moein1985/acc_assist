@@ -31,11 +31,13 @@ import {
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps,
   type PlannerConversationContext,
-  type ClarifyResult
+  type ClarifyResult,
+  type RetryHint
 } from './planner'
 import { findMetricById } from './metricCatalog'
 import { compileMetricPlan, type CompilerDeps } from './compiler'
 import { verifyResult } from './verifier'
+import { evaluateResult } from './resultEvaluator'
 
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
@@ -107,39 +109,77 @@ export class FinancialEngine {
 
     const route = routeMetric(prompt, this.deps.softwareId)
 
-    // Step 1: If router is confident, use deterministic plan (fast, no model cost)
-    if (route.metricId && route.confidence >= 0.7) {
+    // S22.3: Fast path ONLY at confidence 1.0 (very specific anchor match)
+    if (route.metricId && route.confidence >= 1.0) {
       const plan = buildDeterministicPlan(prompt, route.metricId)
       if (plan) {
-        return this.runPlan(plan, signal, pythonPlan)
+        const outcome = await this.runPlan(plan, signal, pythonPlan)
+        // S22.7: Evaluate result — if not acceptable, fall through to retry loop
+        const rows = (outcome as EngineRunResult).result?.rows ?? []
+        const evaluation = evaluateResult(prompt, route.metricId, rows, plan)
+        if (evaluation.acceptable) {
+          return outcome
+        }
       }
     }
 
-    // Step 2: If model planner is available, try it for ambiguous/complex prompts
-    if (this.deps.plannerModel) {
-      const modelResult = await buildModelPlan(prompt, this.deps.plannerModel, this.deps.softwareId, conversationContext)
+    // S22.9: Agentic retry loop
+    const MAX_RETRIES = 2
+    const triedMetrics = new Set<string>()
+    if (route.metricId) triedMetrics.add(route.metricId)
+
+    let lastFailedMetric = ''
+    let lastFailReason = ''
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (!this.deps.plannerModel) break
+
+      const retryHint: RetryHint | undefined = attempt > 0 && lastFailedMetric
+        ? { failedMetricId: lastFailedMetric, reason: lastFailReason }
+        : undefined
+
+      const modelResult = await buildModelPlan(
+        prompt,
+        this.deps.plannerModel,
+        this.deps.softwareId,
+        conversationContext,
+        retryHint
+      )
 
       // MultiStepPlan from model
       if (modelResult.stepPlan && modelResult.stepPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        // S18.8: Extract pythonOutput from the first step that has it
         const stepPython = modelResult.stepPlan.steps.find(s => s.pythonOutput)?.pythonOutput ?? pythonPlan
         return this.runMultiStep(modelResult.stepPlan, signal, stepPython ?? null)
       }
 
       // MultiMetricPlan from model
       if (modelResult.multiPlan && modelResult.multiPlan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        // S18.8: Extract pythonOutput from the first plan that has it
         const multiPython = modelResult.multiPlan.plans.find(p => p.pythonOutput)?.pythonOutput ?? pythonPlan
         return this.runMultiMetric(modelResult.multiPlan, signal, multiPython ?? null)
       }
 
       if (modelResult.plan && modelResult.plan.confidence >= PLANNER_CONFIDENCE_THRESHOLD) {
-        // S18.8: Use pythonOutput from the plan if present
+        if (triedMetrics.has(modelResult.plan.metricId)) {
+          continue
+        }
+        triedMetrics.add(modelResult.plan.metricId)
+
         const planPython = modelResult.plan.pythonOutput ?? pythonPlan
-        return this.runPlan(modelResult.plan, signal, planPython ?? null)
+        const outcome = await this.runPlan(modelResult.plan, signal, planPython ?? null)
+
+        // S22.7: Evaluate result
+        const rows = (outcome as EngineRunResult).result?.rows ?? []
+        const evaluation = evaluateResult(prompt, modelResult.plan.metricId, rows, modelResult.plan)
+        if (evaluation.acceptable) {
+          return outcome
+        }
+
+        lastFailedMetric = modelResult.plan.metricId
+        lastFailReason = evaluation.reason
+        continue
       }
 
-      // Step 3: Low confidence or invalid plan → clarify
+      // Low confidence or invalid plan → clarify
       if (modelResult.plan && modelResult.plan.confidence < PLANNER_CONFIDENCE_THRESHOLD) {
         const clarify: ClarifyResult = buildClarify(prompt, modelResult.plan.metricId)
         return {
@@ -163,9 +203,19 @@ export class FinancialEngine {
           result: null
         }
       }
+
+      break
     }
 
-    // Step 4: No metric match → degrade to legacy
+    // S22.3: Fallback to router candidate if planner couldn't find better
+    if (route.metricId && route.confidence >= 0.5) {
+      const plan = buildDeterministicPlan(prompt, route.metricId)
+      if (plan) {
+        return this.runPlan(plan, signal, pythonPlan)
+      }
+    }
+
+    // Step 4: No metric match → degrade
     return {
       verdict: {
         ok: false,

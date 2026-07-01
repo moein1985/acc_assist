@@ -195,14 +195,14 @@
     {
       "id": "golden-sales-by-month-1402",
       "prompt": "فروش ماهانه سال ۱۴۰۲",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_month",
       "expect": "any_rows"
     },
     {
       "id": "golden-sales-by-quarter-1402",
       "prompt": "فروش فصلی سال ۱۴۰۲",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_quarter",
       "expect": "any_rows"
     },
@@ -401,14 +401,14 @@
     {
       "id": "s11-sales-by-month-1403",
       "prompt": "فروش ماهانه سال ۱۴۰۳",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_month",
       "expect": "any_rows"
     },
     {
       "id": "s11-sales-by-quarter-1403",
       "prompt": "فروش فصلی سال ۱۴۰۳",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_quarter",
       "expect": "any_rows"
     },
@@ -450,7 +450,7 @@
     {
       "id": "s11-sales-by-month-no-year",
       "prompt": "فروش ماهانه",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_month",
       "expect": "any_rows"
     },
@@ -635,7 +635,7 @@
     {
       "id": "s11-conversational-sales-by-month",
       "prompt": "فروش ماهانه رو نشون بده",
-      "expectedMetricId": "net_sales",
+      "expectedMetricId": "sales_by_period",
       "expectedGrain": "by_month",
       "expect": "any_rows"
     },
@@ -1776,6 +1776,48 @@
       "id": "s20-clarify-profit-ambiguous",
       "prompt": "سود چقدره؟",
       "expect": "clarify"
+    },
+    {
+      "id": "s22-turnover-not-fiscal-year",
+      "prompt": "گردش حساب ۱۴۰۲ چقدر است؟",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s22-turnover-not-trial-balance",
+      "prompt": "گردش حساب بانکی",
+      "expectedMetricId": "account_turnover",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s22-balance-sheet-not-trial-balance",
+      "prompt": "ترازنامه سال ۱۴۰۲",
+      "expectedMetricId": "balance_sheet",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s22-trial-balance-not-balance-sheet",
+      "prompt": "تراز آزمایشی سال ۱۴۰۲",
+      "expectedMetricId": "trial_balance",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s22-sales-not-fiscal-year",
+      "prompt": "فروش سال ۱۴۰۲ چقدر بود؟",
+      "expectedMetricId": "net_sales",
+      "expectedGrain": "total",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s22-expenses-not-turnover",
+      "prompt": "هزینه‌های سال ۱۴۰۲",
+      "expectedMetricId": "total_expenses",
+      "expectedGrain": "total",
+      "expect": "any_rows"
     }
   ],
   "conversations": [
