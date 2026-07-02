@@ -19,7 +19,7 @@ import {
 } from './canonicalConceptMap'
 import type { SchemaTableMapping } from './schemaAdapter'
 import { adapterRegistry } from './adapterRegistry'
-import type { AuditLogStage } from '../../shared/contracts'
+import type { AuditLogStage } from '../../../shared/contracts'
 
 // ─── S27.17: Audit callback ───
 

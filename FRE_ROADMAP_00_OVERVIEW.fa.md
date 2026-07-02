@@ -275,4 +275,4 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **یک متریک در هر زمان:** هرگز چند متریک را هم‌زمان مهاجرت نده. vertical slice «فروش» اول.
 - **شاهدِ واقعی:** هیچ ادعای موفقیتی بدونِ خروجیِ تست یا خطِ audit.
 
-> قدمِ بعدی: فایل `FRE_ROADMAP_01_FOUNDATION_AND_MODULE_SPLIT.fa.md`.
+> قدمِ بعدی: فاز ۲۸ — `FRE_ROADMAP_27_PHASE28_TEST_TRUTH_AND_CUTOVER.fa.md` (آخرین دروازه: حقیقتِ تست، بنچ‌مارکِ زنده، field-test با شاهدِ audit، قفلِ cutover).

@@ -90,6 +90,10 @@ Adding a new metric requires only: (1) one `MetricDefinition` in `metricCatalog.
 - `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md` — Phase 10: advanced planner, smart clarify, conversational
 - Phases 11-23: Sepidar depth, schema abstraction, SSH, Python sandbox, advanced metrics, multi-step planner, UX, agentic loop, anti-hallucination
 - `FRE_ROADMAP_23_PHASE24_LEGACY_REMOVAL.fa.md` — Phase 24: complete legacy removal, engine-only architecture
+- `FRE_ROADMAP_24_PHASE25_PARTY_TURNOVER.fa.md` — Phase 25: party turnover, resolvePartyByName, multi-token matching
+- `FRE_ROADMAP_25_PHASE26_INVESTIGATOR_LOOP.fa.md` — Phase 26: investigator loop, schema scan, clusterLedgers, budget bounded
+- `FRE_ROADMAP_26_PHASE27_BLIND_DISCOVERY.fa.md` — Phase 27: blind discovery, canonicalConceptMap, discoveryPipeline, audit stages
+- `FRE_ROADMAP_27_PHASE28_TEST_TRUTH_AND_CUTOVER.fa.md` — Phase 28: test truth, live benchmark, field test, cutover gate
 
 ## 2. Legacy Tool Inventory (REMOVED in Phase 24)
 All 30 legacy deterministic tools have been physically removed. The engine now serves all financial queries via declarative `MetricDefinition` entries in `metricCatalog.ts` (73 metrics). No LLM-generated SQL, no tool loop, no legacy handlers.
@@ -106,11 +110,15 @@ All 30 legacy deterministic tools have been physically removed. The engine now s
 | Planner timeout | `FinancialEngine` | Low | 15s AbortController fires on slow planner calls; engine retries with hint or refuses explicitly |
 | SQL parser fallback: `SyntaxError` in `node-sql-parser` | `SqlConnectionManager` read-only validation | Low | Parser fails on complex SQL fragments and falls back to regex; engine generates simpler SQL |
 
-## 5. Current Architecture (Phase 24)
+## 5. Current Architecture (Phase 27)
 - **73 metrics** served by engine via declarative `MetricDefinition`
-- **271 golden cases** (100% pass)
-- **444 unit tests + 26 integration tests**
+- **274 golden cases** (100% pass)
+- **490 unit tests + 26 integration tests** (0 fail, 1 skip)
+- **typecheck:** 0 errors
 - **Engine-only:** no legacy, no shadow, no three-mode switch
 - **Two paths:** financial → engine (verified number or explicit refusal), non-financial → text-only with numeric guard
 - **Agentic loop:** MAX_RETRIES=2 with result evaluation and retry hints
 - **Python sandbox:** embedded Python 3.12 for chart/excel/pdf output
+- **Investigator loop (Phase 26):** schema scan + heuristic mapping + probe loop + clusterLedgers + multi-ledger clarify + budget bounded + read-only SQL + SchemaCache
+- **Blind discovery (Phase 27):** canonicalConceptMap with confidence scoring, discoveryPipeline (scan → sample → heuristic → relationships → enums → concept map → cache), conceptSource in metric definitions, 5 audit stages (discovery-scan/map/relationships/enums/confidence), adapter registry for known software (sepidar) skips blind discovery
+- **Party turnover (Phase 25):** resolvePartyByName with multi-token matching, year-scoped clarify

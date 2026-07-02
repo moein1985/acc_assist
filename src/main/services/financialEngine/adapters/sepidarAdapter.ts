@@ -143,6 +143,10 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.cost_center]: 'ACC.CostCenter',
     [AccountingConcept.project]: 'ACC.Project',
     [AccountingConcept.sales_invoice_item]: 'SLS.InvoiceItem',
+    [AccountingConcept.ledger_line]: 'ACC.VoucherItem',
+    [AccountingConcept.chart_of_accounts]: 'ACC.Account',
+    [AccountingConcept.party]: 'ACC.Partner',
+    [AccountingConcept.invoice]: 'SLS.Invoice',
   }
 
   private readonly columnMap: Record<string, Record<string, string>> = {
