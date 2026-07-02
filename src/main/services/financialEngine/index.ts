@@ -460,8 +460,9 @@ export class FinancialEngine {
       : timeoutController.signal
 
     try {
-      // S25.9: Resolve party name to exact PartnerId before compilation
-      if (plan.entityName && def.entityNameMatch && plan.resolvedPartyId == null) {
+      // S25.9: Resolve party name to exact PartyId before compilation
+      // Only for metrics where entityNameMatch targets p.Name (party), not a.Title (account)
+      if (plan.entityName && def.entityNameMatch && def.entityNameMatch.column === 'p.Name' && plan.resolvedPartyId == null) {
         const resolveResult = await resolvePartyByName(plan.entityName, {
           executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
           normalizePersianText: this.deps.normalizePersianText

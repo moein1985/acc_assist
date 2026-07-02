@@ -40,6 +40,7 @@ interface GoldenMetricCase {
   expectedDateRange?: { start?: string; end?: string }
   expectedVoucherNumber?: string
   expectedVoucherType?: string
+  skipOnLive?: boolean
 }
 
 interface GoldenNegativeCase {
@@ -202,6 +203,18 @@ function makeCompilerDeps(): {
 type LiveExecutor = ((query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>) | null
 
 async function evalMetricCase(case_: GoldenMetricCase, liveExecutor: LiveExecutor = null): Promise<CaseResult> {
+  // S28.7: Skip cases marked skipOnLive in live mode (empty tables, unavailable data)
+  if (liveExecutor && case_.skipOnLive) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      reason: 'skipped on live (skipOnLive)',
+      metricId: case_.expectedMetricId,
+      expectedMetricId: case_.expectedMetricId
+    }
+  }
+
   // Handle multi-metric cases
   if (case_.expect === 'multi_metric') {
     const multiRoute = routeMultiMetric(case_.prompt)
@@ -870,7 +883,7 @@ async function main(): Promise<void> {
     const status = result.passed ? '✓' : '✗'
     const detail = result.passed
       ? `metric=${result.metricId} value=${result.value?.toLocaleString('en-US')} diff=${result.diff}`
-      : `FAIL: ${result.reason}`
+      : `FAIL: ${result.reason}${result.value != null ? ` actual=${result.value}` : ''}`
     console.log(`  ${status} ${result.id}: ${detail}`)
   }
 

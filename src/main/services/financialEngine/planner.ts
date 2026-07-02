@@ -365,16 +365,18 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
     const NAME_PATTERN = `((?:[\\u0600-\\u06FF]+\\s*){1,4}?)${NAME_STOP}`
     const personMatch = normalized.match(new RegExp(`(?:آقای|خانم|شرکت)\\s+${NAME_PATTERN}`, 'u'))
     const partyMatch = normalized.match(new RegExp(`(?:طرف\\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\\s+${NAME_PATTERN}`, 'u'))
-    const accountMatch = normalized.match(new RegExp(`(?:حساب|سرفصل|معین|تفضیلی)\\s+${NAME_PATTERN}`, 'u'))
-    const accountTypeMatch = normalized.match(/(حساب\s*(?:دریافتنی|پرداختنی|اسناد))/u)
+    const accountTypeMatch = normalized.match(/حساب\s*(دریافتنی|پرداختنی|اسناد)/u)
+    const accountMatch = !accountTypeMatch
+      ? normalized.match(new RegExp(`(?:حساب|سرفصل|معین|تفضیلی)\\s+${NAME_PATTERN}`, 'u'))
+      : null
     if (personMatch) {
       entityName = personMatch[1].trim()
     } else if (partyMatch) {
       entityName = partyMatch[1].trim()
-    } else if (accountMatch) {
-      entityName = accountMatch[1].trim()
     } else if (accountTypeMatch) {
       entityName = accountTypeMatch[1]
+    } else if (accountMatch) {
+      entityName = accountMatch[1].trim()
     }
   }
 

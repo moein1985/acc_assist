@@ -77,7 +77,7 @@ describe('clusterLedgers (S26.18)', () => {
         probeType: 'locate_entity',
         table: 'ACC.Partner',
         sql: '-- test',
-        rows: [{ PartnerId: 42, Title: 'شرکت نمونه', MatchScore: 100, MatchMethod: 'exact' }],
+        rows: [{ PartyId: 42, Name: 'شرکت نمونه', MatchScore: 100, MatchMethod: 'exact' }],
         timestamp: new Date().toISOString(),
       },
       {

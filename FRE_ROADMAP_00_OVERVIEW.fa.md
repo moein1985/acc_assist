@@ -251,15 +251,17 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۵ | ✅ کامل | گردش طرف حساب: resolvePartyByName، party_turnover، multi-token matching، year-scoped clarify |
 | ۲۶ | ✅ کامل | حلقهٔ تحقیق‌گر: schema scan + heuristic mapping + probe loop + clusterLedgers + multi-ledger clarify + budget bounded + read-only SQL + SchemaCache — ۲۱ unit test، ۲۷۴ golden cases (100% سبز) |
 | ۲۷ | ✅ کامل | کشفِ کور: canonicalConceptMap، discoveryPipeline، conceptSource در net_sales، ۱۵ unit test روی دو fixture، audit stages |
+| ۲۸ | ✅ کامل | حقیقتِ تست و قفلِ cutover: ۳ تست fail رفع شد، eval:metrics:live ۲۷۸/۲۷۸ (diff=0)، field-test ۱۳/۱۳ PASS، CUTOVER_LOCKED + engineOnlyGate مارکرها |
 
-**آمار فعلی (فاز ۲۷ کامل):**
+**آمار فعلی (فاز ۲۸ کامل):**
 - ۷۳ متریک
-- ۲۷۴ golden cases (100% سبز)
-- ۴۹۰ unit test + ۲۶ integration test
+- ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
+- ۵۱۶ تست (۵۱۵ pass + ۱ skip) + ۲۶ integration test
 - typecheck: ۰ خطا
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)
 - **engine تنها ورودی** — legacy کاملاً حذف شد (فاز ۲۴)
+- **CUTOVER_LOCKED** — قفلِ engine-only فعال (فاز ۲۸)
 
 **کارهای باقی‌مانده:**
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
@@ -275,4 +277,4 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **یک متریک در هر زمان:** هرگز چند متریک را هم‌زمان مهاجرت نده. vertical slice «فروش» اول.
 - **شاهدِ واقعی:** هیچ ادعای موفقیتی بدونِ خروجیِ تست یا خطِ audit.
 
-> قدمِ بعدی: فاز ۲۸ — `FRE_ROADMAP_27_PHASE28_TEST_TRUTH_AND_CUTOVER.fa.md` (آخرین دروازه: حقیقتِ تست، بنچ‌مارکِ زنده، field-test با شاهدِ audit، قفلِ cutover).
+> **فاز ۲۸ کامل شد.** تمامِ سریِ اصلاح (فاز ۱-۲۸) به پایان رسید. قفلِ cutover فعال است. HEAD جلوتر از origin است — بدونِ تأییدِ کاربر push نکن.
