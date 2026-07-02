@@ -250,12 +250,12 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۴ | ✅ کامل | حذفِ کاملِ legacy، engine تنها ورودی — تمامِ ۱۶ مرحله (S24.1-S24.16) کامل، Exit Gate سبز |
 | ۲۵ | ✅ کامل | گردش طرف حساب: resolvePartyByName، party_turnover، multi-token matching، year-scoped clarify |
 | ۲۶ | ✅ کامل | حلقهٔ تحقیق‌گر: schema scan + heuristic mapping + probe loop + clusterLedgers + multi-ledger clarify + budget bounded + read-only SQL + SchemaCache — ۲۱ unit test، ۲۷۴ golden cases (100% سبز) |
-| ۲۷ | ✅ کامل (به‌جز UI) | کشفِ کور: canonicalConceptMap، discoveryPipeline، conceptSource در net_sales، ۱۳ unit test روی دو fixture |
+| ۲۷ | ✅ کامل | کشفِ کور: canonicalConceptMap، discoveryPipeline، conceptSource در net_sales، ۱۵ unit test روی دو fixture، audit stages |
 
 **آمار فعلی (فاز ۲۷ کامل):**
 - ۷۳ متریک
 - ۲۷۴ golden cases (100% سبز)
-- ۴۸۷ unit test + ۲۶ integration test
+- ۴۹۰ unit test + ۲۶ integration test
 - typecheck: ۰ خطا
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)

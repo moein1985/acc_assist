@@ -24,11 +24,12 @@ import {
   checkMetricAvailability,
   hasKnownAdapter,
 } from '../../src/main/services/financialEngine/discoveryPipeline'
+import { SepidarAdapter } from '../../src/main/services/financialEngine/adapters/sepidarAdapter'
 import { scanDatabaseSchema } from '../../src/main/services/financialEngine/schemaDiscovery'
 import type { RawSchemaInventory } from '../../src/main/services/financialEngine/schemaDiscovery'
 import { loadSyntheticDbSnapshot, createSyntheticSchemaExecutor } from '../helpers/syntheticDbFixture'
 import { compileMetricPlan, type CompilerDeps } from '../../src/main/services/financialEngine/compiler'
-import type { MetricPlan, MetricDefinition, ConceptSource, ConceptAggregateKind } from '../../src/main/services/financialEngine/types'
+import type { MetricPlan, MetricDefinition, ConceptSource, ConceptAggregateKind, ConceptFilter } from '../../src/main/services/financialEngine/types'
 
 // ─── Helpers ───
 
@@ -250,4 +251,96 @@ test('S27.2: net_sales metric definition has conceptSource', () => {
   assert.equal(conceptSource.alias, 'src')
   assert.ok(conceptSource.requiredJoins)
   assert.equal(conceptSource.requiredJoins!.length, 1)
+})
+
+// ─── S27.11: Enum filter resolution via conceptFilters ───
+
+test('S27.11: conceptFilters resolve voucher_type enum values via SepidarAdapter', () => {
+  const sepidar = new SepidarAdapter()
+  const deps = makeCompilerDeps(sepidar)
+
+  const conceptFilters: ConceptFilter[] = [
+    {
+      concept: AccountingConcept.voucher,
+      field: 'voucher_type',
+      op: 'not_in',
+      value: ['closing', 'auto_closing'],
+      description: 'حذف اسناد اختتامیه',
+    },
+  ]
+
+  const plan: MetricPlan = {
+    metricId: 'net_sales',
+    grain: 'total',
+    dateRange: { start: '1402', end: '1402' },
+    filters: [],
+    confidence: 0.9,
+  }
+
+  const def: MetricDefinition = {
+    id: 'net_sales',
+    titleFa: 'تست enum',
+    anchors: ['تست'],
+    excludeSignals: [],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'src' },
+    conceptSource: { concept: AccountingConcept.voucher, alias: 'src' },
+    measure: { kind: 'count' },
+    conceptMeasure: { kind: 'count' },
+    dimensions: [],
+    mandatoryFilters: [],
+    conceptFilters,
+  }
+
+  const result = compileMetricPlan(plan, def, deps)
+  assert.ok(result.sql, 'Should produce SQL')
+  // Sepidar voucherType enum: closing -> [3,4], auto_closing -> [3,4]
+  // NOT IN should contain numeric values 3 and 4
+  assert.ok(result.sql.includes('NOT IN'), 'Should contain NOT IN clause')
+  assert.ok(result.sql.includes('3') || result.sql.includes('4'), 'Should contain enum numeric values')
+})
+
+test('S27.11: conceptFilters with non-enum field fall back to string literal', () => {
+  const sepidar = new SepidarAdapter()
+  const deps = makeCompilerDeps(sepidar)
+
+  const conceptFilters: ConceptFilter[] = [
+    {
+      concept: AccountingConcept.voucher,
+      field: 'voucher_type',
+      op: 'eq',
+      value: 'unknown_enum_value',
+      description: 'تستِ مقدارِ نامشخص',
+    },
+  ]
+
+  const plan: MetricPlan = {
+    metricId: 'net_sales',
+    grain: 'total',
+    dateRange: { start: '1402', end: '1402' },
+    filters: [],
+    confidence: 0.9,
+  }
+
+  const def: MetricDefinition = {
+    id: 'net_sales',
+    titleFa: 'تست enum fallback',
+    anchors: ['تست'],
+    excludeSignals: [],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'src' },
+    conceptSource: { concept: AccountingConcept.voucher, alias: 'src' },
+    measure: { kind: 'count' },
+    conceptMeasure: { kind: 'count' },
+    dimensions: [],
+    mandatoryFilters: [],
+    conceptFilters,
+  }
+
+  const result = compileMetricPlan(plan, def, deps)
+  assert.ok(result.sql, 'Should produce SQL')
+  // Unknown enum value should fall back to string literal N'...'
+  assert.ok(result.sql.includes("N'"), 'Should fall back to string literal for unknown enum')
 })

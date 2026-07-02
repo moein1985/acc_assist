@@ -610,6 +610,11 @@ export type AuditLogStage =
   | 'engine-refuse'
   | 'text-guidance'
   | 'text-guidance-error'
+  | 'discovery-scan'
+  | 'discovery-map'
+  | 'discovery-relationships'
+  | 'discovery-enums'
+  | 'discovery-confidence'
 
 export interface AuditLogQueryRequest {
   limit?: number

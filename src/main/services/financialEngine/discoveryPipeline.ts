@@ -19,6 +19,11 @@ import {
 } from './canonicalConceptMap'
 import type { SchemaTableMapping } from './schemaAdapter'
 import { adapterRegistry } from './adapterRegistry'
+import type { AuditLogStage } from '../../shared/contracts'
+
+// ─── S27.17: Audit callback ───
+
+export type DiscoveryAuditFn = (stage: AuditLogStage, details: Record<string, unknown>) => void
 
 // ─── S27.3: Cache ───
 
@@ -54,6 +59,8 @@ export interface DiscoveryPipelineOptions {
   sampleSize?: number
   /** User-provided mapping overrides */
   overrides?: Partial<SchemaTableMapping>
+  /** S27.17: Audit callback for discovery stages */
+  onAudit?: DiscoveryAuditFn
 }
 
 export interface DiscoveryPipelineResult {
@@ -73,10 +80,12 @@ export async function runDiscoveryPipeline(
     maxSampleTables = 10,
     sampleSize = 5,
     overrides,
+    onAudit,
   } = options
 
   // S27.12: If known adapter exists, use it — no blind discovery needed
   if (softwareId && hasKnownAdapter(softwareId)) {
+    onAudit?.('discovery-scan', { softwareId, knownAdapter: true })
     // Still scan schema for the concept map, but use known adapter mappings
     const inventory = await scanDatabaseSchema(executeSql)
     const conceptMap = buildCanonicalConceptMap({
@@ -85,10 +94,17 @@ export async function runDiscoveryPipeline(
       overrides,
     })
     setCachedDiscovery(conceptMap.cacheKey, conceptMap)
+    onAudit?.('discovery-confidence', {
+      softwareId,
+      overallConfidence: conceptMap.overallConfidence,
+      mappedConcepts: conceptMap.conceptConfidences.length,
+      usedKnownAdapter: true,
+    })
     return { conceptMap, usedKnownAdapter: true, samples: [] }
   }
 
   // S27.3: Scan database schema
+  onAudit?.('discovery-scan', { softwareId, knownAdapter: false })
   const inventory = await scanDatabaseSchema(executeSql)
 
   // S27.4: Sample relevant tables for data-driven classification
@@ -106,6 +122,11 @@ export async function runDiscoveryPipeline(
     }
   }
 
+  onAudit?.('discovery-map', {
+    totalTables: inventory.tables.length,
+    sampledTables: samples.length,
+  })
+
   // S27.8-S27.9: Build canonical concept map with confidence
   const conceptMap = buildCanonicalConceptMap({
     inventory,
@@ -114,8 +135,22 @@ export async function runDiscoveryPipeline(
     overrides,
   })
 
+  onAudit?.('discovery-relationships', {
+    relationshipCount: conceptMap.relationships.length,
+  })
+  onAudit?.('discovery-enums', {
+    enumCount: Object.keys(conceptMap.enums).length,
+  })
+
   // S27.9: Cache the result
   setCachedDiscovery(conceptMap.cacheKey, conceptMap)
+
+  onAudit?.('discovery-confidence', {
+    overallConfidence: conceptMap.overallConfidence,
+    mappedConcepts: conceptMap.conceptConfidences.length,
+    unmatchedTables: conceptMap.unmatchedTables.length,
+    usedKnownAdapter: false,
+  })
 
   return { conceptMap, usedKnownAdapter: false, samples }
 }

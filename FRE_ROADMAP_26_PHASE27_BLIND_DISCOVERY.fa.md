@@ -66,7 +66,7 @@
 ### S27.10 — compiler مفهوم‌محور
 
 - [x] **S27.10** `compileMetricPlan` را طوری کن که وقتی متریک `conceptSource` دارد، نامِ جدول/ستونِ واقعی را از `canonicalConceptMap` جایگزین کند. اگر مفهومی نگاشت نشده → متریک روی این نرم‌افزار «در دسترس نیست» (ردِ صریحِ شفاف، نه حدس).
-- [ ] **S27.11** فیلترهای متعارف (مثلِ `exclude_closing_vouchers`) از `detectEnums` مقدارِ درست را بگیرند (در سپیدار `Type NOT IN (3,4)`، در نرم‌افزارِ دیگر شاید مقدارِ دیگر). _(از قبل در compiler با resolveEnumValues پیاده‌سازی شده — TODO: تستِ اختصاصی)_
+- [x] **S27.11** فیلترهای متعارف (مثلِ `exclude_closing_vouchers`) از `detectEnums` مقدارِ درست را بگیرند (در سپیدار `Type NOT IN (3,4)`، در نرم‌افزارِ دیگر شاید مقدارِ دیگر). پیاده‌سازی با `resolveEnumValues` در `compiler.ts` + ۲ تستِ اختصاصی در `phase27BlindDiscovery.test.ts`.
 
 ### S27.12 — adapterها به‌عنوان نگاشتِ ازپیش‌تأییدشده
 
@@ -88,8 +88,8 @@
 
 ### S27.16 — نمایشِ نگاشت
 
-- [ ] **S27.16** یک نمای «نگاشتِ کشف‌شده» به کاربر بده: کدام جدول = کدام مفهوم، با امتیازِ اعتماد. کاربر بتواند تأیید/اصلاح کند. این هم شفافیت است هم راهِ اصلاحِ خطاهای کشف.
-- [ ] **S27.17** audit: مرحله‌های کشف با `stage='discovery-*'` و امتیازِ اعتماد ثبت شوند.
+- [x] **S27.16** یک نمای «نگاشتِ کشف‌شده» به کاربر بده: کدام جدول = کدام مفهوم، با امتیازِ اعتماد. کاربر بتواند تأیید/اصلاح کند. این هم شفافیت است هم راهِ اصلاحِ خطاهای کشف. _(پیاده‌سازی موجود: `renderSchemaCatalogResult` + `renderSchemaMappingEditor` در `renderer.ts` نگاشت و امتیاز را نمایش می‌دهند)_
+- [x] **S27.17** audit: مرحله‌های کشف با `stage='discovery-*'` و امتیازِ اعتماد ثبت شوند. _(۵ stage جدید در `AuditLogStage`: `discovery-scan`, `discovery-map`, `discovery-relationships`, `discovery-enums`, `discovery-confidence`؛ `onAudit` callback در `discoveryPipeline.ts`)_
 
 ---
 
@@ -101,7 +101,7 @@
 - [x] مفهومِ نگاشت‌نشده → ردِ صریحِ شفاف، نه حدس.
 - [x] adapterهای شناخته‌شده اولویت دارند؛ کشفِ کور فقط برای ناشناخته.
 - [x] هیچ عددی خارج از نتیجهٔ کوئریِ واقعی تولید نمی‌شود.
-- [ ] گزارشِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام.
+- [x] گزارشِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام.
 
 ---
 
@@ -130,17 +130,35 @@
 ### S27.12 — اولویتِ adapterِ شناخته‌شده
 - `hasKnownAdapter('sepidar')` → true → استفاده از SepidarAdapter (بدون کشفِ کور).
 
+### S27.11 — تستِ resolveEnumValues
+- ۲ تستِ اختصاصی در `phase27BlindDiscovery.test.ts`:
+  ۱. `conceptFilters` با `voucher_type` و `not_in` → مقادیرِ عددیِ enum (۳، ۴) در SQL تولید می‌شود.
+  ۲. مقدارِ نامشخص → fallback به string literal `N'...'`.
+
+### S27.16 — نمایشِ نگاشت در UI
+- `renderSchemaCatalogResult` در `renderer.ts`: نمایشِ نگاشت‌ها با منبع (انتخاب کاربر/پیشنهادی) و امتیازِ اعتمادِ نرم‌افزار.
+- `renderSchemaMappingEditor`: ویرایشگرِ تعاملیِ نگاشت با dropdown برای هر مفهوم.
+- `renderSchemaOnboarding`: خلاصهٔ آمادگی با پوششِ نگاشت و کمبودها.
+
+### S27.17 — audit stages
+- ۵ stage جدید در `AuditLogStage` (`contracts.ts`): `discovery-scan`, `discovery-map`, `discovery-relationships`, `discovery-enums`, `discovery-confidence`.
+- `DiscoveryAuditFn` callback در `discoveryPipeline.ts` — در هر مرحله فراخوانی می‌شود.
+- جزئیات: شاملِ overallConfidence، mappedConcepts، unmatchedTables، relationshipCount، enumCount.
+
+### مارکرهای asar
+- `BLIND_DISCOVERY_V1`, `canonicalConceptMap`, `discoveryConfidence` در `index.html`.
+
 ### S27.13-S27.15 — تست روی دو ساختار
-- ۱۳ تستِ واحد در `tests/unit/phase27BlindDiscovery.test.ts`.
+- ۱۵ تستِ واحد در `tests/unit/phase27BlindDiscovery.test.ts`.
 - fixtureهای سنتتیک: `sepidar` (ACC_Documents) و `mahak` (Sanad/HesabKol/Ashkhas).
 - `checkMetricAvailability` برای مفاهیمِ ناموجود → ردِ صریح.
 
 ### گیتِ کامل
 - typecheck: ۰ خطا ✅
-- تستِ واحد: ۴۸۷ پاس، ۰ شکست، ۱ رد‌شده ✅
+- تستِ واحد: ۴۹۰ پاس، ۰ شکست، ۱ رد‌شده ✅
 - تستِ یکپارچه: ۲۶ پاس، ۰ شکست ✅
 - ارزیابیِ golden: ۲۷۴/۲۷۴ (۱۰۰٪) ✅
+- مارکرهای asar: ۳ مارکرِ جدید ✅
 
 ### باقی‌مانده
-- S27.11: تستِ اختصاصیِ resolveEnumValues (پیاده‌سازی موجود است، تستِ جداگانه لازم است).
-- S27.16-S27.17: نمایشِ نگاشت در UI + audit (به‌تعویق‌شده — اولویتِ پایین).
+- _(هیچ — تمامِ آیتم‌های فاز ۲۷ تکمیل شد)_
