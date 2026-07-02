@@ -17,7 +17,7 @@ import { type ExecutionTrace, type ToolEvidence } from './evidenceContract'
 import { detectFinancialIntent, listFinancialIntentDefinitions } from './financialIntentRegistry'
 import { normalizePersianDigits } from './textNormalization'
 import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
-import { appearsToContainFinancialClaim as appearsToContainFinancialClaimFn } from './agentOrchestrator/routing'
+import { appearsToContainFinancialClaim as appearsToContainFinancialClaimFn, isFinancialNumericQuery as isFinancialNumericQueryFn } from './agentOrchestrator/routing'
 import {
   type ConversationMemorySnapshot,
   type ConversationMemoryState as ConversationMemoryStateType,
@@ -204,34 +204,106 @@ export class AgentOrchestrator {
     onProgress?: (event: AgentProgressEvent) => void
   ): Promise<AgentSendMessageResult> {
     void onProgress
+
+    const isFinancial = isFinancialNumericQueryFn(payload.prompt)
+
     void this.safeAuditWrite({
       timestamp: new Date().toISOString(),
       requestId: payload.requestId,
       conversationId: payload.conversationId,
-      stage: 'engine-mode',
-      prompt: 'ENGINE_ONLY_ENTRY'
+      stage: isFinancial ? 'engine-mode' : 'text-guidance',
+      prompt: isFinancial ? 'ENGINE_ONLY_ENTRY' : 'TEXT_ONLY_GUIDANCE'
     })
 
-    const engineResponse = await this.tryEngineResponse(payload)
-    if (engineResponse !== null) {
-      return engineResponse
+    if (isFinancial) {
+      const engineResponse = await this.tryEngineResponse(payload)
+      if (engineResponse !== null) {
+        return engineResponse
+      }
+
+      // Engine could not answer → explicit refusal (no legacy fallback)
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'engine-refuse',
+        prompt: 'engine-no-result: explicit refusal (no legacy fallback)'
+      })
+
+      return {
+        history: [],
+        finalText: 'برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.',
+        rounds: 0,
+        toolCallsUsed: 0
+      }
     }
 
-    // Engine could not answer → explicit refusal (no legacy fallback)
-    void this.safeAuditWrite({
-      timestamp: new Date().toISOString(),
-      requestId: payload.requestId,
-      conversationId: payload.conversationId,
-      stage: 'engine-refuse',
-      prompt: 'engine-no-result: explicit refusal (no legacy fallback)'
-    })
+    // Non-financial guidance query → text-only path (S24.11)
+    return this.answerTextOnly(payload)
+  }
 
-    return {
-      history: [],
-      finalText: 'برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.',
-      rounds: 0,
-      toolCallsUsed: 0
+  /**
+   * S24.11: Text-only guidance path — for non-financial queries (how-to, help, explanations).
+   * No SQL is executed. A numeric guard strips any financial numbers from the model response.
+   */
+  private async answerTextOnly(
+    payload: AgentSendMessageRequest
+  ): Promise<AgentSendMessageResult> {
+    try {
+      const settings = this.getSettings()
+      const response = await this.geminiClient.chat(
+        {
+          messages: [{ role: 'user', content: payload.prompt }],
+          temperature: 0.3,
+          maxOutputTokens: 1024
+        },
+        settings.gemini
+      )
+
+      // S24.11: Numeric guard — strip financial numbers from the response
+      const guardedText = this.stripFinancialNumbers(response.text)
+
+      return {
+        history: [],
+        finalText: guardedText,
+        rounds: 0,
+        toolCallsUsed: 0
+      }
+    } catch (err) {
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'text-guidance-error',
+        prompt: `text-only error: ${err instanceof Error ? err.message : String(err)}`
+      })
+
+      return {
+        history: [],
+        finalText: 'متأسفانه در پاسخ‌گویی به درخواست شما خطایی رخ داد. لطفاً دوباره تلاش کنید.',
+        rounds: 0,
+        toolCallsUsed: 0
+      }
     }
+  }
+
+  /**
+   * S24.11: Strips financial numeric claims from text-only responses.
+   * Removes amounts, balances, and currency-marked numbers, replacing them
+   * with a guidance message.
+   */
+  private stripFinancialNumbers(text: string): string {
+    const normalized = normalizePersianDigits(text)
+
+    // If the text contains financial marked numeric claims, replace them
+    const hasFinancialNumber =
+      /(?:\d[\d,]*(?:\.\d+)?\s*(?:تومان|ریال|IRR|USD|EUR|\$)|(?:مبلغ|مانده|جمع|مجموع|موجودی)\s*[:：]?\s*\d[\d,]*)/iu.test(normalized)
+
+    if (hasFinancialNumber) {
+      return 'برای اعداد مالی باید از گزارش‌های مالی نرم‌افزار استفاده کنید. آیا راهنمایی دیگری نیاز دارید؟'
+    }
+
+    return text
   }
 
   private async tryEngineResponse(

@@ -608,6 +608,8 @@ export type AuditLogStage =
   | 'error'
   | 'engine-mode'
   | 'engine-refuse'
+  | 'text-guidance'
+  | 'text-guidance-error'
 
 export interface AuditLogQueryRequest {
   limit?: number
