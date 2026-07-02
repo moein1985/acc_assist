@@ -14,9 +14,15 @@ export enum AccountingConcept {
   purchase_invoice = 'purchase_invoice',
   voucher = 'voucher',
   voucher_item = 'voucher_item',
+  /** S27.1: Canonical alias for voucher_item — ledger line (debit/credit row) */
+  ledger_line = 'ledger_line',
   account = 'account',
+  /** S27.1: Canonical alias for account — chart of accounts */
+  chart_of_accounts = 'chart_of_accounts',
   fiscal_year = 'fiscal_year',
   partner = 'partner',
+  /** S27.1: Canonical alias for partner — party (customer/vendor) */
+  party = 'party',
   cash_balance = 'cash_balance',
   bank_balance = 'bank_balance',
   customer = 'customer',
@@ -26,6 +32,8 @@ export enum AccountingConcept {
   cost_center = 'cost_center',
   project = 'project',
   sales_invoice_item = 'sales_invoice_item',
+  /** S27.1: Generic invoice concept (sales/purchase/return) */
+  invoice = 'invoice',
 }
 
 /**

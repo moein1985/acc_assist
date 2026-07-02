@@ -406,7 +406,8 @@ function resolveConceptSource(cs: ConceptSource, adapter: SchemaAdapter): Metric
 function resolveConceptDimensions(
   conceptDims: ConceptDimensionBinding[],
   cs: ConceptSource,
-  adapter: SchemaAdapter
+  adapter: SchemaAdapter,
+  conceptDateColumn?: { sourceAlias: string; field: string }
 ): DimensionBinding[] {
   return conceptDims.map(cd => {
     const dim: DimensionBinding = {
@@ -415,8 +416,13 @@ function resolveConceptDimensions(
       labelType: cd.labelType
     }
     if (cd.expression) {
-      dim.expression = cd.expression
-      dim.labelColumn = cd.expression
+      let expr = cd.expression
+      if (conceptDateColumn) {
+        const dateCol = adapter.resolveColumn(cs.concept, conceptDateColumn.field)
+        expr = expr.replace('{dateColumn}', dateCol)
+      }
+      dim.expression = expr
+      dim.labelColumn = expr
     } else if (cd.conceptLabelField && cd.conceptJoin) {
       const sourceConcept = cd.conceptJoin.sourceAlias
         ? (findConceptByAlias(cs, cd.conceptJoin.sourceAlias) ?? cs.concept)
@@ -498,7 +504,7 @@ function resolveDefinition(definition: MetricDefinition, adapter: SchemaAdapter)
     ? resolveConceptMeasure(definition.conceptMeasure, cs.concept, adapter)
     : definition.measure
   const resolvedDimensions = definition.conceptDimensions
-    ? resolveConceptDimensions(definition.conceptDimensions, cs, adapter)
+    ? resolveConceptDimensions(definition.conceptDimensions, cs, adapter, definition.conceptDateColumn)
     : definition.dimensions
   const resolvedFilters = definition.conceptFilters
     ? resolveConceptFilters(definition.conceptFilters, cs, adapter)

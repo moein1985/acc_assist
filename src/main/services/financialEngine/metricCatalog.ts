@@ -8,6 +8,7 @@
  */
 
 import type { MetricDefinition, MetricId } from './types'
+import { AccountingConcept } from './schemaAdapter'
 
 const catalog: MetricDefinition[] = [
   {
@@ -18,7 +19,20 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
+    conceptSource: {
+      concept: AccountingConcept.sales_invoice,
+      alias: 'src',
+      requiredJoins: [
+        {
+          concept: AccountingConcept.fiscal_year,
+          alias: 'fy',
+          on: { sourceColumn: 'fiscal_year_id', targetColumn: 'primary_key' }
+        }
+      ]
+    },
     measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    conceptMeasure: { kind: 'sum', field: 'net_amount' },
+    conceptDateColumn: { sourceAlias: 'src', field: 'date' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -38,6 +52,28 @@ const catalog: MetricDefinition[] = [
       {
         dimension: 'by_quarter',
         labelColumn: 'DATEPART(QUARTER, src.Date)',
+        labelType: 'int'
+      }
+    ],
+    conceptDimensions: [
+      {
+        dimension: 'by_year',
+        conceptJoin: {
+          concept: AccountingConcept.fiscal_year,
+          alias: 'fy',
+          on: { sourceColumn: 'fiscal_year_id', targetColumn: 'primary_key' }
+        },
+        conceptLabelField: 'title',
+        labelType: 'nstring'
+      },
+      {
+        dimension: 'by_month',
+        expression: 'MONTH(src.{dateColumn})',
+        labelType: 'int'
+      },
+      {
+        dimension: 'by_quarter',
+        expression: 'DATEPART(QUARTER, src.{dateColumn})',
         labelType: 'int'
       }
     ],
