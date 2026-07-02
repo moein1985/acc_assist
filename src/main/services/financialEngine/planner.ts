@@ -360,17 +360,19 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   }
 
   if (def.entityNameMatch) {
-    // S10.9: Expanded entity patterns for conversational prompts
-    const personMatch = normalized.match(/(?:آقای|خانم|شرکت)\s+([\u0600-\u06FF]+)/u)
-    const partyMatch = normalized.match(/(?:طرف\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\s+([\u0600-\u06FF]+)/u)
-    const accountMatch = normalized.match(/(?:حساب|سرفصل|معین|تفضیلی)\s+([\u0600-\u06FF]+)/u)
+    // S25.1: Multi-token Persian name extraction — capture 1-4 tokens, stop at keywords
+    const NAME_STOP = '(?:\\s+(?:در|سال|برای|به|از|تا|چقدر|چند|است|هست|بود|شد|می|سالانه|ماهانه)(?:\\s|$)|\\s*\\d|\\s*$)'
+    const NAME_PATTERN = `((?:[\\u0600-\\u06FF]+\\s*){1,4}?)${NAME_STOP}`
+    const personMatch = normalized.match(new RegExp(`(?:آقای|خانم|شرکت)\\s+${NAME_PATTERN}`, 'u'))
+    const partyMatch = normalized.match(new RegExp(`(?:طرف\\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\\s+${NAME_PATTERN}`, 'u'))
+    const accountMatch = normalized.match(new RegExp(`(?:حساب|سرفصل|معین|تفضیلی)\\s+${NAME_PATTERN}`, 'u'))
     const accountTypeMatch = normalized.match(/(حساب\s*(?:دریافتنی|پرداختنی|اسناد))/u)
     if (personMatch) {
-      entityName = personMatch[1]
+      entityName = personMatch[1].trim()
     } else if (partyMatch) {
-      entityName = partyMatch[1]
+      entityName = partyMatch[1].trim()
     } else if (accountMatch) {
-      entityName = accountMatch[1]
+      entityName = accountMatch[1].trim()
     } else if (accountTypeMatch) {
       entityName = accountTypeMatch[1]
     }
@@ -1143,15 +1145,18 @@ export function buildFollowUpPlan(
 
   // Extract new entity name if mentioned in follow-up
   if (def.entityNameMatch) {
-    const personMatch = normalized.match(normRegex('(?:آقای|خانم|شرکت)\\s+([\\u0600-\\u06FF]+)'))
-    const partyMatch = normalized.match(normRegex('(?:طرف\\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\\s+([\\u0600-\\u06FF]+)'))
-    const accountMatch = normalized.match(normRegex('(?:حساب|سرفصل|معین|تفضیلی)\\s+([\\u0600-\\u06FF]+)'))
+    // S25.2: Multi-token name extraction in follow-up context
+    const NAME_STOP = '(?:\\s+(?:در|سال|برای|به|از|تا|چقدر|چند|است|هست|بود|شد|می|سالانه|ماهانه)(?:\\s|$)|\\s*\\d|\\s*$)'
+    const NAME_PATTERN = `((?:[\\u0600-\\u06FF]+\\s*){1,4}?)${NAME_STOP}`
+    const personMatch = normalized.match(new RegExp(`(?:آقای|خانم|شرکت)\\s+${NAME_PATTERN}`, 'u'))
+    const partyMatch = normalized.match(new RegExp(`(?:طرف\\s*حساب|شخص|مشتری|فروشنده|تأمین‌کننده)\\s+${NAME_PATTERN}`, 'u'))
+    const accountMatch = normalized.match(new RegExp(`(?:حساب|سرفصل|معین|تفضیلی)\\s+${NAME_PATTERN}`, 'u'))
     if (personMatch) {
-      entityName = personMatch[1]
+      entityName = personMatch[1].trim()
     } else if (partyMatch) {
-      entityName = partyMatch[1]
+      entityName = partyMatch[1].trim()
     } else if (accountMatch) {
-      entityName = accountMatch[1]
+      entityName = accountMatch[1].trim()
     }
   }
 

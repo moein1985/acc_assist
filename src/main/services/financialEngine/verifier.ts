@@ -188,7 +188,17 @@ export function verifyResult(
   plan: MetricPlan,
   def: MetricDefinition
 ): EngineVerdict {
-  void plan
+  // S25.10: Scope check — if resolvedPartyId was set, the compiled SQL must use it
+  if (plan.resolvedPartyId != null) {
+    const expectedFilter = `p.PartnerId = ${plan.resolvedPartyId}`
+    if (!result.compiled.sql.includes(expectedFilter)) {
+      return {
+        ok: false,
+        reason: `scope-check-failed: resolvedPartyId ${plan.resolvedPartyId} not found in compiled SQL`,
+        reconciliations: []
+      }
+    }
+  }
 
   const reconciliationResults = checkReconciliations(result, def)
   const allReconciliationsPassed = reconciliationResults.every((r) => r.passed)

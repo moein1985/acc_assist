@@ -194,15 +194,20 @@ function buildWhereClauses(
   }
 
   if (definition.entityNameMatch && plan.entityName) {
-    const col = definition.entityNameMatch.column
-    let value: string
-    if (definition.entityNameMatch.foldPersian) {
-      value = deps.normalizePersianText(plan.entityName)
-      const foldedCol = `REPLACE(REPLACE(REPLACE(${col}, NCHAR(1610), NCHAR(1740)), NCHAR(1609), NCHAR(1740)), NCHAR(1603), NCHAR(1705))`
-      where.push(`${foldedCol} LIKE N'%${escapeNString(value)}%'`)
+    // S25.9: If resolvedPartyId is set, use exact PartnerId filter
+    if (plan.resolvedPartyId != null) {
+      where.push(`p.PartnerId = ${plan.resolvedPartyId}`)
     } else {
-      value = plan.entityName
-      where.push(`${col} LIKE N'%${escapeNString(value)}%'`)
+      const col = definition.entityNameMatch.column
+      let value: string
+      if (definition.entityNameMatch.foldPersian) {
+        value = deps.normalizePersianText(plan.entityName)
+        const foldedCol = `REPLACE(REPLACE(REPLACE(${col}, NCHAR(1610), NCHAR(1740)), NCHAR(1609), NCHAR(1740)), NCHAR(1603), NCHAR(1705))`
+        where.push(`${foldedCol} LIKE N'%${escapeNString(value)}%'`)
+      } else {
+        value = plan.entityName
+        where.push(`${col} LIKE N'%${escapeNString(value)}%'`)
+      }
     }
   }
 

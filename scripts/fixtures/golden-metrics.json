@@ -1818,6 +1818,30 @@
       "expectedMetricId": "total_expenses",
       "expectedGrain": "total",
       "expect": "any_rows"
+    },
+    {
+      "id": "s25-party-turnover-multi-token",
+      "prompt": "گردش طرف حساب آقای معین محسنی فرد ۱۴۰۲",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_voucher",
+      "expectedMetricId_entityName": "معین محسنی فرد",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s25-party-turnover-by-year",
+      "prompt": "گردش سالانه طرف حساب شرکت آریا",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_year",
+      "expectedMetricId_entityName": "آریا",
+      "expect": "any_rows"
+    },
+    {
+      "id": "s25-party-turnover-customer-multi-token",
+      "prompt": "تراکنش‌های مشتری علی احمدی تهرانی",
+      "expectedMetricId": "party_turnover",
+      "expectedGrain": "by_voucher",
+      "expectedMetricId_entityName": "علی احمدی تهرانی",
+      "expect": "any_rows"
     }
   ],
   "conversations": [

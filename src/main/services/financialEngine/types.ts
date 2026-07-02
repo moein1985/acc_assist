@@ -264,6 +264,8 @@ export interface MetricPlan {
     targetValue: string
   }
   entityName?: string
+  /** S25.6: Resolved partner ID from resolvePartyByName — replaces LIKE filter with exact match */
+  resolvedPartyId?: number
   topN?: number
   dateRange?: {
     start?: string
@@ -647,6 +649,7 @@ export const metricPlanSchema = z.object({
     })
     .optional(),
   entityName: z.string().optional(),
+  resolvedPartyId: z.number().optional(),
   topN: z.number().optional(),
   dateRange: z
     .object({

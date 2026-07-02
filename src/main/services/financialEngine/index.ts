@@ -38,6 +38,7 @@ import { findMetricById } from './metricCatalog'
 import { compileMetricPlan, type CompilerDeps } from './compiler'
 import { verifyResult } from './verifier'
 import { evaluateResult } from './resultEvaluator'
+import { resolvePartyByName, buildPartyClarifyMessage } from './resolvePartyByName'
 
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
@@ -387,6 +388,28 @@ export class FinancialEngine {
       : timeoutController.signal
 
     try {
+      // S25.9: Resolve party name to exact PartnerId before compilation
+      if (plan.entityName && def.entityNameMatch && plan.resolvedPartyId == null) {
+        const resolveResult = await resolvePartyByName(plan.entityName, {
+          executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
+          normalizePersianText: this.deps.normalizePersianText
+        }, combinedSignal)
+
+        if (resolveResult.kind === 'one') {
+          plan = { ...plan, resolvedPartyId: resolveResult.candidate.partnerId }
+        } else if (resolveResult.kind === 'many') {
+          return {
+            verdict: {
+              ok: false,
+              reason: buildPartyClarifyMessage(resolveResult.candidates, resolveResult.queryName),
+              reconciliations: []
+            },
+            result: null
+          }
+        }
+        // kind === 'zero': fall through with no resolvedPartyId; compiler will use LIKE fallback
+      }
+
       const compiled = compileMetricPlan(plan, def, this.deps)
       let rows: SqlQueryRow[]
 

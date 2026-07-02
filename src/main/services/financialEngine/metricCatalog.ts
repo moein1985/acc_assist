@@ -1781,10 +1781,10 @@ const catalog: MetricDefinition[] = [
   {
     id: 'party_turnover',
     titleFa: 'گردش طرف حساب',
-    anchors: ['گردش مشتری', 'تراکنش\u200cهای مشتری', 'گردش طرف حساب', 'گردش تأمین\u200cکننده', 'تراکنش\u200cهای شخص', 'گردش شخص', 'تراکنش\u200cهای طرف حساب'],
+    anchors: ['گردش مشتری', 'تراکنش\u200cهای مشتری', 'گردش طرف حساب', 'گردش تأمین\u200cکننده', 'تراکنش\u200cهای شخص', 'گردش شخص', 'تراکنش\u200cهای طرف حساب', 'گردش حساب آقای', 'گردش حساب خانم', 'گردش حساب شخص'],
     excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'اسناد اخیر', 'صندوق', 'بانک'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_voucher'],
+    grainSupported: ['total', 'by_year', 'by_voucher'],
     source: {
       primaryTable: 'ACC.VoucherItem',
       alias: 'vi',
@@ -1795,9 +1795,9 @@ const catalog: MetricDefinition[] = [
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
         },
         {
-          table: 'ACC.Account',
-          alias: 'a',
-          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
+          table: 'ACC.Partner',
+          alias: 'p',
+          on: { sourceColumn: 'PartyRef', targetColumn: 'PartnerId' }
         }
       ]
     },
@@ -1807,13 +1807,24 @@ const catalog: MetricDefinition[] = [
     },
     dimensions: [
       {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'v'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
+      {
         dimension: 'by_voucher',
         labelColumn: 'v.Number',
         labelType: 'nstring'
       }
     ],
     mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
-    entityNameMatch: { column: 'a.Title', foldPersian: true },
+    entityNameMatch: { column: 'p.Title', foldPersian: true },
     orderBy: { column: 'v.Date', direction: 'ASC' },
     dateColumn: 'v.Date'
   },
