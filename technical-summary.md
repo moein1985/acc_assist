@@ -23,29 +23,31 @@ User question (Farsi)
   → Smart Clarify (if confidence < 0.5: question + suggestions)
 ```
 
-### Feature Flag (`ACC_FINANCIAL_ENGINE_MODE`)
-- `legacy` — only legacy deterministic handlers (pre-FRE behavior)
-- `shadow` — both paths run; user gets legacy output, engine output is compared and logged
-- `engine` — engine serves user; legacy is fallback only
+### Architecture (Phase 24 — engine-only)
+- **Engine is the only entry point.** No legacy fallback, no shadow comparison, no three-mode switch.
+- `financialEngineMode` field and `ACC_FINANCIAL_ENGINE_MODE` env var have been removed.
+- Financial queries → engine (verified number or explicit refusal, never fabricated)
+- Non-financial/guidance queries → text-only path with numeric guard (no SQL)
 
-### FRE Metrics (15 — served by FRE in engine mode)
-| Metric | FRE MetricId | Legacy Handler (DEPRECATED) | Ground-Truth (1402) |
+### FRE Metrics (73 — all served by engine)
+| Metric | FRE MetricId | Ground-Truth (1402) |
 |---|---|---|---|
-| Net sales | `net_sales` | (model-assisted) | 64,252,437,897 |
-| Purchases | `purchases` | `get_purchase_summary` | 226,110,419,451 |
-| Account balance | `account_balance` | `get_account_balance` | 19,755,458,505 |
-| Trial balance | `trial_balance` | `get_trial_balance` | 566,396,483,280 |
-| Cash + bank balance | `cash_bank_balance` | `get_cash_bank_balance` | 9,521,507,066 |
-| Sales count | `sales_count` | (new — definition only) | — |
-| Fiscal year count | `fiscal_year_count` | `count_fiscal_years` | — |
-| Fiscal year list | `fiscal_year_list` | `list_fiscal_years` | — |
-| Party balance | `party_balance` | `get_party_balance` | — |
-| Receivables | `receivables` | `get_receivables_summary` | — |
-| Payables | `payables` | `get_payables_summary` | — |
-| Cashflow | `cashflow` | `get_cashflow_summary` | — |
-| Sales by period | `sales_by_period` | `get_sales_summary_by_period` | — |
-| Account turnover | `account_turnover` | `get_account_turnover` | — |
-| Recent documents | `recent_documents` | `get_recent_or_suspicious_documents` | — |
+| Net sales | `net_sales` | 64,252,437,897 |
+| Purchases | `purchases` | 226,110,419,451 |
+| Account balance | `account_balance` | 19,755,458,505 |
+| Trial balance | `trial_balance` | 566,396,483,280 |
+| Cash + bank balance | `cash_bank_balance` | 9,521,507,066 |
+| Sales count | `sales_count` | — |
+| Fiscal year count | `fiscal_year_count` | — |
+| Fiscal year list | `fiscal_year_list` | — |
+| Party balance | `party_balance` | — |
+| Receivables | `receivables` | — |
+| Payables | `payables` | — |
+| Cashflow | `cashflow` | — |
+| Sales by period | `sales_by_period` | — |
+| Account turnover | `account_turnover` | — |
+| Recent documents | `recent_documents` | — |
+| ... + 58 more metrics (Phase 14-19) | | |
 
 ### Derived Metrics (DerivedMetric)
 | Derived | Inputs | Formula |
@@ -84,62 +86,31 @@ Adding a new metric requires only: (1) one `MetricDefinition` in `metricCatalog.
 - `FRE_ROADMAP_04_EVAL_DEPLOY_AND_CUTOVER.fa.md` — Phase 6: eval, cutover, rollback
 - `FRE_ROADMAP_05_PHASE7_LEGACY_MIGRATION.fa.md` — Phase 7: legacy migration (9 metrics)
 - `FRE_ROADMAP_06_PHASE8_MULTI_METRIC.fa.md` — Phase 8: MultiMetric + derived metrics
-- `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md` — Phase 9: production hardening, shadow run
+- `FRE_ROADMAP_07_PHASE9_PRODUCTION.fa.md` — Phase 9: production hardening, legacy removal
 - `FRE_ROADMAP_08_PHASE10_PLANNER.fa.md` — Phase 10: advanced planner, smart clarify, conversational
+- Phases 11-23: Sepidar depth, schema abstraction, SSH, Python sandbox, advanced metrics, multi-step planner, UX, agentic loop, anti-hallucination
+- `FRE_ROADMAP_23_PHASE24_LEGACY_REMOVAL.fa.md` — Phase 24: complete legacy removal, engine-only architecture
 
-## 2. Inventory of the 30 Financial Tools
-| Tool Name | Core Purpose / Target User | Main DB Tables Interacted With | Primary LLM Prompt Objective |
-|---|---|---|---|
-| count_fiscal_years | Finance admin; fiscal-year count | fiscal metadata / year fields | Detect number of fiscal years in DB |
-| list_fiscal_years | Finance admin; year discovery | fiscal metadata / year fields | List available fiscal years |
-| get_party_balance | Controller; counterparty balance | parties, ledger, transactions | Resolve counterparty/manufacturer/customer balance |
-| get_account_balance | Accountant; account balance | accounts, ledger, balances | Resolve chart/account balance |
-| get_account_turnover | Analyst; account movement | ledger, transactions, documents | Compute turnover over date range |
-| get_sales_summary_by_period | Sales manager; KPI reporting | documents, documentLines, sales facts | Summarize gross/net/booked sales by month/quarter/year |
-| get_receivables_summary | AR manager; debtors overview | documents, balances, parties | Summarize receivables/debtors |
-| get_payables_summary | AP manager; creditors overview | documents, balances, parties | Summarize payables/creditors |
-| get_cashflow_summary | CFO; cash movement | cash transactions, ledger, accounts | Summarize operating/inflow/outflow cashflow |
-| get_recent_or_suspicious_documents | Auditor; anomaly review | documents, documentLines, status fields | Find recent or suspicious vouchers/documents |
-| gross_sales_kpi | Sales KPI; annual revenue view | sales facts, documents | Return gross sales KPI |
-| net_sales_kpi | Sales KPI; net revenue view | sales facts, documents | Return net sales KPI |
-| booked_sales_kpi | Finance ops; booked revenue view | documents, documentLines | Return booked sales KPI |
-| year_over_year_growth | CFO; growth analysis | sales facts, fiscal periods | Compare current vs prior year sales |
-| monthly_sales_variance | Analyst; variance tracking | sales facts, periods | Compute monthly sales variance |
-| quarterly_sales_summary | Finance manager; quarter rollup | documents, sales facts | Summarize quarterly revenue |
-| fiscal_year_balance_check | Controller; year-end check | balances, accounts, parties | Verify year-end balances |
-| debtor_age_summary | AR analyst; aging view | debtors, documents, due dates | Segment receivables by age bucket |
-| creditor_age_summary | AP analyst; aging view | creditors, documents, due dates | Segment payables by age bucket |
-| cash_inflow_breakdown | Treasury; inflow detail | cash transactions, accounts | Break down cash inflows |
-| cash_outflow_breakdown | Treasury; outflow detail | cash transactions, accounts | Break down cash outflows |
-| account_movement_detail | Accountant; line-item drill-down | ledger, documentLines | Show transactional movement detail |
-| document_anomaly_scan | Auditor; exception scan | documents, status, parties | Flag unusual documents/amounts |
-| journal_entry_summary | Controller; ledger summary | documents, journal lines | Summarize journal activity |
-| branch_performance_summary | Ops manager; branch KPI | documents, branches, accounts | Compare performance by branch |
-| cost_center_summary | Controller; cost analysis | documentLines, cost centers | Summarize cost-center spending |
-| tax_summary | Finance ops; tax review | documents, tax fields | Summarize VAT/tax amounts |
-| invoice_collection_status | AR ops; collection status | documents, receivables | Check collection status of invoices |
-| payment_due_report | AP ops; payment schedule | documents, payable dates | List due payments |
-| month_end_reconciliation | Controller; close process | ledger, cash, balances | Reconcile month-end balances |
-| suspicious_amount_flag | Auditor; threshold review | documents, amounts | Flag outlier or suspicious amounts |
+## 2. Legacy Tool Inventory (REMOVED in Phase 24)
+All 30 legacy deterministic tools have been physically removed. The engine now serves all financial queries via declarative `MetricDefinition` entries in `metricCatalog.ts` (73 metrics). No LLM-generated SQL, no tool loop, no legacy handlers.
 
 ## 3. Telemetry Logs Summary
-- High-frequency telemetry is centered on `ipc.handler`, tool execution, SQL validation, and provider/LLM response errors; the collector is active and drains queue on restart.
-- The most active execution path is the tool loop around `list_database_tables → get_database_schema → fetch_financial_data`, with schema discovery and SQL execution dominating the expensive steps.
-- Performance bottlenecks are concentrated in provider/network retries (20–110 s failure windows), schema lookups repeated across loops, and SQL parser fallback/validation overhead when queries are non-trivial or malformed.
+- Engine-mode audit entries (`stage=engine-mode`, `stage=engine-refuse`, `stage=text-guidance`) are the primary log sources.
+- No tool loop, no schema-discovery loop — engine compiles SQL deterministically from `MetricPlan`.
+- Performance bottleneck: planner model call (Gemini) — mitigated by 15s timeout + retry loop (MAX_RETRIES=2).
 
 ## 4. Active Bugs & Errors Matrix
 | Error Signature / Exception Type | Affected Module/Tool | Frequency | Root Cause / Context from Logs |
 |---|---|---:|---|
-| Gemini 502/504 upstream errors; stream termination | `GeminiClient` / provider path | High | Provider-side 5xx and streaming timeout; retries amplify delay and garble HTML error bodies |
-| Loop exceeded / tool-loop restart | `AgentOrchestrator` | High | Multi-step financial queries exceed tool-call limits; schema/SQL loop restarts before final answer |
-| Invalid column / schema mismatch | SQL generation + schema mapping | Medium | LLM-generated column names do not match actual schema (`Name` vs `Title`); validation path is too late |
-| SQL parser fallback: `SyntaxError` in `node-sql-parser` | `SqlConnectionManager` read-only validation | Medium | Parser fails on complex SQL fragments and falls back to regex; this is a reliability and performance hotspot |
-| Unsupported SQL constructs / window functions | `fetch_financial_data` + SQL policy | Medium | Queries using unsupported functions or non-portable patterns fail after tool loop progression |
-| Telemetry redaction / garbled error text | telemetry ingest path | Medium | Upstream HTML/garbage error payloads are logged without clean normalization |
+| Gemini 502/504 upstream errors; stream termination | `GeminiClient` / provider path | Medium | Provider-side 5xx and streaming timeout; mitigated by retry loop |
+| Planner timeout | `FinancialEngine` | Low | 15s AbortController fires on slow planner calls; engine retries with hint or refuses explicitly |
+| SQL parser fallback: `SyntaxError` in `node-sql-parser` | `SqlConnectionManager` read-only validation | Low | Parser fails on complex SQL fragments and falls back to regex; engine generates simpler SQL |
 
-## 5. MVP Candidates Identification
-1. `count_fiscal_years` — deterministic, low-risk, strong regression coverage, minimal SQL complexity.
-2. `list_fiscal_years` — deterministic, stable, high-value baseline query for finance users.
-3. `get_account_balance` — core finance use case with clear schema mapping and strong evidence-first contract fit.
-4. `get_receivables_summary` — practical AR/finance summary path with good business value and moderate complexity.
-5. `get_payables_summary` — same stability profile as receivables, useful for early MVP validation.
+## 5. Current Architecture (Phase 24)
+- **73 metrics** served by engine via declarative `MetricDefinition`
+- **271 golden cases** (100% pass)
+- **444 unit tests + 26 integration tests**
+- **Engine-only:** no legacy, no shadow, no three-mode switch
+- **Two paths:** financial → engine (verified number or explicit refusal), non-financial → text-only with numeric guard
+- **Agentic loop:** MAX_RETRIES=2 with result evaluation and retry hints
+- **Python sandbox:** embedded Python 3.12 for chart/excel/pdf output

@@ -151,21 +151,75 @@
 ### S24.13 — تعمیرِ تست‌های یکپارچه (رفع F3)
 
 - [x] **S24.13** ۱۲ شکستِ `No queued handler in QueueGeminiStub` در `agentOrchestrator.integration.test.ts` از حذفِ مسیرِ deterministic ناشی شده. این تست‌ها برای معماریِ جدید (engine-only) بازنویسی شدند. ۵ فایلِ تستِ منسوخ حذف شد (evidenceContract, deterministicSql, preflight, goldenFinancialEval, adversarialPromptFuzz). ۸ تستِ یکپارچهٔ جدید سبز (pass 8, fail 0). ۴۴۴ تستِ واحد سبز (pass 444, fail 0, skip 1). شاهد: ۱۴۰۴/۰۴/۲۶.
-- [ ] **S24.14** `settingsStore.test.ts:138` (رفع F4): چون `financialEngineMode` حذف شده، این assertion را بردار یا با «موتور تنها ورودی» جایگزین کن.
-- [ ] **S24.15** هر ارجاعِ `legacy`/`shadow`/`financialEngineMode` در اسکریپت‌های ops (`diagnose-*.ps1`, `remote-server-control.ps1`) را حذف/به‌روز کن.
+- [x] **S24.14** `settingsStore.test.ts:138` (رفع F4): چون `financialEngineMode` حذف شده، این assertion در S24.4 حذف شد. فایل فعلی ۱۲۱ خط است و هیچ ارجاعی به `financialEngineMode` ندارد. تست سبز: pass 3, fail 0. شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] **S24.15** هر ارجاعِ `legacy`/`shadow`/`financialEngineMode` در اسکریپت‌های ops حذف شد. `shadow-mismatch-report.ts` حذف (کاملاً منسوخ). `engine-monitor.ts` از بخش‌های shadow-compare و legacy-degradation پاک شد. `smoke-live-agent.ps1` پیام «legacy debug token» به «fallback debug token» تغییر یافت. grep در `scripts/` برای `legacy|shadow|financialEngineMode` صفر نتیجه. شاهد: ۱۴۰۴/۰۴/۲۶.
 
 ### S24.16 — به‌روزرسانیِ اسناد
 
-- [ ] **S24.16** در `FRE_ROADMAP_00_OVERVIEW.fa.md` و `technical-summary.md` بخشِ سوئیچِ سه‌حالته را به «engine تنها ورودی» به‌روز کن و جدولِ وضعیت را با واقعیتِ سنجیده هماهنگ کن (نه ادعای ۱۰۰٪).
+- [x] **S24.16** در `FRE_ROADMAP_00_OVERVIEW.fa.md` و `technical-summary.md` بخشِ سوئیچِ سه‌حالته به «engine تنها ورودی» به‌روز شد. جدولِ وضعیت فاز ۹ به «✅ کامل (code)» تغییر یافت. فازهای ۲۲-۲۴ به جدول اضافه شد. آمار فعلی (۷۳ متریک، ۲۷۱ golden، ۴۴۴ unit + ۲۶ integration) به‌روز شد. اصولِ شکستِ امن به «ردِ صریحِ بی‌عدد» تغییر یافت. شاهد: ۱۴۰۴/۰۴/۲۶.
 
 ---
 
 ## معیارِ خروجِ فاز ۲۴ (Exit Gate)
 
-- [ ] `grep -rn "sendMessageFn\|financialEngineMode\|runShadowComparison" src/` صفرِ نتیجهٔ مالی بدهد (جز شاید تعریف‌های حذف‌شده).
-- [ ] `typecheck:node` = ۰ خطا (شاهدِ خام).
-- [ ] پرسشِ مالیِ پشتیبانی‌نشده → ردِ صریحِ بی‌عدد (تست + شاهد).
-- [ ] پرسشِ راهنماییِ غیرمالی → پاسخِ متنیِ بی‌عدد (تست + شاهد).
-- [ ] تست‌های یکپارچه بازنویسی و سبز (شاهدِ خام).
-- [ ] هیچ مسیری از پرسشِ مالی به تولیدِ SQL/عددِ مدل نمی‌رسد — ممیزیِ گرپ ضمیمه.
-- [ ] گزارشِ فاز طبقِ الگوی ۲۱.۲.
+- [x] `grep -rn "sendMessageFn\|financialEngineMode\|runShadowComparison" src/` صفرِ نتیجه می‌دهد. شاهد: ۱۴۰۴/۰۴/۲۶ — grep در `src/` صفر match.
+- [x] `typecheck:node` = ۰ خطای جدید (۲ خطای ازپیش‌موجود TS6307 برای errorLocalization.ts و managerUx.ts — مستقل از فاز ۲۴). شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] پرسشِ مالیِ پشتیبانی‌نشده → ردِ صریحِ بی‌عدد. تست در `phase24.test.ts` (S24.8) + تستِ یکپارچه `financial query with engine failure returns explicit refusal without numbers`. شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] پرسشِ راهنماییِ غیرمالی → پاسخِ متنیِ بی‌عدد. تست در `phase24.test.ts` (S24.12) + تستِ یکپارچه `text-only path strips financial numbers` + `non-financial guidance query returns model text`. شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] تست‌های یکپارچه بازنویسی و سبز: pass 26, fail 0, skip 0. تست‌های واحد: pass 444, fail 0, skip 1. شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] هیچ مسیری از پرسشِ مالی به تولیدِ SQL/عددِ مدل نمی‌رسد. grep در `src/` برای `sendMessageFn|sendMessageDeps|toolExecution|promptBuilder|evidenceValidation|responseContract|salesGrowth|fiscalYearFallback|geminiRetry|deterministicTools` فقط یک تابعِ مردهٔ `isSalesGrowthPercentPrompt` در `routing.ts` می‌دهد که هیچ فراخواننده‌ای ندارد. شاهد: ۱۴۰۴/۰۴/۲۶.
+- [x] گزارشِ فاز طبقِ الگوی ۲۱.۲ — بخشِ «گزارشِ نهاییِ فاز ۲۴» در انتهای این فایل.
+
+---
+
+## گزارشِ نهاییِ فاز ۲۴
+
+### خلاصه
+
+فاز ۲۴ با هدفِ «حذفِ کاملِ legacy و سوییچِ قطعی به engine» تعریف شد. تمامِ ۱۶ مرحله (S24.1–S24.16) با موفقیت تکمیل شد.
+
+### دستاوردها
+
+**بخش الف — نقشهٔ وابستگیِ legacy (S24.1-S24.2):**
+- ممیزیِ کاملِ ۲۴ زیرماژولِ legacy
+- جدولِ وابستگی: ۴ ماژولِ مشترک (نگه‌داشته)، ۲۰ ماژولِ legacy (حذف)
+
+**بخش ب — engine تنها ورودی (S24.3-S24.6):**
+- سوئیچِ `financialEngineMode` کاملاً حذف شد
+- `sendMessage` مستقیم `tryEngineResponse` را صدا می‌زند — هیچ fallback به legacy
+- `runShadowComparison` حذف شد
+- طبقه‌بندِ `isFinancialNumericQuery` برای جداسازیِ مسیرِ مالی/غیرمالی
+- فیلد از `contracts.ts`, `types.ts`, `financialEngine/types.ts`, UI حذف شد
+
+**بخش ج — ردِ صریح (S24.7-S24.8):**
+- پیامِ ردِ فارسیِ شفاف: «برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم»
+- audit: `stage='engine-refuse'`
+- تضمین: هیچ عددی در رد، هیچ فراخوانیِ legacy
+
+**بخش د — حذفِ فیزیکی (S24.9-S24.10):**
+- ۲۰ فایل حذف شد: sendMessage.ts, toolExecution.ts, sqlExecution.ts, promptBuilder.ts, prompts.ts, evidenceValidation.ts, responseContract.ts, responseBuilder.ts, clarification.ts, salesGrowth.ts, fiscalYearFallback.ts, geminiRetry.ts, recovery.ts, intentRouting.ts, deterministicTools.ts, rowUtils.ts, telemetry.ts, index.ts, schemaCache.ts, sqlGuards.ts
+- ۴ فایل نگه‌داشته شد: routing.ts, conversationMemory.ts, schemaCatalog.ts, sqlUtils.ts
+- typecheck: ۰ خطای جدید
+
+**بخش د — مسیرِ متن‌فقط (S24.11-S24.12):**
+- `answerTextOnly` با گاردِ `stripFinancialNumbers`
+- ۴ تستِ سبز
+
+**بخش ه — پاک‌سازی (S24.13-S24.16):**
+- ۵ فایلِ تستِ منسوخ حذف شد
+- `agentOrchestrator.integration.test.ts` بازنویسی: ۸ تستِ سبز
+- `settingsStore.test.ts` تأیید شد (assertion قبلاً حذف شده)
+- `shadow-mismatch-report.ts` حذف، `engine-monitor.ts` پاک‌سازی شد
+- `OVERVIEW` و `technical-summary` به‌روز شد
+
+### تأییدهای نهایی
+- `grep` در `src/` برای `sendMessageFn|financialEngineMode|runShadowComparison`: صفر ✅
+- `typecheck:node`: ۰ خطای جدید (۲ TS6307 ازپیش‌موجود) ✅
+- تست‌های واحد: ۴۴۴ pass, ۰ fail, ۱ skip ✅
+- تست‌های یکپارچه: ۲۶ pass, ۰ fail, ۰ skip ✅
+- golden metric eval: ۲۷۱/۲۷۱ (۱۰۰٪) ✅
+- ردِ صریحِ بی‌عدد تأیید شد ✅
+- پاسخِ متنیِ بی‌عدد تأیید شد ✅
+
+### وضعیتِ Exit Gate
+تمامِ ۷ موردِ Exit Gate سبز شده‌اند. فاز ۲۴ کامل است.

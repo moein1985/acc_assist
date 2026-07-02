@@ -75,7 +75,7 @@ try {
   $runResult = Invoke-RemoteSmokeRun -PromptBase64 $promptBase64 -DebugToken $generatedDebugToken
 
   if ($runResult.ExitCode -ne 0 -and $runResult.RawOutput -match 'Debug endpoint did not start') {
-    Write-Host '[smoke-live] Retrying with legacy debug token for installed build compatibility...'
+    Write-Host '[smoke-live] Retrying with fallback debug token for installed build compatibility...'
     $runResult = Invoke-RemoteSmokeRun -PromptBase64 $promptBase64 -DebugToken 'accassist-ssh-debug-token'
   }
 

@@ -68,11 +68,6 @@ function main(): void {
 
   const engineModeEntries = entries.filter((e) => e.stage === 'engine-mode')
   const finalEntries = entries.filter((e) => e.stage === 'final')
-  const shadowEntries = entries.filter((e) => e.stage === 'engine-shadow-compare')
-  const degradedEntries = engineModeEntries.filter((e) =>
-    (e.prompt ?? '').includes('engine-degraded-to-legacy')
-  )
-
   const latencyByMetric = new Map<string, { count: number; totalMs: number; maxMs: number }>()
   for (const e of finalEntries) {
     if (e.durationMs == null) continue
@@ -92,19 +87,10 @@ function main(): void {
     (e.prompt ?? '').includes('verdict=fail') || (e.prompt ?? '').includes('Verifier: failed')
   ).length
 
-  const totalEngineRequests = engineModeEntries.filter(
-    (e) => !(e.prompt ?? '').includes('engine-degraded')
-  ).length
-  const degradationRate =
-    totalEngineRequests > 0
-      ? ((degradedEntries.length / totalEngineRequests) * 100).toFixed(1)
-      : '0.0'
-
   console.log('=== Engine Monitor ===\n')
   console.log(`Audit entries total: ${entries.length}`)
   console.log(`Engine-mode entries: ${engineModeEntries.length}`)
   console.log(`Final entries: ${finalEntries.length}`)
-  console.log(`Shadow-compare entries: ${shadowEntries.length}`)
   console.log()
 
   console.log('--- Latency by metric ---')
@@ -122,22 +108,6 @@ function main(): void {
   console.log(`  ok:   ${verdictOk}`)
   console.log(`  fail: ${verdictFail}`)
   console.log()
-
-  console.log('--- Degradation ---')
-  console.log(`  Engine requests: ${totalEngineRequests}`)
-  console.log(`  Degraded to legacy: ${degradedEntries.length}`)
-  console.log(`  Degradation rate: ${degradationRate}%`)
-  console.log()
-
-  if (shadowEntries.length > 0) {
-    const shadowMatches = shadowEntries.filter((e) => (e.prompt ?? '').includes('match=true')).length
-    const shadowMismatches = shadowEntries.filter((e) => (e.prompt ?? '').includes('match=false')).length
-    console.log('--- Shadow comparison ---')
-    console.log(`  Comparisons: ${shadowEntries.length}`)
-    console.log(`  Matches: ${shadowMatches}`)
-    console.log(`  Mismatches: ${shadowMismatches}`)
-    console.log()
-  }
 
   process.exit(0)
 }
