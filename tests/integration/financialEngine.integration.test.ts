@@ -78,7 +78,7 @@ test('engine end-to-end: account_balance 1402', async () => {
 test('engine end-to-end: trial_balance 1402', async () => {
   const engine = new FinancialEngine({
     ...makeCompilerDeps(),
-    executeReadOnlySql: makeMockExecutor(5426804727946)
+    executeReadOnlySql: makeMockExecutor(566396483280)
   })
 
   const result = asSingleResult(await engine.run('تراز آزمایشی ۱۴۰۲'))
@@ -86,7 +86,7 @@ test('engine end-to-end: trial_balance 1402', async () => {
   assert.ok(result.result)
   assert.equal(result.verdict.ok, true)
   assert.equal(result.result!.plan.metricId, 'trial_balance')
-  assert.equal(result.result!.rows[0]!['result_value'], 5426804727946)
+  assert.equal(result.result!.rows[0]!['result_value'], 566396483280)
 })
 
 test('engine end-to-end: cash_bank_balance 1402', async () => {

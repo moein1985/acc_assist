@@ -75,7 +75,7 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 - [x] **S23.11** موتور را در حالت engine روی همان DB برای هر ۶ متریک اجرا کن و عددِ `audit final` (با requestId) را کنارِ عددِ sqlcmd بگذار. جدولِ «متریک | sqlcmd | engine | مطابقت؟» بساز.
 - [x] **S23.12** برای هر عدم‌تطابق: **موتور را اصلاح کن، نه اوراکل را** (قانونِ ۲۱.۲/بند۳). فقط اگر sqlcmdِ مستقل خلافِ اوراکلِ قبلی را ثابت کرد، اوراکل را با ثبتِ فرمولِ صریح به‌روز کن.
-- [ ] **S23.13** فایلِ `scripts/fixtures/golden-metrics.json` و `tests/integration/financialEngine.integration.test.ts` را با اعدادِ **قفل‌شدهٔ نهایی** هماهنگ کن (الان `financialEngine.integration.test.ts` عددِ قدیمیِ `5426804727946` را هاردکد کرده — رفع شود).
+- [x] **S23.13** فایلِ `scripts/fixtures/golden-metrics.json` و `tests/integration/financialEngine.integration.test.ts` را با اعدادِ **قفل‌شدهٔ نهایی** هماهنگ کن (الان `financialEngine.integration.test.ts` عددِ قدیمیِ `5426804727946` را هاردکد کرده — رفع شود).
 
 ---
 
@@ -97,7 +97,7 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 - [x] گاردِ عددیِ Explainer فعال و تست‌شده.
 - [x] `ground-truth-probe.ps1` اجرا شد؛ عددِ تراز با فرمولِ صریح قطعی شد (A/B/C ثبت شد).
 - [x] برای هر ۶ متریک: `sqlcmd == engine` (جدولِ مطابقت با requestIdها).
-- [ ] `golden-metrics.json` و integration test با اعدادِ قفل‌شده هماهنگ.
+- [x] `golden-metrics.json` و integration test با اعدادِ قفل‌شده هماهنگ.
 - [x] هیچ عددِ مدل‌ساخته در هیچ مسیر — با گرپِ ممیزیِ S23.5 ثابت شده.
 - [ ] گزارشِ نهاییِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام ضمیمه شده.
 
@@ -225,6 +225,18 @@ net_profit,71828156969.0000
 - تست‌های adapter/discovery: ۱۳۸ pass، ۱ skip ✅
 - golden metric eval: ۲۷۱/۲۷۱ (۱۰۰٪) ✅
 - balance_sheet = A + L + E = ۰ (تراز) ✅
+
+### S23.13 — هماهنگ‌سازیِ golden-metrics.json و integration test
+
+تغییرات:
+- `financialEngine.integration.test.ts`: مقدارِ هاردکدِ trial_balance از `5426804727946` (بدونِ فیلترِ Type، نادرست) به `566396483280` (با فیلترِ `v.Type NOT IN (3,4)`، درست) اصلاح شد.
+- `golden-metrics.json`:
+  - `receivables`: expectedValue از `0` (tolerance ۱B) به `14392491310` (tolerance ۰) — عددِ واقعیِ پروب
+  - `payables`: expectedValue از `0` (tolerance ۱B) به `-26058866504` (tolerance ۰) — عددِ واقعیِ پروب
+
+تأییدها:
+- golden metric eval: ۲۷۱/۲۷۱ (۱۰۰٪) ✅
+- integration tests: ۱۰ pass، ۰ fail ✅
 
 ### S23.14+S23.15 — حالت live در goldenMetricEval
 

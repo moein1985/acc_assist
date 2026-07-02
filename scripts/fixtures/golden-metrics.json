@@ -173,16 +173,16 @@
       "prompt": "دریافتنی‌ها در سال ۱۴۰۲ چقدر است؟",
       "expectedMetricId": "receivables",
       "expectedGrain": "total",
-      "expectedValue": 0,
-      "tolerance": 1000000000
+      "expectedValue": 14392491310,
+      "tolerance": 0
     },
     {
       "id": "golden-payables-1402",
       "prompt": "پرداختنی‌ها در سال ۱۴۰۲ چقدر است؟",
       "expectedMetricId": "payables",
       "expectedGrain": "total",
-      "expectedValue": 0,
-      "tolerance": 1000000000
+      "expectedValue": -26058866504,
+      "tolerance": 0
     },
     {
       "id": "golden-cashflow",
