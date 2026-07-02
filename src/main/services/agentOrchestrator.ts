@@ -1,84 +1,43 @@
-import { Parser } from 'node-sql-parser'
-
 import type {
   AccountingConceptKey,
-  AgentEvidencePreview,
   AgentProgressEvent,
   AgentSendMessageRequest,
   AgentSendMessageResult,
   AppSettings,
   GeminiChatResponse,
   GeminiMessage,
-  GeminiToolCall,
   GeminiToolDefinition,
   ResponseEvidenceEntry,
   ResponseMetadata,
   SchemaCatalogEntry,
-  SchemaColumnCatalogItem,
   SqlQueryRow
 } from '../../shared/contracts'
 import type { AuditLogEntry } from './auditLogService'
-import { type ExecutionTrace, type ToolEvidence, type ToolFailureKind } from './evidenceContract'
+import { type ExecutionTrace, type ToolEvidence } from './evidenceContract'
 import { detectFinancialIntent, listFinancialIntentDefinitions } from './financialIntentRegistry'
-import { SqlPolicyViolationError } from './sqlConnectionManager'
 import { normalizePersianDigits } from './textNormalization'
 import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
-import { resolveDeterministicFinancialTool } from './agentOrchestrator/deterministicTools'
+import { appearsToContainFinancialClaim as appearsToContainFinancialClaimFn } from './agentOrchestrator/routing'
 import {
-  appearsToContainFinancialClaim as appearsToContainFinancialClaimFn,
-  isComparativeMultiPeriodPrompt as isComparativeMultiPeriodPromptFn,
-  isSalesGrowthPercentPrompt as isSalesGrowthPercentPromptFn
-} from './agentOrchestrator/routing'
-import {
-  composeSalesGrowthFallbackMarkdown as composeSalesGrowthFallbackMarkdownFn,
-  tryResolveSalesGrowthPercentFallback as tryResolveSalesGrowthPercentFallbackFn,
-  type SalesGrowthDeps,
-  type SalesGrowthFallbackResult
-} from './agentOrchestrator/salesGrowth'
-import {
-  type ConversationMemoryDeps,
   type ConversationMemorySnapshot,
   type ConversationMemoryState as ConversationMemoryStateType,
   type ExtractedConversationFacts,
-  createConversationMemorySnapshot as createConversationMemorySnapshotFn,
   extractConversationFacts as extractConversationFactsFn,
   getOrCreateConversationMemory as getOrCreateConversationMemoryFn,
-  mergeScopeValues as mergeScopeValuesFn,
-  pruneConversationMemory as pruneConversationMemoryFn,
   pushConversationMemoryNote as pushConversationMemoryNoteFn,
-  rememberToolTrace as rememberToolTraceFn,
-  updateConversationMemoryFromAssistant as updateConversationMemoryFromAssistantFn,
   updateContextEntities as updateContextEntitiesFn,
   pushConversationTurn as pushConversationTurnFn
 } from './agentOrchestrator/conversationMemory'
 import {
   type ResponseContractDeps,
   type FinancialTemplateSections,
-  enforceEvidenceFirstContract as enforceEvidenceFirstContractFn,
-  finalizeFinancialResponse as finalizeFinancialResponseFn
+  enforceEvidenceFirstContract as enforceEvidenceFirstContractFn
 } from './agentOrchestrator/responseContract'
-import {
-  type SqlExecutionDeps,
-  type ExtractedTableReference,
-  type RuntimeScopeColumnCandidate,
-  throwIfRequestCanceled as throwIfRequestCanceledFn,
-  isCancellationLikeError as isCancellationLikeErrorFn,
-  resolveCancellationError as resolveCancellationErrorFn,
-  parseSqlTableReference as parseSqlTableReferenceFn,
-  ensureFinancialQueryAllowed as ensureFinancialQueryAllowedFn
-} from './agentOrchestrator/sqlExecution'
 import {
   type PromptBuilderDeps,
   type PreferredMapping,
-  compactHistory as compactHistoryFn,
-  buildRuntimeSystemPrompt as buildRuntimeSystemPromptFn,
-  isLikelyRefinementPrompt as isLikelyRefinementPromptFn
+  buildRuntimeSystemPrompt as buildRuntimeSystemPromptFn
 } from './agentOrchestrator/promptBuilder'
-import {
-  type ClarificationDeps,
-  buildDeterministicIntentClarificationResponse as buildDeterministicIntentClarificationResponseFn,
-  buildClarificationResponseIfNeeded as buildClarificationResponseIfNeededFn
-} from './agentOrchestrator/clarification'
 import {
   type SchemaCatalogDeps,
   resolvePreferredMapping as resolvePreferredMappingFn,
@@ -87,25 +46,8 @@ import {
   normalizeTableRef as normalizeTableRefFn,
   buildSchemaCatalogContext as buildSchemaCatalogContextFn,
   findActiveSchemaCatalog as findActiveSchemaCatalogFn,
-  collectRuntimeScopeColumnCandidates as collectRuntimeScopeColumnCandidatesFn,
-  SCHEMA_CONTEXT_CONCEPT_ORDER,
   SCHEMA_CONTEXT_CONCEPT_LABELS
 } from './agentOrchestrator/schemaCatalog'
-import {
-  type FiscalYearFallbackDeps,
-  type FiscalYearFallbackResult,
-  tryResolveFiscalYearFallback as tryResolveFiscalYearFallbackFn,
-  composeDeterministicFinancialToolMarkdown as composeDeterministicFinancialToolMarkdownFn,
-  composeFiscalYearDeterministicMarkdown as composeFiscalYearDeterministicMarkdownFn
-} from './agentOrchestrator/fiscalYearFallback'
-import {
-  type RedactedRowsResult,
-  type LimitedRowsForModelResult,
-  redactSensitiveIdentifiers as redactSensitiveIdentifiersFn,
-  limitRowsForModel as limitRowsForModelFn,
-  rowsContainNonNullValue as rowsContainNonNullValueFn,
-  createEvidencePreview as createEvidencePreviewFn
-} from './agentOrchestrator/rowUtils'
 import {
   type EvidenceValidationDeps,
   requiresStrictFinancialDataFetch as requiresStrictFinancialDataFetchFn,
@@ -124,45 +66,13 @@ import {
 } from './agentOrchestrator/evidenceValidation'
 import {
   type TelemetryDeps,
-  emitEvidenceContractTelemetry as emitEvidenceContractTelemetryFn,
-  emitGuardrailTelemetry as emitGuardrailTelemetryFn,
-  emitGuardrailCounterTelemetry as emitGuardrailCounterTelemetryFn
+  emitEvidenceContractTelemetry as emitEvidenceContractTelemetryFn
 } from './agentOrchestrator/telemetry'
+import type { ActiveAgentExecution } from './agentOrchestrator/sendMessage'
 import {
-  quoteSqlIdentifier as quoteSqlIdentifierFn,
-  quoteSqlTableRef as quoteSqlTableRefFn,
-  toFiniteInteger as toFiniteIntegerFn,
-  toSafeNumber as toSafeNumberFn,
-  toOptionalFiniteInteger as toOptionalFiniteIntegerFn,
-  buildPendingToolStatusText as buildPendingToolStatusTextFn,
-  buildCatalogScanQuery as buildCatalogScanQueryFn,
-  buildListDatabaseTablesQuery as buildListDatabaseTablesQueryFn,
-  buildDatabaseSchemaQueryWrapper as buildDatabaseSchemaQueryWrapperFn
-} from './agentOrchestrator/sqlUtils'
-import {
-  type ToolExecutionDeps,
-  executeFinancialToolCalls as executeFinancialToolCallsFn
-} from './agentOrchestrator/toolExecution'
-import {
-  type SendMessageDeps,
-  sendMessage as sendMessageFn,
-  type ActiveAgentExecution
-} from './agentOrchestrator/sendMessage'
-
-import {
-  type GeminiRetryDeps,
-  buildExhaustionFallbackAnswer as buildExhaustionFallbackAnswerFn,
-  callGeminiWithProviderRetry as callGeminiWithProviderRetryFn,
-  shouldReturnDegradedFallback as shouldReturnDegradedFallbackFn,
-  buildRuntimeFailureFallbackAnswer as buildRuntimeFailureFallbackAnswerFn,
-  validateIntentTableMatch as validateIntentTableMatchFn,
-  buildRecoveryHint as buildRecoveryHintFn
+  validateIntentTableMatch as validateIntentTableMatchFn
 } from './agentOrchestrator/geminiRetry'
 import {
-  type SchemaCacheDeps,
-  fetchTableListCached as fetchTableListCachedFn,
-  prevalidateFinancialQuery as prevalidateFinancialQueryFn,
-  getCachedSchemaSnapshot as getCachedSchemaSnapshotFn,
   normalizeTableReference as normalizeTableReferenceFn,
   resolveColumnNameAlias as resolveColumnNameAliasFn
 } from './agentOrchestrator/schemaCache'
@@ -174,10 +84,6 @@ export type ConversationMemoryState = ConversationMemoryStateType
 const MAX_TOOL_CALL_ROUNDS = 4
 const MAX_TOOL_CALLS_PER_ROUND = 7
 const MAX_TOTAL_TOOL_CALLS = 14
-const MAX_SCHEMA_ROWS = 240
-const MAX_TABLE_LIST_ROWS = 500
-const MAX_TOOL_PAYLOAD_CHARS = 90000
-const MAX_TOOL_VALUE_CHARS = 500
 
 export type DeterministicFinancialToolResult = {
   intentId: DeterministicFinancialIntent
@@ -231,56 +137,23 @@ interface AgentOrchestratorDeps {
 }
 
 export class AgentOrchestrator {
-  private readonly sqlParser = new Parser()
   private readonly geminiClient: AgentOrchestratorDeps['geminiClient']
   private readonly getSettings: () => AppSettings
   private readonly executeReadOnlySql: (
     query: string,
     signal?: AbortSignal
   ) => Promise<SqlQueryRow[]>
-  private readonly executeMetadataSql: (
-    query: string,
-    signal?: AbortSignal
-  ) => Promise<SqlQueryRow[]>
   private readonly auditLog: AgentOrchestratorDeps['auditLog']
   private readonly telemetry?: AgentOrchestratorDeps['telemetry']
-  private readonly mobileBridge?: AgentOrchestratorDeps['mobileBridge']
   private readonly activeExecutions = new Map<string, ActiveAgentExecution>()
   private readonly conversationMemoryById = new Map<string, ConversationMemoryState>()
-  private readonly schemaCacheByTableKey = new Map<
-    string,
-    { schema: SchemaColumnCatalogItem[]; timestamp: number }
-  >()
-  private readonly schemaTableListCache = new Map<
-    string,
-    { rows: SqlQueryRow[]; timestamp: number }
-  >()
-  private readonly SCHEMA_CACHE_TTL_MS = 900000
-
-  private get salesGrowthDeps(): SalesGrowthDeps {
-    return {
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      resolvePreferredMapping: (catalog, conceptKey, prompt) =>
-        this.resolvePreferredMapping(catalog, conceptKey, prompt),
-      normalizeTableRef: (tableRef) => this.normalizeTableRef(tableRef),
-      quoteSqlTableRef: (ref) => this.quoteSqlTableRef(ref),
-      executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal),
-      toSafeNumber: (value) => this.toSafeNumber(value),
-      rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
-      throwIfRequestCanceled: (signal) => this.throwIfRequestCanceled(signal),
-      safeAuditWrite: (entry) => this.safeAuditWrite(entry),
-      compactText: (value, maxLength) => this.compactText(value, maxLength)
-    }
-  }
 
   constructor(deps: AgentOrchestratorDeps) {
     this.geminiClient = deps.geminiClient
     this.getSettings = deps.getSettings
     this.executeReadOnlySql = deps.executeReadOnlySql
-    this.executeMetadataSql = deps.executeMetadataSql
     this.auditLog = deps.auditLog
     this.telemetry = deps.telemetry
-    this.mobileBridge = deps.mobileBridge
   }
 
   /**
@@ -330,38 +203,35 @@ export class AgentOrchestrator {
     payload: AgentSendMessageRequest,
     onProgress?: (event: AgentProgressEvent) => void
   ): Promise<AgentSendMessageResult> {
-    const mode =
-      process.env.ACC_FINANCIAL_ENGINE_MODE ?? this.getSettings().financialEngineMode ?? 'legacy'
+    void onProgress
     void this.safeAuditWrite({
       timestamp: new Date().toISOString(),
       requestId: payload.requestId,
       conversationId: payload.conversationId,
       stage: 'engine-mode',
-      prompt: `FINANCIAL_ENGINE_MODE=${mode}`
+      prompt: 'ENGINE_ONLY_ENTRY'
     })
 
-    if (mode === 'engine') {
-      const engineResponse = await this.tryEngineResponse(payload)
-      if (engineResponse !== null) {
-        return engineResponse
-      }
-      // Engine failed → degrade to legacy
-      void this.safeAuditWrite({
-        timestamp: new Date().toISOString(),
-        requestId: payload.requestId,
-        conversationId: payload.conversationId,
-        stage: 'engine-mode',
-        prompt: 'engine-degraded-to-legacy'
-      })
+    const engineResponse = await this.tryEngineResponse(payload)
+    if (engineResponse !== null) {
+      return engineResponse
     }
 
-    const result = await sendMessageFn(this.sendMessageDeps, payload, onProgress)
+    // Engine could not answer → explicit refusal (no legacy fallback)
+    void this.safeAuditWrite({
+      timestamp: new Date().toISOString(),
+      requestId: payload.requestId,
+      conversationId: payload.conversationId,
+      stage: 'engine-refuse',
+      prompt: 'engine-no-result: explicit refusal (no legacy fallback)'
+    })
 
-    if (mode === 'shadow') {
-      void this.runShadowComparison(payload, result.finalText)
+    return {
+      history: [],
+      finalText: 'برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.',
+      rounds: 0,
+      toolCallsUsed: 0
     }
-
-    return result
   }
 
   private async tryEngineResponse(
@@ -587,209 +457,6 @@ export class AgentOrchestrator {
     }
   }
 
-  private async runShadowComparison(
-    payload: AgentSendMessageRequest,
-    legacyText: string
-  ): Promise<void> {
-    try {
-      const { FinancialEngine } = await import('./financialEngine/index')
-      const { quoteSqlIdentifier, quoteSqlTableRef } = await import('./agentOrchestrator/sqlUtils')
-      const { normalizePersianText } = await import('./textNormalization')
-
-      // S15.22: Resolve adapter for shadow comparison too
-      const { adapter, softwareId } = await this.resolveAdapter()
-
-      const engine = new FinancialEngine({
-        quoteSqlTableRef,
-        quoteSqlIdentifier,
-        normalizePersianText,
-        executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
-        adapter,
-        softwareId,
-        plannerModel: {
-          callModel: (plannerPrompt: string) => this.callPlannerModel(plannerPrompt)
-        }
-      })
-
-      const engineResult = await engine.run(payload.prompt)
-
-      const legacyNumbers = (legacyText.match(/[\d,]{4,}/g) ?? []).sort(
-        (a, b) => b.length - a.length
-      )
-      const legacyValue = legacyNumbers.length > 0 ? legacyNumbers[0]!.replace(/,/g, '') : null
-
-      let engineValue: string | null = null
-      let metricId: string | null = null
-      if ('results' in engineResult && 'verdicts' in engineResult) {
-        // Multi-metric: skip shadow comparison for multi-metric plans
-        return
-      }
-      if (engineResult.result && engineResult.result.rows.length > 0) {
-        const row = engineResult.result.rows[0]
-        const raw = row['result_value'] ?? row['base_value']
-        if (raw != null) {
-          engineValue = String(raw)
-          metricId = engineResult.result.plan.metricId
-        }
-      }
-
-      const match = legacyValue !== null && engineValue !== null && legacyValue === engineValue
-
-      void this.safeAuditWrite({
-        timestamp: new Date().toISOString(),
-        requestId: payload.requestId,
-        conversationId: payload.conversationId,
-        stage: 'engine-shadow-compare',
-        prompt: `metricId=${metricId ?? 'null'} legacyValue=${legacyValue ?? 'null'} engineValue=${engineValue ?? 'null'} match=${match}`
-      })
-    } catch (error) {
-      void this.safeAuditWrite({
-        timestamp: new Date().toISOString(),
-        requestId: payload.requestId,
-        conversationId: payload.conversationId,
-        stage: 'engine-shadow-compare',
-        prompt: `error=${error instanceof Error ? error.message : String(error)}`
-      })
-    }
-  }
-
-  private get sendMessageDeps(): SendMessageDeps {
-    return {
-      activeExecutions: this.activeExecutions,
-      getOrCreateConversationMemory: (conversationId) =>
-        this.getOrCreateConversationMemory(conversationId),
-      createConversationMemorySnapshot: (memory) => this.createConversationMemorySnapshot(memory),
-      pruneConversationMemory: () => this.pruneConversationMemory(),
-      isLikelyRefinementPrompt: (previousMemory, prompt) =>
-        this.isLikelyRefinementPrompt(previousMemory, prompt),
-      safeAuditWrite: (entry) => this.safeAuditWrite(entry),
-      emitProgress: (onProgress, event) => this.emitProgress(onProgress, event),
-      throwIfRequestCanceled: (signal) => this.throwIfRequestCanceled(signal),
-      getSettings: () => this.getSettings(),
-      refreshConversationMemory: (memory, settings, history, prompt) =>
-        this.refreshConversationMemory(memory, settings, history, prompt),
-      buildRuntimeSystemPrompt: (settings, prompt, conversationMemory, previousMemorySnapshot) =>
-        this.buildRuntimeSystemPrompt(settings, prompt, conversationMemory, previousMemorySnapshot),
-      compactHistory: (history, memory) => this.compactHistory(history, memory),
-      detectDeterministicFinancialIntent: (prompt) =>
-        this.detectDeterministicFinancialIntent(prompt),
-      buildClarificationResponseIfNeeded: (settings, prompt, conversationMemory) =>
-        this.buildClarificationResponseIfNeeded(settings, prompt, conversationMemory),
-      tryResolveDeterministicFinancialTool: (
-        deterministicIntent,
-        settings,
-        conversationMemory,
-        signal,
-        onProgress,
-        prompt
-      ) =>
-        this.tryResolveDeterministicFinancialTool(
-          deterministicIntent,
-          settings,
-          conversationMemory,
-          signal,
-          onProgress,
-          prompt
-        ),
-      finalizeFinancialResponse: (
-        prompt,
-        rawText,
-        conversationMemory,
-        totalToolCallCount,
-        successfulDataFetchCount,
-        routeMode,
-        executionTrace,
-        recoveryContext,
-        requestId
-      ) =>
-        this.finalizeFinancialResponse(
-          prompt,
-          rawText,
-          conversationMemory,
-          totalToolCallCount,
-          successfulDataFetchCount,
-          routeMode,
-          executionTrace,
-          recoveryContext,
-          requestId
-        ),
-      composeDeterministicFinancialToolMarkdown: (deterministicIntent, result) =>
-        this.composeDeterministicFinancialToolMarkdown(deterministicIntent, result),
-      updateConversationMemoryFromAssistant: (memory, finalText) =>
-        this.updateConversationMemoryFromAssistant(memory, finalText),
-      buildDeterministicIntentClarificationResponse: (intentId) =>
-        this.buildDeterministicIntentClarificationResponse(intentId),
-      tryResolveFiscalYearFallback: (
-        deterministicIntent,
-        settings,
-        conversationMemory,
-        signal,
-        onProgress
-      ) =>
-        this.tryResolveFiscalYearFallback(
-          deterministicIntent,
-          settings,
-          conversationMemory,
-          signal,
-          onProgress
-        ),
-      composeFiscalYearDeterministicMarkdown: (deterministicIntent, result) =>
-        this.composeFiscalYearDeterministicMarkdown(deterministicIntent, result),
-      isSalesGrowthPercentPrompt: (prompt) => this.isSalesGrowthPercentPrompt(prompt),
-      tryResolveSalesGrowthPercentFallback: (prompt, conversationMemory, signal) =>
-        this.tryResolveSalesGrowthPercentFallback(prompt, conversationMemory, signal),
-      composeSalesGrowthFallbackMarkdown: (result) =>
-        this.composeSalesGrowthFallbackMarkdown(result),
-      callGeminiWithProviderRetry: (payload, savedConfig, abortSignal, onProgress) =>
-        this.callGeminiWithProviderRetry(payload, savedConfig, abortSignal, onProgress),
-      toErrorInfo: (error) => this.toErrorInfo(error),
-      shouldReturnDegradedFallback: (error) => this.shouldReturnDegradedFallback(error),
-      emitGuardrailTelemetry: (kind, requestId, conversationId, details) =>
-        this.emitGuardrailTelemetry(kind, requestId, conversationId, details),
-      emitGuardrailCounterTelemetry: (kind, requestId, conversationId, count) =>
-        this.emitGuardrailCounterTelemetry(kind, requestId, conversationId, count),
-      buildRuntimeFailureFallbackAnswer: (
-        prompt,
-        detail,
-        toolCallsUsed,
-        successfulDataFetches,
-        kind
-      ) =>
-        this.buildRuntimeFailureFallbackAnswer(
-          prompt,
-          detail,
-          toolCallsUsed,
-          successfulDataFetches,
-          kind
-        ),
-      extractToolCallsFromResponse: (response) => this.extractToolCallsFromResponse(response),
-      requiresStrictFinancialDataFetch: (prompt, narrative) =>
-        this.requiresStrictFinancialDataFetch(prompt, narrative),
-      isComparativeMultiPeriodPrompt: (prompt) => this.isComparativeMultiPeriodPrompt(prompt),
-      buildRecoveryHint: (
-        failureKind,
-        lastErrorCode,
-        lastErrorMessage,
-        evidence,
-        context,
-        prompt
-      ) =>
-        this.buildRecoveryHint(
-          failureKind,
-          lastErrorCode,
-          lastErrorMessage,
-          evidence,
-          context,
-          prompt
-        ),
-      executeFinancialToolCalls: (params) => this.executeFinancialToolCalls(params),
-      buildExhaustionFallbackAnswer: (prompt, history, toolCallsUsed, successfulDataFetches) =>
-        this.buildExhaustionFallbackAnswer(prompt, history, toolCallsUsed, successfulDataFetches),
-      resolveCancellationError: (error, signal) => this.resolveCancellationError(error, signal),
-      telemetryCapture: this.telemetry?.capture.bind(this.telemetry)
-    }
-  }
-
   cancelMessage(requestId: string, reason?: string): boolean {
     const trimmedRequestId = requestId.trim()
     const execution = this.activeExecutions.get(trimmedRequestId)
@@ -803,43 +470,6 @@ export class AgentOrchestrator {
     }
 
     return true
-  }
-
-  private async executeFinancialToolCalls(params: {
-    requestId: string
-    conversationId: string
-    round: number
-    toolCalls: GeminiToolCall[]
-    settings: AppSettings
-    conversationMemory: ConversationMemoryState
-    onProgress?: (event: AgentProgressEvent) => void
-    abortSignal: AbortSignal
-  }): Promise<{
-    toolMessages: GeminiMessage[]
-    successfulDataFetches: number
-    evidence: ToolEvidence[]
-  }> {
-    return executeFinancialToolCallsFn(this.toolExecutionDeps, params)
-  }
-
-  private rowsContainNonNullValue(rows: SqlQueryRow[]): boolean {
-    return rowsContainNonNullValueFn(rows)
-  }
-
-  private emitProgress(
-    onProgress: ((event: AgentProgressEvent) => void) | undefined,
-    event: AgentProgressEvent
-  ): void {
-    if (onProgress) {
-      onProgress(event)
-    }
-
-    if (this.mobileBridge) {
-      this.mobileBridge.broadcast({
-        type: 'agent:progress',
-        payload: event
-      })
-    }
   }
 
   private async safeAuditWrite(entry: AuditLogEntry): Promise<void> {
@@ -869,86 +499,8 @@ export class AgentOrchestrator {
     }
   }
 
-  private toErrorInfo(error: unknown): {
-    message: string
-    code?: string
-    category?: string
-  } {
-    if (error instanceof SqlPolicyViolationError) {
-      return {
-        message: error.message,
-        code: error.code,
-        category: error.category
-      }
-    }
-
-    if (error instanceof Error) {
-      const errorWithMetadata = error as Error & {
-        code?: unknown
-        category?: unknown
-      }
-
-      return {
-        message: error.message,
-        code: typeof errorWithMetadata.code === 'string' ? errorWithMetadata.code : undefined,
-        category:
-          typeof errorWithMetadata.category === 'string' ? errorWithMetadata.category : undefined
-      }
-    }
-
-    return {
-      message: String(error)
-    }
-  }
-
-  private createAgentPolicyError(
-    code: string,
-    message: string
-  ): Error & {
-    code: string
-    category: string
-  } {
-    const error = new Error(message) as Error & {
-      code: string
-      category: string
-    }
-
-    error.code = code
-    error.category = 'orchestration-policy'
-
-    return error
-  }
-
-  private throwIfRequestCanceled(signal: AbortSignal): void {
-    throwIfRequestCanceledFn(signal)
-  }
-
-  private resolveCancellationError(error: unknown, signal: AbortSignal): Error {
-    return resolveCancellationErrorFn(error, signal)
-  }
-
-  private isCancellationLikeError(error: unknown): boolean {
-    return isCancellationLikeErrorFn(error)
-  }
-
   private getOrCreateConversationMemory(conversationId: string): ConversationMemoryState {
     return getOrCreateConversationMemoryFn(this.conversationMemoryById, conversationId)
-  }
-
-  private createConversationMemorySnapshot(
-    memory: ConversationMemoryState
-  ): ConversationMemorySnapshot {
-    return createConversationMemorySnapshotFn(memory)
-  }
-
-  private pruneConversationMemory(): void {
-    pruneConversationMemoryFn(this.conversationMemoryById)
-  }
-
-  private get conversationMemoryDeps(): ConversationMemoryDeps {
-    return {
-      compactText: (value, maxLength) => this.compactText(value, maxLength)
-    }
   }
 
   private get responseContractDeps(): ResponseContractDeps {
@@ -982,19 +534,6 @@ export class AgentOrchestrator {
     }
   }
 
-  private get sqlExecutionDeps(): SqlExecutionDeps {
-    return {
-      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      normalizeTableRef: (tableRef) => this.normalizeTableRef(tableRef),
-      createAgentPolicyError: (code, message) => this.createAgentPolicyError(code, message),
-      collectRuntimeScopeColumnCandidates: (catalog) =>
-        this.collectRuntimeScopeColumnCandidates(catalog),
-      sqlParser: this.sqlParser,
-      schemaContextConceptOrder: SCHEMA_CONTEXT_CONCEPT_ORDER
-    }
-  }
-
   private get promptBuilderDeps(): PromptBuilderDeps {
     return {
       compactText: (value, maxLength) => this.compactText(value, maxLength),
@@ -1010,42 +549,10 @@ export class AgentOrchestrator {
     }
   }
 
-  private get clarificationDeps(): ClarificationDeps {
-    return {
-      createConversationMemorySnapshot: (memory) => this.createConversationMemorySnapshot(memory),
-      detectPromptConcepts: (prompt) => this.detectPromptConcepts(prompt),
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      detectDeterministicFinancialIntent: (prompt) =>
-        this.detectDeterministicFinancialIntent(prompt),
-      resolvePreferredMapping: (catalog, conceptKey, prompt) =>
-        this.resolvePreferredMapping(catalog, conceptKey, prompt),
-      extractConversationFacts: (text) => this.extractConversationFacts(text),
-      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
-      schemaContextConceptLabels: SCHEMA_CONTEXT_CONCEPT_LABELS
-    }
-  }
-
   private get schemaCatalogDeps(): SchemaCatalogDeps {
     return {
       normalizePersianDigits: (value) => this.normalizePersianDigits(value),
       compactText: (value, maxLength) => this.compactText(value, maxLength)
-    }
-  }
-
-  private get fiscalYearFallbackDeps(): FiscalYearFallbackDeps {
-    return {
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      collectRuntimeScopeColumnCandidates: (catalog) =>
-        this.collectRuntimeScopeColumnCandidates(catalog),
-      executeMetadataSql: (sql, signal) => this.executeMetadataSql(sql, signal),
-      executeReadOnlySql: (sql, signal) => this.executeReadOnlySql(sql, signal),
-      throwIfRequestCanceled: (signal) => this.throwIfRequestCanceled(signal),
-      parseSqlTableReference: (rawRef) => this.parseSqlTableReference(rawRef),
-      quoteSqlIdentifier: (value) => this.quoteSqlIdentifier(value),
-      toFiniteInteger: (value) => this.toFiniteInteger(value),
-      toOptionalFiniteInteger: (value) => this.toOptionalFiniteInteger(value),
-      rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
-      emitProgress: (progressCallback, event) => this.emitProgress(progressCallback, event)
     }
   }
 
@@ -1064,184 +571,16 @@ export class AgentOrchestrator {
     }
   }
 
-  private get toolExecutionDeps(): ToolExecutionDeps {
-    return {
-      throwIfRequestCanceled: (signal) => this.throwIfRequestCanceled(signal),
-      buildPendingToolStatusText: (toolName, args) =>
-        this.buildPendingToolStatusText(toolName, args),
-      emitProgress: (onProgress, event) => this.emitProgress(onProgress, event),
-      safeAuditWrite: (entry) => this.safeAuditWrite(entry),
-      buildCatalogScanQuery: (tablePattern, limit) =>
-        this.buildCatalogScanQuery(tablePattern, limit),
-      executeMetadataSql: (query, signal) => this.executeMetadataSql(query, signal),
-      rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
-      limitRowsForModel: (rows) => this.limitRowsForModel(rows),
-      createToolResponseMessage: (toolCall, data) => this.createToolResponseMessage(toolCall, data),
-      buildListDatabaseTablesQuery: (tablePattern) =>
-        this.buildListDatabaseTablesQuery(tablePattern),
-      fetchTableListCached: (tablePattern, sqlQuery, abortSignal) =>
-        this.fetchTableListCached(tablePattern, sqlQuery, abortSignal),
-      compactText: (value, maxLength) => this.compactText(value, maxLength),
-      emitGuardrailTelemetry: (kind, requestId, conversationId, details) =>
-        this.emitGuardrailTelemetry(kind, requestId, conversationId, details),
-      emitGuardrailCounterTelemetry: (kind, requestId, conversationId, count) =>
-        this.emitGuardrailCounterTelemetry(kind, requestId, conversationId, count),
-      createAgentPolicyError: (code, message) => this.createAgentPolicyError(code, message),
-      prevalidateFinancialQuery: (sqlQuery, settings) =>
-        this.prevalidateFinancialQuery(sqlQuery, settings),
-      ensureFinancialQueryAllowed: (sqlQuery, settings, conversationMemory) =>
-        this.ensureFinancialQueryAllowed(sqlQuery, settings, conversationMemory),
-      executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal),
-      rowsContainNonNullValue: (rows) => this.rowsContainNonNullValue(rows),
-      redactSensitiveIdentifiers: (rows) => this.redactSensitiveIdentifiers(rows),
-      createEvidencePreview: (sqlQuery, rows, rowCount, truncated) =>
-        this.createEvidencePreview(sqlQuery, rows, rowCount, truncated),
-      buildDatabaseSchemaQuery: (tableName, schemaName) =>
-        this.buildDatabaseSchemaQuery(tableName, schemaName),
-      getCachedSchemaSnapshot: (cacheKey, sqlQuery, abortSignal) =>
-        this.getCachedSchemaSnapshot(cacheKey, sqlQuery, abortSignal),
-      isCancellationLikeError: (error) => this.isCancellationLikeError(error),
-      resolveCancellationError: (error, signal) => this.resolveCancellationError(error, signal),
-      toErrorInfo: (error) => this.toErrorInfo(error),
-      schemaCacheByTableKey: this.schemaCacheByTableKey,
-      SCHEMA_CACHE_TTL_MS: this.SCHEMA_CACHE_TTL_MS
-    }
-  }
-
-  private refreshConversationMemory(
-    memory: ConversationMemoryState,
-    settings: AppSettings,
-    history: GeminiMessage[],
-    prompt: string
-  ): void {
-    memory.touchedAt = Date.now()
-
-    const activeCatalog = this.findActiveSchemaCatalog(settings)
-    if (activeCatalog) {
-      for (const conceptKey of SCHEMA_CONTEXT_CONCEPT_ORDER) {
-        const selectedMapping = activeCatalog.selectedMappings[conceptKey]?.trim() ?? ''
-
-        if (selectedMapping) {
-          memory.facts.confirmedMappings[conceptKey] = selectedMapping
-        }
-      }
-    }
-
-    const textSources = [
-      ...history.filter((message) => message.role === 'user').map((message) => message.content),
-      prompt
-    ]
-
-    for (const sourceText of textSources) {
-      const extractedFacts = this.extractConversationFacts(sourceText)
-
-      memory.facts.companyNames = this.mergeScopeValues(
-        memory.facts.companyNames,
-        extractedFacts.companyNames
-      )
-      memory.facts.fiscalYears = this.mergeScopeValues(
-        memory.facts.fiscalYears,
-        extractedFacts.fiscalYears
-      )
-      memory.facts.branchNames = this.mergeScopeValues(
-        memory.facts.branchNames,
-        extractedFacts.branchNames
-      )
-
-      if (extractedFacts.dateRange) {
-        memory.facts.dateRange = extractedFacts.dateRange
-      }
-    }
-
-    memory.lastUserPrompt = this.compactText(prompt, 240)
-    this.pushConversationMemoryNote(memory, `Latest user intent: ${this.compactText(prompt, 220)}`)
-  }
-
   private extractConversationFacts(text: string): ExtractedConversationFacts {
     return extractConversationFactsFn(text)
-  }
-
-  private mergeScopeValues(currentValues: string[], incomingValues: string[]): string[] {
-    return mergeScopeValuesFn(currentValues, incomingValues)
   }
 
   private normalizePersianDigits(value: string): string {
     return normalizePersianDigits(value)
   }
 
-  private updateConversationMemoryFromAssistant(
-    memory: ConversationMemoryState,
-    finalText: string
-  ): void {
-    updateConversationMemoryFromAssistantFn(this.conversationMemoryDeps, memory, finalText)
-  }
-
-  private rememberToolTrace(memory: ConversationMemoryState, trace: string): void {
-    rememberToolTraceFn(this.conversationMemoryDeps, memory, trace)
-  }
-
   private pushConversationMemoryNote(memory: ConversationMemoryState, note: string): void {
     pushConversationMemoryNoteFn(memory, note)
-  }
-
-  private createToolResponseMessage(
-    toolCall: GeminiToolCall,
-    payload: Record<string, unknown>
-  ): GeminiMessage {
-    return {
-      role: 'tool',
-      name: toolCall.function.name,
-      toolCallId: toolCall.id,
-      content: JSON.stringify(payload)
-    }
-  }
-
-  private extractToolCallsFromResponse(response: GeminiChatResponse): GeminiToolCall[] {
-    if (Array.isArray(response.toolCalls) && response.toolCalls.length > 0) {
-      return response.toolCalls
-    }
-
-    const raw = response.raw as {
-      choices?: Array<{
-        message?: {
-          tool_calls?: Array<{
-            id?: string
-            type?: string
-            function?: {
-              name?: string
-              arguments?: string
-            }
-          }>
-        }
-      }>
-    }
-
-    const rawToolCalls = raw.choices?.[0]?.message?.tool_calls
-    if (!Array.isArray(rawToolCalls)) {
-      return []
-    }
-
-    return rawToolCalls
-      .filter(
-        (toolCall): toolCall is { id: string; function: { name: string; arguments?: string } } => {
-          return Boolean(toolCall?.id && toolCall.function?.name)
-        }
-      )
-      .map((toolCall) => ({
-        id: toolCall.id,
-        type: 'function',
-        function: {
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments ?? '{}'
-        }
-      }))
-  }
-
-  private compactHistory(
-    history: GeminiMessage[],
-    memory?: ConversationMemoryState
-  ): GeminiMessage[] {
-    return compactHistoryFn(this.promptBuilderDeps, history, memory)
   }
 
   buildRuntimeSystemPrompt(
@@ -1256,32 +595,6 @@ export class AgentOrchestrator {
       prompt,
       conversationMemory,
       previousMemorySnapshot
-    )
-  }
-
-  private isLikelyRefinementPrompt(
-    previousMemory: ConversationMemorySnapshot,
-    prompt: string
-  ): boolean {
-    return isLikelyRefinementPromptFn(previousMemory, prompt)
-  }
-
-  private buildDeterministicIntentClarificationResponse(
-    intentId: DeterministicFinancialIntent
-  ): string {
-    return buildDeterministicIntentClarificationResponseFn(intentId)
-  }
-
-  private buildClarificationResponseIfNeeded(
-    settings: AppSettings,
-    prompt: string,
-    conversationMemory: ConversationMemoryState
-  ): string | null {
-    return buildClarificationResponseIfNeededFn(
-      this.clarificationDeps,
-      settings,
-      prompt,
-      conversationMemory
     )
   }
 
@@ -1308,37 +621,6 @@ export class AgentOrchestrator {
     return normalizeTableRefFn(tableRef)
   }
 
-  private get schemaCacheDeps(): SchemaCacheDeps {
-    return {
-      schemaTableListCache: this.schemaTableListCache,
-      schemaCacheByTableKey: this.schemaCacheByTableKey,
-      SCHEMA_CACHE_TTL_MS: this.SCHEMA_CACHE_TTL_MS,
-      executeMetadataSql: (query, signal) => this.executeMetadataSql(query, signal),
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      normalizeTableRef: (tableRef) => this.normalizeTableRef(tableRef)
-    }
-  }
-
-  private async fetchTableListCached(
-    tablePattern: string | null,
-    sqlQuery: string,
-    abortSignal: AbortSignal
-  ): Promise<SqlQueryRow[]> {
-    return fetchTableListCachedFn(this.schemaCacheDeps, tablePattern, sqlQuery, abortSignal)
-  }
-
-  private prevalidateFinancialQuery(sqlQuery: string, settings: AppSettings): string {
-    return prevalidateFinancialQueryFn(this.schemaCacheDeps, sqlQuery, settings)
-  }
-
-  private async getCachedSchemaSnapshot(
-    cacheKey: string,
-    sqlQuery: string,
-    abortSignal: AbortSignal
-  ): Promise<{ rows: SqlQueryRow[] }> {
-    return getCachedSchemaSnapshotFn(this.schemaCacheDeps, cacheKey, sqlQuery, abortSignal)
-  }
-
   normalizeTableReference(tableRef: string): string {
     return normalizeTableReferenceFn(this.normalizeTableRef.bind(this), tableRef)
   }
@@ -1355,100 +637,11 @@ export class AgentOrchestrator {
     }
   }
 
-  private get geminiRetryDeps(): GeminiRetryDeps {
-    return {
-      geminiClient: this.geminiClient,
-      emitProgress: (onProgress, event) => this.emitProgress(onProgress, event),
-      toErrorInfo: (error) => this.toErrorInfo(error),
-      compactText: (value, maxLength) => this.compactText(value, maxLength)
-    }
-  }
-
-  private buildExhaustionFallbackAnswer(
-    prompt: string,
-    history: GeminiMessage[],
-    toolCallsUsed: number,
-    successfulDataFetches: number
-  ): string {
-    return buildExhaustionFallbackAnswerFn(
-      this.geminiRetryDeps,
-      prompt,
-      history,
-      toolCallsUsed,
-      successfulDataFetches
-    )
-  }
-
-  private async callGeminiWithProviderRetry(
-    payload: {
-      messages: GeminiMessage[]
-      temperature?: number
-      maxOutputTokens?: number
-      tools?: GeminiToolDefinition[]
-    },
-    savedConfig: AppSettings['gemini'],
-    abortSignal: AbortSignal,
-    onProgress?: (event: AgentProgressEvent) => void
-  ): Promise<GeminiChatResponse> {
-    return callGeminiWithProviderRetryFn(
-      this.geminiRetryDeps,
-      payload,
-      savedConfig,
-      abortSignal,
-      onProgress
-    )
-  }
-
-  private shouldReturnDegradedFallback(error: unknown): boolean {
-    return shouldReturnDegradedFallbackFn(this.geminiRetryDeps, error)
-  }
-
-  private buildRuntimeFailureFallbackAnswer(
-    prompt: string,
-    detail: string,
-    toolCallsUsed: number,
-    successfulDataFetches: number,
-    kind: 'provider' | 'budget' = 'provider'
-  ): string {
-    return buildRuntimeFailureFallbackAnswerFn(
-      this.geminiRetryDeps,
-      prompt,
-      detail,
-      toolCallsUsed,
-      successfulDataFetches,
-      kind
-    )
-  }
-
   private validateIntentTableMatch(
     intentId: string | undefined,
     evidence: ToolEvidence[]
   ): string | null {
     return validateIntentTableMatchFn(intentId, evidence)
-  }
-
-  private buildRecoveryHint(
-    failureKind: ToolFailureKind,
-    lastErrorCode?: string,
-    lastErrorMessage?: string,
-    evidence: ToolEvidence[] = [],
-    context?: { comparativeMultiPeriod?: boolean; successfulFetches?: number },
-    prompt?: string
-  ): string {
-    return buildRecoveryHintFn(
-      failureKind,
-      lastErrorCode,
-      lastErrorMessage,
-      evidence,
-      context,
-      prompt
-    )
-  }
-
-  private collectRuntimeScopeColumnCandidates(
-    activeCatalog: SchemaCatalogEntry
-  ): RuntimeScopeColumnCandidate[] {
-    return collectRuntimeScopeColumnCandidatesFn(this.schemaCatalogDeps, activeCatalog)
   }
 
   private buildSchemaCatalogContext(settings: AppSettings): string | null {
@@ -1496,93 +689,6 @@ export class AgentOrchestrator {
    * per period; exiting with fewer than 2 successful fetches is a NO_FETCH-grade
    * defect for such prompts.
    */
-  private isComparativeMultiPeriodPrompt(prompt: string): boolean {
-    return isComparativeMultiPeriodPromptFn(prompt)
-  }
-
-  private isSalesGrowthPercentPrompt(prompt: string): boolean {
-    return isSalesGrowthPercentPromptFn(prompt)
-  }
-
-  private async tryResolveSalesGrowthPercentFallback(
-    prompt: string,
-    conversationMemory: ConversationMemoryState,
-    signal: AbortSignal
-  ): Promise<SalesGrowthFallbackResult | null> {
-    return tryResolveSalesGrowthPercentFallbackFn(
-      this.salesGrowthDeps,
-      prompt,
-      this.getSettings(),
-      conversationMemory,
-      signal
-    )
-  }
-
-  private composeSalesGrowthFallbackMarkdown(result: SalesGrowthFallbackResult): string {
-    return composeSalesGrowthFallbackMarkdownFn(this.salesGrowthDeps, result)
-  }
-
-  private async tryResolveFiscalYearFallback(
-    deterministicIntent: DeterministicFinancialIntent,
-    settings: AppSettings,
-    conversationMemory: ConversationMemoryState,
-    signal: AbortSignal,
-    onProgress?: (event: AgentProgressEvent) => void
-  ): Promise<FiscalYearFallbackResult | null> {
-    return tryResolveFiscalYearFallbackFn(
-      this.fiscalYearFallbackDeps,
-      deterministicIntent,
-      settings,
-      conversationMemory,
-      signal,
-      onProgress
-    )
-  }
-
-  private tryResolveDeterministicFinancialTool(
-    deterministicIntent: DeterministicFinancialIntent,
-    settings: AppSettings,
-    conversationMemory: ConversationMemoryState,
-    signal: AbortSignal,
-    onProgress?: (event: AgentProgressEvent) => void,
-    prompt?: string
-  ): Promise<DeterministicFinancialToolResult | null> {
-    return resolveDeterministicFinancialTool(
-      {
-        findActiveSchemaCatalog: (catalogSettings) => this.findActiveSchemaCatalog(catalogSettings),
-        resolvePreferredMapping: (catalog, conceptKey, mappingPrompt) =>
-          this.resolvePreferredMapping(catalog as SchemaCatalogEntry, conceptKey as AccountingConceptKey, mappingPrompt),
-        parseSqlTableReference: (rawRef) => this.parseSqlTableReference(rawRef),
-        executeReadOnlySql: (sqlQuery, sqlSignal) => this.executeReadOnlySql(sqlQuery, sqlSignal),
-        quoteSqlIdentifier: (value) => this.quoteSqlIdentifier(value),
-        quoteSqlTableRef: (ref) => this.quoteSqlTableRef(ref),
-        toOptionalFiniteInteger: (value) => this.toOptionalFiniteInteger(value),
-        rememberToolTrace: (memory, trace) => this.rememberToolTrace(memory, trace),
-        emitProgress: (progressCallback, event) => this.emitProgress(progressCallback, event)
-      },
-      deterministicIntent,
-      settings,
-      conversationMemory,
-      signal,
-      onProgress,
-      prompt
-    )
-  }
-
-  private composeDeterministicFinancialToolMarkdown(
-    deterministicIntent: DeterministicFinancialIntent,
-    result: DeterministicFinancialToolResult
-  ): string {
-    return composeDeterministicFinancialToolMarkdownFn(deterministicIntent, result)
-  }
-
-  private composeFiscalYearDeterministicMarkdown(
-    deterministicIntent: DeterministicFinancialIntent,
-    result: FiscalYearFallbackResult
-  ): string {
-    return composeFiscalYearDeterministicMarkdownFn(deterministicIntent, result)
-  }
-
   buildActionProposal(prompt: string, subject: string, priorityCount: number): string {
     const normalizedPrompt = this.compactText(prompt.replace(/\s+/g, ' ').trim(), 220)
     const safePriorityCount = Math.max(1, Math.trunc(priorityCount || 1))
@@ -1614,31 +720,6 @@ export class AgentOrchestrator {
         '\n4. بررسی/چک‌لیست تایید انسانی قبل از هر اقدام واقعی.' +
         '\n5. آماده‌سازی rollback/compensating action و ثبت گزارش before/after برای هر مورد پیشنهادی.'
     ].join('\n')
-  }
-
-  private finalizeFinancialResponse(
-    prompt: string,
-    rawText: string,
-    conversationMemory: ConversationMemoryState,
-    totalToolCallCount: number,
-    successfulDataFetchCount: number,
-    routeMode: 'deterministic' | 'model-assisted' | 'clarification' = 'model-assisted',
-    executionTrace?: ExecutionTrace,
-    recoveryContext?: { attempts: number },
-    requestId?: string
-  ): string {
-    return finalizeFinancialResponseFn(
-      this.responseContractDeps,
-      prompt,
-      rawText,
-      conversationMemory,
-      totalToolCallCount,
-      successfulDataFetchCount,
-      routeMode,
-      executionTrace,
-      recoveryContext,
-      requestId
-    )
   }
 
   enforceEvidenceFirstContract(
@@ -1739,46 +820,8 @@ export class AgentOrchestrator {
     )
   }
 
-  private emitGuardrailTelemetry(
-    kind: 'unsupported-function' | 'empty-result-recovery' | 'provider-error',
-    requestId: string | undefined,
-    conversationId: string | undefined,
-    details?: Record<string, unknown>
-  ): void {
-    emitGuardrailTelemetryFn(this.telemetryDeps, kind, requestId, conversationId, details)
-  }
-
-  private emitGuardrailCounterTelemetry(
-    kind: 'unsupported-function' | 'empty-result-recovery' | 'provider-error',
-    requestId: string | undefined,
-    conversationId: string | undefined,
-    count: number
-  ): void {
-    emitGuardrailCounterTelemetryFn(this.telemetryDeps, kind, requestId, conversationId, count)
-  }
-
   private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
     return enforcePromptIntentAlignmentFn(this.evidenceValidationDeps, prompt, finalText)
-  }
-
-  private quoteSqlIdentifier(value: string): string {
-    return quoteSqlIdentifierFn(value)
-  }
-
-  private quoteSqlTableRef(ref: string): string {
-    return quoteSqlTableRefFn(ref)
-  }
-
-  private toFiniteInteger(value: unknown): number {
-    return toFiniteIntegerFn(value)
-  }
-
-  private toSafeNumber(value: unknown): number {
-    return toSafeNumberFn(value)
-  }
-
-  private toOptionalFiniteInteger(value: unknown): number | null {
-    return toOptionalFiniteIntegerFn(value)
   }
 
   private ensureFinancialResponseTemplate(
@@ -1796,56 +839,5 @@ export class AgentOrchestrator {
 
   private parseFinancialTemplateSections(text: string): FinancialTemplateSections {
     return parseFinancialTemplateSectionsFn(text)
-  }
-
-  private createEvidencePreview(
-    sqlQuery: string,
-    rows: SqlQueryRow[],
-    rowCount: number,
-    truncated: boolean
-  ): AgentEvidencePreview {
-    return createEvidencePreviewFn(
-      { compactText: (value, maxLength) => this.compactText(value, maxLength) },
-      sqlQuery,
-      rows,
-      rowCount,
-      truncated
-    )
-  }
-
-  private buildPendingToolStatusText(toolName: string, args: Record<string, unknown>): string {
-    return buildPendingToolStatusTextFn(toolName, args)
-  }
-
-  private ensureFinancialQueryAllowed(
-    sqlQuery: string,
-    settings: AppSettings,
-    conversationMemory?: ConversationMemoryState
-  ): void {
-    ensureFinancialQueryAllowedFn(this.sqlExecutionDeps, sqlQuery, settings, conversationMemory)
-  }
-
-  private parseSqlTableReference(rawRef: string): ExtractedTableReference | null {
-    return parseSqlTableReferenceFn(rawRef)
-  }
-
-  private limitRowsForModel(rows: SqlQueryRow[]): LimitedRowsForModelResult {
-    return limitRowsForModelFn(rows, MAX_TOOL_PAYLOAD_CHARS, MAX_TOOL_VALUE_CHARS)
-  }
-
-  private redactSensitiveIdentifiers(rows: SqlQueryRow[]): RedactedRowsResult {
-    return redactSensitiveIdentifiersFn(rows)
-  }
-
-  private buildCatalogScanQuery(tablePattern: string | null, limit: number): string {
-    return buildCatalogScanQueryFn(tablePattern, limit)
-  }
-
-  private buildListDatabaseTablesQuery(tablePattern: string | null): string {
-    return buildListDatabaseTablesQueryFn(tablePattern, MAX_TABLE_LIST_ROWS)
-  }
-
-  private buildDatabaseSchemaQuery(tableName: string, schemaName: string | null): string {
-    return buildDatabaseSchemaQueryWrapperFn(tableName, schemaName, MAX_SCHEMA_ROWS)
   }
 }

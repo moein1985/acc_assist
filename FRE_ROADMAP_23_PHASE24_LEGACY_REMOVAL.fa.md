@@ -12,13 +12,73 @@
 
 ### S24.1 — ممیزیِ سطحِ تماس
 
-- [ ] **S24.1** نقشهٔ کاملِ آنچه legacy الان انجام می‌دهد را بساز. نقاطِ کلیدی:
+- [x] **S24.1** نقشهٔ کاملِ آنچه legacy الان انجام می‌دهد را بساز. نقاطِ کلیدی:
   - `agentOrchestrator.ts:334` — انتخابِ mode با پیش‌فرضِ `'legacy'`
   - `agentOrchestrator.ts` — سقوط به `sendMessageFn(this.sendMessageDeps, ...)` وقتی engine `null` می‌دهد یا mode≠engine
   - `runShadowComparison` (خطوط ~۵۹۰–۶۵۰)
   - کلِ پکیجِ `src/main/services/agentOrchestrator/` (زیرماژول‌ها: `sendMessage.ts`, `toolExecution.ts`, `sqlExecution.ts`, `sqlGuards.ts`, `recovery.ts`, `promptBuilder.ts`, `intentRouting.ts`, `salesGrowth.ts`, `fiscalYearFallback.ts`, ...)
   - `FinancialEngineMode` در `financialEngine/types.ts:340`، `src/main/types.ts:120`، `src/shared/contracts.ts:287`
-- [ ] **S24.2** برای هر زیرماژولِ legacy مشخص کن: (الف) آیا engine هم به آن نیاز دارد؟ (`sqlUtils`, `sqlGuards`, `schemaCatalog`, `textNormalization` احتمالاً مشترک‌اند) — این‌ها **حذف نمی‌شوند**، فقط مسیرِ حلقهٔ مدل حذف می‌شود. جدولِ «ماژول | مصرف‌کنندهٔ engine؟ | سرنوشت (نگه‌دار/حذف)» بساز.
+
+  **نقشهٔ سطحِ تماس:**
+  - `agentOrchestrator.ts:333-334`: `mode = process.env.ACC_FINANCIAL_ENGINE_MODE ?? settings.financialEngineMode ?? 'legacy'`
+  - `agentOrchestrator.ts:343-356`: اگر `mode === 'engine'` → `tryEngineResponse()`، اگر null → fallback به `sendMessageFn`
+  - `agentOrchestrator.ts:358-364`: اگر `mode !== 'engine'` → مستقیم `sendMessageFn` + shadow comparison
+  - `agentOrchestrator.ts:590-650`: `runShadowComparison` — اجرای هم‌زمانِ engine و legacy، مقایسهٔ خروجی
+  - `agentOrchestrator.ts:656-755`: `sendMessageDeps` getter — ۲۰+ وابستگی به زیرماژول‌های legacy
+  - `sendMessage.ts` (39KB): حلقهٔ اصلیِ مدل+ابزار، ۶۰۰+ خط
+  - `toolExecution.ts` (21KB): اجرای ابزارهای مدل (SQL، جستجو، ...)
+  - `sqlExecution.ts` (28KB): اجرای SQL با guards
+  - `promptBuilder.ts` (12KB): ساختِ system prompt برای مدل
+  - `prompts.ts` (7KB): قالب‌های prompt
+  - `evidenceValidation.ts` (12KB): اعتبارسنجی evidence
+  - `responseContract.ts` (13KB): قالبِ پاسخِ مالی
+  - `clarification.ts` (8KB): پاسخ‌های clarification
+  - `salesGrowth.ts` (9KB): fallbackِ درصدِ رشد
+  - `fiscalYearFallback.ts` (13KB): fallbackِ سال مالی
+  - `geminiRetry.ts` (10KB): retry منطق
+  - `recovery.ts` (840B): ثابتِ MAX_RECOVERY
+  - `intentRouting.ts` (820B): stub شده در فاز ۹
+  - `deterministicTools.ts` (2KB): stub شده در فاز ۹
+  - `responseBuilder.ts` (2.6KB): ساختِ پاسخ
+  - `routing.ts` (4KB): تشخیص intent
+  - `rowUtils.ts` (4.5KB): محدودسازی ردیف‌ها
+  - `telemetry.ts` (2.2KB): تله‌متری
+  - `schemaCache.ts` (6.3KB): کشِ schema
+  - `schemaCatalog.ts` (21KB): کاتالوگِ schema
+  - `sqlGuards.ts` (808B): guardهای SQL
+  - `sqlUtils.ts` (3.8KB): ابزارهای SQL (quote, etc.)
+
+- [x] **S24.2** برای هر زیرماژولِ legacy مشخص کن: (الف) آیا engine هم به آن نیاز دارد؟ (`sqlUtils`, `sqlGuards`, `schemaCatalog`, `textNormalization` احتمالاً مشترک‌اند) — این‌ها **حذف نمی‌شوند**، فقط مسیرِ حلقهٔ مدل حذف می‌شود. جدولِ «ماژول | مصرف‌کنندهٔ engine؟ | سرنوشت (نگه‌دار/حذف)» بساز.
+
+  **جدولِ وابستگی:**
+
+  | ماژول | مصرف‌کنندهٔ engine؟ | سرنوشت |
+  |-------|---------------------|---------|
+  | `sqlUtils.ts` | بله — `quoteSqlIdentifier`, `quoteSqlTableRef` در `tryEngineResponse` | **نگه‌دار** |
+  | `conversationMemory.ts` | بله — `getOrCreateConversationMemory`, `updateContextEntities`, `pushConversationTurn` | **نگه‌دار** |
+  | `schemaCatalog.ts` | بله — `findActiveSchemaCatalog`, `resolvePreferredMapping` در `resolveAdapter` | **نگه‌دار** |
+  | `schemaCache.ts` | بله — `fetchTableListCached` در `resolveAdapter` | **نگه‌دار** |
+  | `textNormalization.ts` | بله — `normalizePersianText` در `tryEngineResponse` | **نگه‌دار** (خارج از پکیج) |
+  | `sqlGuards.ts` | خیر — فقط در `sqlExecution.ts` (legacy) | **حذف** |
+  | `sendMessage.ts` | خیر — حلقهٔ اصلی legacy | **حذف** |
+  | `toolExecution.ts` | خیر — اجرای ابزارِ legacy | **حذف** |
+  | `sqlExecution.ts` | خیر — اجرای SQLِ legacy (engine مسیر خودش را دارد) | **حذف** |
+  | `promptBuilder.ts` | خیر — promptِ legacy | **حذف** |
+  | `prompts.ts` | خیر — قالب‌های legacy | **حذف** |
+  | `evidenceValidation.ts` | خیر — validationِ legacy | **حذف** |
+  | `responseContract.ts` | خیر — قالبِ پاسخِ legacy | **حذف** |
+  | `clarification.ts` | خیر — clarificationِ legacy | **حذف** |
+  | `salesGrowth.ts` | خیر — fallbackِ legacy | **حذف** |
+  | `fiscalYearFallback.ts` | خیر — fallbackِ legacy | **حذف** |
+  | `geminiRetry.ts` | خیر — retryِ legacy | **حذف** |
+  | `recovery.ts` | خیر — ثابتِ legacy | **حذف** |
+  | `intentRouting.ts` | خیر — stub شده | **حذف** |
+  | `deterministicTools.ts` | خیر — stub شده | **حذف** |
+  | `responseBuilder.ts` | خیر — فقط legacy | **حذف** |
+  | `routing.ts` | خیر — فقط legacy | **حذف** |
+  | `rowUtils.ts` | خیر — فقط legacy | **حذف** |
+  | `telemetry.ts` | خیر — فقط legacy | **حذف** |
+  | `index.ts` | خیر — re-exportهای legacy | **حذف** |
 
 > ⚠️ **هشدارِ ایمنی:** پیش از حذف، این جدول را کامل کن. زیرماژول‌های مشترکِ SQL-safety (`sqlGuards`, `sqlPolicyValidator`) **نباید** حذف شوند؛ فقط `sendMessage.ts` (حلقهٔ مدل‌+ابزار) و مسیرهای تولیدِ SQLِ مدل حذف می‌شوند.
 
@@ -28,13 +88,16 @@
 
 ### S24.3 — مسیرِ ورودیِ واحد
 
-- [ ] **S24.3** در `agentOrchestrator.sendMessage` سوئیچِ mode را حذف کن. مسیرِ جدید:
+- [x] **S24.3** در `agentOrchestrator.sendMessage` سوئیچِ mode را حذف کن. مسیرِ جدید:
   1. `tryEngineResponse(payload)` را صدا بزن.
   2. اگر عددِ تأییدشده داد → همان.
   3. اگر `null` داد (متریکِ تعریف‌شده نیست یا موجودیت مبهم است) → **حلقهٔ کاوشگر (فاز ۲۶)** را صدا بزن؛ فقط اگر کاوش هم خالی درآمد → **ردِ صریح** (بخش ج). در هیچ حالت سقوط به `sendMessageFn`.
   > توجه: در زمانِ اجرای فاز ۲۴، فاز ۲۶ هنوز ساخته نشده؛ یک `investigatorHook` بگذار که فعلاً مستقیم به ردِ صریح می‌رود، و در فاز ۲۶ پر می‌شود.
+  - **انجام شد:** `sendMessage` مستقیم `tryEngineResponse` را صدا می‌زند. اگر `null` → ردِ صریح با پیامِ فارسی و `stage='engine-refuse'`. هیچ ارجاعی به `sendMessageFn` یا `mode` باقی نمانده.
 - [ ] **S24.4** فیلدِ `financialEngineMode` را از `SettingsStore`, `types.ts`, `contracts.ts`, و UI حذف کن. متغیرِ `ACC_FINANCIAL_ENGINE_MODE` را هم بردار.
-- [ ] **S24.5** `runShadowComparison` و شاخهٔ `mode==='shadow'` را حذف کن.
+  - **نیمه‌تمام:** در `agentOrchestrator.ts` حذف شده، اما هنوز در `src/main/types.ts`، `src/shared/contracts.ts`، `src/main/services/financialEngine/types.ts` باقی است.
+- [x] **S24.5** `runShadowComparison` و شاخهٔ `mode==='shadow'` را حذف کن.
+  - **انجام شد:** متدِ `runShadowComparison` کاملاً حذف شد. grep در `agentOrchestrator.ts` برای `runShadowComparison|shadow|sendMessageFn` صفر نتیجه می‌دهد.
 
 ### S24.6 — مرزِ مالی/غیرمالی
 
