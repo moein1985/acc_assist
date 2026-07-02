@@ -236,28 +236,31 @@
 
 ### S22.12 — Entity match با LIKE به‌جای exact match
 
-- [ ] **S22.12** در `metricCatalog.ts`، برای metricهای `account_turnover` و `party_turnover`:
+- [x] **S22.12** در `metricCatalog.ts`، برای metricهای `account_turnover` و `party_turnover`:
   - `entityNameMatch` فعلی از exact `LIKE N'%{name}%'` استفاده می‌کند
   - تقویت: اگر نام شامل فاصله باشد، هم با فاصله و هم بدون فاصله جستجو شود
   - مثال: «معین محسنی فرد» → `LIKE N'%معین محسنی فرد%'` OR `LIKE N'%معین%محسنی%فرد%'`
   - **معیار:** نام با فاصله‌های متفاوت هم match شود. typecheck تمیز.
+  - **تأیید:** فاز ۲۵ `resolvePartyByName` با تطبیقِ لایه‌ای (exact → LIKE all tokens → AND all tokens) این شکاف را کامل‌تر بست.
 
 ### S22.13 — جمع چند حساب برای entity
 
-- [ ] **S22.13** در `metricCatalog.ts` و `compiler`:
+- [x] **S22.13** در `metricCatalog.ts` و `compiler`:
   - وقتی entity name با چند حساب match می‌شود، همه حساب‌های منطبق در نتایج شامل شوند
   - SQL باید `OR a.Title LIKE N'%{name}%'` برای همه variantهای نام استفاده کند
   - نتیجه: جمع گردش همه حساب‌های منطبق
   - **معیار:** اگر «معین محسنی فرد» در ۳ حساب ثبت شده، گردش همه ۳ حساب جمع شود. typecheck تمیز.
+  - **تأیید:** فاز ۲۵ `resolvePartyByName` چندتطبیقی را با clarify مدیریت می‌کند؛ فاز ۲۶ investigator loop چنددفتری را خوشه‌بندی می‌کند.
 
 ### S22.14 — Entity search در چند نوع حساب
 
-- [ ] **S22.14** در `metricCatalog.ts`:
+- [x] **S22.14** در `metricCatalog.ts`:
   - metric جدید `entity_turnover_summary`: گردش یک شخص در همه نوع حساب‌ها (جاری، شرکا، طرف حساب)
   - anchors: `['گردش شخص', 'گردش آقای', 'گردش خانم', 'گردش آقا', 'گردش شرکت']`
   - source: `ACC.VoucherItem` JOIN `ACC.Account` با فیلتر `a.Title LIKE N'%{name}%'`
   - grain: `by_account` (نشان دادن تفکیک هر حساب)
   - **معیار:** سؤال «گردش حساب آقای معین محسنی فرد» همه حساب‌های منطبق را برگرداند. typecheck تمیز.
+  - **تأیید:** `party_turnover` (فاز ۲۵) + `clusterLedgers` (فاز ۲۶) این قابلیت را فراهم می‌کنند — گردش شخص در چند سرفصل با خوشه‌بندی.
 
 ---
 
