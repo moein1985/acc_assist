@@ -66,7 +66,6 @@ function makeBaseSettings(): AppSettings {
     },
     schemaCatalogs: [],
     promptTemplates: [],
-    financialEngineMode: 'engine',
     discoveredAdapters: {},
     softwareMode: 'sepidar'
   } as unknown as AppSettings

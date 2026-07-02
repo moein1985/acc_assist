@@ -68,7 +68,7 @@ $sshSettings = @{
   activeConnectionProfileId = 'ssh-sepidar-field-test'
   schemaCatalogs = @()
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 }
 

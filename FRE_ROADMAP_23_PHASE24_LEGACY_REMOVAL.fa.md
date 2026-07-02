@@ -94,8 +94,8 @@
   3. اگر `null` داد (متریکِ تعریف‌شده نیست یا موجودیت مبهم است) → **حلقهٔ کاوشگر (فاز ۲۶)** را صدا بزن؛ فقط اگر کاوش هم خالی درآمد → **ردِ صریح** (بخش ج). در هیچ حالت سقوط به `sendMessageFn`.
   > توجه: در زمانِ اجرای فاز ۲۴، فاز ۲۶ هنوز ساخته نشده؛ یک `investigatorHook` بگذار که فعلاً مستقیم به ردِ صریح می‌رود، و در فاز ۲۶ پر می‌شود.
   - **انجام شد:** `sendMessage` مستقیم `tryEngineResponse` را صدا می‌زند. اگر `null` → ردِ صریح با پیامِ فارسی و `stage='engine-refuse'`. هیچ ارجاعی به `sendMessageFn` یا `mode` باقی نمانده.
-- [ ] **S24.4** فیلدِ `financialEngineMode` را از `SettingsStore`, `types.ts`, `contracts.ts`, و UI حذف کن. متغیرِ `ACC_FINANCIAL_ENGINE_MODE` را هم بردار.
-  - **نیمه‌تمام:** در `agentOrchestrator.ts` حذف شده، اما هنوز در `src/main/types.ts`، `src/shared/contracts.ts`، `src/main/services/financialEngine/types.ts` باقی است.
+- [x] **S24.4** فیلدِ `financialEngineMode` را از `SettingsStore`, `types.ts`, `contracts.ts`, و UI حذف کن. متغیرِ `ACC_FINANCIAL_ENGINE_MODE` را هم بردار.
+  - **انجام شد:** فیلد از `contracts.ts`، `types.ts`، `financialEngine/types.ts` حذف شد. typeِ `FinancialEngineMode` هم حذف شد. تمام ارجاع‌ها در اسکریپت‌های ops (۹ فایل ps1) پاک شد. تستِ `settingsStore.test.ts` که `financialEngineMode` چک می‌کرد حذف شد. mockِ `connectionManager.test.ts` اصلاح شد. grep در `*.ts` و `*.ps1` و `*.json` صفر نتیجه. `typecheck:node` فقط ۲ خطای TS6307 از قبل موجود.
 - [x] **S24.5** `runShadowComparison` و شاخهٔ `mode==='shadow'` را حذف کن.
   - **انجام شد:** متدِ `runShadowComparison` کاملاً حذف شد. grep در `agentOrchestrator.ts` برای `runShadowComparison|shadow|sendMessageFn` صفر نتیجه می‌دهد.
 

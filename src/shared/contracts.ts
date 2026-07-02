@@ -284,7 +284,6 @@ export interface AppSettings {
   activeConnectionProfileId: string
   schemaCatalogs: SchemaCatalogEntry[]
   promptTemplates: PromptTemplate[]
-  financialEngineMode?: 'legacy' | 'shadow' | 'engine'
   discoveredAdapters?: Record<string, DiscoveredAdapterEntry>
   softwareMode?: SoftwareMode
   sshHostKeys?: Record<string, string>

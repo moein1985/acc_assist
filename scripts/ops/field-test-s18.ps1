@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$SshHost = '192.168.85.56',
   [int]$SshPort = 2211,
   [string]$SshUser = 'administrator',
@@ -148,7 +148,7 @@ $sshSettings = @{
   activeConnectionProfileId = 'ssh-sepidar-field-test'
   schemaCatalogs = @()
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 }
 

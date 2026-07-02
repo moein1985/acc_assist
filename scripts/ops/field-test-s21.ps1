@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$SshHost = '192.168.85.56',
   [int]$SshPort = 2211,
   [string]$SshUser = 'administrator',
@@ -128,7 +128,7 @@ $settingsJson = @{
   activeConnectionProfileId = 'direct-sql-sepidar'
   schemaCatalogs = @()
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 } | ConvertTo-Json -Depth 10
 
@@ -177,7 +177,6 @@ $fullTestScript = @"
 # --- Start app ---
 `$env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'
 `$env:ACC_AGENT_DEBUG_TOKEN = '$DebugToken'
-`$env:ACC_FINANCIAL_ENGINE_MODE = 'engine'
 `$exe = Join-Path `$env:LOCALAPPDATA 'Programs\acc-assist\ACCAssist.exe'
 if (-not (Test-Path `$exe)) { Write-Host 'EXE_NOT_FOUND'; exit 1 }
 Start-Process -FilePath `$exe -ArgumentList '--agent-debug-server-only'

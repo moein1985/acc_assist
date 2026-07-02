@@ -1,4 +1,4 @@
-﻿$ProgressPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
 $OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
 $DebugToken = 'accassist-ssh-debug-token'
@@ -71,7 +71,7 @@ $settings = @{
     }
   )
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 }
 
@@ -81,12 +81,8 @@ $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 Write-Host '[1/4] Settings written — direct SQL to 127.0.0.1:'$SqlPort' ('$SqlDatabase'), NO SSH tunnel' -ForegroundColor Green
 
 # Start app with debug server
-# Clear system-level shadow env vars from Phase 9
-[Environment]::SetEnvironmentVariable('ACC_FINANCIAL_ENGINE_MODE', $null, 'Machine')
-[Environment]::SetEnvironmentVariable('ACC_FINANCIAL_ENGINE_MODE', $null, 'User')
 $env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'
 $env:ACC_AGENT_DEBUG_TOKEN = $DebugToken
-$env:ACC_FINANCIAL_ENGINE_MODE = 'engine'
 
 Get-Process -Name 'ACCAssist' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2

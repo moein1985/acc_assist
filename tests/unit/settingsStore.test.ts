@@ -118,25 +118,3 @@ test('SettingsStore preserves persisted SQL settings when no demo flag or ACC_SQ
   }
 })
 
-test('SettingsStore defaults financialEngineMode to legacy', async () => {
-  delete process.env.ACC_ENABLE_DEMO_PROFILE
-  for (const key of Object.keys(process.env)) {
-    if (key.startsWith('ACC_SQL_') || key.startsWith('ACC_DEMO_')) {
-      delete process.env[key]
-    }
-  }
-
-  const tempDir = await mkdtemp(join(tmpdir(), 'acc-assist-settings-store-'))
-
-  try {
-    const store = new SettingsStore(join(tempDir, 'settings.json'))
-
-    await store.load()
-
-    const settings = store.get()
-
-    assert.equal(settings.financialEngineMode, 'legacy')
-  } finally {
-    await rm(tempDir, { recursive: true, force: true })
-  }
-})

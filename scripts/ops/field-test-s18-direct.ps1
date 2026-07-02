@@ -142,7 +142,7 @@ if (Test-Path `$settingsFile) {
   activeConnectionProfileId = 'direct-sql-sepidar'
   schemaCatalogs = @()
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 }
 

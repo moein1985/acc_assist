@@ -337,8 +337,6 @@ export interface EngineVerdict {
   reconciliations: Array<{ id: string; passed: boolean }>
 }
 
-export type FinancialEngineMode = 'legacy' | 'shadow' | 'engine'
-
 const aggregateKindSchema = z.union([
   z.object({ kind: z.literal('sum'), column: z.string() }),
   z.object({ kind: z.literal('count') }),

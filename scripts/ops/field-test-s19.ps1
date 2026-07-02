@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$SshHost = '192.168.85.56',
   [int]$SshPort = 2211,
   [string]$SshUser = 'administrator',
@@ -174,7 +174,7 @@ $settingsJson = @{
   activeConnectionProfileId = 'direct-sql-sepidar'
   schemaCatalogs = @()
   promptTemplates = @()
-  financialEngineMode = 'engine'
+
   sshHostKeys = @{}
 } | ConvertTo-Json -Depth 10
 
