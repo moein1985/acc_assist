@@ -124,8 +124,10 @@
 
 ### S24.9 — حذفِ فیزیکیِ حلقهٔ مدل‌+SQL
 
-- [ ] **S24.9** پس از اطمینان از پوششِ engine (فاز ۲۶ گیت می‌کند)، `sendMessage.ts` و زیرماژول‌های منحصرِ حلقهٔ مدل (`toolExecution.ts`, `recovery.ts`, `salesGrowth.ts`, `intentRouting.ts`, `fiscalYearFallback.ts`, `promptBuilder.ts`, `prompts.ts` — طبقِ جدولِ S24.2) را حذف کن. importهای مرده را پاک کن.
-- [ ] **S24.10** `npm run typecheck:node` باید ۰ خطا باشد پس از حذف (شاهدِ خام). هیچ importِ شکسته نماند.
+- [x] **S24.9** پس از اطمینان از پوششِ engine (فاز ۲۶ گیت می‌کند)، `sendMessage.ts` و زیرماژول‌های منحصرِ حلقهٔ مدل (`toolExecution.ts`, `recovery.ts`, `salesGrowth.ts`, `intentRouting.ts`, `fiscalYearFallback.ts`, `promptBuilder.ts`, `prompts.ts` — طبقِ جدولِ S24.2) را حذف کن. importهای مرده را پاک کن.
+  - **انجام شد:** ۲۰ فایل حذف شد: sendMessage.ts, toolExecution.ts, sqlExecution.ts, promptBuilder.ts, prompts.ts, evidenceValidation.ts, responseContract.ts, responseBuilder.ts, clarification.ts, salesGrowth.ts, fiscalYearFallback.ts, geminiRetry.ts, recovery.ts, intentRouting.ts, deterministicTools.ts, rowUtils.ts, telemetry.ts, index.ts, schemaCache.ts, sqlGuards.ts. ۴ فایل نگه‌داشته شد: routing.ts, conversationMemory.ts, schemaCatalog.ts, sqlUtils.ts. تمام wrapperهای مرده و dependency getterها از agentOrchestrator.ts حذف شد. `executeMetadataSql` از deps interface و تمام test harnessها پاک شد.
+- [x] **S24.10** `npm run typecheck:node` باید ۰ خطا باشد پس از حذف (شاهدِ خام). هیچ importِ شکسته نماند.
+  - **انجام شد:** `npx tsc --noEmit --project tsconfig.node.json` → ۰ خطا (به‌جز ۲ خطایِ ازپیش‌موجود TS6307 مربوط به errorLocalization.ts و managerUx.ts).
 
 ---
 

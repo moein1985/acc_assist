@@ -9,8 +9,21 @@ import type {
   SchemaCatalogEntry,
   SchemaDateMode
 } from '../../../shared/contracts'
-import type { RuntimeScopeColumnCandidate } from './sqlExecution'
-import type { PreferredMapping } from './promptBuilder'
+
+export type RuntimeScopeDimension = 'company' | 'fiscalYear' | 'branch'
+
+export type RuntimeScopeColumnCandidate = {
+  dimension: RuntimeScopeDimension
+  tableRef: string
+  columnName: string
+  score: number
+  samplePreview: string | null
+}
+
+export type PreferredMapping = {
+  tableRef: string
+  source: 'selected' | 'suggested'
+}
 
 export interface SchemaCatalogDeps {
   normalizePersianDigits: (value: string) => string

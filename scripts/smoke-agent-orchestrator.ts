@@ -127,7 +127,6 @@ function createOrchestrator(params: {
   gemini: QueueGeminiStub
   settings?: AppSettings
   executeReadOnlySql?: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
-  executeMetadataSql?: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
 }): AgentOrchestrator {
   const settings = params.settings ?? createBaseSettings()
 
@@ -136,11 +135,6 @@ function createOrchestrator(params: {
     getSettings: () => settings,
     executeReadOnlySql:
       params.executeReadOnlySql ??
-      (async () => {
-        return []
-      }),
-    executeMetadataSql:
-      params.executeMetadataSql ??
       (async () => {
         return []
       }),
@@ -155,7 +149,6 @@ function createOrchestrator(params: {
 async function runDryPromptAndRefinementSmoke(): Promise<void> {
   const gemini = new QueueGeminiStub()
   const readOnlyQueries: string[] = []
-  const metadataQueries: string[] = []
   let sawRefinementContext = false
 
   gemini.enqueue(async (payload) => {
@@ -218,10 +211,6 @@ async function runDryPromptAndRefinementSmoke(): Promise<void> {
         { person_name: 'Mr. Rezai', total_amount: 5100000 }
       ]
     },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      metadataQueries.push(query)
-      return []
-    }
   })
 
   const firstProgressEvents: AgentProgressEvent[] = []
@@ -241,7 +230,6 @@ async function runDryPromptAndRefinementSmoke(): Promise<void> {
 
   assert.equal(readOnlyQueries.length, 1, 'Expected one financial SQL execution in dry-run smoke test.')
   assert.match(readOnlyQueries[0] ?? '', /SELECT\s+TOP\s+3/i)
-  assert.equal(metadataQueries.length, 0, 'Metadata SQL should not be called in this smoke scenario.')
   assert.equal(firstResult.toolCallsUsed, 1)
   assert.ok(firstProgressEvents.some((event) => event.type === 'tool-start'))
   assert.ok(firstProgressEvents.some((event) => event.type === 'tool-success'))
@@ -508,15 +496,6 @@ async function runGoldenPromptRegressionSmoke(options?: {
 
           return []
         },
-        executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-          return [
-            {
-              table_schema: 'dbo',
-              table_name: 'ACC_Documents',
-              column_name: 'fiscal_year'
-            }
-          ]
-        }
       })
 
       const progressEvents: AgentProgressEvent[] = []
@@ -668,9 +647,6 @@ async function runGoldenPromptRegressionSmoke(options?: {
         executedQueries.push(query)
         return fixture.sqlRows
       },
-      executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-        return []
-      }
     })
 
     const progressEvents: AgentProgressEvent[] = []

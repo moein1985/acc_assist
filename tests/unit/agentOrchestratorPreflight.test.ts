@@ -55,7 +55,6 @@ test('ensureFinancialQueryAllowed rejects unknown columns in catalog-backed SQL'
     },
     getSettings: () => settings,
     executeReadOnlySql: async () => [],
-    executeMetadataSql: async () => [],
     auditLog: { write: async () => {} }
   })
 

@@ -177,7 +177,6 @@ function createSettingsWithScopeSignals(): AppSettings {
 test.skip('agent orchestrator supports a catalog-scan discovery fallback for purchase tables', async () => {
   const settings = createSettingsWithSepidarCatalog()
   const gemini = new QueueGeminiStub()
-  const executedMetadataQueries: string[] = []
   const executedReadOnlyQueries: string[] = []
 
   gemini.enqueue(async () => ({
@@ -211,12 +210,6 @@ test.skip('agent orchestrator supports a catalog-scan discovery fallback for pur
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
       return []
-    },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedMetadataQueries.push(query)
-      return [
-        { TABLE_SCHEMA: 'INV', TABLE_NAME: 'InventoryReceipt', estimated_row_count: 217, columns_preview: 'ReceiptNo, TotalPrice, FiscalYear' }
-      ]
     },
     auditLog: { async write(): Promise<void> { return } }
   })
@@ -267,7 +260,6 @@ test('agent orchestrator refuses numeric financial claims without evidence', asy
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } }
   })
 
@@ -311,7 +303,6 @@ test('agent orchestrator emits recovery metadata to telemetry on evidence failur
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: {
       async write(entry: any): Promise<void> {
         auditEntries.push(entry)
@@ -380,7 +371,6 @@ test('agent orchestrator emits unsupported SQL telemetry for blocked fetches', a
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } },
     telemetry: {
       capture: (input) => {
@@ -436,7 +426,6 @@ test('agent orchestrator retries transient provider errors before degrading', as
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } }
   })
 
@@ -500,7 +489,6 @@ test('agent orchestrator emits recovery telemetry for empty results and provider
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } },
     telemetry: {
       capture: (input) => {
@@ -541,7 +529,6 @@ test('agent orchestrator emits recovery telemetry for empty results and provider
     geminiClient: providerGemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } },
     telemetry: {
       capture: (input) => {
@@ -588,7 +575,6 @@ test('agent orchestrator emits a progress event for each recovery attempt', asyn
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: { async write(): Promise<void> { return } }
   })
 
@@ -665,9 +651,6 @@ test('agent orchestrator executes tool loop with detected connector context', as
         { document_no: 'S-1403-0001', fiscal_year: 1403 },
         { document_no: 'S-1403-0002', fiscal_year: 1403 }
       ]
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
     },
     auditLog: {
       async write(): Promise<void> {
@@ -782,9 +765,6 @@ test('agent orchestrator keeps software context across multi-turn refinement', a
         { document_no: 'S-1403-0002', fiscal_year: 1403 }
       ]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -837,7 +817,6 @@ test('agent orchestrator treats fresh-topic prompts as isolated context instead 
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async () => [],
-    executeMetadataSql: async () => [],
     auditLog: { async write(): Promise<void> { return } }
   })
 
@@ -875,7 +854,6 @@ test('agent orchestrator records fresh-context decision metadata for A5 auditabi
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async () => [],
-    executeMetadataSql: async () => [],
     auditLog: {
       async write(entry: any): Promise<void> {
         auditEntries.push(entry)
@@ -930,9 +908,6 @@ test('agent orchestrator injects multi-scope runtime context for company, fiscal
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -1002,9 +977,6 @@ test('agent orchestrator blocks unscoped SQL when multi-scope runtime context ex
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -1095,9 +1067,6 @@ test('agent orchestrator allows scoped SQL with company/fiscal-year/branch predi
         }
       ]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1180,9 +1149,6 @@ test('agent orchestrator blocks SQL with unrelated scope values even when scope 
       executedReadOnlyQueries.push(query)
       return []
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1262,9 +1228,6 @@ test('agent orchestrator blocks SQL with OR branch that bypasses scope constrain
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -1361,9 +1324,6 @@ test('agent orchestrator allows SQL when every OR branch preserves scope constra
         }
       ]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1428,9 +1388,6 @@ test('agent orchestrator asks follow-up question when KPI contract is ambiguous 
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1464,9 +1421,6 @@ test('agent orchestrator asks follow-up question when date range is ambiguous', 
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -1523,17 +1477,12 @@ test('agent orchestrator handles fiscal-year count via model path (legacy determ
   })
   const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
-  const executedMetadataQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-      return []
-    },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedMetadataQueries.push(query)
       return []
     },
     auditLog: {
@@ -1616,9 +1565,6 @@ test('agent orchestrator uses model-assisted balance tooling when schema mapping
       executedReadOnlyQueries.push(query)
       return [{ result_value: 12500000 }]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1698,9 +1644,6 @@ test('agent orchestrator uses model-assisted party-balance tooling when schema m
       executedReadOnlyQueries.push(query)
       return [{ result_value: 12500000 }]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1777,9 +1720,6 @@ test('agent orchestrator uses model-assisted sales-growth path for yearly revenu
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return [{ SalesBase: 1000000, SalesTarget: 1200000, PercentChange: 20 }]
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
     },
     auditLog: {
       async write(): Promise<void> {
@@ -1861,9 +1801,6 @@ test('agent orchestrator uses model-assisted cashflow tooling when schema mappin
       executedReadOnlyQueries.push(query)
       return [{ result_value: 12500000 }]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -1942,9 +1879,6 @@ test('agent orchestrator uses model-assisted receivables path (legacy determinis
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
       return [{ result_value: 12500000 }]
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
     },
     auditLog: {
       async write(): Promise<void> {
@@ -2025,9 +1959,6 @@ test('agent orchestrator uses model-assisted payables path (legacy deterministic
       executedReadOnlyQueries.push(query)
       return [{ result_value: 12500000 }]
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2077,9 +2008,6 @@ test('agent orchestrator uses model-assisted path for balance-style intents (leg
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2121,19 +2049,12 @@ test('agent orchestrator falls back to model exploration for incomplete account-
     toolCalls: []
   })
   const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
-  const executedMetadataQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return []
-    },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedMetadataQueries.push(query)
-      return [
-        { TABLE_SCHEMA: 'ACC', TABLE_NAME: 'Account', estimated_row_count: 412, columns_preview: 'AccountID, Title, Balance' }
-      ]
     },
     auditLog: {
       async write(): Promise<void> {
@@ -2158,7 +2079,6 @@ test('agent orchestrator falls back to model exploration for incomplete account-
 test('agent orchestrator does not poison the table-list cache across patterns in one request', async () => {
   const settings = createSettingsWithSepidarCatalog({ selectedSoftwareId: 'sepidar' })
   const gemini = new QueueGeminiStub()
-  const executedMetadataQueries: string[] = []
   let finalPayloadJson = ''
 
   gemini.enqueue(async () => ({
@@ -2215,17 +2135,6 @@ test('agent orchestrator does not poison the table-list cache across patterns in
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedMetadataQueries.push(query)
-
-      // Simulate SQL Server: the LIKE pattern decides the result. Uppercase
-      // INFORMATION_SCHEMA column casing is preserved.
-      if (query.includes('invoicesentinelx')) {
-        return [{ TABLE_SCHEMA: 'SLS', TABLE_NAME: 'InvoiceSentinelX' }]
-      }
-
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2243,8 +2152,6 @@ test('agent orchestrator does not poison the table-list cache across patterns in
 
   // Each distinct pattern runs its own LIKE query (no shared 'all' key), so the
   // empty first pattern cannot poison the second one.
-  assert.equal(executedMetadataQueries.length, 2)
-  assert.ok(executedMetadataQueries.some((query) => query.includes('invoicesentinelx')))
 
   // The second pattern (%invoicesentinelx%) must still discover the invoice table
   // even though the first pattern returned zero rows — proving no cache poisoning.
@@ -2282,7 +2189,6 @@ test('agent orchestrator adds Assumptions to fiscal-year list responses (legacy 
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2328,17 +2234,12 @@ test('agent orchestrator handles fiscal-year list via model path (legacy determi
   })
   const gemini = new QueueGeminiStub(modelResponse as ChatHandler)
   const executedReadOnlyQueries: string[] = []
-  const executedMetadataQueries: string[] = []
 
   const orchestrator = new AgentOrchestrator({
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
-      return []
-    },
-    executeMetadataSql: async (query: string): Promise<SqlQueryRow[]> => {
-      executedMetadataQueries.push(query)
       return []
     },
     auditLog: {
@@ -2391,9 +2292,6 @@ test('agent orchestrator passes through model response when intent detection is 
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
     auditLog: {
       async write(): Promise<void> {
         return
@@ -2426,9 +2324,6 @@ test('agent orchestrator returns a degraded fallback answer when the provider ti
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -2475,9 +2370,6 @@ test('agent orchestrator returns a degraded fallback answer when tool budget is 
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -2534,9 +2426,6 @@ test('agent orchestrator enforces evidence-first contract for numeric financial 
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -2622,9 +2511,6 @@ test('agent orchestrator performs a bounded recovery loop before refusing a fina
     geminiClient: gemini,
     getSettings: () => settings,
     executeReadOnlySql: async (): Promise<SqlQueryRow[]> => {
-      return []
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
       return []
     },
     auditLog: {
@@ -2720,9 +2606,6 @@ test('agent orchestrator nudges the model to fetch data before refusing a financ
     executeReadOnlySql: async (query: string): Promise<SqlQueryRow[]> => {
       executedReadOnlyQueries.push(query)
       return [{ total_sales: 57023796065 }]
-    },
-    executeMetadataSql: async (): Promise<SqlQueryRow[]> => {
-      return []
     },
     auditLog: {
       async write(): Promise<void> {

@@ -106,14 +106,6 @@ const agentOrchestrator = new AgentOrchestrator({
       blockQueryHints: saved.sqlSecurity.blockQueryHints
     })
   },
-  executeMetadataSql: async (query: string, signal?: AbortSignal) => {
-    const saved = settingsStore.get()
-    const profile = resolveActiveProfile(saved)
-    const sqlConfig = profile?.sql ?? saved.sql
-    const sshConfig = profile?.ssh ?? saved.ssh
-    const runtimeConnection = await resolveRuntimeSqlConnection(sqlConfig, sshConfig)
-    return sqlConnectionManager.executeReadOnlyQuery(runtimeConnection, query, 'metadata', signal)
-  },
   auditLog: auditLogService,
   mobileBridge: mobileBridgeServer
 })

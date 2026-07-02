@@ -54,7 +54,6 @@ test('golden financial eval cases preserve the expected evidence-first behavior'
       },
       getSettings: () => settings,
       executeReadOnlySql: async (): Promise<SqlQueryRow[]> => [],
-      executeMetadataSql: async (): Promise<SqlQueryRow[]> => [],
       auditLog: {
         write: async () => undefined
       }

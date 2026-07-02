@@ -12,7 +12,6 @@ function createHarness() {
     geminiClient: { chat: async () => ({ text: '', raw: {}, toolCalls: [] }) },
     getSettings: () => settings,
     executeReadOnlySql: async () => [],
-    executeMetadataSql: async () => [],
     auditLog: { write: async () => undefined }
   })
 

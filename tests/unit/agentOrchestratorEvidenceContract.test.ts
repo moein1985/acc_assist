@@ -20,7 +20,6 @@ function createHarness() {
     },
     getSettings: () => settings,
     executeReadOnlySql: async () => [],
-    executeMetadataSql: async () => [],
     auditLog: {
       write: async () => undefined
     }

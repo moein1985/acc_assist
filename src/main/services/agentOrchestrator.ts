@@ -1,5 +1,4 @@
 import type {
-  AccountingConceptKey,
   AgentProgressEvent,
   AgentSendMessageRequest,
   AgentSendMessageResult,
@@ -9,90 +8,31 @@ import type {
   GeminiToolDefinition,
   ResponseEvidenceEntry,
   ResponseMetadata,
-  SchemaCatalogEntry,
   SqlQueryRow
 } from '../../shared/contracts'
 import type { AuditLogEntry } from './auditLogService'
-import { type ExecutionTrace, type ToolEvidence } from './evidenceContract'
-import { detectFinancialIntent, listFinancialIntentDefinitions } from './financialIntentRegistry'
 import { normalizePersianDigits } from './textNormalization'
-import type { DeterministicFinancialIntent } from './agentOrchestrator/intentRouting'
-import { appearsToContainFinancialClaim as appearsToContainFinancialClaimFn, isFinancialNumericQuery as isFinancialNumericQueryFn } from './agentOrchestrator/routing'
+import { isFinancialNumericQuery as isFinancialNumericQueryFn } from './agentOrchestrator/routing'
 import {
-  type ConversationMemorySnapshot,
   type ConversationMemoryState as ConversationMemoryStateType,
-  type ExtractedConversationFacts,
-  extractConversationFacts as extractConversationFactsFn,
   getOrCreateConversationMemory as getOrCreateConversationMemoryFn,
-  pushConversationMemoryNote as pushConversationMemoryNoteFn,
   updateContextEntities as updateContextEntitiesFn,
   pushConversationTurn as pushConversationTurnFn
 } from './agentOrchestrator/conversationMemory'
-import {
-  type ResponseContractDeps,
-  type FinancialTemplateSections,
-  enforceEvidenceFirstContract as enforceEvidenceFirstContractFn
-} from './agentOrchestrator/responseContract'
-import {
-  type PromptBuilderDeps,
-  type PreferredMapping,
-  buildRuntimeSystemPrompt as buildRuntimeSystemPromptFn
-} from './agentOrchestrator/promptBuilder'
-import {
-  type SchemaCatalogDeps,
-  resolvePreferredMapping as resolvePreferredMappingFn,
-  detectPromptConcepts as detectPromptConceptsFn,
-  inferDateHintForTable as inferDateHintForTableFn,
-  normalizeTableRef as normalizeTableRefFn,
-  buildSchemaCatalogContext as buildSchemaCatalogContextFn,
-  findActiveSchemaCatalog as findActiveSchemaCatalogFn,
-  SCHEMA_CONTEXT_CONCEPT_LABELS
-} from './agentOrchestrator/schemaCatalog'
-import {
-  type EvidenceValidationDeps,
-  requiresStrictFinancialDataFetch as requiresStrictFinancialDataFetchFn,
-  requiresStrictQuantitativeDataFetch as requiresStrictQuantitativeDataFetchFn,
-  hasQuantitativeResultSignal as hasQuantitativeResultSignalFn,
-  appearsToBeNoDataResult as appearsToBeNoDataResultFn,
-  hasRequiredFinancialResponseSections as hasRequiredFinancialResponseSectionsFn,
-  hasStructuredEvidence as hasStructuredEvidenceFn,
-  containsUnsupportedNumericClaim as containsUnsupportedNumericClaimFn,
-  containsFinancialMarkedNumericClaim as containsFinancialMarkedNumericClaimFn,
-  extractNumericClaims as extractNumericClaimsFn,
-  traceSupportsNumericClaim as traceSupportsNumericClaimFn,
-  enforcePromptIntentAlignment as enforcePromptIntentAlignmentFn,
-  parseFinancialTemplateSections as parseFinancialTemplateSectionsFn,
-  ensureFinancialResponseTemplate as ensureFinancialResponseTemplateFn
-} from './agentOrchestrator/evidenceValidation'
-import {
-  type TelemetryDeps,
-  emitEvidenceContractTelemetry as emitEvidenceContractTelemetryFn
-} from './agentOrchestrator/telemetry'
-import type { ActiveAgentExecution } from './agentOrchestrator/sendMessage'
-import {
-  validateIntentTableMatch as validateIntentTableMatchFn
-} from './agentOrchestrator/geminiRetry'
-import {
-  normalizeTableReference as normalizeTableReferenceFn,
-  resolveColumnNameAlias as resolveColumnNameAliasFn
-} from './agentOrchestrator/schemaCache'
 
 export type ConversationMemoryState = ConversationMemoryStateType
+
+type ActiveAgentExecution = {
+  requestId: string
+  conversationId: string
+  abortController: AbortController
+}
 
 // Budget arithmetic for the capped tool loop used by the production MVP path.
 // The runtime policy keeps the loop small to avoid runaway token bleed and noisy retries.
 const MAX_TOOL_CALL_ROUNDS = 4
 const MAX_TOOL_CALLS_PER_ROUND = 7
 const MAX_TOTAL_TOOL_CALLS = 14
-
-export type DeterministicFinancialToolResult = {
-  intentId: DeterministicFinancialIntent
-  value: number | null
-  tableRef: string
-  columnName: string
-  query: string
-  toolCallsUsed: number
-}
 
 interface AgentOrchestratorDeps {
   geminiClient: {
@@ -113,7 +53,6 @@ interface AgentOrchestratorDeps {
   }
   getSettings: () => AppSettings
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
-  executeMetadataSql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
   auditLog: {
     write: (entry: AuditLogEntry) => Promise<void>
   }
@@ -575,155 +514,6 @@ export class AgentOrchestrator {
     return getOrCreateConversationMemoryFn(this.conversationMemoryById, conversationId)
   }
 
-  private get responseContractDeps(): ResponseContractDeps {
-    return {
-      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
-      ensureFinancialResponseTemplate: (rawText, memory, count) =>
-        this.ensureFinancialResponseTemplate(rawText, memory, count),
-      enforcePromptIntentAlignment: (prompt, text) =>
-        this.enforcePromptIntentAlignment(prompt, text),
-      validateIntentTableMatch: (intentId, evidence) =>
-        this.validateIntentTableMatch(intentId, evidence),
-      emitEvidenceContractTelemetry: (requestId, conversationId, failureText, attempts) =>
-        this.emitEvidenceContractTelemetry(requestId, conversationId, failureText, attempts),
-      appearsToContainFinancialClaim: (text) => this.appearsToContainFinancialClaim(text),
-      parseFinancialTemplateSections: (text) => this.parseFinancialTemplateSections(text),
-      hasRequiredFinancialResponseSections: (sections) =>
-        this.hasRequiredFinancialResponseSections(sections),
-      hasStructuredEvidence: (evidence) => this.hasStructuredEvidence(evidence),
-      requiresStrictFinancialDataFetch: (prompt, narrative) =>
-        this.requiresStrictFinancialDataFetch(prompt, narrative),
-      requiresStrictQuantitativeDataFetch: (prompt) =>
-        this.requiresStrictQuantitativeDataFetch(prompt),
-      hasQuantitativeResultSignal: (narrative) => this.hasQuantitativeResultSignal(narrative),
-      appearsToBeNoDataResult: (narrative) => this.appearsToBeNoDataResult(narrative),
-      extractNumericClaims: (narrative) => this.extractNumericClaims(narrative),
-      containsUnsupportedNumericClaim: (narrative, evidence, sections) =>
-        this.containsUnsupportedNumericClaim(narrative, evidence, sections),
-      containsFinancialMarkedNumericClaim: (narrative) =>
-        this.containsFinancialMarkedNumericClaim(narrative),
-      traceSupportsNumericClaim: (trace) => this.traceSupportsNumericClaim(trace)
-    }
-  }
-
-  private get promptBuilderDeps(): PromptBuilderDeps {
-    return {
-      compactText: (value, maxLength) => this.compactText(value, maxLength),
-      pushConversationMemoryNote: (memory, note) => this.pushConversationMemoryNote(memory, note),
-      findActiveSchemaCatalog: (settings) => this.findActiveSchemaCatalog(settings),
-      detectPromptConcepts: (prompt) => this.detectPromptConcepts(prompt),
-      resolvePreferredMapping: (catalog, conceptKey, prompt) =>
-        this.resolvePreferredMapping(catalog, conceptKey, prompt),
-      inferDateHintForTable: (catalog, tableRef) => this.inferDateHintForTable(catalog, tableRef),
-      extractConversationFacts: (text) => this.extractConversationFacts(text),
-      buildSchemaCatalogContext: (settings) => this.buildSchemaCatalogContext(settings),
-      schemaContextConceptLabels: SCHEMA_CONTEXT_CONCEPT_LABELS
-    }
-  }
-
-  private get schemaCatalogDeps(): SchemaCatalogDeps {
-    return {
-      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
-      compactText: (value, maxLength) => this.compactText(value, maxLength)
-    }
-  }
-
-  private get evidenceValidationDeps(): EvidenceValidationDeps {
-    return {
-      normalizePersianDigits: (value) => this.normalizePersianDigits(value),
-      compactText: (value, maxLength) => this.compactText(value, maxLength),
-      detectDeterministicFinancialIntent: (prompt) =>
-        this.detectDeterministicFinancialIntent(prompt)
-    }
-  }
-
-  private get telemetryDeps(): TelemetryDeps {
-    return {
-      capture: this.telemetry?.capture.bind(this.telemetry)
-    }
-  }
-
-  private extractConversationFacts(text: string): ExtractedConversationFacts {
-    return extractConversationFactsFn(text)
-  }
-
-  private normalizePersianDigits(value: string): string {
-    return normalizePersianDigits(value)
-  }
-
-  private pushConversationMemoryNote(memory: ConversationMemoryState, note: string): void {
-    pushConversationMemoryNoteFn(memory, note)
-  }
-
-  buildRuntimeSystemPrompt(
-    settings: AppSettings,
-    prompt: string,
-    conversationMemory: ConversationMemoryState,
-    previousMemorySnapshot: ConversationMemorySnapshot
-  ): string {
-    return buildRuntimeSystemPromptFn(
-      this.promptBuilderDeps,
-      settings,
-      prompt,
-      conversationMemory,
-      previousMemorySnapshot
-    )
-  }
-
-  private resolvePreferredMapping(
-    activeCatalog: SchemaCatalogEntry,
-    conceptKey: AccountingConceptKey,
-    prompt?: string
-  ): PreferredMapping | null {
-    return resolvePreferredMappingFn(this.schemaCatalogDeps, activeCatalog, conceptKey, prompt)
-  }
-
-  private detectPromptConcepts(prompt: string): AccountingConceptKey[] {
-    return detectPromptConceptsFn(prompt)
-  }
-
-  private inferDateHintForTable(
-    activeCatalog: SchemaCatalogEntry,
-    tableRef: string
-  ): string | null {
-    return inferDateHintForTableFn(activeCatalog, tableRef)
-  }
-
-  private normalizeTableRef(tableRef: string): string {
-    return normalizeTableRefFn(tableRef)
-  }
-
-  normalizeTableReference(tableRef: string): string {
-    return normalizeTableReferenceFn(this.normalizeTableRef.bind(this), tableRef)
-  }
-
-  resolveColumnNameAlias(columnName: string, availableColumns: string[]): string {
-    return resolveColumnNameAliasFn(columnName, availableColumns)
-  }
-
-  getLoopBudgetSummary(): { maxRounds: number; maxCallsPerRound: number; maxTotalCalls: number } {
-    return {
-      maxRounds: MAX_TOOL_CALL_ROUNDS,
-      maxCallsPerRound: MAX_TOOL_CALLS_PER_ROUND,
-      maxTotalCalls: MAX_TOTAL_TOOL_CALLS
-    }
-  }
-
-  private validateIntentTableMatch(
-    intentId: string | undefined,
-    evidence: ToolEvidence[]
-  ): string | null {
-    return validateIntentTableMatchFn(intentId, evidence)
-  }
-
-  private buildSchemaCatalogContext(settings: AppSettings): string | null {
-    return buildSchemaCatalogContextFn(this.schemaCatalogDeps, settings)
-  }
-
-  private findActiveSchemaCatalog(settings: AppSettings): SchemaCatalogEntry | null {
-    return findActiveSchemaCatalogFn(settings)
-  }
-
   private compactText(value: string, maxLength: number): string {
     const normalized = value.replace(/\s+/g, ' ').trim()
 
@@ -734,33 +524,37 @@ export class AgentOrchestrator {
     return `${normalized.slice(0, maxLength - 1)}…`
   }
 
-  private detectDeterministicFinancialIntent(prompt: string): DeterministicFinancialIntent | null {
-    // Thin adapter: routing is fully data-driven through the weighted intent registry.
-    // The deterministic gate simply honors intents whose responseMode is 'deterministic'.
-    const matchedIntent = detectFinancialIntent(prompt)
-
-    if (!matchedIntent) {
-      return null
+  getLoopBudgetSummary(): { maxRounds: number; maxCallsPerRound: number; maxTotalCalls: number } {
+    return {
+      maxRounds: MAX_TOOL_CALL_ROUNDS,
+      maxCallsPerRound: MAX_TOOL_CALLS_PER_ROUND,
+      maxTotalCalls: MAX_TOTAL_TOOL_CALLS
     }
-
-    const definition = listFinancialIntentDefinitions().find(
-      (entry) => entry.id === matchedIntent.intentId
-    )
-
-    if (definition?.responseMode === 'deterministic') {
-      return matchedIntent.intentId as DeterministicFinancialIntent
-    }
-
-    return null
   }
 
-  /**
-   * H3: detect a multi-period comparative financial intent — e.g.
-   * "فروش 1403 در مقابل 1402" or "مقایسه خرید سال X و Y" — even when no percent
-   * is requested. The orchestrator must run at least one `fetch_financial_data`
-   * per period; exiting with fewer than 2 successful fetches is a NO_FETCH-grade
-   * defect for such prompts.
-   */
+  normalizeTableReference(tableRef: string): string {
+    return tableRef.trim().toLowerCase()
+  }
+
+  resolveColumnNameAlias(columnName: string, availableColumns: string[]): string {
+    const lower = columnName.toLowerCase()
+    const aliases: Record<string, string[]> = {
+      name: ['title', 'accountname', 'account_title'],
+      date: ['documentdate', 'voucherdate', 'fiscalyearref'],
+      amount: ['debit', 'credit', 'priceinbasecurrency', 'netamount'],
+      code: ['accountcode', 'documentno', 'vouchercode']
+    }
+    for (const [alias, targets] of Object.entries(aliases)) {
+      if (lower === alias) {
+        for (const target of targets) {
+          const found = availableColumns.find((c) => c.toLowerCase() === target)
+          if (found) return found
+        }
+      }
+    }
+    return columnName
+  }
+
   buildActionProposal(prompt: string, subject: string, priorityCount: number): string {
     const normalizedPrompt = this.compactText(prompt.replace(/\s+/g, ' ').trim(), 220)
     const safePriorityCount = Math.max(1, Math.trunc(priorityCount || 1))
@@ -792,124 +586,5 @@ export class AgentOrchestrator {
         '\n4. بررسی/چک‌لیست تایید انسانی قبل از هر اقدام واقعی.' +
         '\n5. آماده‌سازی rollback/compensating action و ثبت گزارش before/after برای هر مورد پیشنهادی.'
     ].join('\n')
-  }
-
-  enforceEvidenceFirstContract(
-    prompt: string,
-    finalText: string,
-    totalToolCallCount: number,
-    successfulDataFetchCount: number,
-    executionTrace?: ExecutionTrace,
-    recoveryContext?: { attempts: number },
-    requestId?: string,
-    conversationId?: string
-  ): string {
-    return enforceEvidenceFirstContractFn(
-      this.responseContractDeps,
-      prompt,
-      finalText,
-      totalToolCallCount,
-      successfulDataFetchCount,
-      executionTrace,
-      recoveryContext,
-      requestId,
-      conversationId
-    )
-  }
-
-  private requiresStrictFinancialDataFetch(prompt: string, narrative: string): boolean {
-    return requiresStrictFinancialDataFetchFn(this.evidenceValidationDeps, prompt, narrative)
-  }
-
-  private requiresStrictQuantitativeDataFetch(prompt: string): boolean {
-    return requiresStrictQuantitativeDataFetchFn(this.evidenceValidationDeps, prompt)
-  }
-
-  private hasQuantitativeResultSignal(text: string): boolean {
-    return hasQuantitativeResultSignalFn(this.evidenceValidationDeps, text)
-  }
-
-  private appearsToBeNoDataResult(text: string): boolean {
-    return appearsToBeNoDataResultFn(this.evidenceValidationDeps, text)
-  }
-
-  private appearsToContainFinancialClaim(text: string): boolean {
-    return appearsToContainFinancialClaimFn(text)
-  }
-
-  private hasRequiredFinancialResponseSections(sections: FinancialTemplateSections): boolean {
-    return hasRequiredFinancialResponseSectionsFn(sections)
-  }
-
-  private hasStructuredEvidence(evidenceSection: string): boolean {
-    return hasStructuredEvidenceFn(this.evidenceValidationDeps, evidenceSection)
-  }
-
-  private containsUnsupportedNumericClaim(
-    narrative: string,
-    evidence: string,
-    sections: FinancialTemplateSections
-  ): boolean {
-    return containsUnsupportedNumericClaimFn(
-      this.evidenceValidationDeps,
-      narrative,
-      evidence,
-      sections
-    )
-  }
-
-  /**
-   * H1: detect whether the narrative contains a *financial* numeric claim —
-   * a number paired with a currency marker (تومان/ریال/$/IRR), a percent sign,
-   * or a financial keyword (مبلغ/موجودی/مانده/جمع/...). Bare scope numbers like
-   * fiscal years (e.g. "FiscalYearRef = 1403") must not count, so an honest
-   * VALID_EMPTY response that merely echoes the queried scope is not rejected.
-   */
-  private containsFinancialMarkedNumericClaim(narrative: string): boolean {
-    return containsFinancialMarkedNumericClaimFn(this.evidenceValidationDeps, narrative)
-  }
-
-  private extractNumericClaims(text: string): string[] {
-    return extractNumericClaimsFn(this.evidenceValidationDeps, text)
-  }
-
-  private traceSupportsNumericClaim(trace: ExecutionTrace | undefined): boolean {
-    return traceSupportsNumericClaimFn(trace)
-  }
-
-  private emitEvidenceContractTelemetry(
-    requestId: string | undefined,
-    conversationId: string | undefined,
-    finalText: string,
-    recoveryAttempts?: number
-  ): void {
-    emitEvidenceContractTelemetryFn(
-      this.telemetryDeps,
-      requestId,
-      conversationId,
-      finalText,
-      recoveryAttempts
-    )
-  }
-
-  private enforcePromptIntentAlignment(prompt: string, finalText: string): string {
-    return enforcePromptIntentAlignmentFn(this.evidenceValidationDeps, prompt, finalText)
-  }
-
-  private ensureFinancialResponseTemplate(
-    rawText: string,
-    conversationMemory: ConversationMemoryState,
-    totalToolCallCount: number
-  ): string {
-    return ensureFinancialResponseTemplateFn(
-      this.evidenceValidationDeps,
-      rawText,
-      conversationMemory,
-      totalToolCallCount
-    )
-  }
-
-  private parseFinancialTemplateSections(text: string): FinancialTemplateSections {
-    return parseFinancialTemplateSectionsFn(text)
   }
 }

@@ -27,7 +27,6 @@ function createMockAgentOrchestrator(recorder: SqlQueryRecorder): AgentOrchestra
     geminiClient: { chat: async () => ({ text: '', raw: {}, toolCalls: [] }) },
     getSettings: () => settings,
     executeReadOnlySql: async (query: string) => { recorder.record(query); return [] },
-    executeMetadataSql: async () => [],
     auditLog: { write: async () => undefined }
   })
 }
