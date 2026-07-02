@@ -39,6 +39,13 @@ import { compileMetricPlan, type CompilerDeps } from './compiler'
 import { verifyResult } from './verifier'
 import { evaluateResult } from './resultEvaluator'
 import { resolvePartyByName, buildPartyClarifyMessage } from './resolvePartyByName'
+import {
+  shouldInvestigate,
+  investigate,
+  DEFAULT_BUDGET,
+  SchemaCache,
+  type InvestigatorDeps,
+} from './investigator'
 
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
@@ -78,6 +85,8 @@ export interface MultiStepResult {
 export type EngineRunOutcome = EngineRunResult | MultiMetricResult | MultiStepResult
 
 export class FinancialEngine {
+  private schemaCache: SchemaCache = new SchemaCache()
+
   constructor(private deps: EngineDeps) {}
 
   async run(
@@ -213,6 +222,69 @@ export class FinancialEngine {
       const plan = buildDeterministicPlan(prompt, route.metricId)
       if (plan) {
         return this.runPlan(plan, signal, pythonPlan)
+      }
+    }
+
+    // S26.1: No metric match → check if investigation is warranted
+    const metricMatched = !!route.metricId
+    if (shouldInvestigate(prompt, metricMatched, false)) {
+      const investigatorDeps: InvestigatorDeps = {
+        executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
+        normalizePersianText: this.deps.normalizePersianText,
+      }
+      const investigation = await investigate(
+        prompt,
+        investigatorDeps,
+        signal,
+        DEFAULT_BUDGET,
+        this.schemaCache
+      )
+
+      if (investigation.kind === 'answer' && investigation.clusters.length > 0) {
+        const cluster = investigation.clusters[0]!
+        const result: EngineResult = {
+          rows: [{
+            result_value: cluster.netBalance,
+            account_title: cluster.accountTitle,
+            account_code: cluster.accountCode,
+            total_debit: cluster.totalDebit,
+            total_credit: cluster.totalCredit,
+            voucher_count: cluster.voucherCount,
+            partner_title: cluster.partnerTitle ?? '',
+          }],
+          plan: {
+            metricId: 'account_turnover' as MetricId,
+            grain: 'total',
+            filters: [],
+            confidence: 0.7,
+          },
+          compiled: {
+            sql: `-- investigator: ${investigation.queryBudgetUsed} queries, ${investigation.evidence.length} evidence entries`,
+            bindingsDescription: 'investigator loop result',
+          },
+        }
+        return {
+          verdict: { ok: true, reason: undefined, reconciliations: [] },
+          result,
+        }
+      } else if (investigation.kind === 'clarify') {
+        return {
+          verdict: {
+            ok: false,
+            reason: investigation.message,
+            reconciliations: [],
+          },
+          result: null,
+        }
+      } else if (investigation.kind === 'refuse') {
+        return {
+          verdict: {
+            ok: false,
+            reason: investigation.reason,
+            reconciliations: [],
+          },
+          result: null,
+        }
       }
     }
 
