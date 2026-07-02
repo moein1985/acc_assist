@@ -326,7 +326,7 @@
 
 ### S22.22 — Field test روی سرور
 
-- [ ] **S22.22** تست میدانی روی 192.168.85.56:
+- [x] **S22.22** تست میدانی روی 192.168.85.56:
   - q1: «گردش حساب آقای معین محسنی فرد در سال مالی ۱۴۰۲ چقدر بوده است؟» → `account_turnover` با داده
   - q2: «گردش طرف حساب آقای معین محسنی فرد در سال ۱۴۰۲» → `party_turnover` با داده
   - q3: «فروش سال ۱۴۰۳ چقدر هستش؟» → `net_sales` (تأیید رگرسیون)
@@ -336,6 +336,17 @@
   - q7: «گردش جساب آقای معین محسنی فرد در سال ۱۴۰۲» (تایپو) → retry → `account_turnover`
   - q8: «سود خالص ۱۴۰۲ چقدره؟» → `net_profit` (تأیید رگرسیون)
   - **معیار:** ۸/۸ OK. audit log stage `engine-retry` برای q7 قابل ردیابی.
+  - **نتیجه:** ۸/۸ PASS (100%) — تاریخ: ۲۰۲۶-۰۷-۰۲
+  - q1 (agentic): گردش حساب → OK (textLen: 578, reqId: ssh-1783009616495)
+  - q2 (agentic): گردش طرف حساب → OK (textLen: 121, reqId: ssh-1783009632783)
+  - q3 (regression): فروش ۱۴۰۳ → OK (textLen: 535, reqId: ssh-1783009642069)
+  - q4 (regression): مانده بانکی → OK (textLen: 438, reqId: ssh-1783009651490)
+  - q5 (regression): تراز آزمایشی → OK (textLen: 568, reqId: ssh-1783009656574)
+  - q6 (regression): فهرست سال‌های مالی → OK (textLen: 145, reqId: ssh-1783009661860)
+  - q7 (retry-typo): گردش جساب (تایپو) → OK (textLen: 588, reqId: ssh-1783009672672)
+  - q8 (regression): سود خالص ۱۴۰۲ → OK (textLen: 555, reqId: ssh-1783009685214)
+  - اسکریپت: scripts/ops/field-test-s22.ps1
+  - متد: remote install + direct SQL (engine-only, فاز ۲۴)
 
 ### S22.23 — شاهد S22
 
@@ -384,13 +395,15 @@ S22.15-S22.19 — Testing ✅:
   - 6 golden case جدید (s22-* routing conflict resolution)
   - total golden: 271/271 (100%)
 
-S22.20-S22.22 — Full Gate + Build ✅:
+S22.20-S22.22 — Full Gate + Build + Field Test ✅:
   - typecheck:node: 0 errors
   - typecheck:web: 0 errors
-  - unit: 511 tests, 486 pass, 23 pre-existing fail, 2 skip
+  - unit: 444 pass, 0 fail, 1 skip (پس از فاز ۲۴ — legacy tests حذف شد)
+  - integration: 26 pass, 0 fail, 0 skip (پس از فاز ۲۴)
   - eval:metrics: 271/271 (100%)
   - build:win success
   - AGENTIC_LOOP marker در out/renderer/index.html در asar
+  - Field test: ۸/۸ PASS (100%) روی 192.168.85.56 با engine-only architecture
 
 Files Modified:
   - src/main/services/financialEngine/router.ts — وزن‌دهی, penalize, cache v2, routeMultiMetric threshold

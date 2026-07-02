@@ -257,8 +257,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **engine تنها ورودی** — legacy کاملاً حذف شد (فاز ۲۴)
 
 **کارهای باقی‌مانده:**
-- فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test)
-- فاز ۲۲: field test pending (code+test+build کامل)
+- فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
 
 ---
 
