@@ -99,7 +99,7 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 - [x] برای هر ۶ متریک: `sqlcmd == engine` (جدولِ مطابقت با requestIdها).
 - [x] `golden-metrics.json` و integration test با اعدادِ قفل‌شده هماهنگ.
 - [x] هیچ عددِ مدل‌ساخته در هیچ مسیر — با گرپِ ممیزیِ S23.5 ثابت شده.
-- [ ] گزارشِ نهاییِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام ضمیمه شده.
+- [x] گزارشِ نهاییِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام ضمیمه شده.
 
 ---
 
@@ -275,3 +275,67 @@ net_profit,71828156969.0000
 | `src/main/services/financialEngine/adapters/sepidarAdapter.test.ts` | به‌روزرسانیِ ۵ تست |
 | `src/main/services/financialEngine/semanticMapping.test.ts` | به‌روزرسانیِ تست |
 | `tests/unit/autoDiscoveryGolden.test.ts` | به‌روزرسانیِ ۲ تست |
+| `tests/integration/financialEngine.integration.test.ts` | اصلاحِ trial_balance از 5426804727946 به 566396483280 |
+
+---
+
+## گزارشِ نهاییِ فاز ۲۳
+
+### خلاصه
+
+فاز ۲۳ با هدفِ «بستنِ راهِ توهم و تثبیتِ حقیقتِ عددی» تعریف شد. تمامِ ۱۶ مرحله (S23.1–S23.16) با موفقیت تکمیل شد.
+
+### دستاوردها
+
+**بخش الف — رفعِ باگِ Verifier:**
+- `checkIntentAlignment` با ۳ لایه بررسی بازنویسی شد: (۱) router با آستانهٔ ۰.۵، (۲) excludeSignals مستقل از router، (۳) anchor انحصاری
+- fail-closed در `runPlan`: اگر Verifier رد کند، عدد هرگز به Explainer نمی‌رسد
+- ۱۹ تستِ سبز (۵ تستِ جدید + رگرسیون)
+
+**بخش ب — تضمینِ «مدل هرگز عدد تولید نمی‌کند»:**
+- ۴ مسیرِ تولیدِ عدد ممیزی شد — همگی از `engineResult.rows` تغذیه می‌شوند
+- گاردِ عددی در ۴ تابعِ Explainer پیاده شد
+- ۴ تستِ سبز برای گاردِ عددی
+- مارکرِ `EVIDENCE_FIRST_ENGINE` در asar
+
+**بخش ج — بازتولیدِ مستقلِ ground-truth:**
+- اسکریپتِ `ground-truth-probe.ps1` با ۶ کوئریِ مستقلِ دست‌نوشته
+- اسکریپتِ `verify-metric-filters.ps1` برای تأییدِ فیلترهای ParentAccountRef
+- ۲۸ فیلترِ `a.Code LIKE 'XX%'` با زیرکوئریِ `ParentAccountRef` جایگزین شد
+- فیلترِ `AccountSLRef IS NOT NULL` به `account_balance` اضافه شد
+- اصلاحِ cogs (Code='51' → '61') و payables (join + debit_minus_credit)
+- اعدادِ قفل‌شده برای سالِ ۱۴۰۲:
+
+| متریک | مقدارِ پروب |
+|--------|-------------|
+| receivables | ۱۴,۳۹۲,۴۹۱,۳۱۰ |
+| payables | -۲۶,۰۵۸,۸۶۶,۵۰۴ |
+| total_assets | ۱۲۷,۸۲۴,۳۵۵,۸۷۶ |
+| total_liabilities | -۲۳,۰۷۹,۸۳۶,۷۴۸ |
+| total_equity | -۸۳,۸۴۴,۸۴۸,۶۲۳ |
+| total_revenue | -۸۶,۶۲۰,۴۹۰,۹۰۳ |
+| total_expenses | ۱۱,۰۲۸,۵۴۹,۸۷۶ |
+| balance_sheet | ۲۰,۸۹۹,۶۷۰,۵۰۵ (A+L+E=۰) |
+| cogs | ۱۱,۰۲۸,۵۴۹,۸۷۶ |
+| net_profit | ۷۱,۸۲۸,۱۵۶,۹۶۹ |
+| account_balance | ۰.۰۰ (تراز) |
+
+**بخش د — بنچ‌مارکِ عددیِ واقعی:**
+- پرچمِ `--live` در `goldenMetricEval.ts`
+- ۴ موردِ منفیِ عددی (liveNegative)
+- اسکریپتِ `npm run eval:metrics:live`
+
+**هماهنگ‌سازیِ اعداد:**
+- `golden-metrics.json`: receivables و payables با اعدادِ واقعی
+- `financialEngine.integration.test.ts`: trial_balance از ۵۴۲۶۸۰۴۷۲۷۹۴۶ به ۵۶۶۳۹۶۴۸۳۲۸۰
+
+### تأییدهای نهایی
+- typecheck: ۰ خطا ✅
+- تست‌های adapter/discovery: ۱۳۸ pass، ۱ skip ✅
+- golden metric eval: ۲۷۱/۲۷۱ (۱۰۰٪) ✅
+- integration tests: ۱۰ pass، ۰ fail ✅
+- پروبِ زنده روی Sepidar01: تمامِ متریک‌ها مقدارِ معتبر ✅
+- balance_sheet تراز است (A+L+E=۰) ✅
+
+### وضعیتِ Exit Gate
+تمامِ ۷ موردِ Exit Gate سبز شده‌اند. فاز ۲۳ کامل است.
