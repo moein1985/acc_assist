@@ -81,6 +81,8 @@ flowchart TB
 | ۲۱ | `FRE_ROADMAP_19_PHASE21_UX_REPORTING.fa.md` | تجربه کاربری و گزارش‌گیری: شفافیت SQL، اعتماد-score، نمودار تعاملی (Chart.js)، گزارش‌های زمان‌بندی‌شده، پشتیبانی چندزبانه (فارسی+انگلیسی)، chat history persistence، quick actions | متوسط | پایین–متوسط |
 | ۲۲ | `FRE_ROADMAP_20_PHASE22_AGENTIC_LOOP.fa.md` | حلقهٔ عامل: ارتقاء Router (وزن‌دهی هوشمند anchor + candidate mode)، ارزیابی نتیجه (Result Evaluation)، حلقهٔ بازیابی هوشمند (Smart Retry)، حل entity چندحسابی (Entity Resolution) | متوسط | متوسط |
 | ۲۳ | `FRE_ROADMAP_22_PHASE23_ANTI_HALLUCINATION.fa.md` | بستنِ راهِ توهم: رفع سوراخِ Verifier (intent alignment)، دروازهٔ fail-closed، گارد عددی Explainer، مارکر EVIDENCE_FIRST_ENGINE، بازتولید مستقل ground-truth، بنچ‌مارک عددی live | متوسط | متوسط |
+| ۲۵ | `FRE_ROADMAP_23_PHASE25_PARTY_TURNOVER.fa.md` | گردش طرف حساب: resolvePartyByName، party_turnover metric، multi-token entity matching، year-scoped party clarify | متوسط | متوسط |
+| ۲۶ | `FRE_ROADMAP_24_PHASE26_INVESTIGATOR_LOOP.fa.md` | حلقهٔ تحقیق‌گر: fallback هنگام عدم تطابق متریک — schema scan، heuristic mapping، probe loop (locate→enumerate→follow_fk)، clusterLedgers، multi-ledger clarify، budget bounded، read-only SQL، SchemaCache | متوسط–بزرگ | متوسط |
 
 **ترتیب اجرا:** ۱ → ۲ → ۳ → ۴ → ... → ۱۳ → ۱۴ → ۱۵ → ۱۶ → ۱۷ → ۱۸ → ۱۹ → ۲۰ → ۲۱ → ۲۲ → ۲۳. هیچ فازی قبل از سبزشدنِ کاملِ فاز قبل (تست + typecheck + شواهد) شروع نشود.
 
@@ -246,11 +248,13 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۲ | ✅ کامل | حلقهٔ عامل: Router هوشمند, Result Evaluation, Smart Retry, Entity Resolution |
 | ۲۳ | ✅ کامل | ضدِ توهم: Verifier قفل, گارد عددی, اعدادِ قفل‌شده |
 | ۲۴ | ✅ کامل | حذفِ کاملِ legacy، engine تنها ورودی — تمامِ ۱۶ مرحله (S24.1-S24.16) کامل، Exit Gate سبز |
+| ۲۵ | ✅ کامل | گردش طرف حساب: resolvePartyByName، party_turnover، multi-token matching، year-scoped clarify |
+| ۲۶ | ✅ کامل | حلقهٔ تحقیق‌گر: schema scan + heuristic mapping + probe loop + clusterLedgers + multi-ledger clarify + budget bounded + read-only SQL + SchemaCache — ۲۱ unit test، ۲۷۴ golden cases (100% سبز) |
 
-**آمار فعلی (فاز ۲۴ کامل):**
+**آمار فعلی (فاز ۲۶ کامل):**
 - ۷۳ متریک
-- ۲۷۱ golden cases (100% سبز)
-- ۴۴۴ unit test + ۲۶ integration test
+- ۲۷۴ golden cases (100% سبز)
+- ۴۷۵ unit test + ۲۶ integration test
 - typecheck: ۰ خطای جدید
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)

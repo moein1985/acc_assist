@@ -568,6 +568,50 @@ export class FinancialEngine {
       // The caller (orchestrator) checks verdict.ok, but the engine itself must guarantee
       // that a rejected number never reaches the Explainer.
       if (!finalVerdict.ok) {
+        // S26: Investigator loop — when metric matched but returned zero rows,
+        // try to discover the answer via schema exploration before refusing.
+        const rowsEmpty = rows.length === 0 || (rows.length === 1 && !rows[0]['result_value'])
+        if (shouldInvestigate(plan.entityName ?? plan.metricId, true, rowsEmpty)) {
+          const investigatorDeps: InvestigatorDeps = {
+            executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
+            normalizePersianText: this.deps.normalizePersianText,
+          }
+          const investigation = await investigate(
+            plan.entityName ?? plan.metricId,
+            investigatorDeps,
+            combinedSignal,
+            DEFAULT_BUDGET,
+            this.schemaCache
+          )
+
+          if (investigation.kind === 'answer' && investigation.clusters.length > 0) {
+            const cluster = investigation.clusters[0]!
+            return {
+              verdict: { ok: true, reason: undefined, reconciliations: [] },
+              result: {
+                rows: [{
+                  result_value: cluster.netBalance,
+                  account_title: cluster.accountTitle,
+                  account_code: cluster.accountCode,
+                  total_debit: cluster.totalDebit,
+                  total_credit: cluster.totalCredit,
+                  voucher_count: cluster.voucherCount,
+                  partner_title: cluster.partnerTitle ?? '',
+                }],
+                plan,
+                compiled,
+              },
+              pythonOutput: null,
+            }
+          } else if (investigation.kind === 'clarify') {
+            return {
+              verdict: { ok: false, reason: investigation.message, reconciliations: [] },
+              result: null,
+              pythonOutput: null,
+            }
+          }
+        }
+
         return { verdict: finalVerdict, result: null, pythonOutput: null }
       }
 
