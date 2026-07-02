@@ -237,16 +237,16 @@ export class SepidarAdapter implements SchemaAdapter {
   }
 
   getAccountClassification(category: AccountCategory): string {
-    // Sepidar uses 2-digit account code prefixes:
-    // 01 = assets, 02 = liabilities, 03 = equity, 04 = revenue, 05 = expenses
-    const prefixMap: Record<AccountCategory, string> = {
-      [AccountCategory.asset]: "SUBSTRING(a.Code, 1, 2) = '01'",
-      [AccountCategory.liability]: "SUBSTRING(a.Code, 1, 2) = '02'",
-      [AccountCategory.equity]: "SUBSTRING(a.Code, 1, 2) = '03'",
-      [AccountCategory.revenue]: "SUBSTRING(a.Code, 1, 2) = '04'",
-      [AccountCategory.expense]: "SUBSTRING(a.Code, 1, 2) = '05'"
+    // Sepidar uses 3-level account hierarchy: Type 1 (categories) → Type 2 (sub-categories) → Type 3 (leaf accounts)
+    // Filter by ParentAccountRef hierarchy instead of broken code-prefix matching
+    const filterMap: Record<AccountCategory, string> = {
+      [AccountCategory.asset]: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))",
+      [AccountCategory.liability]: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))",
+      [AccountCategory.equity]: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '31'))",
+      [AccountCategory.revenue]: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '41'))",
+      [AccountCategory.expense]: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))"
     }
-    return prefixMap[category]
+    return filterMap[category]
   }
 
   getPersianTextFoldExpression(column: string): string {

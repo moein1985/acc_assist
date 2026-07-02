@@ -110,7 +110,10 @@ const catalog: MetricDefinition[] = [
         labelType: 'nstring'
       }
     ],
-    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: 'vi.AccountSLRef IS NOT NULL', description: 'فقط آیتم‌های دارای حساب تفصیلی' }
+    ],
     entityNameMatch: { column: 'a.Title', foldPersian: true },
     dateColumn: 'v.Date'
   },
@@ -293,10 +296,15 @@ const catalog: MetricDefinition[] = [
           table: 'ACC.Voucher',
           alias: 'v',
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
-    measure: { kind: 'sum', column: 'Debit' },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'vi.Debit', creditColumn: 'vi.Credit' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -310,7 +318,10 @@ const catalog: MetricDefinition[] = [
         labelType: 'nstring'
       }
     ],
-    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('12','13') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب‌های دریافتنی (سرفصل ۱۲ و ۱۳ تحت دارایی جاری)' }
+    ],
     dateColumn: 'v.Date'
   },
   {
@@ -328,10 +339,15 @@ const catalog: MetricDefinition[] = [
           table: 'ACC.Voucher',
           alias: 'v',
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
+        },
+        {
+          table: 'ACC.Account',
+          alias: 'a',
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
-    measure: { kind: 'sum', column: 'Credit' },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'vi.Debit', creditColumn: 'vi.Credit' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -345,7 +361,10 @@ const catalog: MetricDefinition[] = [
         labelType: 'nstring'
       }
     ],
-    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    mandatoryFilters: [
+      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('10','12') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '21'))", description: 'فقط حساب‌های پرداختنی (سرفصل ۱۰ و ۱۲ تحت بدهی جاری)' }
+    ],
     dateColumn: 'v.Date'
   },
   {
@@ -542,7 +561,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '01%' OR a.Code LIKE '02%' OR a.Code LIKE '03%'", description: 'فقط حساب‌های دارایی، بدهی و حقوق صاحبان سهام' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12','21','22','31')))", description: 'فقط حساب‌های دارایی، بدهی و حقوق صاحبان سهام' }
     ],
     dateColumn: 'v.Date'
   },
@@ -595,7 +614,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'فقط حساب‌های درآمد و هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('41','61','62')))", description: 'فقط حساب‌های درآمد و هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -638,7 +657,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '01%'", description: 'فقط حساب‌های دارایی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))", description: 'فقط حساب‌های دارایی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -681,7 +700,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '02%'", description: 'فقط حساب‌های بدهی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))", description: 'فقط حساب‌های بدهی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -724,7 +743,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '03%'", description: 'فقط حساب‌های حقوق صاحبان سهام' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '31'))", description: 'فقط حساب‌های حقوق صاحبان سهام' }
     ],
     dateColumn: 'v.Date'
   },
@@ -767,7 +786,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '04%'", description: 'فقط حساب‌های درآمد' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '41'))", description: 'فقط حساب‌های درآمد' }
     ],
     dateColumn: 'v.Date'
   },
@@ -810,7 +829,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -853,7 +872,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '51%'", description: 'فقط حساب‌های بهی تمام‌شده' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های بهای تمام‌شده' }
     ],
     dateColumn: 'v.Date'
   },
@@ -896,7 +915,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '52%'", description: 'فقط حساب‌های حقوق و دستمزد' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '10' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های حقوق و دستمزد (سرفصل ۱۰ تحت هزینه‌ها)' }
     ],
     dateColumn: 'v.Date'
   },
@@ -939,7 +958,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '53%'", description: 'فقط حساب‌های مالیات پرداختی' }
+      { sql: "a.Title LIKE N'%مالیات%' AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))", description: 'فقط حساب‌های مالیات پرداختی (دارایی با عنوان مالیات)' }
     ],
     dateColumn: 'v.Date'
   },
@@ -982,7 +1001,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '54%'", description: 'فقط حساب‌های مالیات دریافتی' }
+      { sql: "a.Title LIKE N'%مالیات%' AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))", description: 'فقط حساب‌های مالیات دریافتی (بدهی با عنوان مالیات)' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1025,7 +1044,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "(a.Code LIKE '04%' OR a.Code LIKE '05%')", description: 'درآمد و هزینه‌ها' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('41','61','62')))", description: 'درآمد و هزینه‌ها' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1172,7 +1191,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' },
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' },
       { sql: 'vi.DLRef IS NOT NULL', description: 'فقط آیتم‌های دارای تفصیلی' },
       { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
       { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
@@ -1282,7 +1301,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'درآمد و هزینه‌ها' },
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('41','61','62')))", description: 'درآمد و هزینه‌ها' },
       { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' }
     ],
     dateColumn: 'v.Date'
@@ -1341,7 +1360,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' },
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' },
       { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
       { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
     ],
@@ -1386,7 +1405,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1429,7 +1448,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '04%' OR a.Code LIKE '05%'", description: 'درآمد و هزینه‌ها' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('41','61','62')))", description: 'درآمد و هزینه‌ها' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1701,7 +1720,7 @@ const catalog: MetricDefinition[] = [
       }
     ],
     mandatoryFilters: [
-      { sql: "a.Code LIKE '12%' OR a.Title LIKE N'%دریافتنی%'", description: 'فقط حساب\u200cهای دریافتنی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('12','13') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب\u200cهای دریافتنی' }
     ],
     orderBy: { column: 'AgeBucket', direction: 'ASC' },
     dateColumn: 'v.Date'
@@ -1754,7 +1773,7 @@ const catalog: MetricDefinition[] = [
       }
     ],
     mandatoryFilters: [
-      { sql: "a.Code LIKE '22%' OR a.Title LIKE N'%پرداختنی%'", description: 'فقط حساب\u200cهای پرداختنی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('10','12') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '21'))", description: 'فقط حساب\u200cهای پرداختنی' }
     ],
     orderBy: { column: 'AgeBucket', direction: 'ASC' },
     dateColumn: 'v.Date'
@@ -2106,7 +2125,7 @@ const catalog: MetricDefinition[] = [
       },
       {
         dimension: 'by_category',
-        labelColumn: "CASE WHEN a.Code LIKE '01%' THEN 'operating' WHEN a.Code LIKE '0106%' THEN 'investing' WHEN a.Code LIKE '02%' THEN 'financing' ELSE 'operating' END",
+        labelColumn: "CASE WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('01','02','03','04','05','06','07','08','09','10','11','12','13','14','15') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11')) THEN 'operating' WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '12')) THEN 'investing' WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22'))) THEN 'financing' ELSE 'operating' END",
         labelType: 'nstring'
       }
     ],
@@ -2164,7 +2183,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '0101%' OR a.Code LIKE '0102%'", description: 'فقط حساب‌های نقدی و بانکی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('01','02') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب‌های نقدی و بانکی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2244,7 +2263,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '0106%'", description: 'فقط حساب‌های دارایی ثابت' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '06' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب‌های دارایی ثابت' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2297,7 +2316,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '0106%' AND a.Title LIKE N'%استهلاک%'", description: 'فقط حساب‌های استهلاک تجمعی' }
+      { sql: "a.Title LIKE N'%استهلاک%' AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))", description: 'فقط حساب‌های استهلاک تجمعی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2349,7 +2368,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2380,7 +2399,7 @@ const catalog: MetricDefinition[] = [
     dimensions: [
       {
         dimension: 'by_component',
-        labelColumn: "CASE WHEN a.Code LIKE '0501%' THEN 'materials' WHEN a.Code LIKE '0502%' THEN 'labor' WHEN a.Code LIKE '0503%' THEN 'overhead' ELSE 'other' END",
+        labelColumn: "CASE WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '01' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61')) THEN 'materials' WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '02' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61')) THEN 'labor' WHEN a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '03' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61')) THEN 'overhead' ELSE 'other' END",
         labelType: 'nstring'
       },
       {
@@ -2397,7 +2416,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '05%'", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2444,7 +2463,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '0102%'", description: 'فقط حساب‌های بانکی' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code = '02' AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب‌های بانکی' }
     ],
     dateColumn: 'v.Date'
   },
@@ -2524,7 +2543,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.Code LIKE '02%' AND a.Title LIKE N'%مالیات%'", description: 'فقط حساب‌های بدهی مالیاتی' }
+      { sql: "a.Title LIKE N'%مالیات%' AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))", description: 'فقط حساب‌های بدهی مالیاتی' }
     ],
     dateColumn: 'v.Date'
   }

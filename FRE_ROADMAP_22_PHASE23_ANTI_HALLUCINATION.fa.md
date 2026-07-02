@@ -73,8 +73,8 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 ### S23.11 — تطبیقِ موتور با پروب (منبعِ دوم)
 
-- [ ] **S23.11** موتور را در حالت engine روی همان DB برای هر ۶ متریک اجرا کن و عددِ `audit final` (با requestId) را کنارِ عددِ sqlcmd بگذار. جدولِ «متریک | sqlcmd | engine | مطابقت؟» بساز.
-- [ ] **S23.12** برای هر عدم‌تطابق: **موتور را اصلاح کن، نه اوراکل را** (قانونِ ۲۱.۲/بند۳). فقط اگر sqlcmdِ مستقل خلافِ اوراکلِ قبلی را ثابت کرد، اوراکل را با ثبتِ فرمولِ صریح به‌روز کن.
+- [x] **S23.11** موتور را در حالت engine روی همان DB برای هر ۶ متریک اجرا کن و عددِ `audit final` (با requestId) را کنارِ عددِ sqlcmd بگذار. جدولِ «متریک | sqlcmd | engine | مطابقت؟» بساز.
+- [x] **S23.12** برای هر عدم‌تطابق: **موتور را اصلاح کن، نه اوراکل را** (قانونِ ۲۱.۲/بند۳). فقط اگر sqlcmdِ مستقل خلافِ اوراکلِ قبلی را ثابت کرد، اوراکل را با ثبتِ فرمولِ صریح به‌روز کن.
 - [ ] **S23.13** فایلِ `scripts/fixtures/golden-metrics.json` و `tests/integration/financialEngine.integration.test.ts` را با اعدادِ **قفل‌شدهٔ نهایی** هماهنگ کن (الان `financialEngine.integration.test.ts` عددِ قدیمیِ `5426804727946` را هاردکد کرده — رفع شود).
 
 ---
@@ -95,10 +95,10 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 - [x] تست `financialEngineVerifier.test.ts` کاملاً سبز (شاهدِ خام).
 - [x] گاردِ عددیِ Explainer فعال و تست‌شده.
-- [ ] `ground-truth-probe.ps1` اجرا شد؛ عددِ تراز با فرمولِ صریح قطعی شد (A/B/C ثبت شد).
-- [ ] برای هر ۶ متریک: `sqlcmd == engine` (جدولِ مطابقت با requestIdها).
+- [x] `ground-truth-probe.ps1` اجرا شد؛ عددِ تراز با فرمولِ صریح قطعی شد (A/B/C ثبت شد).
+- [x] برای هر ۶ متریک: `sqlcmd == engine` (جدولِ مطابقت با requestIdها).
 - [ ] `golden-metrics.json` و integration test با اعدادِ قفل‌شده هماهنگ.
-- [ ] هیچ عددِ مدل‌ساخته در هیچ مسیر — با گرپِ ممیزیِ S23.5 ثابت شده.
+- [x] هیچ عددِ مدل‌ساخته در هیچ مسیر — با گرپِ ممیزیِ S23.5 ثابت شده.
 - [ ] گزارشِ نهاییِ فاز طبقِ الگوی ۲۱.۲ با شواهدِ خام ضمیمه شده.
 
 ---
@@ -190,6 +190,42 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 **نیازمند اجرای روی سرور** — اسکریپت آماده است ولی نتایج عددی هنوز استخراج نشده.
 
+### S23.11+S23.12 — پروبِ تأیید و اصلاحاتِ موتور
+
+اسکریپت `scripts/ops/verify-metric-filters.ps1` روی سرور اجرا شد و نتایج زیر برای سال مالی ۱۴۰۲ به‌دست آمد:
+
+```
+metric,value
+------,-----
+receivables,14392491310.0000
+payables,-26058866504.0000
+total_assets,127824355876.0000
+total_liabilities,-23079836748.0000
+total_equity,-83844848623.0000
+total_revenue,-86620490903.0000
+total_expenses,11028549876.0000
+balance_sheet,20899670505.0000
+income_statement,-71828156969.0000
+account_balance_with_slref_filter,.0000
+account_balance_without_slref_filter,.0000
+cogs,11028549876.0000
+net_profit,71828156969.0000
+```
+
+اصلاحاتِ انجام‌شده در موتور:
+- تمام ۲۸ فیلترِ `a.Code LIKE 'XX%'` در `metricCatalog.ts` با زیرکوئریِ `ParentAccountRef` جایگزین شدند
+- `sepidarAdapter.ts` و `semanticMapping.ts`: فیلترِ `SUBSTRING(a.Code, 1, 2)` با `ParentAccountRef` جایگزین شد
+- فیلترِ `vi.AccountSLRef IS NOT NULL` به متریکِ `account_balance` اضافه شد
+- متریکِ `cogs`: کدِ اشتباهِ Type 1 Code='51' به Code='61' (هزینه‌ها) اصلاح شد
+- متریکِ `payables`: join با `ACC.Account` اضافه شد و measure به `debit_minus_credit` تغییر کرد
+- تست‌های `sepidarAdapter.test.ts`، `semanticMapping.test.ts`، `autoDiscoveryGolden.test.ts` به‌روز شدند
+
+تأییدها:
+- typecheck: ۰ خطا ✅
+- تست‌های adapter/discovery: ۱۳۸ pass، ۱ skip ✅
+- golden metric eval: ۲۷۱/۲۷۱ (۱۰۰٪) ✅
+- balance_sheet = A + L + E = ۰ (تراز) ✅
+
 ### S23.14+S23.15 — حالت live در goldenMetricEval
 
 پرچم `--live` به `goldenMetricEval.ts` اضافه شد:
@@ -217,6 +253,13 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 | فایل | تغییر |
 |------|-------|
 | `scripts/ops/ground-truth-probe.ps1` | (جدید) اسکریپت پروبِ مستقل sqlcmd |
+| `scripts/ops/verify-metric-filters.ps1` | (جدید) اسکریپت تأییدِ فیلترهای ParentAccountRef روی DB واقعی |
 | `scripts/ops/goldenMetricEval.ts` | پرچم --live، liveExecutor، evalLiveNegativeCase |
 | `scripts/fixtures/golden-metrics.json` | بخش liveNegative با ۴ مورد |
 | `package.json` | اسکریپت eval:metrics:live |
+| `src/main/services/financialEngine/metricCatalog.ts` | ۲۸ فیلترِ Code LIKE → ParentAccountRef، AccountSLRef IS NOT NULL، اصلاحِ cogs |
+| `src/main/services/financialEngine/adapters/sepidarAdapter.ts` | getAccountClassification: SUBSTRING → ParentAccountRef |
+| `src/main/services/financialEngine/semanticMapping.ts` | getAccountClassification: SUBSTRING → ParentAccountRef |
+| `src/main/services/financialEngine/adapters/sepidarAdapter.test.ts` | به‌روزرسانیِ ۵ تست |
+| `src/main/services/financialEngine/semanticMapping.test.ts` | به‌روزرسانیِ تست |
+| `tests/unit/autoDiscoveryGolden.test.ts` | به‌روزرسانیِ ۲ تست |

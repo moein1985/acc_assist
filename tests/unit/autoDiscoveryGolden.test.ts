@@ -345,12 +345,12 @@ test('S15.25: Golden case — voucher_type filter uses mock DocType column', () 
   }
 })
 
-test('S15.25: Golden case — account classification uses mock AccountCode column', () => {
+test('S15.25: Golden case — account classification uses hierarchy-based filter', () => {
   const adapter = buildMockAdapter()
   const filter = adapter.getAccountClassification(AccountCategory.asset)
   assert.ok(
-    filter.includes('AccountCode'),
-    'Account classification should use AccountCode column'
+    filter.includes('ParentAccountRef'),
+    'Account classification should use ParentAccountRef hierarchy'
   )
 })
 
@@ -529,11 +529,11 @@ test('S15.27: Compiler — account_balance by_year uses FiscalPeriod table and P
   assert.ok(compiled.sql.includes('PeriodTitle'), 'SQL should use PeriodTitle column for year label')
 })
 
-test('S15.27: Compiler — account classification uses AccountCode from mock schema', () => {
+test('S15.27: Compiler — account classification uses hierarchy-based filter for liabilities', () => {
   const adapter = buildMockAdapter()
   const filter = adapter.getAccountClassification(AccountCategory.liability)
-  assert.ok(filter.includes('AccountCode'), 'Filter should use AccountCode column')
-  assert.ok(filter.includes("'02'"), 'Filter should use prefix 02 for liabilities')
+  assert.ok(filter.includes('ParentAccountRef'), 'Filter should use ParentAccountRef hierarchy')
+  assert.ok(filter.includes("'21'"), 'Filter should include Code 21 for current liabilities')
 })
 
 // --- 3 cases for confidence levels (high/medium/low) ---

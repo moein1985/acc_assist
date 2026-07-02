@@ -618,18 +618,16 @@ class DiscoveredAdapter implements SchemaAdapter {
   }
 
   getAccountClassification(category: string): string {
-    // Default: use 2-digit code prefix (01=assets, 02=liabilities, 03=equity, 04=revenue, 05=expenses)
-    const prefixMap: Record<string, string> = {
-      asset: '01',
-      liability: '02',
-      equity: '03',
-      revenue: '04',
-      expense: '05',
+    // Use hierarchy-based ParentAccountRef filters instead of broken code-prefix matching
+    // Sepidar 3-level hierarchy: Type 1 (categories) → Type 2 (sub-categories) → Type 3 (leaf accounts)
+    const filterMap: Record<string, string> = {
+      asset: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))",
+      liability: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))",
+      equity: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '31'))",
+      revenue: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '41'))",
+      expense: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))",
     }
-    const prefix = prefixMap[category]
-    if (!prefix) return '1=1'
-    const codeCol = this.columns.account?.codeColumn?.column ?? 'Code'
-    return "SUBSTRING(a." + codeCol + ", 1, 2) = '" + prefix + "'"
+    return filterMap[category] ?? '1=1'
   }
 
   getPersianTextFoldExpression(column: string): string {

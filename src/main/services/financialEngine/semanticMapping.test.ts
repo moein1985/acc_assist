@@ -412,8 +412,8 @@ test('buildAdapter', (t) => {
 
   t.test('getAccountClassification works', () => {
     const filter = adapter.getAccountClassification(AccountCategory.asset)
-    assert.ok(filter.includes('SUBSTRING'))
-    assert.ok(filter.includes("'01'"))
+    assert.ok(filter.includes('ParentAccountRef'))
+    assert.ok(filter.includes("'11'"))
   })
 
   t.test('getPersianTextFoldExpression works', () => {

@@ -111,27 +111,27 @@ test('SepidarAdapter', (t) => {
 
   t.test('getAccountClassification - return correct filter for assets', () => {
     const filter = adapter.getAccountClassification(AccountCategory.asset)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '01'")
+    assert.strictEqual(filter, "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('11','12')))")
   })
 
   t.test('getAccountClassification - return correct filter for liabilities', () => {
     const filter = adapter.getAccountClassification(AccountCategory.liability)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '02'")
+    assert.strictEqual(filter, "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code IN ('21','22')))")
   })
 
   t.test('getAccountClassification - return correct filter for equity', () => {
     const filter = adapter.getAccountClassification(AccountCategory.equity)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '03'")
+    assert.strictEqual(filter, "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '31'))")
   })
 
   t.test('getAccountClassification - return correct filter for revenue', () => {
     const filter = adapter.getAccountClassification(AccountCategory.revenue)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '04'")
+    assert.strictEqual(filter, "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '41'))")
   })
 
   t.test('getAccountClassification - return correct filter for expenses', () => {
     const filter = adapter.getAccountClassification(AccountCategory.expense)
-    assert.strictEqual(filter, "SUBSTRING(a.Code, 1, 2) = '05'")
+    assert.strictEqual(filter, "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))")
   })
 
   t.test('getPersianTextFoldExpression - return COLLATE expression', () => {
