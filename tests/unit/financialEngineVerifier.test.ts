@@ -8,11 +8,13 @@ import {
   evaluateEngineEvidence,
   verifyResult
 } from '../../src/main/services/financialEngine/verifier'
+import { FinancialEngine } from '../../src/main/services/financialEngine/index'
 import type {
   EngineResult,
   MetricPlan,
   MetricDefinition
 } from '../../src/main/services/financialEngine/types'
+import type { SqlQueryRow } from '../../src/shared/contracts'
 
 function makePlan(metricId: string): MetricPlan {
   return {
@@ -145,6 +147,39 @@ test('checkIntentAlignment — mismatching metric fails', () => {
   assert.ok(result.reason?.includes('intent mismatch'))
 })
 
+test('S23.2 — تراز آزمایشی with account_balance plan fails', () => {
+  const plan = makePlan('account_balance')
+  const result = checkIntentAlignment('تراز آزمایشی سال ۱۴۰۲', plan)
+  assert.equal(result.passed, false)
+  assert.ok(result.reason?.includes('intent mismatch'))
+})
+
+test('S23.2 — گردش حساب آقای X with trial_balance plan fails', () => {
+  const plan = makePlan('trial_balance')
+  const result = checkIntentAlignment('گردش حساب آقای احمدی در سال ۱۴۰۲', plan)
+  assert.equal(result.passed, false)
+  assert.ok(result.reason?.includes('intent mismatch'))
+})
+
+test('S23.2 — فروش with purchases plan fails', () => {
+  const plan = makePlan('purchases')
+  const result = checkIntentAlignment('فروش سال ۱۴۰۲ چقدر بود؟', plan)
+  assert.equal(result.passed, false)
+  assert.ok(result.reason?.includes('intent mismatch'))
+})
+
+test('S23.2 — matching metric passes (regression)', () => {
+  const plan = makePlan('net_sales')
+  const result = checkIntentAlignment('فروش خالص سال ۱۴۰۲', plan)
+  assert.equal(result.passed, true)
+})
+
+test('S23.2 — purchases prompt with purchases plan passes (regression)', () => {
+  const plan = makePlan('purchases')
+  const result = checkIntentAlignment('خرید سال ۱۴۰۲ چقدر است؟', plan)
+  assert.equal(result.passed, true)
+})
+
 test('mapEngineResultToEvidence — positive data', () => {
   const evidence = mapEngineResultToEvidence(makeResult(64252437897))
   assert.equal(evidence.status, 'ok')
@@ -201,4 +236,27 @@ test('verifyResult — fails on reconciliation', () => {
   const verdict = verifyResult(makeResult(-100), makePlan('purchases'), def)
   assert.equal(verdict.ok, false)
   assert.ok(verdict.reason?.includes('reconciliation-failed'))
+})
+
+test('S23.4 — fail-closed: execution error returns result: null from runPlan', async () => {
+  const mockExecutor = async (_q: string, _s?: AbortSignal): Promise<SqlQueryRow[]> => {
+    throw new Error('SQL execution failed')
+  }
+  const engine = new FinancialEngine({
+    quoteSqlTableRef: (r: string) => `[${r.replace('.', '].[')}]`,
+    quoteSqlIdentifier: (id: string) => `[${id}]`,
+    normalizePersianText: (t: string) => t,
+    executeReadOnlySql: mockExecutor
+  })
+
+  const plan: MetricPlan = {
+    metricId: 'net_sales' as MetricPlan['metricId'],
+    grain: 'total',
+    filters: [],
+    confidence: 1.0
+  }
+
+  const runResult = await engine.runPlan(plan)
+  assert.equal(runResult.verdict.ok, false, 'verdict should fail on execution error')
+  assert.equal(runResult.result, null, 'fail-closed: rejected result must be null, no number should reach caller')
 })

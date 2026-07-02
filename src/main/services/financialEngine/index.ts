@@ -469,6 +469,13 @@ export class FinancialEngine {
       const finalResult: EngineResult = { rows, plan, compiled }
       const finalVerdict = verifyResult(finalResult, plan, def)
 
+      // S23.3: Fail-closed — if verdict is not ok, never return the result to any caller.
+      // The caller (orchestrator) checks verdict.ok, but the engine itself must guarantee
+      // that a rejected number never reaches the Explainer.
+      if (!finalVerdict.ok) {
+        return { verdict: finalVerdict, result: null, pythonOutput: null }
+      }
+
       // S18.10: If PythonOutputPlan is enabled, run Python sandbox on the results
       let pythonOutput: PythonOutputResult | null = null
       if (pythonPlan && pythonPlan.enabled && finalVerdict.ok) {

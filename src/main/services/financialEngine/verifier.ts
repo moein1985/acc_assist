@@ -11,6 +11,8 @@ import type { EngineResult, EngineVerdict, MetricPlan, MetricDefinition } from '
 import type { EvidenceVerdict, ToolEvidence, ExecutionTrace } from '../evidenceContract'
 import { evaluateEvidence } from '../evidenceContract'
 import { routeMetric } from './router'
+import { findMetricById, getMetricCatalog } from './metricCatalog'
+import { normalizePersianText } from '../textNormalization'
 
 /**
  * V5.1 — Reconciliation rules.
@@ -69,24 +71,75 @@ export function checkReconciliations(
 }
 
 /**
- * V5.2 — Intent alignment check.
- * Verifies that the metric identified by the router matches the metric in the plan.
- * If the prompt says "خرید" but the plan says "net_sales", this fails.
+ * V5.2 / S23.1 — Intent alignment check (hardened).
+ * Three independent layers:
+ *   1. excludeSignals: if prompt contains an exclusive signal of a different metric
+ *      than the plan, fail — regardless of router.
+ *   2. Router: if router identifies a metric with confidence >= 0.5 that differs
+ *      from the plan, fail.
+ *   3. Anchor-of-other: if router gave no result but prompt contains an anchor
+ *      of another metric (and NOT an anchor of the plan's metric), fail.
  */
 export function checkIntentAlignment(
   prompt: string,
   plan: MetricPlan,
   softwareId?: string
 ): { passed: boolean; reason?: string } {
+  const normalizedPrompt = normalizePersianText(prompt).toLowerCase()
+
+  // Layer 1: excludeSignals of the plan's metric
+  const planDef = findMetricById(plan.metricId)
+  if (planDef?.excludeSignals) {
+    for (const signal of planDef.excludeSignals) {
+      const normalizedSignal = normalizePersianText(signal).toLowerCase()
+      if (normalizedPrompt.includes(normalizedSignal)) {
+        return {
+          passed: false,
+          reason: `intent mismatch: prompt contains exclusive signal '${signal}' of a different metric`
+        }
+      }
+    }
+  }
+
+  // Layer 2: Router-based check (threshold lowered from 0.7 to 0.5)
   const route = routeMetric(prompt, softwareId)
-  if (route.metricId && route.confidence >= 0.7) {
+  if (route.metricId && route.confidence >= 0.5) {
     if (route.metricId !== plan.metricId) {
       return {
         passed: false,
         reason: `intent mismatch: prompt routed to ${route.metricId} but plan is ${plan.metricId}`
       }
     }
+    return { passed: true }
   }
+
+  // Layer 3: Router gave no result — check if prompt has an anchor of another metric
+  if (!route.metricId || route.confidence < 0.5) {
+    const catalog = getMetricCatalog()
+    const planAnchors = planDef?.anchors ?? []
+    const planAnchorMatched = planAnchors.some(a =>
+      normalizedPrompt.includes(normalizePersianText(a).toLowerCase())
+    )
+
+    if (!planAnchorMatched) {
+      for (const metric of catalog) {
+        if (metric.id === plan.metricId) continue
+        const anchors = (softwareId && metric.adapterAnchors?.[softwareId])
+          ? metric.adapterAnchors[softwareId]
+          : metric.anchors
+        for (const anchor of anchors) {
+          const normalizedAnchor = normalizePersianText(anchor).toLowerCase()
+          if (normalizedPrompt.includes(normalizedAnchor)) {
+            return {
+              passed: false,
+              reason: `intent mismatch: prompt contains anchor '${anchor}' of metric ${metric.id} but plan is ${plan.metricId}`
+            }
+          }
+        }
+      }
+    }
+  }
+
   return { passed: true }
 }
 

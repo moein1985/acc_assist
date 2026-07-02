@@ -21,6 +21,24 @@ export function composeEngineResponseMarkdown(
   verdict: EngineVerdict,
   _prompt: string
 ): string {
+  // S23.6: Explainer guard — refuse to produce numerical output if verdict failed.
+  // This is defense-in-depth: the engine (S23.3) and orchestrator already check verdict.ok,
+  // but the Explainer itself must never emit a number from a rejected result.
+  if (!verdict.ok) {
+    return [
+      '### Summary',
+      `پاسخ قابل ارائه نیست.`,
+      '',
+      '### Findings',
+      `- مسیر پاسخ: engine`,
+      `- دلیل: Verifier نتیجه را رد کرد (${verdict.reason ?? 'unknown'}).`,
+      '',
+      '### Evidence',
+      `- Verifier: failed`,
+      `- دلیل رد: ${verdict.reason ?? 'unknown'}`
+    ].join('\n')
+  }
+
   const def = findMetricById(result.plan.metricId)
   const titleFa = def?.titleFa ?? result.plan.metricId
   const value = extractResultValue(result)
@@ -65,6 +83,11 @@ export async function composeModelExplainerResponse(
   prompt: string,
   deps: ExplainerModelDeps
 ): Promise<string> {
+  // S23.6: Explainer guard — refuse to produce numerical output if verdict failed.
+  if (!verdict.ok) {
+    return composeEngineResponseMarkdown(result, verdict, prompt)
+  }
+
   const def = findMetricById(result.plan.metricId)
   const titleFa = def?.titleFa ?? result.plan.metricId
   const value = extractResultValue(result)
@@ -202,6 +225,22 @@ export function composeMultiMetricMarkdown(
 ): string {
   const { results, verdicts, plan } = multiResult
 
+  // S23.6: Explainer guard — refuse to produce numerical output if any verdict failed.
+  if (verdicts.some((v) => !v.ok)) {
+    const failedReasons = verdicts.filter((v) => !v.ok).map((v) => v.reason ?? 'unknown').join('; ')
+    return [
+      '### Summary',
+      `پاسخ قابل ارائه نیست.`,
+      '',
+      '### Findings',
+      `- مسیر پاسخ: engine (multi-metric)`,
+      `- دلیل: یکی از متریک‌ها توسط Verifier رد شد (${failedReasons}).`,
+      '',
+      '### Evidence',
+      `- Verifier: one or more metrics failed`
+    ].join('\n')
+  }
+
   const lines: string[] = ['### Summary']
 
   if (plan.joinMode === 'side_by_side') {
@@ -258,6 +297,22 @@ export function composeMultiStepMarkdown(
 ): string {
   const { results, verdicts, plan } = stepResult
   const strategy = plan.combineStrategy ?? 'compare'
+
+  // S23.6: Explainer guard — refuse to produce numerical output if any verdict failed.
+  if (verdicts.some((v) => !v.ok)) {
+    const failedReasons = verdicts.filter((v) => !v.ok).map((v) => v.reason ?? 'unknown').join('; ')
+    return [
+      '### Summary',
+      `پاسخ قابل ارائه نیست.`,
+      '',
+      '### Findings',
+      `- مسیر پاسخ: engine (multi-step, strategy=${strategy})`,
+      `- دلیل: یکی از مراحل توسط Verifier رد شد (${failedReasons}).`,
+      '',
+      '### Evidence',
+      `- Verifier: one or more steps failed`
+    ].join('\n')
+  }
 
   const lines: string[] = ['### Summary']
 
