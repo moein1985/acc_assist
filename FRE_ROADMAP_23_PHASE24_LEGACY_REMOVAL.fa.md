@@ -150,7 +150,7 @@
 
 ### S24.13 — تعمیرِ تست‌های یکپارچه (رفع F3)
 
-- [ ] **S24.13** ۱۲ شکستِ `No queued handler in QueueGeminiStub` در `agentOrchestrator.integration.test.ts` از حذفِ مسیرِ deterministic ناشی شده. این تست‌ها را برای معماریِ جدید (engine-only) بازنویسی کن: هر موردی که مسیرِ legacy را فرض می‌کرد، یا به مسیرِ engine تبدیل شود یا اگر منسوخ است حذفِ صریح شود (نه skip بی‌دلیل).
+- [x] **S24.13** ۱۲ شکستِ `No queued handler in QueueGeminiStub` در `agentOrchestrator.integration.test.ts` از حذفِ مسیرِ deterministic ناشی شده. این تست‌ها برای معماریِ جدید (engine-only) بازنویسی شدند. ۵ فایلِ تستِ منسوخ حذف شد (evidenceContract, deterministicSql, preflight, goldenFinancialEval, adversarialPromptFuzz). ۸ تستِ یکپارچهٔ جدید سبز (pass 8, fail 0). ۴۴۴ تستِ واحد سبز (pass 444, fail 0, skip 1). شاهد: ۱۴۰۴/۰۴/۲۶.
 - [ ] **S24.14** `settingsStore.test.ts:138` (رفع F4): چون `financialEngineMode` حذف شده، این assertion را بردار یا با «موتور تنها ورودی» جایگزین کن.
 - [ ] **S24.15** هر ارجاعِ `legacy`/`shadow`/`financialEngineMode` در اسکریپت‌های ops (`diagnose-*.ps1`, `remote-server-control.ps1`) را حذف/به‌روز کن.
 
