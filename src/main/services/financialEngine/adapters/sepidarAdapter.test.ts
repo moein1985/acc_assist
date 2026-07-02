@@ -38,8 +38,8 @@ test('SepidarAdapter', (t) => {
     assert.strictEqual(adapter.resolveTable(AccountingConcept.fiscal_year), 'FMK.FiscalYear')
   })
 
-  t.test('resolveTable - partner to ACC.Partner', () => {
-    assert.strictEqual(adapter.resolveTable(AccountingConcept.partner), 'ACC.Partner')
+  t.test('resolveTable - partner to GNR.Party', () => {
+    assert.strictEqual(adapter.resolveTable(AccountingConcept.partner), 'GNR.Party')
   })
 
   t.test('resolveTable - cash_balance to RPA.CashBalance', () => {

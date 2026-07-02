@@ -189,6 +189,7 @@ function makeCompilerDeps(): {
 } {
   return {
     quoteSqlTableRef: (ref: string) => {
+      if (ref.startsWith('(')) return ref
       const parts = ref.split('.')
       if (parts.length === 2) return `[${parts[0]}].[${parts[1]}]`
       return `[${ref}]`

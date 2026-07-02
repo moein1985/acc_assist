@@ -23,7 +23,7 @@ export class SepidarAdapter implements SchemaAdapter {
     voucherItem: { schema: 'ACC', table: 'VoucherItem' },
     account: { schema: 'ACC', table: 'Account' },
     fiscalYear: { schema: 'FMK', table: 'FiscalYear' },
-    party: { schema: 'ACC', table: 'Partner' },
+    party: { schema: 'GNR', table: 'Party' },
     cashBalance: { schema: 'RPA', table: 'CashBalance' },
     bankBalance: { schema: 'RPA', table: 'BankAccountBalance' },
   }
@@ -33,9 +33,9 @@ export class SepidarAdapter implements SchemaAdapter {
       idColumn: { schema: 'SLS', table: 'Invoice', column: 'InvoiceId' },
       dateColumn: { schema: 'SLS', table: 'Invoice', column: 'Date' },
       netAmountColumn: { schema: 'SLS', table: 'Invoice', column: 'NetPriceInBaseCurrency' },
-      taxAmountColumn: { schema: 'SLS', table: 'Invoice', column: 'TaxAmount' },
+      taxAmountColumn: { schema: 'SLS', table: 'Invoice', column: 'TaxInBaseCurrency' },
       fiscalYearRefColumn: { schema: 'SLS', table: 'Invoice', column: 'FiscalYearRef' },
-      partyRefColumn: { schema: 'SLS', table: 'Invoice', column: 'PartyRef' },
+      partyRefColumn: { schema: 'SLS', table: 'Invoice', column: 'CustomerPartyRef' },
     },
     purchaseInvoice: {
       idColumn: { schema: 'POM', table: 'PurchaseInvoice', column: 'PurchaseInvoiceId' },
@@ -66,7 +66,7 @@ export class SepidarAdapter implements SchemaAdapter {
       debitColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Debit' },
       creditColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Credit' },
       descriptionColumn: { schema: 'ACC', table: 'VoucherItem', column: 'Description' },
-      partyRefColumn: { schema: 'ACC', table: 'VoucherItem', column: 'PartyRef' },
+      partyRefColumn: { schema: 'ACC', table: 'VoucherItem', column: 'DLRef' },
     },
     account: {
       idColumn: { schema: 'ACC', table: 'Account', column: 'AccountId' },
@@ -78,8 +78,8 @@ export class SepidarAdapter implements SchemaAdapter {
       titleColumn: { schema: 'FMK', table: 'FiscalYear', column: 'Title' },
     },
     party: {
-      idColumn: { schema: 'ACC', table: 'Partner', column: 'PartnerId' },
-      titleColumn: { schema: 'ACC', table: 'Partner', column: 'Title' },
+      idColumn: { schema: 'GNR', table: 'Party', column: 'PartyId' },
+      titleColumn: { schema: 'GNR', table: 'Party', column: 'Name' },
     },
   }
 
@@ -100,9 +100,9 @@ export class SepidarAdapter implements SchemaAdapter {
     },
     {
       fromTable: { schema: 'ACC', table: 'VoucherItem' },
-      fromColumn: 'PartyRef',
-      toTable: { schema: 'ACC', table: 'Partner' },
-      toColumn: 'PartnerId',
+      fromColumn: 'DLRef',
+      toTable: { schema: 'GNR', table: 'Party' },
+      toColumn: 'DLRef',
       type: 'logical',
     },
     {
@@ -133,11 +133,11 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.voucher_item]: 'ACC.VoucherItem',
     [AccountingConcept.account]: 'ACC.Account',
     [AccountingConcept.fiscal_year]: 'FMK.FiscalYear',
-    [AccountingConcept.partner]: 'ACC.Partner',
+    [AccountingConcept.partner]: 'GNR.Party',
     [AccountingConcept.cash_balance]: 'RPA.CashBalance',
     [AccountingConcept.bank_balance]: 'RPA.BankAccountBalance',
-    [AccountingConcept.customer]: 'ACC.Partner',
-    [AccountingConcept.supplier]: 'ACC.Partner',
+    [AccountingConcept.customer]: 'GNR.Party',
+    [AccountingConcept.supplier]: 'GNR.Party',
     [AccountingConcept.inventory_receipt]: 'INV.InventoryReceipt',
     [AccountingConcept.check]: 'ACC.Check',
     [AccountingConcept.cost_center]: 'ACC.CostCenter',
@@ -145,7 +145,7 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.sales_invoice_item]: 'SLS.InvoiceItem',
     [AccountingConcept.ledger_line]: 'ACC.VoucherItem',
     [AccountingConcept.chart_of_accounts]: 'ACC.Account',
-    [AccountingConcept.party]: 'ACC.Partner',
+    [AccountingConcept.party]: 'GNR.Party',
     [AccountingConcept.invoice]: 'SLS.Invoice',
   }
 
@@ -154,7 +154,7 @@ export class SepidarAdapter implements SchemaAdapter {
       net_amount: 'NetPriceInBaseCurrency',
       date: 'InvoiceDate',
       fiscal_year_id: 'FiscalYearRef',
-      partner_id: 'PartnerRef',
+      partner_id: 'CustomerPartyRef',
       primary_key: 'InvoiceId'
     },
     [AccountingConcept.purchase_invoice]: {
@@ -173,7 +173,7 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.voucher_item]: {
       debit: 'Debit',
       credit: 'Credit',
-      account_id: 'AccountRef',
+      account_id: 'AccountSLRef',
       voucher_id: 'VoucherRef',
       primary_key: 'VoucherItemId'
     },
@@ -187,8 +187,8 @@ export class SepidarAdapter implements SchemaAdapter {
       primary_key: 'FiscalYearId'
     },
     [AccountingConcept.partner]: {
-      name: 'Title',
-      primary_key: 'PartnerId'
+      name: 'Name',
+      primary_key: 'PartyId'
     },
     [AccountingConcept.cash_balance]: {
       amount: 'Amount',

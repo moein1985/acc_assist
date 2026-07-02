@@ -84,6 +84,9 @@ function resolveLabelColumn(dim: MetricDefinition['dimensions'][number]): string
     return dim.expression
   }
   if (dim.join) {
+    if (dim.labelColumn.includes('.')) {
+      return dim.labelColumn
+    }
     return `${dim.join.alias}.${dim.labelColumn}`
   }
   return dim.labelColumn
@@ -101,12 +104,14 @@ function buildJoinClauses(
     table: string
     alias: string
     on: { sourceColumn: string; targetColumn: string }
+    sourceAlias?: string
   }): void => {
     const key = `${rj.table}:${rj.alias}`
     if (seen.has(key)) return
     seen.add(key)
     const table = deps.quoteSqlTableRef(rj.table)
-    const onLeft = `${definition.source.alias}.${deps.quoteSqlIdentifier(rj.on.sourceColumn)}`
+    const sourceAlias = rj.sourceAlias ?? definition.source.alias
+    const onLeft = `${sourceAlias}.${deps.quoteSqlIdentifier(rj.on.sourceColumn)}`
     const onRight = `${rj.alias}.${deps.quoteSqlIdentifier(rj.on.targetColumn)}`
     joins.push(`JOIN ${table} ${rj.alias} ON ${onLeft} = ${onRight}`)
   }
@@ -196,7 +201,7 @@ function buildWhereClauses(
   if (definition.entityNameMatch && plan.entityName) {
     // S25.9: If resolvedPartyId is set, use exact PartnerId filter
     if (plan.resolvedPartyId != null) {
-      where.push(`p.PartnerId = ${plan.resolvedPartyId}`)
+      where.push(`p.PartyId = ${plan.resolvedPartyId}`)
     } else {
       const col = definition.entityNameMatch.column
       let value: string
@@ -297,12 +302,16 @@ function buildStandardQuery(
     }
   }
 
-  // S14.19: by_voucher adds voucher number as period column but no GROUP BY
+  // S14.19: by_voucher adds voucher number as period column
+  // For list measures, no GROUP BY needed. For aggregate measures, GROUP BY is required.
   if (plan.grain === 'by_voucher') {
     const dim = findDimension(definition, 'by_voucher')
     if (dim) {
       const labelCol = resolveLabelColumn(dim)
       selectCols.unshift(`${labelCol} AS period`)
+      if (!isList) {
+        groupByCols.push(labelCol)
+      }
     }
   }
 

@@ -27,7 +27,7 @@ describe('resolvePartyByName', () => {
   test('returns one for exact normalized match', async () => {
     const deps = makeDeps(async (query: string) => {
       if (query.includes("= N'معین محسنی فرد'")) {
-        return [{ PartnerId: 42, Title: 'معین محسنی فرد' }]
+        return [{ PartyId: 42, Name: 'معین محسنی فرد' }]
       }
       return []
     })
@@ -35,7 +35,7 @@ describe('resolvePartyByName', () => {
     const result = await resolvePartyByName('معین محسنی فرد', deps)
     assert.equal(result.kind, 'one')
     if (result.kind === 'one') {
-      assert.equal(result.candidate.partnerId, 42)
+      assert.equal(result.candidate.partyId, 42)
       assert.equal(result.candidate.matchScore, 100)
       assert.equal(result.candidate.matchMethod, 'exact')
     }
@@ -45,8 +45,8 @@ describe('resolvePartyByName', () => {
     const deps = makeDeps(async (query: string) => {
       if (query.includes("= N'علی احمدی'")) {
         return [
-          { PartnerId: 1, Title: 'علی احمدی' },
-          { PartnerId: 2, Title: 'علی احمدی صنعت' }
+          { PartyId: 1, Name: 'علی احمدی' },
+          { PartyId: 2, Name: 'علی احمدی صنعت' }
         ]
       }
       return []
@@ -56,7 +56,7 @@ describe('resolvePartyByName', () => {
     assert.equal(result.kind, 'many')
     if (result.kind === 'many') {
       assert.equal(result.candidates.length, 2)
-      assert.equal(result.candidates[0]!.partnerId, 1)
+      assert.equal(result.candidates[0]!.partyId, 1)
     }
   })
 
@@ -64,7 +64,7 @@ describe('resolvePartyByName', () => {
     const deps = makeDeps(async (query: string) => {
       if (query.includes("= N'علی احمدی'")) return []
       if (query.includes("LIKE N'%علی%'") && query.includes("LIKE N'%احمدی%'")) {
-        return [{ PartnerId: 55, Title: 'علی احمدی تهرانی' }]
+        return [{ PartyId: 55, Name: 'علی احمدی تهرانی' }]
       }
       return []
     })
@@ -72,7 +72,7 @@ describe('resolvePartyByName', () => {
     const result = await resolvePartyByName('علی احمدی', deps)
     assert.equal(result.kind, 'one')
     if (result.kind === 'one') {
-      assert.equal(result.candidate.partnerId, 55)
+      assert.equal(result.candidate.partyId, 55)
       assert.equal(result.candidate.matchMethod, 'like-all-tokens')
       assert.equal(result.candidate.matchScore, 80)
     }
@@ -84,8 +84,8 @@ describe('resolvePartyByName', () => {
       if (query.includes("LIKE N'%محمد%'") && query.includes("LIKE N'%رضایی%'") && !query.includes(' OR ')) return []
       if (query.includes(' OR ')) {
         return [
-          { PartnerId: 10, Title: 'محمد کریمی' },
-          { PartnerId: 20, Title: 'رضایی فروشگاه' }
+          { PartyId: 10, Name: 'محمد کریمی' },
+          { PartyId: 20, Name: 'رضایی فروشگاه' }
         ]
       }
       return []
@@ -102,7 +102,7 @@ describe('resolvePartyByName', () => {
   test('normalizes Arabic Yeh to Persian Yeh before matching', async () => {
     const deps = makeDeps(async (query: string) => {
       if (query.includes("= N'علی محسنی'")) {
-        return [{ PartnerId: 99, Title: 'علی محسنی' }]
+        return [{ PartyId: 99, Name: 'علی محسنی' }]
       }
       return []
     })
@@ -111,7 +111,7 @@ describe('resolvePartyByName', () => {
     const result = await resolvePartyByName('علي محسني', deps)
     assert.equal(result.kind, 'one')
     if (result.kind === 'one') {
-      assert.equal(result.candidate.partnerId, 99)
+      assert.equal(result.candidate.partyId, 99)
     }
   })
 
@@ -125,9 +125,9 @@ describe('resolvePartyByName', () => {
 describe('buildPartyClarifyMessage', () => {
   test('builds Persian clarification with top 5 candidates', () => {
     const candidates: PartyCandidate[] = [
-      { partnerId: 1, title: 'علی احمدی', matchScore: 100, matchMethod: 'exact' },
-      { partnerId: 2, title: 'علی احمدی صنعت', matchScore: 90, matchMethod: 'exact' },
-      { partnerId: 3, title: 'علی احمدی پلاستیک', matchScore: 85, matchMethod: 'exact' }
+      { partyId: 1, name: 'علی احمدی', matchScore: 100, matchMethod: 'exact' },
+      { partyId: 2, name: 'علی احمدی صنعت', matchScore: 90, matchMethod: 'exact' },
+      { partyId: 3, name: 'علی احمدی پلاستیک', matchScore: 85, matchMethod: 'exact' }
     ]
     const msg = buildPartyClarifyMessage(candidates, 'علی احمدی')
     assert.ok(msg.includes('علی احمدی'))
@@ -138,8 +138,8 @@ describe('buildPartyClarifyMessage', () => {
 
   test('limits to 5 candidates', () => {
     const candidates: PartyCandidate[] = Array.from({ length: 10 }, (_, i) => ({
-      partnerId: i + 1,
-      title: `شرکت ${i + 1}`,
+      partyId: i + 1,
+      name: `شرکت ${i + 1}`,
       matchScore: 100 - i,
       matchMethod: 'exact' as const
     }))

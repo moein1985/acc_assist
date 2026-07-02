@@ -293,9 +293,9 @@ const catalog: MetricDefinition[] = [
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
         },
         {
-          table: 'ACC.Partner',
+          table: 'GNR.Party',
           alias: 'p',
-          on: { sourceColumn: 'PartyRef', targetColumn: 'PartnerId' }
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLRef' }
         }
       ]
     },
@@ -314,7 +314,7 @@ const catalog: MetricDefinition[] = [
       }
     ],
     mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
-    entityNameMatch: { column: 'p.Title', foldPersian: true },
+    entityNameMatch: { column: 'p.Name', foldPersian: true },
     dateColumn: 'v.Date'
   },
   {
@@ -340,7 +340,7 @@ const catalog: MetricDefinition[] = [
         }
       ]
     },
-    measure: { kind: 'debit_minus_credit', debitColumn: 'vi.Debit', creditColumn: 'vi.Credit' },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -383,7 +383,7 @@ const catalog: MetricDefinition[] = [
         }
       ]
     },
-    measure: { kind: 'debit_minus_credit', debitColumn: 'vi.Debit', creditColumn: 'vi.Credit' },
+    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -460,9 +460,9 @@ const catalog: MetricDefinition[] = [
         join: {
           table: 'GNR.Party',
           alias: 'cust',
-          on: { sourceColumn: 'PartyRef', targetColumn: 'PartyId' }
+          on: { sourceColumn: 'CustomerPartyRef', targetColumn: 'PartyId' }
         },
-        labelColumn: 'cust.Title',
+        labelColumn: 'cust.Name',
         labelType: 'nstring'
       }
     ],
@@ -1202,7 +1202,8 @@ const catalog: MetricDefinition[] = [
         {
           table: 'GNR.CostCenter',
           alias: 'cc',
-          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' }
+          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' },
+          sourceAlias: 'dl'
         }
       ]
     },
@@ -1229,8 +1230,7 @@ const catalog: MetricDefinition[] = [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
       { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' },
       { sql: 'vi.DLRef IS NOT NULL', description: 'فقط آیتم‌های دارای تفصیلی' },
-      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
-      { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
+      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1263,7 +1263,8 @@ const catalog: MetricDefinition[] = [
         {
           table: 'CNT.Project',
           alias: 'prj',
-          on: { sourceColumn: 'Code', targetColumn: 'Code' }
+          on: { sourceColumn: 'Code', targetColumn: 'Code' },
+          sourceAlias: 'dl'
         }
       ]
     },
@@ -1283,8 +1284,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' },
-      { sql: 'prj.Code = dl.Code', description: 'اتصال پروژه به تفصیلی' }
+      { sql: 'prj.ProjectID IS NOT NULL', description: 'فقط آیتم‌های مرتبط با پروژه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1317,7 +1317,8 @@ const catalog: MetricDefinition[] = [
         {
           table: 'CNT.Project',
           alias: 'prj',
-          on: { sourceColumn: 'Code', targetColumn: 'Code' }
+          on: { sourceColumn: 'Code', targetColumn: 'Code' },
+          sourceAlias: 'dl'
         }
       ]
     },
@@ -1371,7 +1372,8 @@ const catalog: MetricDefinition[] = [
         {
           table: 'GNR.CostCenter',
           alias: 'cc',
-          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' }
+          on: { sourceColumn: 'DLId', targetColumn: 'DLRef' },
+          sourceAlias: 'dl'
         }
       ]
     },
@@ -1397,8 +1399,7 @@ const catalog: MetricDefinition[] = [
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
       { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' },
-      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' },
-      { sql: 'cc.DLRef = dl.DLId', description: 'اتصال مرکز هزینه به تفصیلی' }
+      { sql: 'cc.CostCenterId IS NOT NULL', description: 'فقط آیتم‌های مرتبط با مرکز هزینه' }
     ],
     dateColumn: 'v.Date'
   },
@@ -1507,13 +1508,13 @@ const catalog: MetricDefinition[] = [
         {
           table: 'ACC.Account',
           alias: 'a',
-          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
     measure: {
       kind: 'list',
-      columns: ['v.VoucherId', 'v.Number', 'v.Date', 'v.Description', 'vi.RowDescription', 'a.Code', 'a.Title', 'vi.Debit', 'vi.Credit']
+      columns: ['v.VoucherId', 'v.Number', 'v.Date', 'v.Description', 'vi.Description', 'a.Code', 'a.Title', 'vi.Debit', 'vi.Credit']
     },
     dimensions: [
       {
@@ -1636,14 +1637,14 @@ const catalog: MetricDefinition[] = [
     excludeSignals: ['سند', 'مانده', 'تراز', 'اسناد اخیر'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
-    source: { primaryTable: 'SAL.Invoice', alias: 'inv' },
+    source: { primaryTable: 'SLS.Invoice', alias: 'inv' },
     measure: {
       kind: 'list',
-      columns: ['InvoiceId', 'Number', 'Date', 'TotalAmount', 'PartyName']
+      columns: ['InvoiceId', 'Number', 'Date', 'NetPriceInBaseCurrency', 'CustomerRealName']
     },
     dimensions: [],
     mandatoryFilters: [
-      { sql: 'inv.TotalAmount = 0', description: 'فاکتور با مبلغ صفر' }
+      { sql: 'inv.NetPriceInBaseCurrency = 0', description: 'فاکتور با مبلغ صفر' }
     ],
     orderBy: { column: 'inv.Date', direction: 'DESC' },
     dateColumn: 'inv.Date'
@@ -1674,7 +1675,7 @@ const catalog: MetricDefinition[] = [
     mandatoryFilters: [
       { sql: 'v.Type IN (1, 2)', description: 'فقط سندهای عملیاتی و خرید' }
     ],
-    groupByColumns: ['v.Date', 'v.Description', 'SUM(vi.Debit)'],
+    groupByColumns: ['v.Date', 'v.Description'],
     havingClause: 'COUNT(*) > 1',
     orderBy: { column: 'v.Date', direction: 'DESC' },
     dateColumn: 'v.Date'
@@ -1699,7 +1700,7 @@ const catalog: MetricDefinition[] = [
     },
     measure: {
       kind: 'list',
-      columns: ['vi.VoucherItemId', 'v.Number', 'v.Date', 'vi.RowDescription', 'vi.Debit', 'vi.Credit']
+      columns: ['vi.VoucherItemId', 'v.Number', 'v.Date', 'vi.Description', 'vi.Debit', 'vi.Credit']
     },
     dimensions: [],
     mandatoryFilters: [
@@ -1727,19 +1728,19 @@ const catalog: MetricDefinition[] = [
         {
           table: 'ACC.Account',
           alias: 'a',
-          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
     measure: {
       kind: 'debit_minus_credit',
-      debitColumn: 'vi.Debit',
-      creditColumn: 'vi.Credit'
+      debitColumn: 'Debit',
+      creditColumn: 'Credit'
     },
     dimensions: [
       {
         dimension: 'by_age_bucket',
-        labelColumn: 'AgeBucket',
+        labelColumn: 'period',
         labelType: 'nstring',
         expression: "CASE WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 0 AND 30 THEN '0-30' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 31 AND 60 THEN '31-60' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 61 AND 90 THEN '61-90' ELSE '90+' END"
       },
@@ -1758,7 +1759,7 @@ const catalog: MetricDefinition[] = [
     mandatoryFilters: [
       { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('12','13') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '11'))", description: 'فقط حساب\u200cهای دریافتنی' }
     ],
-    orderBy: { column: 'AgeBucket', direction: 'ASC' },
+    orderBy: { column: 'period', direction: 'ASC' },
     dateColumn: 'v.Date'
   },
   {
@@ -1780,19 +1781,19 @@ const catalog: MetricDefinition[] = [
         {
           table: 'ACC.Account',
           alias: 'a',
-          on: { sourceColumn: 'AccountRef', targetColumn: 'AccountId' }
+          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
         }
       ]
     },
     measure: {
       kind: 'debit_minus_credit',
-      debitColumn: 'vi.Debit',
-      creditColumn: 'vi.Credit'
+      debitColumn: 'Debit',
+      creditColumn: 'Credit'
     },
     dimensions: [
       {
         dimension: 'by_age_bucket',
-        labelColumn: 'AgeBucket',
+        labelColumn: 'period',
         labelType: 'nstring',
         expression: "CASE WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 0 AND 30 THEN '0-30' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 31 AND 60 THEN '31-60' WHEN DATEDIFF(day, v.Date, GETDATE()) BETWEEN 61 AND 90 THEN '61-90' ELSE '90+' END"
       },
@@ -1811,7 +1812,7 @@ const catalog: MetricDefinition[] = [
     mandatoryFilters: [
       { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND Code IN ('10','12') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '21'))", description: 'فقط حساب\u200cهای پرداختنی' }
     ],
-    orderBy: { column: 'AgeBucket', direction: 'ASC' },
+    orderBy: { column: 'period', direction: 'ASC' },
     dateColumn: 'v.Date'
   },
   {
@@ -1831,15 +1832,15 @@ const catalog: MetricDefinition[] = [
           on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
         },
         {
-          table: 'ACC.Partner',
+          table: 'GNR.Party',
           alias: 'p',
-          on: { sourceColumn: 'PartyRef', targetColumn: 'PartnerId' }
+          on: { sourceColumn: 'DLRef', targetColumn: 'DLRef' }
         }
       ]
     },
     measure: {
       kind: 'list',
-      columns: ['v.Number', 'v.Date', 'v.Description', 'vi.RowDescription', 'vi.Debit', 'vi.Credit']
+      columns: ['v.Number', 'v.Date', 'v.Description', 'vi.Description', 'vi.Debit', 'vi.Credit']
     },
     dimensions: [
       {
@@ -1860,7 +1861,7 @@ const catalog: MetricDefinition[] = [
       }
     ],
     mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
-    entityNameMatch: { column: 'p.Title', foldPersian: true },
+    entityNameMatch: { column: 'p.Name', foldPersian: true },
     orderBy: { column: 'v.Date', direction: 'ASC' },
     dateColumn: 'v.Date'
   },
@@ -1882,7 +1883,7 @@ const catalog: MetricDefinition[] = [
         }
       ]
     },
-    measure: { kind: 'sum', column: 'TaxAmount' },
+    measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
     dimensions: [
       {
         dimension: 'by_month',
@@ -1911,11 +1912,11 @@ const catalog: MetricDefinition[] = [
     },
     measure: {
       kind: 'list',
-      columns: ['inv.InvoiceId', 'inv.Number', 'inv.IssueDate', 'inv.CustomerName', 'inv.NetPriceInBaseCurrency', 'inv.TaxAmount']
+      columns: ['inv.InvoiceId', 'inv.Number', 'inv.Date', 'inv.CustomerRealName', 'inv.NetPriceInBaseCurrency', 'inv.TaxInBaseCurrency']
     },
     dimensions: [],
-    mandatoryFilters: [{ sql: 'inv.TaxAmount = 0 OR inv.TaxAmount IS NULL', description: 'فاکتور با مالیات صفر یا نامعتبر' }],
-    dateColumn: 'inv.IssueDate'
+    mandatoryFilters: [{ sql: 'inv.TaxInBaseCurrency = 0 OR inv.TaxInBaseCurrency IS NULL', description: 'فاکتور با مالیات صفر یا نامعتبر' }],
+    dateColumn: 'inv.Date'
   },
   {
     id: 'vat_liability',
@@ -1928,10 +1929,10 @@ const catalog: MetricDefinition[] = [
       primaryTable: 'SLS.Invoice',
       alias: 'inv'
     },
-    measure: { kind: 'sum', column: 'TaxAmount' },
+    measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
     dimensions: [],
     mandatoryFilters: [],
-    dateColumn: 'inv.IssueDate'
+    dateColumn: 'inv.Date'
   },
   {
     id: 'checks_due',
@@ -1941,15 +1942,15 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
-      primaryTable: 'RPA.PaperCheck',
+      primaryTable: '(SELECT ReceiptChequeId AS CheckId, Number AS CheckNumber, Date AS DueDate, Amount, CAST(1 AS NVARCHAR(10)) AS Direction, State AS Status, DlRef FROM RPA.ReceiptCheque UNION ALL SELECT PaymentChequeId, Number, Date, Amount, CAST(2 AS NVARCHAR(10)), State, DlRef FROM RPA.PaymentCheque)',
       alias: 'chk'
     },
     measure: {
       kind: 'list',
-      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.Status', 'chk.PartyName']
+      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.Status']
     },
     dimensions: [],
-    mandatoryFilters: [{ sql: "chk.Status = N'در جریان'", description: 'فقط چک\u200cهای در جریان' }],
+    mandatoryFilters: [{ sql: 'chk.Status = 1', description: 'فقط چک\u200cهای در جریان' }],
     dateColumn: 'chk.DueDate'
   },
   {
@@ -1960,15 +1961,15 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
-      primaryTable: 'RPA.PaperCheck',
+      primaryTable: '(SELECT ReceiptChequeId AS CheckId, Number AS CheckNumber, Date AS DueDate, Amount, CAST(1 AS NVARCHAR(10)) AS Direction, State AS Status, DlRef FROM RPA.ReceiptCheque UNION ALL SELECT PaymentChequeId, Number, Date, Amount, CAST(2 AS NVARCHAR(10)), State, DlRef FROM RPA.PaymentCheque)',
       alias: 'chk'
     },
     measure: {
       kind: 'list',
-      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.PartyName']
+      columns: ['chk.CheckId', 'chk.CheckNumber', 'chk.DueDate', 'chk.Amount', 'chk.Direction', 'chk.Status']
     },
     dimensions: [],
-    mandatoryFilters: [{ sql: "chk.Status = N'برگشتی'", description: 'فقط چک\u200cهای برگشتی' }],
+    mandatoryFilters: [{ sql: 'chk.Status = 2', description: 'فقط چک\u200cهای برگشتی' }],
     dateColumn: 'chk.DueDate'
   },
   {
@@ -1979,7 +1980,7 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_direction'],
     source: {
-      primaryTable: 'RPA.PaperCheck',
+      primaryTable: '(SELECT ReceiptChequeId AS CheckId, Number AS CheckNumber, Date AS DueDate, Amount, CAST(1 AS NVARCHAR(10)) AS Direction, State AS Status, DlRef FROM RPA.ReceiptCheque UNION ALL SELECT PaymentChequeId, Number, Date, Amount, CAST(2 AS NVARCHAR(10)), State, DlRef FROM RPA.PaymentCheque)',
       alias: 'chk'
     },
     measure: { kind: 'sum', column: 'Amount' },
@@ -1990,7 +1991,7 @@ const catalog: MetricDefinition[] = [
         labelType: 'nstring'
       }
     ],
-    mandatoryFilters: [{ sql: "chk.Status = N'در جریان'", description: 'فقط چک\u200cهای در جریان' }],
+    mandatoryFilters: [{ sql: 'chk.Status = 1', description: 'فقط چک\u200cهای در جریان' }],
     dateColumn: 'chk.DueDate'
   },
   {

@@ -468,7 +468,7 @@ export class FinancialEngine {
         }, combinedSignal)
 
         if (resolveResult.kind === 'one') {
-          plan = { ...plan, resolvedPartyId: resolveResult.candidate.partnerId }
+          plan = { ...plan, resolvedPartyId: resolveResult.candidate.partyId }
         } else if (resolveResult.kind === 'many') {
           return {
             verdict: {

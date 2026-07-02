@@ -242,14 +242,14 @@ async function executeProbe(
         if (result.kind === 'one' || result.kind === 'many') {
           const candidates = result.kind === 'one' ? [result.candidate] : result.candidates
           const rows: SqlQueryRow[] = candidates.map((c) => ({
-            PartnerId: c.partnerId,
-            Title: c.title,
+            PartyId: c.partyId,
+            Name: c.name,
             MatchScore: c.matchScore,
             MatchMethod: c.matchMethod,
           }))
           return {
             probeType: 'locate_entity',
-            table: 'ACC.Partner',
+            table: 'GNR.Party',
             sql: `-- resolvePartyByName: ${probe.entityName}`,
             rows,
             timestamp,
@@ -257,7 +257,7 @@ async function executeProbe(
         }
         return {
           probeType: 'locate_entity',
-          table: 'ACC.Partner',
+          table: 'GNR.Party',
           sql: `-- resolvePartyByName: ${probe.entityName} (zero results)`,
           rows: [],
           timestamp,
@@ -294,9 +294,9 @@ async function executeProbe(
         // Add party filter if we have resolved entity
         const entityEvidence = ctx.evidence.find((e) => e.probeType === 'locate_entity' && e.rows.length > 0)
         if (entityEvidence && viCols.partyRefColumn) {
-          const partnerId = entityEvidence.rows[0]?.['PartnerId']
-          if (partnerId != null) {
-            const partyFilter = `${whereClause ? ' AND' : 'WHERE'} vi.${viCols.partyRefColumn.column} = ${Number(partnerId)}`
+          const partyId = entityEvidence.rows[0]?.['PartyId']
+          if (partyId != null) {
+            const partyFilter = `${whereClause ? ' AND' : 'WHERE'} vi.${viCols.partyRefColumn.column} = ${Number(partyId)}`
             whereClause += partyFilter
           }
         }
@@ -467,11 +467,11 @@ export function clusterLedgers(evidence: EvidenceEntry[]): LedgerCluster[] {
   // Attach partner info from locate_entity evidence
   const entityEvidence = evidence.find((e) => e.probeType === 'locate_entity' && e.rows.length > 0)
   if (entityEvidence && entityEvidence.rows.length > 0) {
-    const partnerId = Number(entityEvidence.rows[0]?.['PartnerId'] ?? 0)
-    const partnerTitle = String(entityEvidence.rows[0]?.['Title'] ?? '')
+    const partyId = Number(entityEvidence.rows[0]?.['PartyId'] ?? 0)
+    const partyName = String(entityEvidence.rows[0]?.['Name'] ?? '')
     for (const c of clusters) {
-      c.partnerId = partnerId || null
-      c.partnerTitle = partnerTitle || null
+      c.partnerId = partyId || null
+      c.partnerTitle = partyName || null
     }
   }
 

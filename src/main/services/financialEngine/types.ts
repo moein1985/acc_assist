@@ -111,6 +111,7 @@ export interface MetricSource {
     table: string
     alias: string
     on: { sourceColumn: string; targetColumn: string }
+    sourceAlias?: string
   }>
   /** Additional sources whose results are summed with the primary (e.g. CashBalance + BankAccountBalance) */
   compositeSources?: Array<{

@@ -2,7 +2,7 @@
  * S25.6-S25.8: resolvePartyByName — layered party name resolution service.
  *
  * Resolves a Persian party name (extracted from user prompt) to a precise
- * PartnerId by querying ACC.Partner with layered matching:
+ * PartyId by querying GNR.Party with layered matching:
  *   1. Exact normalized match
  *   2. LIKE all tokens (any order)
  *   3. AND all tokens (every token appears somewhere in the name)
@@ -19,8 +19,8 @@ export interface ResolvePartyDeps {
 }
 
 export interface PartyCandidate {
-  partnerId: number
-  title: string
+  partyId: number
+  name: string
   matchScore: number
   matchMethod: 'exact' | 'like-all-tokens' | 'and-all-tokens'
 }
@@ -57,17 +57,17 @@ export async function resolvePartyByName(
   }
 
   const tokens = normalized.split(/\s+/).filter((t) => t.length > 0)
-  const foldedTitle = foldPersianCol('p.Title')
+  const foldedName = foldPersianCol('p.Name')
 
   // Layer 1: Exact normalized match
-  const exactSql = `SELECT p.PartnerId, p.Title FROM ACC.Partner p WHERE ${foldedTitle} = N'${normalized.replace(/'/g, "''")}'`
+  const exactSql = `SELECT p.PartyId, p.Name FROM GNR.Party p WHERE ${foldedName} = N'${normalized.replace(/'/g, "''")}'`
   const exactRows = await deps.executeReadOnlySql(exactSql, signal)
   if (exactRows.length === 1) {
     return {
       kind: 'one',
       candidate: {
-        partnerId: Number(exactRows[0]['PartnerId']),
-        title: String(exactRows[0]['Title'] ?? ''),
+        partyId: Number(exactRows[0]['PartyId']),
+        name: String(exactRows[0]['Name'] ?? ''),
         matchScore: 100,
         matchMethod: 'exact'
       }
@@ -78,8 +78,8 @@ export async function resolvePartyByName(
       kind: 'many',
       queryName: name,
       candidates: exactRows.map((r) => ({
-        partnerId: Number(r['PartnerId']),
-        title: String(r['Title'] ?? ''),
+        partyId: Number(r['PartyId']),
+        name: String(r['Name'] ?? ''),
         matchScore: 100,
         matchMethod: 'exact' as const
       }))
@@ -88,17 +88,17 @@ export async function resolvePartyByName(
 
   // Layer 2: LIKE all tokens (each token appears as substring, any order)
   const likeConditions = tokens
-    .map((t) => `${foldedTitle} LIKE N'%${t.replace(/'/g, "''")}%'`)
+    .map((t) => `${foldedName} LIKE N'%${t.replace(/'/g, "''")}%'`)
     .join(' AND ')
-  const likeSql = `SELECT p.PartnerId, p.Title FROM ACC.Partner p WHERE ${likeConditions}`
+  const likeSql = `SELECT p.PartyId, p.Name FROM GNR.Party p WHERE ${likeConditions}`
   const likeRows = await deps.executeReadOnlySql(likeSql, signal)
 
   if (likeRows.length === 1) {
     return {
       kind: 'one',
       candidate: {
-        partnerId: Number(likeRows[0]['PartnerId']),
-        title: String(likeRows[0]['Title'] ?? ''),
+        partyId: Number(likeRows[0]['PartyId']),
+        name: String(likeRows[0]['Name'] ?? ''),
         matchScore: 80,
         matchMethod: 'like-all-tokens'
       }
@@ -107,13 +107,13 @@ export async function resolvePartyByName(
   if (likeRows.length > 1) {
     // Score by how many tokens match as substrings
     const candidates: PartyCandidate[] = likeRows.map((r) => {
-      const title = String(r['Title'] ?? '')
-      const folded = deps.normalizePersianText(title)
+      const partyName = String(r['Name'] ?? '')
+      const folded = deps.normalizePersianText(partyName)
       const matchedTokens = tokens.filter((t) => folded.includes(t)).length
       const score = 60 + Math.round((matchedTokens / tokens.length) * 20)
       return {
-        partnerId: Number(r['PartnerId']),
-        title,
+        partyId: Number(r['PartyId']),
+        name: partyName,
         matchScore: score,
         matchMethod: 'like-all-tokens' as const
       }
@@ -125,9 +125,9 @@ export async function resolvePartyByName(
   // Layer 3: AND all tokens — broader: each token must appear somewhere
   // Use OR-based LIKE to catch partial matches, then filter client-side
   const orConditions = tokens
-    .map((t) => `${foldedTitle} LIKE N'%${t.replace(/'/g, "''")}%'`)
+    .map((t) => `${foldedName} LIKE N'%${t.replace(/'/g, "''")}%'`)
     .join(' OR ')
-  const orSql = `SELECT TOP 20 p.PartnerId, p.Title FROM ACC.Partner p WHERE ${orConditions}`
+  const orSql = `SELECT TOP 20 p.PartyId, p.Name FROM GNR.Party p WHERE ${orConditions}`
   const orRows = await deps.executeReadOnlySql(orSql, signal)
 
   if (orRows.length === 0) {
@@ -137,12 +137,12 @@ export async function resolvePartyByName(
   // Score: count how many query tokens appear in the title
   const candidates: PartyCandidate[] = orRows
     .map((r) => {
-      const title = String(r['Title'] ?? '')
-      const folded = deps.normalizePersianText(title)
+      const partyName = String(r['Name'] ?? '')
+      const folded = deps.normalizePersianText(partyName)
       const matchedTokens = tokens.filter((t) => folded.includes(t)).length
       return {
-        partnerId: Number(r['PartnerId']),
-        title,
+        partyId: Number(r['PartyId']),
+        name: partyName,
         matchScore: 30 + Math.round((matchedTokens / tokens.length) * 30),
         matchMethod: 'and-all-tokens' as const
       }
@@ -163,6 +163,6 @@ export async function resolvePartyByName(
  * Build a Persian-language clarification message for multiple party matches.
  */
 export function buildPartyClarifyMessage(candidates: PartyCandidate[], queryName: string): string {
-  const lines = candidates.slice(0, 5).map((c, i) => `${i + 1}. ${c.title}`)
+  const lines = candidates.slice(0, 5).map((c, i) => `${i + 1}. ${c.name}`)
   return `چند طرف حساب با نام «${queryName}» یافت شد. لطفاً یکی را انتخاب کنید:\n${lines.join('\n')}`
 }

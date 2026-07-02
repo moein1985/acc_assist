@@ -12,6 +12,9 @@ export function quoteSqlIdentifier(value: string): string {
 }
 
 export function quoteSqlTableRef(ref: string): string {
+  if (ref.startsWith('(')) {
+    return ref
+  }
   const dotIndex = ref.indexOf('.')
   if (dotIndex === -1) {
     return quoteSqlIdentifier(ref)
