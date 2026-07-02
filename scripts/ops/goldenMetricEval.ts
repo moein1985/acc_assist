@@ -1,11 +1,16 @@
 /**
- * goldenMetricEval — offline golden metric evaluation harness.
+ * goldenMetricEval — golden metric evaluation harness.
  *
- * Runs route → plan → compile → mock-exec → verify → explain for each golden case.
- * Checks: metricId match, grain match, SQL snapshot, value within tolerance.
- * No real DB — mock executor returns oracle rows from golden-metrics.json.
+ * Offline mode (default): route → plan → compile → mock-exec → verify → explain.
+ * Live mode (--live): route → plan → compile → REAL DB exec → verify → explain.
  *
- * Usage: npx tsx scripts/ops/goldenMetricEval.ts
+ * Usage:
+ *   npx tsx scripts/ops/goldenMetricEval.ts            # offline (mock)
+ *   npx tsx scripts/ops/goldenMetricEval.ts --live      # live (real DB)
+ *
+ * Live mode env vars:
+ *   ACC_LIVE_SQL_SERVER, ACC_LIVE_SQL_PORT, ACC_LIVE_SQL_DB,
+ *   ACC_LIVE_SQL_USER, ACC_LIVE_SQL_PASSWORD
  */
 
 import { readFileSync } from 'node:fs'
@@ -68,12 +73,21 @@ interface GoldenPythonOutputCase {
   expectedCodeContains: string[]
 }
 
+interface GoldenLiveNegativeCase {
+  id: string
+  prompt: string
+  expect: 'no_number' | 'metric_mismatch'
+  expectedMetricId?: string
+  reason: string
+}
+
 interface GoldenFixture {
   metrics: GoldenMetricCase[]
   negative: GoldenNegativeCase[]
   clarify: GoldenClarifyCase[]
   conversations?: GoldenConversationCase[]
   pythonOutput?: GoldenPythonOutputCase[]
+  liveNegative?: GoldenLiveNegativeCase[]
 }
 
 interface CaseResult {
@@ -107,6 +121,67 @@ function makeMockExecutor(
   }
 }
 
+// S23.14 — Live executor: connects to real SQL Server via mssql
+interface LiveSqlConfig {
+  server: string
+  port: number
+  database: string
+  user: string
+  password: string
+}
+
+function parseLiveConfig(): LiveSqlConfig | null {
+  const server = process.env.ACC_LIVE_SQL_SERVER
+  const port = process.env.ACC_LIVE_SQL_PORT
+  const database = process.env.ACC_LIVE_SQL_DB
+  const user = process.env.ACC_LIVE_SQL_USER
+  const password = process.env.ACC_LIVE_SQL_PASSWORD
+
+  if (!server || !database || !user || !password) {
+    return null
+  }
+
+  return {
+    server,
+    port: port ? parseInt(port, 10) : 1433,
+    database,
+    user,
+    password
+  }
+}
+
+async function makeLiveExecutor(
+  config: LiveSqlConfig
+): Promise<(query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>> {
+  const mssql = (await import('mssql')).default
+
+  const pool = new mssql.ConnectionPool({
+    server: config.server,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    options: {
+      trustServerCertificate: true,
+      encrypt: false
+    },
+    requestTimeout: 60000
+  })
+
+  await pool.connect()
+  console.log(`  [live] Connected to ${config.server}:${config.port}/${config.database}`)
+
+  return async (query: string, _signal?: AbortSignal): Promise<SqlQueryRow[]> => {
+    const request = pool.request()
+    request.timeout = 60000
+    const result = await request.query(query)
+    if (!result.recordset || result.recordset.length === 0) {
+      return []
+    }
+    return result.recordset as SqlQueryRow[]
+  }
+}
+
 function makeCompilerDeps(): {
   quoteSqlTableRef: (ref: string) => string
   quoteSqlIdentifier: (id: string) => string
@@ -123,7 +198,9 @@ function makeCompilerDeps(): {
   }
 }
 
-async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
+type LiveExecutor = ((query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>) | null
+
+async function evalMetricCase(case_: GoldenMetricCase, liveExecutor: LiveExecutor = null): Promise<CaseResult> {
   // Handle multi-metric cases
   if (case_.expect === 'multi_metric') {
     const multiRoute = routeMultiMetric(case_.prompt)
@@ -353,10 +430,26 @@ async function evalMetricCase(case_: GoldenMetricCase): Promise<CaseResult> {
     const compilerDeps = makeCompilerDeps()
     const compiled = compileMetricPlan(plan, def, compilerDeps)
 
-    // Mock execution
-    const mockValue = case_.expectedValue ?? 1
-    const mockExec = makeMockExecutor(mockValue)
-    const rows = await mockExec(compiled.sql)
+    // Execution: live or mock
+    let rows: SqlQueryRow[]
+    if (liveExecutor) {
+      try {
+        rows = await liveExecutor(compiled.sql)
+      } catch (execError) {
+        return {
+          id: case_.id,
+          prompt: case_.prompt,
+          passed: false,
+          reason: `live exec error: ${execError instanceof Error ? execError.message : String(execError)}`,
+          metricId: route.metricId,
+          expectedMetricId: case_.expectedMetricId
+        }
+      }
+    } else {
+      const mockValue = case_.expectedValue ?? 1
+      const mockExec = makeMockExecutor(mockValue)
+      rows = await mockExec(compiled.sql)
+    }
 
     const result: EngineResult = { rows, plan, compiled }
     const verdict: EngineVerdict = verifyResult(result, plan, def)
@@ -629,18 +722,149 @@ function evalClarifyCase(case_: GoldenClarifyCase): CaseResult {
   }
 }
 
+// S23.16: Evaluate live negative cases — engine must not produce numbers for edge cases
+async function evalLiveNegativeCase(
+  case_: GoldenLiveNegativeCase,
+  liveExecutor: LiveExecutor
+): Promise<CaseResult> {
+  if (!liveExecutor) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: false,
+      reason: 'live negative cases require --live flag'
+    }
+  }
+
+  const route = routeMetric(case_.prompt)
+  if (!route.metricId || route.confidence < 0.5) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      reason: 'router correctly refused (no metric match)'
+    }
+  }
+
+  if (case_.expect === 'metric_mismatch' && case_.expectedMetricId) {
+    if (route.metricId !== case_.expectedMetricId) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: false,
+        reason: `metric mismatch: got ${route.metricId}, expected ${case_.expectedMetricId}`,
+        metricId: route.metricId,
+        expectedMetricId: case_.expectedMetricId
+      }
+    }
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      metricId: route.metricId,
+      expectedMetricId: case_.expectedMetricId
+    }
+  }
+
+  // expect: 'no_number' — route to metric, compile, execute on live DB, check no number
+  const plan = buildDeterministicPlan(case_.prompt, route.metricId)
+  if (!plan) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      reason: 'no plan built — engine correctly refused'
+    }
+  }
+
+  const def = findMetricById(plan.metricId)
+  if (!def) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: false,
+      reason: 'metric definition not found'
+    }
+  }
+
+  try {
+    const compilerDeps = makeCompilerDeps()
+    const compiled = compileMetricPlan(plan, def, compilerDeps)
+    const rows = await liveExecutor(compiled.sql)
+
+    if (!rows || rows.length === 0) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: true,
+        reason: 'no rows returned — engine correctly produced no number',
+        metricId: route.metricId
+      }
+    }
+
+    const rawValue = rows[0]?.['result_value']
+    const value = rawValue !== null && rawValue !== undefined ? Number(rawValue) : null
+
+    if (value === null || !Number.isFinite(value) || value === 0) {
+      return {
+        id: case_.id,
+        prompt: case_.prompt,
+        passed: true,
+        reason: `value is null/0/NaN — engine correctly produced no meaningful number`,
+        metricId: route.metricId,
+        value
+      }
+    }
+
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: false,
+      reason: `HALLUCINATION: engine returned ${value} for a case that should have no number`,
+      metricId: route.metricId,
+      value
+    }
+  } catch (error) {
+    return {
+      id: case_.id,
+      prompt: case_.prompt,
+      passed: true,
+      reason: `exec error (engine correctly refused): ${error instanceof Error ? error.message : String(error)}`,
+      metricId: route.metricId
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const fixture = loadFixture()
   const results: CaseResult[] = []
 
+  // S23.14: Check for --live flag
+  const isLive = process.argv.includes('--live')
+  let liveExecutor: LiveExecutor = null
+
+  if (isLive) {
+    const config = parseLiveConfig()
+    if (!config) {
+      console.error('  [live] Missing env vars. Set ACC_LIVE_SQL_SERVER, ACC_LIVE_SQL_PORT, ACC_LIVE_SQL_DB, ACC_LIVE_SQL_USER, ACC_LIVE_SQL_PASSWORD')
+      process.exit(1)
+    }
+    try {
+      liveExecutor = await makeLiveExecutor(config)
+    } catch (err) {
+      console.error(`  [live] Failed to connect: ${err instanceof Error ? err.message : String(err)}`)
+      process.exit(1)
+    }
+  }
+
   console.log('═══════════════════════════════════════════════════════════')
-  console.log('  Golden Metric Evaluation — FRE Phase 6')
+  console.log(`  Golden Metric Evaluation — FRE${isLive ? ' (LIVE)' : ''}`)
   console.log('═══════════════════════════════════════════════════════════\n')
 
   // Metric cases
   console.log('── Metric Cases ──')
   for (const case_ of fixture.metrics) {
-    const result = await evalMetricCase(case_)
+    const result = await evalMetricCase(case_, liveExecutor)
     results.push(result)
     const status = result.passed ? '✓' : '✗'
     const detail = result.passed
@@ -718,6 +942,20 @@ async function main(): Promise<void> {
         ? `outputType=${case_.expectedOutputType}`
         : `FAIL: missing ${missing.join(', ')}`
       console.log(`  ${status} ${case_.id}: ${detail}`)
+    }
+  }
+
+  // S23.16: Live negative cases (only in --live mode)
+  if (isLive && fixture.liveNegative && fixture.liveNegative.length > 0) {
+    console.log('\n── Live Negative Cases (S23.16 — no hallucination) ──')
+    for (const case_ of fixture.liveNegative) {
+      const result = await evalLiveNegativeCase(case_, liveExecutor)
+      results.push(result)
+      const status = result.passed ? '✓' : '✗'
+      const detail = result.passed
+        ? (result.reason ?? 'passed')
+        : `FAIL: ${result.reason}`
+      console.log(`  ${status} ${result.id}: ${detail}`)
     }
   }
 

@@ -1937,5 +1937,32 @@
       "expectedChartType": "scatter",
       "expectedCodeContains": ["matplotlib", "ax.scatter", "chart.png"]
     }
+  ],
+  "liveNegative": [
+    {
+      "id": "s23-live-neg-future-year",
+      "prompt": "فروش خالص سال ۱۴۱۰ چقدر است؟",
+      "expect": "no_number",
+      "reason": "Year 1410 has no data in DB — engine must not hallucinate a number"
+    },
+    {
+      "id": "s23-live-neg-past-year",
+      "prompt": "فروش خالص سال ۱۳۸۰ چقدر است؟",
+      "expect": "no_number",
+      "reason": "Year 1380 likely has no data — engine must not hallucinate a number"
+    },
+    {
+      "id": "s23-live-neg-nonexistent-account",
+      "prompt": "مانده حساب شخص غیرموجود چقدر است؟",
+      "expect": "no_number",
+      "reason": "Non-existent entity — engine must return empty/refuse, not hallucinate"
+    },
+    {
+      "id": "s23-live-neg-wrong-metric-prompt",
+      "prompt": "خرید سال ۱۴۰۲ چقدر است؟",
+      "expect": "metric_mismatch",
+      "expectedMetricId": "purchases",
+      "reason": "Prompt asks for purchases — must not return net_sales number"
+    }
   ]
 }

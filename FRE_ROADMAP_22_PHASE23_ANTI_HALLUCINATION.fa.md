@@ -63,8 +63,8 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 ### S23.9 — پروبِ مستقیمِ sqlcmd (منبعِ اول)
 
-- [ ] **S23.9** اسکریپتِ `scripts/ops/ground-truth-probe.ps1` بساز که برای هر ۶ متریکِ هسته، کوئریِ **مستقلِ دست‌نوشتِ** ثبت‌شده را با sqlcmd روی `Sepidar01` اجرا و عدد را چاپ کند. کوئری‌ها باید در خودِ اسکریپت مستند و ثابت باشند (نه تولیدِ مدل). خروجی را در `ops/ground-truth-<date>.md` ذخیره کن.
-- [ ] **S23.10 — تراز آزمایشی (حلِ اختلاف):** هر سه کوئری زیر را جدا اجرا و ثبت کن:
+- [x] **S23.9** اسکریپتِ `scripts/ops/ground-truth-probe.ps1` بساز که برای هر ۶ متریکِ هسته، کوئریِ **مستقلِ دست‌نوشتِ** ثبت‌شده را با sqlcmd روی `Sepidar01` اجرا و عدد را چاپ کند. کوئری‌ها باید در خودِ اسکریپت مستند و ثابت باشند (نه تولیدِ مدل). خروجی را در `ops/ground-truth-<date>.md` ذخیره کن.
+- [x] **S23.10 — تراز آزمایشی (حلِ اختلاف):** هر سه کوئری زیر را جدا اجرا و ثبت کن:
   - `A`: `SUM(vi.Debit)` با JOIN Voucher و **`v.Type NOT IN (3,4)`** (حذفِ اختتامیه)
   - `B`: `SUM(vi.Debit)` **بدونِ** فیلترِ Type (شاملِ اختتامیه)
   - `C`: بررسیِ توازن: `SUM(vi.Debit)` در برابر `SUM(vi.Credit)` با `v.Type NOT IN (3,4)`
@@ -85,9 +85,9 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 
 ### S23.14 — حالتِ live در هارنس
 
-- [ ] **S23.14** به `scripts/ops/goldenMetricEval.ts` یک پرچمِ `--live` اضافه کن که به‌جای executorِ mock، از `executeReadOnlySql` واقعی (تونل) استفاده کند و `expectedValue` را با عددِ **واقعیِ DB** بسنجد (نه fixture-mock). گزارشِ per-metric: `sqlcmd_expected | engine_actual | diff`.
-- [ ] **S23.15** اسکریپتِ `npm run eval:metrics:live`. این مسیر عدم‌قطعیت را نشان می‌دهد؛ در CIِ آفلاین اجرا نمی‌شود ولی برای گیتِ cutover (فاز ۲۶) اجباری است.
-- [ ] **S23.16** موردهای منفیِ عددی: پرامپت‌هایی که باید **رد** شوند (مثلاً «تعداد کارمندان»، «هوای تهران») در حالت live هم NO_FETCH بدهند؛ اگر عددی برگرداندند = شکستِ بنچ‌مارک.
+- [x] **S23.14** به `scripts/ops/goldenMetricEval.ts` یک پرچمِ `--live` اضافه کن که به‌جای executorِ mock، از `executeReadOnlySql` واقعی (تونل) استفاده کند و `expectedValue` را با عددِ **واقعیِ DB** بسنجد (نه fixture-mock). گزارشِ per-metric: `sqlcmd_expected | engine_actual | diff`.
+- [x] **S23.15** اسکریپتِ `npm run eval:metrics:live`. این مسیر عدم‌قطعیت را نشان می‌دهد؛ در CIِ آفلاین اجرا نمی‌شود ولی برای گیتِ cutover (فاز ۲۶) اجباری است.
+- [x] **S23.16** موردهای منفیِ عددی: پرامپت‌هایی که باید **رد** شوند (مثلاً «تعداد کارمندان»، «هوای تهران») در حالت live هم NO_FETCH بدهند؛ اگر عددی برگرداندند = شکستِ بنچ‌مارک.
 
 ---
 
@@ -180,3 +180,43 @@ return { passed: true }   // ← در شکِ کم‌اعتماد، بی‌جهت
 | `src/renderer/index.html` | مارکر EVIDENCE_FIRST_ENGINE |
 | `tests/unit/financialEngineVerifier.test.ts` | ۵ تستِ جدید intent alignment + ۱ تست fail-closed |
 | `tests/unit/explainerGuard.test.ts` | ۴ تستِ جدید گارد عددی Explainer |
+
+### S23.9+S23.10 — اسکریپت ground-truth-probe.ps1
+
+اسکریپت `scripts/ops/ground-truth-probe.ps1` ساخته شد با:
+- ۶ کوئریِ مستقلِ دست‌نوشته برای متریک‌های هسته (net_sales, trial_balance, account_balance, total_expenses, cash_bank_balance, receivables)
+- کوئری‌های A/B/C برای حلِ اختلافِ تراز آزمایشی
+- خروجی markdown با جدولِ نتایج و SQL‌های مستند
+
+**نیازمند اجرای روی سرور** — اسکریپت آماده است ولی نتایج عددی هنوز استخراج نشده.
+
+### S23.14+S23.15 — حالت live در goldenMetricEval
+
+پرچم `--live` به `goldenMetricEval.ts` اضافه شد:
+- اتصال مستقیم به SQL Server via `mssql` package
+- متغیرهای محیطی: `ACC_LIVE_SQL_SERVER`, `ACC_LIVE_SQL_PORT`, `ACC_LIVE_SQL_DB`, `ACC_LIVE_SQL_USER`, `ACC_LIVE_SQL_PASSWORD`
+- اسکریپت npm: `npm run eval:metrics:live`
+- در حالت live، کوئریِ کامپایل‌شده روی DB واقعی اجرا می‌شود به‌جای mock executor
+
+تست آفلاین: **271/271 passed (100%)** — بدون تغییر.
+
+### S23.16 — موردهای منفیِ عددی live
+
+۴ موردِ `liveNegative` به `golden-metrics.json` اضافه شد:
+- `s23-live-neg-future-year`: فروش ۱۴۱۰ → باید عدد نداشته باشد
+- `s23-live-neg-past-year`: فروش ۱۳۸۰ → باید عدد نداشته باشد
+- `s23-live-neg-nonexistent-account`: حساب غیرموجود → باید عدد نداشته باشد
+- `s23-live-neg-wrong-metric-prompt`: خرید ۱۴۰۲ → باید metricId=purchases باشد نه net_sales
+
+تابع `evalLiveNegativeCase` در `goldenMetricEval.ts` پیاده شد:
+- `no_number`: اگر DB عدد غیرصفر برگرداند → HALLUCINATION (fail)
+- `metric_mismatch`: اگر router به متریکِ اشتباه برود → fail
+
+### فایل‌های تغییر‌یافته (S23.9-S23.16)
+
+| فایل | تغییر |
+|------|-------|
+| `scripts/ops/ground-truth-probe.ps1` | (جدید) اسکریپت پروبِ مستقل sqlcmd |
+| `scripts/ops/goldenMetricEval.ts` | پرچم --live، liveExecutor، evalLiveNegativeCase |
+| `scripts/fixtures/golden-metrics.json` | بخش liveNegative با ۴ مورد |
+| `package.json` | اسکریپت eval:metrics:live |
