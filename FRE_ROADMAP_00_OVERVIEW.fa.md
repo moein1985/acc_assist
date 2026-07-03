@@ -256,7 +256,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۸ | ✅ کامل | حقیقتِ تست و قفلِ cutover: ۳ تست fail رفع شد، eval:metrics:live ۲۷۸/۲۷۸ (diff=0)، field-test ۱۳/۱۳ PASS، CUTOVER_LOCKED + engineOnlyGate مارکرها |
 | ۲۹ | ✅ کامل | سوییپِ ground-truth: رجیستریِ تأیید، verify:registry، اوراکلِ مستقل برای متریک‌های اسکالر |
 | ۳۰ | ✅ کامل | تأییدِ عمیقِ حسابدار: ۶ اسکریپت probe، ۹ باگِ SQL اصلاح شد، recursive CTE، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff |
-| ۳۲ | 🔶 در حال انجام | کالیبراسیونِ per-deployment: chartOfAccountsMapping، accountConceptFilter، calibrate-deployment.ps1، اعتبارسنجیِ توازن |
+| ۳۲ | 🔶 در حال انجام | کالیبراسیونِ per-deployment: chartOfAccountsMapping، accountConceptFilter، calibrate-deployment.ps1، اعتبارسنجیِ توازن، چک‌لیستِ مشتریِ جدید |
 | ۳۱ | ✅ کامل | تحلیلِ ردها و پوششِ داده‌محور: RefusalReason، PII masking، analyzeRefusals.ts، coverage:gaps، فیلد تست ۲۰/۲۰ |
 
 **آمار فعلی (فاز ۳۱ کامل، فاز ۳۲ در حال انجام):**
@@ -269,7 +269,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **engine تنها ورودی** — legacy کاملاً حذف شد (فاز ۲۴)
 - **CUTOVER_LOCKED** — قفلِ engine-only فعال (فاز ۲۸)
 - **فاز ۳۰:** ۹ باگِ SQL اصلاح شد، ۶ اسکریپت probe، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff
-- **فاز ۳۲:** chartOfAccountsMapping per-deployment، ۱۸ متریک به accountConceptFilter منتقل شد، calibrate-deployment.ps1 + validation، ۲۳ unit test
+- **فاز ۳۲:** chartOfAccountsMapping per-deployment، ۱۸ متریک به accountConceptFilter منتقل شد، calibrate-deployment.ps1 + validation، ۲۳ unit test، چک‌لیستِ راه‌اندازیِ مشتریِ جدید. S32.5 (UI Calibration) و S32.8 (رجیستریِ multi-deployment) معوق به فازِ آینده.
 - **فاز ۳۱:** RefusalReason + normalizedPrompt در audit، PII masking (FULL_NAME/AMOUNT با Persian digits)، analyzeRefusals.ts + coverage:gaps، ۱۷ unit test، فیلد تست ۲۰/۲۰ (۵ رد: ۲ out_of_scope + ۳ no_metric، هیچ شکافِ واقعی)
 
 **کارهای باقی‌مانده:**
@@ -286,4 +286,4 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **یک متریک در هر زمان:** هرگز چند متریک را هم‌زمان مهاجرت نده. vertical slice «فروش» اول.
 - **شاهدِ واقعی:** هیچ ادعای موفقیتی بدونِ خروجیِ تست یا خطِ audit.
 
-> **فاز ۳۱ کامل شد.** تمام S31.1-S31.10 تکمیل: refusal logging + PII masking + analyzeRefusals + فیلد تست + چرخهٔ دوره‌ای. فاز ۳۲ در حال انجام. ۲۷۴ golden cases 100% سبز.
+> **فاز ۳۱ کامل شد.** فاز ۳۲: S32.1-S32.4 و S32.6-S32.7 و S32.9 کامل. S32.5 (UI Calibration) و S32.8 (رجیستریِ multi-deployment) معوق به فازِ آینده با علتِ دقیق و پیش‌نهاد در roadmap. ۲۷۴ golden cases 100% سبز.
