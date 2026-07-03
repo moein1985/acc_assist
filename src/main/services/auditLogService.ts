@@ -5,7 +5,8 @@ import type {
   AuditLogQueryRequest,
   AuditLogQueryResult,
   AuditLogStage,
-  AuditLogViewerEntry
+  AuditLogViewerEntry,
+  RefusalReason
 } from '../../shared/contracts'
 
 export interface AuditLogEntry {
@@ -26,6 +27,10 @@ export interface AuditLogEntry {
   contextReason?: string
   recoveryAttempts?: number
   failureKind?: string
+  /** S31.1: Categorized refusal reason for structured logging */
+  refusalReason?: RefusalReason
+  /** S31.1: Normalized prompt pattern (PII-stripped, for clustering) */
+  normalizedPrompt?: string
 }
 
 export class AuditLogService {
@@ -119,7 +124,9 @@ export class AuditLogService {
           errorCode: entry.errorCode,
           errorCategory: entry.errorCategory,
           promptPreview: this.compactText(redactedPrompt, 180),
-          sqlQueryPreview: this.compactText(redactedSql, 220)
+          sqlQueryPreview: this.compactText(redactedSql, 220),
+          refusalReason: entry.refusalReason,
+          normalizedPrompt: entry.normalizedPrompt
         })
       } catch {
         continue
@@ -152,7 +159,13 @@ export class AuditLogService {
       { regex: /\b\d{10}\b/g, label: 'NATIONAL_CODE' },
       { regex: /\b09\d{9}\b/g, label: 'PHONE' },
       { regex: /\b\d{16}\b/g, label: 'ACCOUNT_NUMBER' },
-      { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g, label: 'IBAN' }
+      { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g, label: 'IBAN' },
+      // S31.2: Mask Persian full names after honorifics (آقای/خانم + Name)
+      { regex: /(آقای|خانم|سرکار)\s+[\u0600-\u06FF]{2,}(?:\s+[\u0600-\u06FF]{2,})?/gu, label: 'FULL_NAME' },
+      // S31.2: Mask financial amounts (number + currency or مالی keyword + number)
+      // Supports both ASCII and Persian digits
+      { regex: /(?:مبلغ|مانده|جمع|مجموع|موجودی|تراز|بدهی|طلب|باقی‌مانده)\s*[:：]?\s*[\d\u06F0-\u06F9][\d\u06F0-\u06F9,]*(?:\.\d+)?/gu, label: 'AMOUNT' },
+      { regex: /[\d\u06F0-\u06F9][\d\u06F0-\u06F9,]*(?:\.\d+)?\s*(?:تومان|ریال|IRR|USD|EUR|\$|دلار|یورو)/gu, label: 'AMOUNT' }
     ]
 
     let redacted = value

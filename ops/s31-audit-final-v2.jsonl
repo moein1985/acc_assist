@@ -1,0 +1,39 @@
+{"timestamp":"2026-07-03T17:22:22.784Z","requestId":"s31-q1-20260703205222","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:23:02.338Z","requestId":"s31-q1-20260703205222","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_sales verdict=ok"}
+{"timestamp":"2026-07-03T17:23:04.409Z","requestId":"s31-q2-20260703205304","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:23:49.445Z","requestId":"s31-q2-20260703205304","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ترازنامه ۱۴۰۲","refusalReason":"no_metric","normalizedPrompt":"ترازنامه","error":"engine-no-result: planner-error: model-call-failed"}
+{"timestamp":"2026-07-03T17:23:49.447Z","requestId":"s31-q2-20260703205304","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"ترازنامه ۱۴۰۲","refusalReason":"no_metric","normalizedPrompt":"ترازنامه"}
+{"timestamp":"2026-07-03T17:23:51.469Z","requestId":"s31-q3-20260703205351","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:23:56.320Z","requestId":"s31-q3-20260703205351","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-03T17:23:58.346Z","requestId":"s31-q4-20260703205358","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:08.322Z","requestId":"s31-q4-20260703205358","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=cash_bank_balance verdict=ok"}
+{"timestamp":"2026-07-03T17:24:10.350Z","requestId":"s31-q5-20260703205410","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:13.184Z","requestId":"s31-q5-20260703205410","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payroll verdict=ok"}
+{"timestamp":"2026-07-03T17:24:15.207Z","requestId":"s31-q6-20260703205415","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:20.312Z","requestId":"s31-q6-20260703205415","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=receivables verdict=ok"}
+{"timestamp":"2026-07-03T17:24:22.335Z","requestId":"s31-q7-20260703205422","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:26.368Z","requestId":"s31-q7-20260703205422","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payables verdict=ok"}
+{"timestamp":"2026-07-03T17:24:28.390Z","requestId":"s31-q8-20260703205428","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:24:35.800Z","requestId":"s31-q9-20260703205435","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:24:42.364Z","requestId":"s31-q10-20260703205442","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:46.501Z","requestId":"s31-q10-20260703205442","conversationId":"s31-field-test","stage":"engine-mode","prompt":"قیمت طلا در بازار چقدر است؟","refusalReason":"ambiguous","normalizedPrompt":"طلا+قیمت","error":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T17:24:46.501Z","requestId":"s31-q10-20260703205442","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"قیمت طلا در بازار چقدر است؟","refusalReason":"out_of_scope","normalizedPrompt":"طلا+قیمت"}
+{"timestamp":"2026-07-03T17:24:48.517Z","requestId":"s31-q11-20260703205448","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:24:56.631Z","requestId":"s31-q11-20260703205448","conversationId":"s31-field-test","stage":"engine-mode","prompt":"تعداد کارمندان شرکت چقدر است؟","refusalReason":"ambiguous","normalizedPrompt":"تعداد+کارمندان","error":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T17:24:56.631Z","requestId":"s31-q11-20260703205448","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"تعداد کارمندان شرکت چقدر است؟","refusalReason":"out_of_scope","normalizedPrompt":"تعداد+کارمندان"}
+{"timestamp":"2026-07-03T17:24:58.659Z","requestId":"s31-q12-20260703205458","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:25:06.293Z","requestId":"s31-q13-20260703205506","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:25:08.245Z","requestId":"s31-q13-20260703205506","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-03T17:25:10.263Z","requestId":"s31-q14-20260703205510","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:25:17.562Z","requestId":"s31-q15-20260703205517","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:25:23.583Z","requestId":"s31-q15-20260703205517","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payroll verdict=ok"}
+{"timestamp":"2026-07-03T17:25:25.611Z","requestId":"s31-q16-20260703205525","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:25:33.426Z","requestId":"s31-q17-20260703205533","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T17:25:41.600Z","requestId":"s31-q18-20260703205541","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:25:48.115Z","requestId":"s31-q18-20260703205541","conversationId":"s31-field-test","stage":"engine-mode","prompt":"گردش حساب [REDACTED:FULL_NAME] فرد ۱۴۰۲","refusalReason":"no_metric","normalizedPrompt":"گردش","error":"engine-no-result: execution-error"}
+{"timestamp":"2026-07-03T17:25:48.116Z","requestId":"s31-q18-20260703205541","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"گردش حساب [REDACTED:FULL_NAME] فرد ۱۴۰۲","refusalReason":"no_metric","normalizedPrompt":"گردش"}
+{"timestamp":"2026-07-03T17:25:50.140Z","requestId":"s31-q19-20260703205550","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:25:55.817Z","requestId":"s31-q19-20260703205550","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=account_balance verdict=ok"}
+{"timestamp":"2026-07-03T17:25:57.835Z","requestId":"s31-q20-20260703205557","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T17:26:03.031Z","requestId":"s31-q20-20260703205557","conversationId":"s31-field-test","stage":"engine-mode","prompt":"[REDACTED:AMOUNT] تومان مانده داریم یا نه؟","refusalReason":"ambiguous","normalizedPrompt":"مانده","error":"engine-no-result: clarify:{\"question\":\"آیا منظورتان مانده حساب بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T17:26:03.031Z","requestId":"s31-q20-20260703205557","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"[REDACTED:AMOUNT] تومان مانده داریم یا نه؟","refusalReason":"no_metric","normalizedPrompt":"مانده"}

@@ -257,11 +257,12 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۹ | ✅ کامل | سوییپِ ground-truth: رجیستریِ تأیید، verify:registry، اوراکلِ مستقل برای متریک‌های اسکالر |
 | ۳۰ | ✅ کامل | تأییدِ عمیقِ حسابدار: ۶ اسکریپت probe، ۹ باگِ SQL اصلاح شد، recursive CTE، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff |
 | ۳۲ | 🔶 در حال انجام | کالیبراسیونِ per-deployment: chartOfAccountsMapping، accountConceptFilter، calibrate-deployment.ps1، اعتبارسنجیِ توازن |
+| ۳۱ | ✅ کامل | تحلیلِ ردها و پوششِ داده‌محور: RefusalReason، PII masking، analyzeRefusals.ts، coverage:gaps، فیلد تست ۲۰/۲۰ |
 
-**آمار فعلی (فاز ۳۲ در حال انجام):**
+**آمار فعلی (فاز ۳۱ کامل، فاز ۳۲ در حال انجام):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
-- ۵۳۹ تست (۵۳۸ pass + ۱ skip) + ۲۶ integration test
+- ۵۳۶ تست (۵۳۵ pass + ۱ skip) + ۲۶ integration test
 - typecheck: ۰ خطا
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)
@@ -269,6 +270,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **CUTOVER_LOCKED** — قفلِ engine-only فعال (فاز ۲۸)
 - **فاز ۳۰:** ۹ باگِ SQL اصلاح شد، ۶ اسکریپت probe، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff
 - **فاز ۳۲:** chartOfAccountsMapping per-deployment، ۱۸ متریک به accountConceptFilter منتقل شد، calibrate-deployment.ps1 + validation، ۲۳ unit test
+- **فاز ۳۱:** RefusalReason + normalizedPrompt در audit، PII masking (FULL_NAME/AMOUNT با Persian digits)، analyzeRefusals.ts + coverage:gaps، ۱۷ unit test، فیلد تست ۲۰/۲۰ (۵ رد: ۲ out_of_scope + ۳ no_metric، هیچ شکافِ واقعی)
 
 **کارهای باقی‌مانده:**
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
@@ -284,4 +286,4 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **یک متریک در هر زمان:** هرگز چند متریک را هم‌زمان مهاجرت نده. vertical slice «فروش» اول.
 - **شاهدِ واقعی:** هیچ ادعای موفقیتی بدونِ خروجیِ تست یا خطِ audit.
 
-> **فاز ۳۲ در حال انجام است.** S32.1-S32.4 و S32.6-S32.7 کامل. S32.5 (UI)، S32.8 (per-deployment registry)، S32.9 (onboarding checklist) معوق. ۱۸ متریک به accountConceptFilter منتقل شد. ۲۷۴ golden cases 100% سبز.
+> **فاز ۳۱ کامل شد.** تمام S31.1-S31.10 تکمیل: refusal logging + PII masking + analyzeRefusals + فیلد تست + چرخهٔ دوره‌ای. فاز ۳۲ در حال انجام. ۲۷۴ golden cases 100% سبز.

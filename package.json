@@ -33,6 +33,7 @@
     "smoke:prompt-transport": "tsx scripts/ops/promptTransportSmoke.ts",
     "validate:connector:live": "tsx scripts/validate-connector-live.ts",
     "calibration:run": "pwsh -ExecutionPolicy Bypass -File scripts/ops/calibrate-deployment.ps1",
+    "coverage:gaps": "tsx scripts/ops/analyzeRefusals.ts",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",

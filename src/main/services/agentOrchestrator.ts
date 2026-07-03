@@ -6,6 +6,7 @@ import type {
   GeminiChatResponse,
   GeminiMessage,
   GeminiToolDefinition,
+  RefusalReason,
   ResponseEvidenceEntry,
   ResponseMetadata,
   SqlQueryRow
@@ -166,7 +167,9 @@ export class AgentOrchestrator {
         requestId: payload.requestId,
         conversationId: payload.conversationId,
         stage: 'engine-refuse',
-        prompt: 'engine-no-result: explicit refusal (no legacy fallback)'
+        prompt: payload.prompt,
+        refusalReason: this.categorizeRefusalReason(payload.prompt, engineResponse),
+        normalizedPrompt: this.normalizePromptPattern(payload.prompt)
       })
 
       return {
@@ -292,7 +295,10 @@ export class AgentOrchestrator {
             requestId: payload.requestId,
             conversationId: payload.conversationId,
             stage: 'engine-mode',
-            prompt: `engine-multi-no-result: ${multi.verdicts.map((v) => v.reason ?? 'ok').join(', ')}`
+            prompt: payload.prompt,
+            refusalReason: 'empty_data',
+            normalizedPrompt: this.normalizePromptPattern(payload.prompt),
+            error: `engine-multi-no-result: ${multi.verdicts.map((v) => v.reason ?? 'ok').join(', ')}`
           })
           return null
         }
@@ -339,12 +345,21 @@ export class AgentOrchestrator {
       }
 
       if (!engineRun.result || !engineRun.verdict.ok) {
+        const reason = engineRun.verdict.reason ?? 'unknown'
+        const refusalReason: RefusalReason = reason.includes('clarif') || reason.includes('ambiguous')
+          ? 'ambiguous'
+          : reason.includes('empty') || reason.includes('no data')
+            ? 'empty_data'
+            : 'no_metric'
         void this.safeAuditWrite({
           timestamp: new Date().toISOString(),
           requestId: payload.requestId,
           conversationId: payload.conversationId,
           stage: 'engine-mode',
-          prompt: `engine-no-result: ${engineRun.verdict.reason ?? 'unknown'}`
+          prompt: payload.prompt,
+          refusalReason,
+          normalizedPrompt: this.normalizePromptPattern(payload.prompt),
+          error: `engine-no-result: ${reason}`
         })
         return null
       }
@@ -357,7 +372,10 @@ export class AgentOrchestrator {
           requestId: payload.requestId,
           conversationId: payload.conversationId,
           stage: 'engine-mode',
-          prompt: `intent-mismatch: ${intentCheck.reason}`
+          prompt: payload.prompt,
+          refusalReason: 'no_metric',
+          normalizedPrompt: this.normalizePromptPattern(payload.prompt),
+          error: `intent-mismatch: ${intentCheck.reason}`
         })
         return null
       }
@@ -522,6 +540,57 @@ export class AgentOrchestrator {
     }
 
     return `${normalized.slice(0, maxLength - 1)}…`
+  }
+
+  /**
+   * S31.1: Categorize refusal reason from prompt content and engine response.
+   */
+  private categorizeRefusalReason(prompt: string, engineResponse: AgentSendMessageResult | null): RefusalReason {
+    // If engine returned a clarify-style response, it's ambiguous
+    if (engineResponse && engineResponse.finalText.includes('دقیق‌تر')) {
+      return 'ambiguous'
+    }
+    // Check for non-financial / out-of-scope patterns
+    const outOfScopePatterns = [
+      /هواشناسی|آب\s*و\s*هوا|هوای|طلا|ارز|بورس|قیمت\s*سکه/i,
+      /تعداد\s*کارمندان|لیست\s*پرسنل|حضور\s*و\s*غیاب/i,
+      /ثبت\s*فاکتور|چطور\s*ثبت|آموزش/i
+    ]
+    for (const pattern of outOfScopePatterns) {
+      if (pattern.test(prompt)) {
+        return 'out_of_scope'
+      }
+    }
+    // If the prompt looks financial but no metric matched
+    return 'no_metric'
+  }
+
+  /**
+   * S31.1: Normalize prompt to a pattern for clustering (PII-stripped, digit-normalized, keyword-extracted).
+   */
+  private normalizePromptPattern(prompt: string): string {
+    // Normalize Persian digits
+    let normalized = normalizePersianDigits(prompt)
+    // Remove amounts and numbers
+    normalized = normalized.replace(/\d[\d,]*(?:\.\d+)?/g, 'N')
+    // Remove person names after honorifics
+    normalized = normalized.replace(/(آقای|خانم|سرکار)\s+[\u0600-\u06FF]{2,}(?:\s+[\u0600-\u06FF]{2,})?/gu, '$1 [NAME]')
+    // Collapse whitespace
+    normalized = normalized.replace(/\s+/g, ' ').trim()
+    // Extract key financial keywords for pattern matching
+    const keywords = [
+      'فروش', 'خرید', 'هزینه', 'درآمد', 'ترازنامه', 'سود', 'زیان', 'دارایی',
+      'بدهی', 'سرمایه', 'بانک', 'نقد', 'دریافتنی', 'پرداختنی', 'مالیات',
+      'استهلاک', 'بودجه', 'گردش', 'مانده', 'پرسنل', 'حقوق', 'بهای',
+      'سال', 'ماهانه', 'فصلی', 'مقایسه', 'روند', 'چارت', 'نمودار',
+      'طلا', 'ارز', 'بورس', 'سکه', 'کارمندان', 'پرسنل', 'حضور', 'غیاب',
+      'هوا', 'آب', 'قیمت', 'تعداد', 'لیست', 'ثبت', 'فاکتور', 'آموزش',
+      'چگونه', 'چطور', 'کمک', 'راهنما'
+    ]
+    const foundKeywords = keywords.filter(kw => normalized.includes(kw))
+    // Build pattern: sorted keywords + year placeholder
+    const yearPattern = normalized.match(/\b1[34]\d\d\b/) ? 'YEAR' : ''
+    return [...foundKeywords.sort(), yearPattern].filter(Boolean).join('+')
   }
 
   getLoopBudgetSummary(): { maxRounds: number; maxCallsPerRound: number; maxTotalCalls: number } {

@@ -1,0 +1,122 @@
+﻿[
+    {
+        "ok":  true,
+        "preview":  "### Summary\nفروش خالص سال 1402: 64,252,437,897\n\n### Findings\n- مسیر پاسخ: engine\n- فروش خالص: 64,252,437,897\n\n### Evidence\n- منبع داده: Financial Engine (metricId=net_sales)\n- SQL: SELECT SUM(CAST(src",
+        "textLen":  535,
+        "id":  "q1"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nترازنامه سال 1402: 20,899,670,505\n\n### Findings\n- مسیر پاسخ: engine\n- ترازنامه: 20,899,670,505\n\n### Evidence\n- منبع داده: Financial Engine (metricId=balance_sheet)\n- SQL: SELECT SUM(vi.[De",
+        "textLen":  558,
+        "id":  "q2"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nسود خالص سال 1402: 71,828,156,969\n\n### Findings\n- مسیر پاسخ: engine\n- سود خالص: 71,828,156,969\n\n### Evidence\n- منبع داده: Financial Engine (metricId=net_profit)\n- SQL: SELECT SUM(vi.[Credi",
+        "textLen":  555,
+        "id":  "q3"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nمانده نقد و بانک: 9,521,507,066\n\n### Findings\n- مسیر پاسخ: engine\n- مانده نقد و بانک: 9,521,507,066\n\n### Evidence\n- منبع داده: Financial Engine (metricId=cash_bank_balance)\n- SQL: SELECT S",
+        "textLen":  438,
+        "id":  "q4"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nحقوق و دستمزد پرداختی سال 1402: 6,421,115,994\n\n### Findings\n- مسیر پاسخ: engine\n- حقوق و دستمزد پرداختی: 6,421,115,994\n\n### Evidence\n- منبع داده: Financial Engine (metricId=payroll)\n- SQL:",
+        "textLen":  576,
+        "id":  "q5"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nدریافتنی‌ها سال 1402: 14,392,491,310\n\n### Findings\n- مسیر پاسخ: engine\n- دریافتنی‌ها: 14,392,491,310\n\n### Evidence\n- منبع داده: Financial Engine (metricId=receivables)\n- SQL: SELECT SUM(vi",
+        "textLen":  562,
+        "id":  "q6"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nپرداختنی‌ها سال 1402: -26,058,866,504\n\n### Findings\n- مسیر پاسخ: engine\n- پرداختنی‌ها: -26,058,866,504\n\n### Evidence\n- منبع داده: Financial Engine (metricId=payables)\n- SQL: SELECT SUM(vi.",
+        "textLen":  561,
+        "id":  "q7"
+    },
+    {
+        "ok":  true,
+        "preview":  "بهای تمام شده کالای فروش رفته (Cost of Goods Sold - COGS) برای سال مالی 1402 (که از ابتدای فروردین 1402 تا پایان اس",
+        "textLen":  115,
+        "id":  "q8"
+    },
+    {
+        "ok":  true,
+        "preview":  "هوای تهران امروز **آفتابی و گرم** پیش‌بینی می‌شود.\n\nبر اساس آخرین اطلاعاتی که من دارم:\n\n*   **وضعیت آسمان:** آفتابی و صاف\n*   **دمای هوا:**\n    *   حداکثر دما در طول روز: حدود **",
+        "textLen":  178,
+        "id":  "q9"
+    },
+    {
+        "ok":  true,
+        "preview":  "برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.",
+        "textLen":  121,
+        "id":  "q10"
+    },
+    {
+        "ok":  true,
+        "preview":  "برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.",
+        "textLen":  121,
+        "id":  "q11"
+    },
+    {
+        "ok":  true,
+        "preview":  "برای ثبت فاکتور فروش در نرم‌افزار سپیدار سیستم، مراحل زیر را به صورت گام به گام دنبال کنید:\n\n**پیش‌نیازها (قبل از ثبت فاک",
+        "textLen":  121,
+        "id":  "q12"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nسود خالص سال 1403: 56,223,704,371\n\n### Findings\n- مسیر پاسخ: engine\n- سود خالص: 56,223,704,371\n\n### Evidence\n- منبع داده: Financial Engine (metricId=net_profit)\n- SQL: SELECT SUM(vi.[Credi",
+        "textLen":  555,
+        "id":  "q13"
+    },
+    {
+        "ok":  true,
+        "preview":  "بسیار خب، برای اینکه بتوانم مقایسه دقیقی انجام دهم، لطفاً بفرمایید **چه چیزهایی را می‌خواهید با هم مقایسه کنم؟**\n\nمثلاً:\n*   دو محصول مختلف؟ (مثل آیفون و سامسونگ، یا دو مدل لپ‌تاپ)\n*   دو ایده یا مفهو",
+        "textLen":  527,
+        "id":  "q14"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nحقوق و دستمزد پرداختی سال 1402: 6,421,115,994\n\n### Findings\n- مسیر پاسخ: engine\n- حقوق و دستمزد پرداختی: 6,421,115,994\n\n### Evidence\n- منبع داده: Financial Engine (metricId=payroll)\n- SQL:",
+        "textLen":  576,
+        "id":  "q15"
+    },
+    {
+        "ok":  true,
+        "preview":  "استهلاک ماشین‌آلات برای سال ۱۴۰۲ (و هر سال دیگری) یک عدد ثابت و مشخص نیست، بلکه به عوامل مختلفی بستگی دارد. برای محاسبه استهلاک، شما به",
+        "textLen":  135,
+        "id":  "q16"
+    },
+    {
+        "ok":  true,
+        "preview":  "نرخ بازده سرمایه‌گذاری در سال 1402 (از فروردین 1402 تا اسفند 1402) به شدت به نوع دارایی",
+        "textLen":  87,
+        "id":  "q17"
+    },
+    {
+        "ok":  true,
+        "preview":  "برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.",
+        "textLen":  121,
+        "id":  "q18"
+    },
+    {
+        "ok":  true,
+        "preview":  "### Summary\nمانده حساب: رکوردی یافت نشد.\n\n### Findings\n- مسیر پاسخ: engine\n- مانده حساب: رکوردی ثبت نشده است.\n- موجودیت: علی رضایی\n\n### Evidence\n- منبع داده: Financial Engine (metricId=account_balance",
+        "textLen":  584,
+        "id":  "q19"
+    },
+    {
+        "ok":  true,
+        "preview":  "برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.",
+        "textLen":  121,
+        "id":  "q20"
+    }
+]

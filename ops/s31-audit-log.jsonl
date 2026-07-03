@@ -1,0 +1,99 @@
+{"timestamp":"2026-07-02T16:26:56.500Z","requestId":"ssh-1783009616495","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:27:07.712Z","requestId":"ssh-1783009616495","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=account_turnover verdict=ok"}
+{"timestamp":"2026-07-02T16:27:12.786Z","requestId":"ssh-1783009632783","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:27:17.016Z","requestId":"ssh-1783009632783","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-no-result: execution-error"}
+{"timestamp":"2026-07-02T16:27:17.016Z","requestId":"ssh-1783009632783","conversationId":"field-test-s22","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T16:27:22.069Z","requestId":"ssh-1783009642069","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:27:26.467Z","requestId":"ssh-1783009642069","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=net_sales verdict=ok"}
+{"timestamp":"2026-07-02T16:27:31.490Z","requestId":"ssh-1783009651490","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:27:31.561Z","requestId":"ssh-1783009651490","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=cash_bank_balance verdict=ok"}
+{"timestamp":"2026-07-02T16:27:36.574Z","requestId":"ssh-1783009656574","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:27:36.833Z","requestId":"ssh-1783009656574","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=trial_balance verdict=ok"}
+{"timestamp":"2026-07-02T16:27:41.860Z","requestId":"ssh-1783009661860","conversationId":"field-test-s22","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T16:27:52.672Z","requestId":"ssh-1783009672672","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:28:00.186Z","requestId":"ssh-1783009672672","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=account_turnover verdict=ok"}
+{"timestamp":"2026-07-02T16:28:05.214Z","requestId":"ssh-1783009685214","conversationId":"field-test-s22","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T16:28:10.121Z","requestId":"ssh-1783009685214","conversationId":"field-test-s22","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-02T18:33:54.023Z","requestId":"ssh-1783017234020","conversationId":"field-test-26","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T18:34:00.358Z","requestId":"ssh-1783017234020","conversationId":"field-test-26","stage":"engine-mode","prompt":"engine-served: metricId=net_sales verdict=ok"}
+{"timestamp":"2026-07-02T18:34:02.439Z","requestId":"ssh-1783017242437","conversationId":"field-test-26","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T18:34:02.788Z","requestId":"ssh-1783017242437","conversationId":"field-test-26","stage":"engine-mode","prompt":"engine-served: metricId=trial_balance verdict=ok"}
+{"timestamp":"2026-07-02T18:34:04.838Z","requestId":"ssh-1783017244838","conversationId":"field-test-26","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T18:34:12.606Z","requestId":"ssh-1783017252606","conversationId":"field-test-26","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T18:34:12.874Z","requestId":"ssh-1783017252606","conversationId":"field-test-26","stage":"engine-mode","prompt":"engine-served: metricId=total_expenses verdict=ok"}
+{"timestamp":"2026-07-02T18:34:14.888Z","requestId":"ssh-1783017254887","conversationId":"field-test-26","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T18:34:21.576Z","requestId":"ssh-1783017261576","conversationId":"field-test-26","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T18:34:30.988Z","requestId":"ssh-1783017261576","conversationId":"field-test-26","stage":"engine-mode","prompt":"engine-served: metricId=account_balance verdict=ok"}
+{"timestamp":"2026-07-02T18:34:33.009Z","requestId":"ssh-1783017273008","conversationId":"field-test-26","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T18:34:42.726Z","requestId":"ssh-1783017282726","conversationId":"field-test-26","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T18:34:48.056Z","requestId":"ssh-1783017288056","conversationId":"field-test-26","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T18:34:55.192Z","requestId":"ssh-1783017295192","conversationId":"field-test-26","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T18:35:01.202Z","requestId":"ssh-1783017295192","conversationId":"field-test-26","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-02T22:20:59.183Z","requestId":"ssh-1783030859177","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:05.950Z","requestId":"ssh-1783030859177","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-served: metricId=net_sales verdict=ok"}
+{"timestamp":"2026-07-02T22:21:11.011Z","requestId":"ssh-1783030871009","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:11.088Z","requestId":"ssh-1783030871009","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-served: metricId=cash_bank_balance verdict=ok"}
+{"timestamp":"2026-07-02T22:21:16.140Z","requestId":"ssh-1783030876140","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:16.393Z","requestId":"ssh-1783030876140","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-served: metricId=trial_balance verdict=ok"}
+{"timestamp":"2026-07-02T22:21:21.416Z","requestId":"ssh-1783030881416","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:28.606Z","requestId":"ssh-1783030881416","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-served: metricId=receivables verdict=ok"}
+{"timestamp":"2026-07-02T22:21:33.623Z","requestId":"ssh-1783030893623","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:40.592Z","requestId":"ssh-1783030893623","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-served: metricId=payables verdict=ok"}
+{"timestamp":"2026-07-02T22:21:45.612Z","requestId":"ssh-1783030905612","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:45.702Z","requestId":"ssh-1783030905612","conversationId":"field-test-s28","stage":"engine-mode","prompt":"intent-mismatch: intent mismatch: prompt contains exclusive signal 'فروش' of a different metric"}
+{"timestamp":"2026-07-02T22:21:45.703Z","requestId":"ssh-1783030905612","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:21:50.722Z","requestId":"ssh-1783030910722","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:21:58.966Z","requestId":"ssh-1783030910722","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-no-result: execution-error"}
+{"timestamp":"2026-07-02T22:21:58.966Z","requestId":"ssh-1783030910722","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:22:03.989Z","requestId":"ssh-1783030923989","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:22:12.611Z","requestId":"ssh-1783030923989","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-no-result: execution-error"}
+{"timestamp":"2026-07-02T22:22:12.612Z","requestId":"ssh-1783030923989","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:22:17.624Z","requestId":"ssh-1783030937624","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:22:21.293Z","requestId":"ssh-1783030937624","conversationId":"field-test-s28","stage":"engine-mode","prompt":"intent-mismatch: intent mismatch: prompt routed to total_expenses but plan is payroll"}
+{"timestamp":"2026-07-02T22:22:21.294Z","requestId":"ssh-1783030937624","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:22:26.307Z","requestId":"ssh-1783030946307","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:22:37.546Z","requestId":"ssh-1783030946307","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-02T22:22:37.546Z","requestId":"ssh-1783030946307","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:22:42.564Z","requestId":"ssh-1783030962564","conversationId":"field-test-s28","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-02T22:22:53.459Z","requestId":"ssh-1783030973459","conversationId":"field-test-s28","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-02T22:22:59.370Z","requestId":"ssh-1783030973459","conversationId":"field-test-s28","stage":"engine-mode","prompt":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-02T22:22:59.370Z","requestId":"ssh-1783030973459","conversationId":"field-test-s28","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-02T22:23:04.387Z","requestId":"ssh-1783030984387","conversationId":"field-test-s28","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:12:05.049Z","requestId":"s31-q1-20260703194205","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:11.368Z","requestId":"s31-q1-20260703194205","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_sales verdict=ok"}
+{"timestamp":"2026-07-03T16:12:13.434Z","requestId":"s31-q2-20260703194213","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:24.645Z","requestId":"s31-q2-20260703194213","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=balance_sheet verdict=ok"}
+{"timestamp":"2026-07-03T16:12:26.671Z","requestId":"s31-q3-20260703194226","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:30.930Z","requestId":"s31-q3-20260703194226","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-03T16:12:32.956Z","requestId":"s31-q4-20260703194232","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:37.355Z","requestId":"s31-q4-20260703194232","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=cash_bank_balance verdict=ok"}
+{"timestamp":"2026-07-03T16:12:39.376Z","requestId":"s31-q5-20260703194239","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:41.492Z","requestId":"s31-q5-20260703194239","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payroll verdict=ok"}
+{"timestamp":"2026-07-03T16:12:43.511Z","requestId":"s31-q6-20260703194243","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:48.496Z","requestId":"s31-q6-20260703194243","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=receivables verdict=ok"}
+{"timestamp":"2026-07-03T16:12:50.522Z","requestId":"s31-q7-20260703194250","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:12:54.990Z","requestId":"s31-q7-20260703194250","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payables verdict=ok"}
+{"timestamp":"2026-07-03T16:12:57.009Z","requestId":"s31-q8-20260703194257","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:13:04.787Z","requestId":"s31-q9-20260703194304","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:13:12.272Z","requestId":"s31-q10-20260703194312","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:13:16.424Z","requestId":"s31-q10-20260703194312","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T16:13:16.424Z","requestId":"s31-q10-20260703194312","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-03T16:13:18.451Z","requestId":"s31-q11-20260703194318","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:13:26.823Z","requestId":"s31-q11-20260703194318","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-no-result: clarify:{\"question\":\"آیا منظورتان فروش خالص بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T16:13:26.824Z","requestId":"s31-q11-20260703194318","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-03T16:13:28.838Z","requestId":"s31-q12-20260703194328","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:13:36.059Z","requestId":"s31-q13-20260703194336","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:13:39.040Z","requestId":"s31-q13-20260703194336","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=net_profit verdict=ok"}
+{"timestamp":"2026-07-03T16:13:41.070Z","requestId":"s31-q14-20260703194341","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:13:54.378Z","requestId":"s31-q15-20260703194354","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:13:59.676Z","requestId":"s31-q15-20260703194354","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=payroll verdict=ok"}
+{"timestamp":"2026-07-03T16:14:01.696Z","requestId":"s31-q16-20260703194401","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:14:09.234Z","requestId":"s31-q17-20260703194409","conversationId":"s31-field-test","stage":"text-guidance","prompt":"TEXT_ONLY_GUIDANCE"}
+{"timestamp":"2026-07-03T16:14:22.270Z","requestId":"s31-q18-20260703194422","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:14:29.487Z","requestId":"s31-q18-20260703194422","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-no-result: execution-error"}
+{"timestamp":"2026-07-03T16:14:29.488Z","requestId":"s31-q18-20260703194422","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}
+{"timestamp":"2026-07-03T16:14:31.509Z","requestId":"s31-q19-20260703194431","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:14:36.900Z","requestId":"s31-q19-20260703194431","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-served: metricId=account_balance verdict=ok"}
+{"timestamp":"2026-07-03T16:14:38.928Z","requestId":"s31-q20-20260703194438","conversationId":"s31-field-test","stage":"engine-mode","prompt":"ENGINE_ONLY_ENTRY"}
+{"timestamp":"2026-07-03T16:14:45.702Z","requestId":"s31-q20-20260703194438","conversationId":"s31-field-test","stage":"engine-mode","prompt":"engine-no-result: clarify:{\"question\":\"آیا منظورتان مانده نقد و بانک بود؟\",\"suggestions\":[]}"}
+{"timestamp":"2026-07-03T16:14:45.702Z","requestId":"s31-q20-20260703194438","conversationId":"s31-field-test","stage":"engine-refuse","prompt":"engine-no-result: explicit refusal (no legacy fallback)"}

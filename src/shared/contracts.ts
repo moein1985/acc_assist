@@ -606,6 +606,13 @@ export interface RendererTelemetryEvent {
   details?: Record<string, unknown>
 }
 
+/** S31.1: Categorized refusal reason for structured refusal logging */
+export type RefusalReason =
+  | 'no_metric'       // Planner couldn't find a matching metric
+  | 'empty_data'      // Metric found but query returned no data
+  | 'ambiguous'       // Multiple interpretations → clarify
+  | 'out_of_scope'    // Non-financial or unsupported query
+
 export type AuditLogStage =
   | 'start'
   | 'tool-start'
@@ -615,6 +622,8 @@ export type AuditLogStage =
   | 'error'
   | 'engine-mode'
   | 'engine-refuse'
+  | 'engine-clarify'
+  | 'investigator-exhausted'
   | 'text-guidance'
   | 'text-guidance-error'
   | 'discovery-scan'
@@ -645,6 +654,10 @@ export interface AuditLogViewerEntry {
   errorCategory?: string
   promptPreview?: string
   sqlQueryPreview?: string
+  /** S31.1: Categorized refusal reason */
+  refusalReason?: RefusalReason
+  /** S31.1: Normalized prompt pattern (PII-stripped) */
+  normalizedPrompt?: string
 }
 
 export interface AuditLogQueryResult {

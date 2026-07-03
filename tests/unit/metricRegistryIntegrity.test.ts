@@ -29,7 +29,7 @@ describe('S29.3: Metric Verification Registry Integrity', () => {
   it('no orphan records in registry (every registry entry exists in catalog)', () => {
     const catalogIds = new Set(catalog.map((m) => m.id))
     for (const entry of registry) {
-      ok(catalogIds.has(entry.metricId), `Registry entry "${entry.metricId}" has no matching catalog metric`)
+      ok(catalogIds.has(entry.metricId as never), `Registry entry "${entry.metricId}" has no matching catalog metric`)
     }
   })
 
