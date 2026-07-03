@@ -116,13 +116,13 @@ $queries = @(
   },
   @{
     Id    = 'account_balance'
-    Label = 'Account Balance — SUM(Debit-Credit) with Type NOT IN (3,4)'
-    Sql   = "SELECT SUM(vi.Debit - vi.Credit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId WHERE v.Type NOT IN (3, 4) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
+    Label = 'Account Balance (Cash 01%) — SUM(Debit-Credit) with Type NOT IN (3,4)'
+    Sql   = "SELECT SUM(vi.Debit - vi.Credit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Code LIKE '01%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
   },
   @{
     Id    = 'total_expenses'
-    Label = 'Total Expenses — SUM(Debit-Credit) code 05% with Type NOT IN (3,4)'
-    Sql   = "SELECT SUM(vi.Debit - vi.Credit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Code LIKE '05%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
+    Label = 'Total Expenses — SUM(Debit-Credit) code 61% with Type NOT IN (3,4)'
+    Sql   = "SELECT SUM(vi.Debit - vi.Credit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Code LIKE '61%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
   },
   @{
     Id    = 'cash_bank_balance'
@@ -131,8 +131,8 @@ $queries = @(
   },
   @{
     Id    = 'receivables'
-    Label = 'Receivables — SUM(Debit) with Type NOT IN (3,4)'
-    Sql   = "SELECT SUM(vi.Debit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId WHERE v.Type NOT IN (3, 4) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
+    Label = 'Receivables — SUM(Debit-Credit) accounts 12%/13% with Type NOT IN (3,4)'
+    Sql   = "SELECT SUM(vi.Debit - vi.Credit) AS Column1 FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND (a.Code LIKE '12%' OR a.Code LIKE '13%') AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'$FiscalYear')"
   }
 )
 

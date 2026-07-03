@@ -27,6 +27,7 @@
     "test:golden": "tsx scripts/ops/goldenPromptHarness.ts",
     "eval:metrics": "tsx scripts/ops/goldenMetricEval.ts",
     "eval:metrics:live": "tsx scripts/ops/goldenMetricEval.ts --live",
+    "verify:registry": "tsx scripts/ops/verify-metric-registry.ts",
     "shadow:report": "tsx scripts/ops/shadow-mismatch-report.ts",
     "engine:monitor": "tsx scripts/ops/engine-monitor.ts",
     "smoke:prompt-transport": "tsx scripts/ops/promptTransportSmoke.ts",
