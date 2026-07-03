@@ -41,10 +41,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$PlinkExe = 'C:\Program Files\PuTTY\plink.exe'
+
 # ── Helper: SSH command via plink ─────────────────────────────────────────────
 function Invoke-SshCommand {
   param([string]$Command)
-  $output = & plink -P $SshPort -ssh -batch -hostkey $HostKey -pw $SshPassword "$SshUser@$SshHost" $Command 2>&1
+  $output = & $PlinkExe -P $SshPort -ssh -batch -hostkey $HostKey -pw $SshPassword "$SshUser@$SshHost" $Command 2>&1
   return $output
 }
 

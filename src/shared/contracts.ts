@@ -455,6 +455,13 @@ export interface ResponseMetadata {
   /** S18.12 — Python output files (PNG/XLSX/PDF/HTML) for renderer display */
   pythonOutputFiles?: string[]
   pythonOutputType?: string
+  /** S30.15 — Accountant sign-off status for reconciliation/anomaly reports */
+  accountantSignoff?: {
+    status: 'pending' | 'reviewed' | 'approved' | 'rejected'
+    reviewerName?: string
+    timestamp?: string
+    notes?: string
+  }
 }
 
 export interface AgentSendMessageResult {

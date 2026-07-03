@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { AccountingConcept } from './schemaAdapter'
+import { AccountConcept } from './chartOfAccountsMapping'
 
 export type MetricId =
   | 'net_sales'
@@ -247,6 +248,8 @@ export interface MetricDefinition {
   havingClause?: string
   /** GROUP BY columns for aggregate-list metrics (used with havingClause) — S14.10 */
   groupByColumns?: string[]
+  /** S32.4: Account concept filter — resolved via ChartOfAccountsMapping instead of hardcoded SQL */
+  accountConceptFilter?: AccountConcept
 }
 
 export interface PlanFilter {

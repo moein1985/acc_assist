@@ -83,6 +83,8 @@ flowchart TB
 | ۲۳ | `FRE_ROADMAP_22_PHASE23_ANTI_HALLUCINATION.fa.md` | بستنِ راهِ توهم: رفع سوراخِ Verifier (intent alignment)، دروازهٔ fail-closed، گارد عددی Explainer، مارکر EVIDENCE_FIRST_ENGINE، بازتولید مستقل ground-truth، بنچ‌مارک عددی live | متوسط | متوسط |
 | ۲۵ | `FRE_ROADMAP_23_PHASE25_PARTY_TURNOVER.fa.md` | گردش طرف حساب: resolvePartyByName، party_turnover metric، multi-token entity matching، year-scoped party clarify | متوسط | متوسط |
 | ۲۶ | `FRE_ROADMAP_24_PHASE26_INVESTIGATOR_LOOP.fa.md` | حلقهٔ تحقیق‌گر: fallback هنگام عدم تطابق متریک — schema scan، heuristic mapping، probe loop (locate→enumerate→follow_fk)، clusterLedgers، multi-ledger clarify، budget bounded، read-only SQL، SchemaCache | متوسط–بزرگ | متوسط |
+| ۲۹ | `FRE_ROADMAP_29_PHASE29_GROUNDTRUTH_SWEEP.fa.md` | سوییپِ ground-truth: اوراکلِ مستقل برای همهٔ متریک‌های اسکالر، رجیستریِ تأیید، verify:registry | متوسط | متوسط |
+| ۳۰ | `FRE_ROADMAP_30_PHASE30_ACCOUNTANT_DEEP_VERIFICATION.fa.md` | تأییدِ عمیقِ ابزارهای حسابدار: تطبیق دو منبع (recursive CTE)، ناهنجاری (نمونه‌گیری)، تحلیل سنی (جمع سطل‌ها)، مالیات/چک، جریان وجوه نقد، بستهٔ پذیرشِ حسابدار | متوسط | متوسط |
 
 **ترتیب اجرا:** ۱ → ۲ → ۳ → ۴ → ... → ۱۳ → ۱۴ → ۱۵ → ۱۶ → ۱۷ → ۱۸ → ۱۹ → ۲۰ → ۲۱ → ۲۲ → ۲۳. هیچ فازی قبل از سبزشدنِ کاملِ فاز قبل (تست + typecheck + شواهد) شروع نشود.
 
@@ -252,16 +254,21 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۲۶ | ✅ کامل | حلقهٔ تحقیق‌گر: schema scan + heuristic mapping + probe loop + clusterLedgers + multi-ledger clarify + budget bounded + read-only SQL + SchemaCache — ۲۱ unit test، ۲۷۴ golden cases (100% سبز) |
 | ۲۷ | ✅ کامل | کشفِ کور: canonicalConceptMap، discoveryPipeline، conceptSource در net_sales، ۱۵ unit test روی دو fixture، audit stages |
 | ۲۸ | ✅ کامل | حقیقتِ تست و قفلِ cutover: ۳ تست fail رفع شد، eval:metrics:live ۲۷۸/۲۷۸ (diff=0)، field-test ۱۳/۱۳ PASS، CUTOVER_LOCKED + engineOnlyGate مارکرها |
+| ۲۹ | ✅ کامل | سوییپِ ground-truth: رجیستریِ تأیید، verify:registry، اوراکلِ مستقل برای متریک‌های اسکالر |
+| ۳۰ | ✅ کامل | تأییدِ عمیقِ حسابدار: ۶ اسکریپت probe، ۹ باگِ SQL اصلاح شد، recursive CTE، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff |
+| ۳۲ | 🔶 در حال انجام | کالیبراسیونِ per-deployment: chartOfAccountsMapping، accountConceptFilter، calibrate-deployment.ps1، اعتبارسنجیِ توازن |
 
-**آمار فعلی (فاز ۲۸ کامل):**
+**آمار فعلی (فاز ۳۲ در حال انجام):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
-- ۵۱۶ تست (۵۱۵ pass + ۱ skip) + ۲۶ integration test
+- ۵۳۹ تست (۵۳۸ pass + ۱ skip) + ۲۶ integration test
 - typecheck: ۰ خطا
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)
 - **engine تنها ورودی** — legacy کاملاً حذف شد (فاز ۲۴)
 - **CUTOVER_LOCKED** — قفلِ engine-only فعال (فاز ۲۸)
+- **فاز ۳۰:** ۹ باگِ SQL اصلاح شد، ۶ اسکریپت probe، بستهٔ پذیرشِ حسابدار، فیلد accountantSignoff
+- **فاز ۳۲:** chartOfAccountsMapping per-deployment، ۱۸ متریک به accountConceptFilter منتقل شد، calibrate-deployment.ps1 + validation، ۲۳ unit test
 
 **کارهای باقی‌مانده:**
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
@@ -277,4 +284,4 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **یک متریک در هر زمان:** هرگز چند متریک را هم‌زمان مهاجرت نده. vertical slice «فروش» اول.
 - **شاهدِ واقعی:** هیچ ادعای موفقیتی بدونِ خروجیِ تست یا خطِ audit.
 
-> **فاز ۲۸ کامل شد.** تمامِ سریِ اصلاح (فاز ۱-۲۸) به پایان رسید. قفلِ cutover فعال است. HEAD جلوتر از origin است — بدونِ تأییدِ کاربر push نکن.
+> **فاز ۳۲ در حال انجام است.** S32.1-S32.4 و S32.6-S32.7 کامل. S32.5 (UI)، S32.8 (per-deployment registry)، S32.9 (onboarding checklist) معوق. ۱۸ متریک به accountConceptFilter منتقل شد. ۲۷۴ golden cases 100% سبز.

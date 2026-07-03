@@ -10,6 +10,8 @@
 import type { CompiledQuery, MetricDefinition, MetricPlan, Grain, MetricSource, AggregateKind, DimensionBinding, MetricFilter, ConceptSource, ConceptAggregateKind, ConceptDimensionBinding, ConceptFilter } from './types'
 import type { SchemaAdapter } from './schemaAdapter'
 import { AccountingConcept } from './schemaAdapter'
+import type { ChartOfAccountsMapping } from './chartOfAccountsMapping'
+import { resolveAccountFilter } from './chartOfAccountsMapping'
 
 export interface CompilerDeps {
   quoteSqlTableRef: (ref: string) => string
@@ -17,6 +19,8 @@ export interface CompilerDeps {
   normalizePersianText: (input: string) => string
   /** Schema adapter for concept-based resolution (S15.16) */
   adapter?: SchemaAdapter
+  /** S32.4: Per-deployment chart of accounts mapping for account concept filters */
+  chartOfAccountsMapping?: ChartOfAccountsMapping
 }
 
 function buildMeasureExpr(
@@ -166,6 +170,18 @@ function buildWhereClauses(
 
   for (const filter of definition.mandatoryFilters) {
     where.push(filter.sql)
+  }
+
+  // S32.4: Resolve account concept filter via ChartOfAccountsMapping
+  if (definition.accountConceptFilter) {
+    const accountFilter = resolveAccountFilter(
+      deps.chartOfAccountsMapping,
+      definition.accountConceptFilter,
+      'a'
+    )
+    if (accountFilter) {
+      where.push(accountFilter)
+    }
   }
 
   // S14.4: Apply date range filter if present
