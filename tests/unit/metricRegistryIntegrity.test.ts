@@ -9,7 +9,7 @@ import { getMetricCatalog } from '../../src/main/services/financialEngine/metric
 interface RegistryEntry {
   metricId: string
   tier: 'T1' | 'T2' | 'T3'
-  status: 'verified' | 'unverified' | 'not_applicable' | 'needs_accountant_review'
+  status: 'verified' | 'oracle_only' | 'unverified' | 'not_applicable' | 'needs_accountant_review'
 }
 
 describe('S29.3: Metric Verification Registry Integrity', () => {
@@ -48,7 +48,7 @@ describe('S29.3: Metric Verification Registry Integrity', () => {
   it('every entry has a valid status', () => {
     for (const entry of registry) {
       ok(
-        ['verified', 'unverified', 'not_applicable', 'needs_accountant_review'].includes(entry.status),
+        ['verified', 'oracle_only', 'unverified', 'not_applicable', 'needs_accountant_review'].includes(entry.status),
         `Invalid status "${entry.status}" for metric "${entry.metricId}"`,
       )
     }

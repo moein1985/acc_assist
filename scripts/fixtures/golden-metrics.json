@@ -39,8 +39,7 @@
       "expectedMetricId": "purchases",
       "expectedGrain": "total",
       "expectedValue": 226110419451,
-      "tolerance": 0,
-      "skipOnLive": true
+      "tolerance": 0
     },
     {
       "id": "golden-purchases-1402-b",
@@ -48,8 +47,7 @@
       "expectedMetricId": "purchases",
       "expectedGrain": "total",
       "expectedValue": 226110419451,
-      "tolerance": 0,
-      "skipOnLive": true
+      "tolerance": 0
     },
     {
       "id": "golden-purchases-1402-c",
@@ -57,8 +55,7 @@
       "expectedMetricId": "purchases",
       "expectedGrain": "total",
       "expectedValue": 226110419451,
-      "tolerance": 0,
-      "skipOnLive": true
+      "tolerance": 0
     },
     {
       "id": "golden-account-balance-1402-a",
@@ -317,8 +314,7 @@
       "expectedMetricId": "purchases",
       "expectedGrain": "total",
       "expect": "any_number",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 1
     },
     {
       "id": "s11-trial-balance-1403",
@@ -380,8 +376,7 @@
       "expectedMetricId": "purchases",
       "expectedGrain": "total",
       "expect": "any_number",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 1
     },
     {
       "id": "s11-compare-trial-1402-1403",
@@ -607,8 +602,7 @@
       "prompt": "روند خرید ۱۴۰۲",
       "expect": "any_number",
       "expectedMetricId": "purchases",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 1
     },
     {
       "id": "s11-conversational-sales-this-year",
@@ -623,8 +617,7 @@
       "prompt": "چقدر خرید کردیم؟",
       "expect": "any_number",
       "expectedMetricId": "purchases",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 1
     },
     {
       "id": "s11-conversational-receivables",
@@ -934,17 +927,15 @@
       "expectedMetricId": "tax_paid",
       "expectedGrain": "total",
       "expect": "any_number",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 1
     },
     {
       "id": "s13-tax-collected-1402",
       "prompt": "مالیات دریافتی سال ۱۴۰۲",
       "expectedMetricId": "tax_collected",
       "expectedGrain": "total",
-      "expect": "any_number",
-      "expectedValue": 1,
-      "skipOnLive": true
+      "expectedValue": 2029051751,
+      "tolerance": 0
     },
     {
       "id": "s13-net-profit-1402",

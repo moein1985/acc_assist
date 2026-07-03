@@ -16,16 +16,16 @@
   {
     "metricId": "purchases",
     "tier": "T1",
-    "status": "verified",
-    "expectedValue": 0,
+    "status": "oracle_only",
+    "expectedValue": 226110419451,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT ISNULL(SUM(NetPriceInBaseCurrency), 0) FROM POM.PurchaseInvoice WHERE FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
-    "engineRequestId": "sweep-2026-07-03",
-    "diff": 0,
+    "oracleSql": "SELECT ISNULL(SUM(TotalPrice), 0) FROM INV.InventoryReceipt WHERE IsReturn = 0 AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
+    "engineRequestId": "",
+    "diff": null,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "POM.PurchaseInvoice table empty on live DB — oracle=0, engine skipOnLive=true (golden offline=226110419451)"
+    "notes": "S33.4: Fixed oracle from POM.PurchaseInvoice (empty, 0 rows) to INV.InventoryReceipt (IsReturn=0). Expected=226,110,419,451. Needs live engine pass for verified."
   },
   {
     "metricId": "account_balance",
@@ -72,7 +72,7 @@
   {
     "metricId": "sales_count",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 202,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM SLS.Invoice WHERE FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -81,12 +81,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "COUNT(*) SLS.Invoice for year 1402 = 202 invoices"
+    "notes": "COUNT(*) SLS.Invoice for year 1402 = 202 invoices | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "fiscal_year_count",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(*) FROM FMK.FiscalYear",
@@ -95,12 +95,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "11 fiscal years in FMK.FiscalYear"
+    "notes": "11 fiscal years in FMK.FiscalYear | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "fiscal_year_list",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(*) FROM FMK.FiscalYear (list proxy: count=11)",
@@ -109,7 +109,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "List metric — verified via count proxy (11 years). Row-level content needs accountant review — Phase 30"
+    "notes": "List metric — verified via count proxy (11 years). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "party_balance",
@@ -170,7 +170,7 @@
   {
     "metricId": "sales_by_period",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 12,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(DISTINCT MONTH(src.Date)) FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (period count proxy)",
@@ -179,7 +179,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via period count proxy (12 months). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via period count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "account_turnover",
@@ -198,7 +198,7 @@
   {
     "metricId": "recent_documents",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 3115,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (count proxy)",
@@ -207,7 +207,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "balance_sheet",
@@ -240,7 +240,7 @@
   {
     "metricId": "total_assets",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 127824355876,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('11','12'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -249,12 +249,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle EXISTS hierarchy (Code IN 11/12 under Type=1), matches engine ParentAccountRef approach. diff=0 vs golden-metrics.json"
+    "notes": "Oracle EXISTS hierarchy (Code IN 11/12 under Type=1), matches engine ParentAccountRef approach. diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "total_liabilities",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": -23079836748,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('21','22'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -263,12 +263,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle EXISTS hierarchy (Code IN 21/22 under Type=1), matches engine. diff=0 vs golden-metrics.json"
+    "notes": "Oracle EXISTS hierarchy (Code IN 21/22 under Type=1), matches engine. diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "total_equity",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": -83844848623,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '31')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -277,12 +277,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle EXISTS hierarchy (Code=31 under Type=1), matches engine. diff=0 vs golden-metrics.json"
+    "notes": "Oracle EXISTS hierarchy (Code=31 under Type=1), matches engine. diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "total_revenue",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": -86620490903,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '41')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -291,12 +291,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle EXISTS hierarchy (Code=41 under Type=1), Debit-Credit (negative=revenue credit balance). diff=0 vs golden-metrics.json"
+    "notes": "Oracle EXISTS hierarchy (Code=41 under Type=1), Debit-Credit (negative=revenue credit balance). diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "total_expenses",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11028549876,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '61')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -305,12 +305,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle EXISTS hierarchy (Code=61 under Type=1), Debit-Credit. diff=0 vs golden-metrics.json"
+    "notes": "Oracle EXISTS hierarchy (Code=61 under Type=1), Debit-Credit. diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "cogs",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11028549876,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '61')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -319,12 +319,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Same EXISTS hierarchy as total_expenses (Code=61). Oracle=11,028,549,876"
+    "notes": "Same EXISTS hierarchy as total_expenses (Code=61). Oracle=11,028,549,876 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "payroll",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 190,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Title LIKE N'%حقوق%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (row count proxy)",
@@ -333,40 +333,40 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "190 voucher items with Title LIKE '%حقوق%' in year 1402. Module has data"
+    "notes": "190 voucher items with Title LIKE '%حقوق%' in year 1402. Module has data | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "tax_paid",
     "tier": "T2",
-    "status": "verified",
-    "expectedValue": 0,
+    "status": "needs_accountant_review",
+    "expectedValue": null,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT ISNULL(SUM(vi.Debit - vi.Credit), 0) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Title LIKE N'%مالیات%' AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('11','12'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
-    "engineRequestId": "sweep-2026-07-03",
-    "diff": 0,
+    "oracleSql": "SELECT ISNULL(SUM(TaxInBaseCurrency), 0) FROM INV.InventoryReceipt WHERE IsReturn = 0 AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
+    "engineRequestId": "",
+    "diff": null,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle returned NULL (no matching accounts with Title LIKE '%مالیات%' under assets). ISNULL→0"
+    "notes": "S33.7: Title LIKE %مالیات% returned 0 (no matching accounts). Changed to column-based source: SUM(TaxInBaseCurrency) from INV.InventoryReceipt (purchase-side tax). Needs accountant review to confirm this is the correct source for input VAT."
   },
   {
     "metricId": "tax_collected",
     "tier": "T2",
-    "status": "verified",
-    "expectedValue": 0,
+    "status": "oracle_only",
+    "expectedValue": 2029051751,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT ISNULL(SUM(vi.Credit - vi.Debit), 0) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Title LIKE N'%مالیات%' AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('21','22'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
-    "engineRequestId": "sweep-2026-07-03",
-    "diff": 0,
+    "oracleSql": "SELECT ISNULL(SUM(TaxInBaseCurrency), 0) FROM SLS.Invoice WHERE FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
+    "engineRequestId": "",
+    "diff": null,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle returned NULL (no matching accounts with Title LIKE '%مالیات%' under liabilities). ISNULL→0"
+    "notes": "S33.7: Title LIKE %مالیات% returned 0. Changed to column-based: SUM(TaxInBaseCurrency) from SLS.Invoice = 2,029,051,751 (same as vat_liability). Needs live engine pass for verified."
   },
   {
     "metricId": "net_profit",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 71828156969,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Credit - vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('41','61','62'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -375,12 +375,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Oracle Credit-Debit (revenue minus expense), EXISTS hierarchy (Code IN 41/61/62). diff=0 vs golden-metrics.json"
+    "notes": "Oracle Credit-Debit (revenue minus expense), EXISTS hierarchy (Code IN 41/61/62). diff=0 vs golden-metrics.json | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "inventory_value",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 94190,
     "fiscalYear": null,
     "oracleSql": "SELECT ISNULL(SUM(Quantity), 0) FROM INV.vwItemStockSummary",
@@ -389,12 +389,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "SUM(Quantity) from INV.vwItemStockSummary = 94,190 units"
+    "notes": "SUM(Quantity) from INV.vwItemStockSummary = 94,190 units | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "inventory_turnover",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 463956,
     "fiscalYear": null,
     "oracleSql": "SELECT ISNULL(SUM(OutputQuantity), 0) FROM INV.vwItemStockSummary",
@@ -403,12 +403,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "SUM(OutputQuantity) = 463,956.5 from INV.vwItemStockSummary. Module has data"
+    "notes": "SUM(OutputQuantity) = 463,956.5 from INV.vwItemStockSummary. Module has data | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "low_stock_items",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 4538,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(*) FROM INV.vwItemStockSummary WHERE Quantity <= 0",
@@ -417,7 +417,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "4538 items with Quantity <= 0 in INV.vwItemStockSummary. Module has data"
+    "notes": "4538 items with Quantity <= 0 in INV.vwItemStockSummary. Module has data | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "cost_center_summary",
@@ -520,7 +520,7 @@
   {
     "metricId": "vouchers_by_date",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 3115,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (count proxy)",
@@ -529,12 +529,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "vouchers_by_type",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 3,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(DISTINCT v.Type) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (type count proxy)",
@@ -543,12 +543,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via distinct type count proxy (3 types). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via distinct type count proxy (3 types). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "unbalanced_vouchers",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(*) FROM (SELECT vi.VoucherRef, SUM(vi.Debit) AS D, SUM(vi.Credit) AS C FROM ACC.VoucherItem vi GROUP BY vi.VoucherRef HAVING ABS(SUM(vi.Debit) - SUM(vi.Credit)) > 0.01) t",
@@ -557,12 +557,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 unbalanced vouchers — all debit/credit sums match"
+    "notes": "0 unbalanced vouchers — all debit/credit sums match | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "zero_amount_invoices",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM SLS.Invoice WHERE ISNULL(NetPriceInBaseCurrency, 0) = 0 AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -571,12 +571,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 zero-amount invoices in year 1402"
+    "notes": "0 zero-amount invoices in year 1402 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "duplicate_vouchers",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 3481,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(*) FROM (SELECT Number, COUNT(*) AS cnt FROM ACC.Voucher WHERE Type NOT IN (3, 4) GROUP BY Number HAVING COUNT(*) > 1) t",
@@ -585,12 +585,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "3481 duplicate voucher numbers (by Number column, excluding closing/opening). Expected — Sepidar reuses numbers across fiscal years"
+    "notes": "3481 duplicate voucher numbers (by Number column, excluding closing/opening). Expected — Sepidar reuses numbers across fiscal years | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "vouchers_without_account",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId WHERE v.Type NOT IN (3, 4) AND vi.AccountSLRef IS NULL AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -599,7 +599,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 voucher items without account reference in year 1402"
+    "notes": "0 voucher items without account reference in year 1402 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "receivables_aging",
@@ -646,7 +646,7 @@
   {
     "metricId": "tax_monthly_summary",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 12,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(DISTINCT MONTH(src.Date)) FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (month count proxy)",
@@ -655,12 +655,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via month count proxy (12 months). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via month count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "invoices_without_tax",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 136,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM SLS.Invoice WHERE (ISNULL(TaxInBaseCurrency, 0) = 0) AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -669,12 +669,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "136 invoices without tax in year 1402"
+    "notes": "136 invoices without tax in year 1402 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "vat_liability",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 2029051751,
     "fiscalYear": "1402",
     "oracleSql": "SELECT ISNULL(SUM(TaxInBaseCurrency), 0) FROM SLS.Invoice WHERE FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -683,12 +683,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "SUM(TaxInBaseCurrency) from SLS.Invoice for year 1402 = 2,029,051,751"
+    "notes": "SUM(TaxInBaseCurrency) from SLS.Invoice for year 1402 = 2,029,051,751 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "checks_due",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 1173,
     "fiscalYear": null,
     "oracleSql": "SELECT (SELECT COUNT(*) FROM RPA.ReceiptCheque WHERE State = 1) + (SELECT COUNT(*) FROM RPA.PaymentCheque WHERE State = 1)",
@@ -697,12 +697,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "1173 checks in State=1 (in-progress) across ReceiptCheque + PaymentCheque. Row-level list needs accountant review — Phase 30"
+    "notes": "1173 checks in State=1 (in-progress) across ReceiptCheque + PaymentCheque. Row-level list needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "checks_bounced",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": null,
     "oracleSql": "SELECT (SELECT COUNT(*) FROM RPA.ReceiptCheque WHERE State = 3) + (SELECT COUNT(*) FROM RPA.PaymentCheque WHERE State = 3)",
@@ -711,12 +711,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 bounced checks (State=3) across ReceiptCheque + PaymentCheque"
+    "notes": "0 bounced checks (State=3) across ReceiptCheque + PaymentCheque | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "checks_summary",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 2135,
     "fiscalYear": null,
     "oracleSql": "SELECT (SELECT COUNT(*) FROM RPA.ReceiptCheque) + (SELECT COUNT(*) FROM RPA.PaymentCheque)",
@@ -725,12 +725,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "2135 total checks across ReceiptCheque + PaymentCheque. Row-level list needs accountant review — Phase 30"
+    "notes": "2135 total checks across ReceiptCheque + PaymentCheque. Row-level list needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "closing_status",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 2,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.Voucher WHERE Type IN (3, 4) AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -739,12 +739,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "2 closing/opening vouchers (Type IN 3,4) in year 1402"
+    "notes": "2 closing/opening vouchers (Type IN 3,4) in year 1402 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "trial_balance_check",
     "tier": "T1",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": "1402",
     "oracleSql": "SELECT SUM(vi.Debit) - SUM(vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId WHERE v.Type NOT IN (3, 4) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -753,12 +753,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "SUM(Debit)-SUM(Credit)=0 means trial balance is balanced. Oracle uses same Type NOT IN(3,4) filter. Row-based metric, scalar check=0"
+    "notes": "SUM(Debit)-SUM(Credit)=0 means trial balance is balanced. Oracle uses same Type NOT IN(3,4) filter. Row-based metric, scalar check=0 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "period_comparison",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(DISTINCT FiscalYearRef) FROM ACC.Voucher WHERE Type NOT IN (3, 4) (year count proxy)",
@@ -767,7 +767,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via year count proxy (11 fiscal years with voucher data). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via year count proxy (11 fiscal years with voucher data). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "sales_reconciliation",
@@ -842,7 +842,7 @@
   {
     "metricId": "trend_analysis",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 11,
     "fiscalYear": null,
     "oracleSql": "SELECT COUNT(DISTINCT FiscalYearRef) FROM ACC.Voucher WHERE Type NOT IN (3, 4) (year count proxy)",
@@ -851,12 +851,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "11 fiscal years with voucher data. Multi-year trend metric — verified via year count proxy. Row-level content needs accountant review — Phase 30"
+    "notes": "11 fiscal years with voucher data. Multi-year trend metric — verified via year count proxy. Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "fixed_assets_register",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Code LIKE '0106%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -865,12 +865,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 voucher items with Code LIKE '0106%' (fixed assets) in 1402. Module exists but no fixed asset transactions this year"
+    "notes": "0 voucher items with Code LIKE '0106%' (fixed assets) in 1402. Module exists but no fixed asset transactions this year | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "depreciation_summary",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 0,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Title LIKE N'%استهلاک%' AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -879,7 +879,7 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "0 voucher items with Title LIKE '%استهلاک%' (depreciation) in 1402. No depreciation entries this year"
+    "notes": "0 voucher items with Title LIKE '%استهلاک%' (depreciation) in 1402. No depreciation entries this year | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "cost_center_detailed",
@@ -898,7 +898,7 @@
   {
     "metricId": "cogs_detailed",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 1228,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '61')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (row count proxy)",
@@ -907,12 +907,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via row count proxy (1228 voucher items under Code=61). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via row count proxy (1228 voucher items under Code=61). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "bank_reconciliation",
     "tier": "T3",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 7393606464,
     "fiscalYear": null,
     "oracleSql": "SELECT ISNULL(SUM(Balance), 0) FROM RPA.BankAccountBalance",
@@ -921,12 +921,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "SUM(Balance) from RPA.BankAccountBalance = 7,393,606,464. Module has data"
+    "notes": "SUM(Balance) from RPA.BankAccountBalance = 7,393,606,464. Module has data | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "vat_detailed",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 66,
     "fiscalYear": "1402",
     "oracleSql": "SELECT COUNT(*) FROM SLS.Invoice WHERE ISNULL(TaxInBaseCurrency, 0) > 0 AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (row count proxy)",
@@ -935,12 +935,12 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via row count proxy (66 invoices with tax). Row-level content needs accountant review — Phase 30"
+    "notes": "Row-based metric — verified via row count proxy (66 invoices with tax). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "tax_liability_summary",
     "tier": "T2",
-    "status": "verified",
+    "status": "oracle_only",
     "expectedValue": 2029051751,
     "fiscalYear": "1402",
     "oracleSql": "SELECT ISNULL(SUM(TaxInBaseCurrency), 0) - ISNULL((SELECT SUM(vi.Debit - vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND a.Title LIKE N'%مالیات%' AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code IN ('11','12'))) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')), 0) FROM SLS.Invoice WHERE FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402')",
@@ -949,6 +949,6 @@
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Output VAT (2,029,051,751) - Input VAT (0) = 2,029,051,751. Tax_paid accounts returned NULL (no matching accounts)"
+    "notes": "Output VAT (2,029,051,751) - Input VAT (0) = 2,029,051,751. Tax_paid accounts returned NULL (no matching accounts) | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   }
 ]

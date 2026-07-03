@@ -89,19 +89,13 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
-      primaryTable: 'POM.PurchaseInvoice',
-      alias: 'src',
-      fallbackTables: [
-        {
-          table: 'INV.InventoryReceipt',
-          alias: 'src',
-          measure: { kind: 'sum', column: 'TotalPrice' },
-          filters: [{ sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }]
-        }
-      ]
+      primaryTable: 'INV.InventoryReceipt',
+      alias: 'src'
     },
-    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
-    mandatoryFilters: [],
+    measure: { kind: 'sum', column: 'TotalPrice' },
+    mandatoryFilters: [
+      { sql: 'src.IsReturn = 0', description: 'حذف مرجوعی' }
+    ],
     dimensions: [],
     dateColumn: 'src.Date'
   },
@@ -964,22 +958,10 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
-      primaryTable: 'ACC.VoucherItem',
-      alias: 'vi',
-      requiredJoins: [
-        {
-          table: 'ACC.Voucher',
-          alias: 'v',
-          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
-        },
-        {
-          table: 'ACC.Account',
-          alias: 'a',
-          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
-        }
-      ]
+      primaryTable: 'INV.InventoryReceipt',
+      alias: 'ir'
     },
-    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -987,17 +969,16 @@ const catalog: MetricDefinition[] = [
           table: 'FMK.FiscalYear',
           alias: 'fy',
           on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
-          sourceAlias: 'v'
+          sourceAlias: 'ir'
         },
         labelColumn: 'Title',
         labelType: 'nstring'
       }
     ],
     mandatoryFilters: [
-      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }
+      { sql: 'ir.IsReturn = 0', description: 'حذف مرجوعی' }
     ],
-    accountConceptFilter: AccountConcept.tax_paid,
-    dateColumn: 'v.Date'
+    dateColumn: 'ir.Date'
   },
   {
     id: 'tax_collected',
@@ -1007,22 +988,10 @@ const catalog: MetricDefinition[] = [
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
-      primaryTable: 'ACC.VoucherItem',
-      alias: 'vi',
-      requiredJoins: [
-        {
-          table: 'ACC.Voucher',
-          alias: 'v',
-          on: { sourceColumn: 'VoucherRef', targetColumn: 'VoucherId' }
-        },
-        {
-          table: 'ACC.Account',
-          alias: 'a',
-          on: { sourceColumn: 'AccountSLRef', targetColumn: 'AccountId' }
-        }
-      ]
+      primaryTable: 'SLS.Invoice',
+      alias: 'inv'
     },
-    measure: { kind: 'debit_minus_credit', debitColumn: 'Credit', creditColumn: 'Debit' },
+    measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -1030,17 +999,14 @@ const catalog: MetricDefinition[] = [
           table: 'FMK.FiscalYear',
           alias: 'fy',
           on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
-          sourceAlias: 'v'
+          sourceAlias: 'inv'
         },
         labelColumn: 'Title',
         labelType: 'nstring'
       }
     ],
-    mandatoryFilters: [
-      { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }
-    ],
-    accountConceptFilter: AccountConcept.tax_collected,
-    dateColumn: 'v.Date'
+    mandatoryFilters: [],
+    dateColumn: 'inv.Date'
   },
   {
     id: 'net_profit',
