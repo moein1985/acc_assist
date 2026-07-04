@@ -156,3 +156,13 @@ integration tests: 26 tests, 26 pass, 0 fail
 ---
 
 > **پایانِ سریِ تأیید و پوشش.** پس از فاز ۳۲: هستهٔ قطعیِ ضدِّ توهم (سری اصلاح ۲۳–۲۸) + کاتالوگِ عددیِ اثبات‌شده + رشدِ داده‌محور + ایمنیِ per-client = یک دستیارِ مالیِ سپیدارِ «درست‌به‌ساخت» و آمادهٔ تولید.
+
+---
+
+## شاهدِ اجرای زنده (۱۴۰۴/۰۴/۱۴ — ۲۰۲۶-۰۷-۰۴)
+
+- **Build:** `npm run build:win` ✅
+- **Deploy:** NSIS silent install روی سرور 192.168.85.56 ✅
+- **Audit logِ کالیبراسیون:** `calibration-mapping` entries با `source=default, discoveryMethod=default, confidence=high, softwareId=sepidar, databaseName=Sepidar01` ✅ — کدِ S32.5 روی سرور فعال است.
+- **verify-deployment-live.ps1:** **۱۸/۱۸ MATCH** ✅ — همهٔ متریک‌ها با Oracle SQL هم‌ساز شدند.
+- **گزارش:** `ops/s33-dual-source-2026-07-04.json`

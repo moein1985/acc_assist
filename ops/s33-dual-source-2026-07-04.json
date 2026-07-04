@@ -1,7 +1,7 @@
 {
     "results":  [
                     {
-                        "requestId":  "ssh-1783180425844",
+                        "requestId":  "ssh-1783193395813",
                         "engineText":  "### Summary\nخرید: 226,110,419,451\n\n### Findings\n- مسیر پاسخ: engine\n- خرید: 226,110,419,451\n\n### Evidence\n- منبع داده: Financial Engine (metricId=purchases)\n- SQL: SELECT SUM(CAST(src.[TotalPrice] AS decimal(18,4))) AS result_value FROM [INV].[InventoryReceipt] src WHERE src.IsReturn = 0\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  226110419451,
                         "prompt":  "خرید سال ۱۴۰۲ چقدر است؟",
@@ -10,7 +10,7 @@
                         "metricId":  "purchases"
                     },
                     {
-                        "requestId":  "ssh-1783180433619",
+                        "requestId":  "ssh-1783193404104",
                         "engineText":  "### Summary\nتعداد فاکتور فروش سال 1402: 202\n\n### Findings\n- مسیر پاسخ: engine\n- تعداد فاکتور فروش: 202\n\n### Evidence\n- منبع داده: Financial Engine (metricId=sales_count)\n- SQL: SELECT COUNT(*) AS result_value FROM [SLS].[Invoice] src JOIN [FMK].[FiscalYear] fy ON src.[FiscalYearRef] = fy.[FiscalYearId] WHERE fy.Title = N\u00271402\u0027\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  202,
                         "prompt":  "تعداد فاکتور فروش سال ۱۴۰۲ چقدر است؟",
@@ -19,7 +19,7 @@
                         "metricId":  "sales_count"
                     },
                     {
-                        "requestId":  "ssh-1783180436789",
+                        "requestId":  "ssh-1783193407231",
                         "engineText":  "### Summary\nتعداد سال‌های مالی: 11\n\n### Findings\n- مسیر پاسخ: engine\n- تعداد سال‌های مالی: 11\n\n### Evidence\n- منبع داده: Financial Engine (metricId=fiscal_year_count)\n- SQL: SELECT COUNT(*) AS result_value FROM [FMK].[FiscalYear] fy\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  11,
                         "prompt":  "تعداد سال‌های مالی چقدر است؟",
@@ -28,7 +28,7 @@
                         "metricId":  "fiscal_year_count"
                     },
                     {
-                        "requestId":  "ssh-1783180439852",
+                        "requestId":  "ssh-1783193410293",
                         "engineText":  "### Summary\nفروش خالص سال 1402: 64,252,437,897\n\n### Findings\n- مسیر پاسخ: engine\n- فروش خالص: 64,252,437,897\n\n### Evidence\n- منبع داده: Financial Engine (metricId=net_sales)\n- SQL: SELECT SUM(CAST(src.[NetPriceInBaseCurrency] AS decimal(18,4))) AS result_value FROM [SLS].[Invoice] src JOIN [FMK].[FiscalYear] fy ON src.[FiscalYearRef] = fy.[FiscalYearId] WHERE fy.Title = N\u00271402\u0027\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  64252437897,
                         "prompt":  "درآمد فروش سال ۱۴۰۲ چقدر است؟",
@@ -37,7 +37,7 @@
                         "metricId":  "total_revenue"
                     },
                     {
-                        "requestId":  "ssh-1783180447663",
+                        "requestId":  "ssh-1783193420619",
                         "engineText":  "### Summary\nکل هزینه‌ها سال 1402: 11,028,549,876\n\n### Findings\n- مسیر پاسخ: engine\n- کل هزینه‌ها: 11,028,549,876\n\n### Evidence\n- منبع داده: Financial Engine (metricId=total_expenses)\n- SQL: SELECT SUM(vi.[Debit]) - SUM(vi.[Credit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  11028549876,
                         "prompt":  "هزینه‌های سال ۱۴۰۲ چقدر است؟",
@@ -46,7 +46,7 @@
                         "metricId":  "total_expenses"
                     },
                     {
-                        "requestId":  "ssh-1783180453343",
+                        "requestId":  "ssh-1783193427973",
                         "engineText":  "### Summary\nکل دارایی‌ها سال 1402: 127,824,355,876\n\n### Findings\n- مسیر پاسخ: engine\n- کل دارایی‌ها: 127,824,355,876\n\n### Evidence\n- منبع داده: Financial Engine (metricId=total_assets)\n- SQL: SELECT SUM(vi.[Debit]) - SUM(vi.[Credit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  127824355876,
                         "prompt":  "موجودی دارایی‌ها در سال ۱۴۰۲ چقدر است؟",
@@ -55,7 +55,7 @@
                         "metricId":  "total_assets"
                     },
                     {
-                        "requestId":  "ssh-1783180461189",
+                        "requestId":  "ssh-1783193437249",
                         "engineText":  "### Summary\nپرداختنی‌ها سال 1402: -26,058,866,504\n\n### Findings\n- مسیر پاسخ: engine\n- پرداختنی‌ها: -26,058,866,504\n\n### Evidence\n- منبع داده: Financial Engine (metricId=payables)\n- SQL: SELECT SUM(vi.[Debit]) - SUM(vi.[Credit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  26058866504,
                         "prompt":  "موجودی بدهی‌ها در سال ۱۴۰۲ چقدر است؟",
@@ -64,7 +64,7 @@
                         "metricId":  "total_liabilities"
                     },
                     {
-                        "requestId":  "ssh-1783180464422",
+                        "requestId":  "ssh-1783193440497",
                         "engineText":  "### Summary\nحقوق صاحبان سهام سال 1402: -83,844,848,623\n\n### Findings\n- مسیر پاسخ: engine\n- حقوق صاحبان سهام: -83,844,848,623\n\n### Evidence\n- منبع داده: Financial Engine (metricId=total_equity)\n- SQL: SELECT SUM(vi.[Debit]) - SUM(vi.[Credit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  83844848623,
                         "prompt":  "حقوق صاحبان سهام در سال ۱۴۰۲ چقدر است؟",
@@ -73,7 +73,7 @@
                         "metricId":  "total_equity"
                     },
                     {
-                        "requestId":  "ssh-1783180467631",
+                        "requestId":  "ssh-1783193443712",
                         "engineText":  "### Summary\nمالیات دریافتی سال 1402: 2,029,051,751\n\n### Findings\n- مسیر پاسخ: engine\n- مالیات دریافتی: 2,029,051,751\n\n### Evidence\n- منبع داده: Financial Engine (metricId=tax_collected)\n- SQL: SELECT SUM(CAST(inv.[TaxInBaseCurrency] AS decimal(18,4))) AS result_value FROM [SLS].[Invoice] inv JOIN [FMK].[FiscalYear] fy ON inv.[FiscalYearRef] = fy.[FiscalYearId] WHERE fy.Title = N\u00271402\u0027\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  2029051751,
                         "prompt":  "مالیات فروش سال ۱۴۰۲ چقدر است؟",
@@ -82,7 +82,7 @@
                         "metricId":  "tax_collected"
                     },
                     {
-                        "requestId":  "ssh-1783180476000",
+                        "requestId":  "ssh-1783193452552",
                         "engineText":  "### Summary\nسود خالص سال 1402: 71,828,156,969\n\n### Findings\n- مسیر پاسخ: engine\n- سود خالص: 71,828,156,969\n\n### Evidence\n- منبع داده: Financial Engine (metricId=net_profit)\n- SQL: SELECT SUM(vi.[Credit]) - SUM(vi.[Debit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  71828156969,
                         "prompt":  "سود خالص سال ۱۴۰۲ چقدر است؟",
@@ -91,7 +91,7 @@
                         "metricId":  "net_profit"
                     },
                     {
-                        "requestId":  "ssh-1783180483067",
+                        "requestId":  "ssh-1783193463465",
                         "engineText":  "### Summary\nتفکیک مالیات بر ارزش افزوده: 355,590,636,679\n\n### Findings\n- مسیر پاسخ: engine\n- تفکیک مالیات بر ارزش افزوده: 355,590,636,679\n\n### Evidence\n- منبع داده: Financial Engine (metricId=vat_detailed)\n- SQL: SELECT SUM(CAST(inv.[NetPriceInBaseCurrency] AS decimal(18,4))) AS result_value FROM [SLS].[Invoice] inv\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  355590636679,
                         "prompt":  "مالیات بر ارزش افزوده سال ۱۴۰۲ چقدر است؟",
@@ -100,7 +100,7 @@
                         "metricId":  "vat_liability"
                     },
                     {
-                        "requestId":  "ssh-1783180486136",
+                        "requestId":  "ssh-1783193466524",
                         "engineText":  "### Summary\nجریان نقد: 9,521,507,066\n\n### Findings\n- مسیر پاسخ: engine\n- جریان نقد: 9,521,507,066\n\n### Evidence\n- منبع داده: Financial Engine (metricId=cashflow)\n- SQL: SELECT SUM(CAST(cb.[Balance] AS decimal(18,4))) AS result_value FROM [RPA].[CashBalance] cb\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  9521507066,
                         "prompt":  "جریان نقد چقدر است؟",
@@ -109,7 +109,7 @@
                         "metricId":  "cashflow"
                     },
                     {
-                        "requestId":  "ssh-1783180492217",
+                        "requestId":  "ssh-1783193472411",
                         "engineText":  "### Summary\nبهای تمام‌شده کالای فروش‌رفته سال 1402: 11,028,549,876\n\n### Findings\n- مسیر پاسخ: engine\n- بهای تمام‌شده کالای فروش‌رفته: 11,028,549,876\n\n### Evidence\n- منبع داده: Financial Engine (metricId=cogs)\n- SQL: SELECT SUM(vi.[Debit]) - SUM(vi.[Credit]) AS result_value FROM [ACC].[VoucherItem] vi JOIN [ACC].[Voucher] v ON vi.[VoucherRef] = v.[VoucherId] JOIN [ACC].[Account] a ON vi.[AccountSLRef] = a.[AccountId] JOIN [FMK].[Fisc\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  11028549876,
                         "prompt":  "بهای تمام شده کالای فروش رفته ۱۴۰۲ چقدر است؟",
@@ -118,8 +118,8 @@
                         "metricId":  "cogs"
                     },
                     {
-                        "requestId":  "ssh-1783180495354",
-                        "engineText":  "**فهرست سال‌های مالی** (List of Fiscal Years) به سادگی یک لیست یا دنباله‌ای از دوره‌های مالی متوالی است که یک سازمان (شرکت، دولت، موسسه",
+                        "requestId":  "ssh-1783193475548",
+                        "engineText":  "**فهرست سال‌های مالی** (List of Fiscal Years) به مجموعه‌ای از دوره‌های حسابداری متوالی اشاره دارد که یک سازمان (اعم از شرکت، دولت، موسسه غیر",
                         "engineNum":  null,
                         "prompt":  "فهرست سال‌های مالی چیست؟",
                         "match":  true,
@@ -127,8 +127,8 @@
                         "metricId":  "fiscal_year_list"
                     },
                     {
-                        "requestId":  "ssh-1783180504031",
-                        "engineText":  "به عنوان یک مدل زبانی، من به پایگاه داده‌های واقعی یا سیستم‌های ثبت اسناد دسترسی ندارم تا بتوانم لیست آخرین ۱۰ سند ثبت شده را به شما ارائه دهم.\n\nبرای دریافت این اطلاعات، شما باید به **سیستم یا منبعی که اسناد در آن ثبت شده‌اند** مراجعه کنید. به عنوان مثال:\n\n*   **اگر منظور شما اسناد یک وب‌سایت خاص است:** باید به بخش \"اخبار\"، \"مقالات اخیر\" یا \"اسناد\" آن وب‌سایت بروید.\n*   **اگر منظور شما اسناد یک سامانه دولتی یا شرکتی است:** باید وارد آن سامانه شوید و بخش مربوط به \"آخرین اسناد\" یا \"تاریخچه\" را بررسی کنید.\n*   **اگر منظور شما اسناد عمومی در اینترنت است:** باید از موتورهای جستجو با کلمات کلیدی مناسب و فیلترهای زمانی استفاده کنید.\n\nلطفاً مشخص کنید که منظور شما",
+                        "requestId":  "ssh-1783193484805",
+                        "engineText":  "به عنوان یک هوش مصنوعی، من به پایگاه‌های داده واقعی یا اسناد شخصی شما دسترسی ندارم. بنابراین، نمی‌توانم لیست ۱۰ سند آخر ثبت شده را به شما ارائه دهم.\n\nبرای دریافت این اطلاعات، باید به سیستم یا برنامه‌ای که اسناد در آن ثبت می‌شوند (مانند یک سیستم مدیریت اسناد، پایگاه داده، یا پلتفرم خاص) مراجعه کنید.\n\nآیا منظورتان اسناد در یک زمینه یا سیستم خاصی است که می‌توانید آن را توضیح دهید؟ شاید بتوانم در مورد نحوه دسترسی به آن اطلاعات در آن سیستم خاص راهنمایی کلی ارائه دهم.",
                         "engineNum":  6,
                         "prompt":  "آخرین ۱۰ سند ثبت شده",
                         "match":  true,
@@ -136,8 +136,8 @@
                         "metricId":  "recent_documents"
                     },
                     {
-                        "requestId":  "ssh-1783180512098",
-                        "engineText":  "**اسناد نامتوازن در سال ۱۴۰۲** به طور کلی به هرگونه سوابق یا گزارش‌های مالی و حسابداری اشاره دارد که در آن اصول توازن (مانند توازن",
+                        "requestId":  "ssh-1783193492807",
+                        "engineText":  "\"اسناد نامتوازن سال ۱۴۰۲\" به طور کلی به هرگونه سند یا مجموعه اسناد مالی و حسابداری اشاره دارد که در آن اصول توازن رعایت نشده باشد. در علم حساب",
                         "engineNum":  6,
                         "prompt":  "اسناد نامتوازن سال ۱۴۰۲",
                         "match":  true,
@@ -145,7 +145,7 @@
                         "metricId":  "unbalanced_vouchers"
                     },
                     {
-                        "requestId":  "ssh-1783180520699",
+                        "requestId":  "ssh-1783193502357",
                         "engineText":  "برای این پرسش دادهٔ قابل‌اتکا در دسترس ندارم. لطفاً پرسش خود را دقیق‌تر کنید یا از گزارش‌های مالی نرم‌افزار استفاده کنید.",
                         "engineNum":  null,
                         "prompt":  "فاکتورهای با مبلغ صفر در ۱۴۰۲",
@@ -154,7 +154,7 @@
                         "metricId":  "zero_amount_invoices"
                     },
                     {
-                        "requestId":  "ssh-1783180523858",
+                        "requestId":  "ssh-1783193505521",
                         "engineText":  "### Summary\nوضعیت بستن دوره سال 1402: 3\n\n### Findings\n- مسیر پاسخ: engine\n- وضعیت بستن دوره: 3\n\n### Evidence\n- منبع داده: Financial Engine (metricId=closing_status)\n- SQL: SELECT fy.Title AS period, COUNT(*) AS result_value FROM [ACC].[Voucher] v JOIN [FMK].[FiscalYear] fy ON v.[FiscalYearRef] = fy.[FiscalYearId] WHERE v.Type IN (3, 4, 5) AND fy.Title = N\u00271402\u0027 GROUP BY fy.Title\n- Verifier: passed\n\n### Assumptions\n- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.\n\n### Actions\n- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.",
                         "engineNum":  3,
                         "prompt":  "وضعیت بستن سال مالی ۱۴۰۲",
@@ -168,6 +168,6 @@
     "failCount":  0,
     "totalMetrics":  18,
     "errorCount":  0,
-    "date":  "2026-07-04 19:25:27",
+    "date":  "2026-07-04 23:01:48",
     "server":  "192.168.85.56"
 }

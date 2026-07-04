@@ -96,4 +96,14 @@ integration tests: 26 tests, 26 pass, 0 fail
 - `src/renderer/src/renderer.ts` — UI کالیبراسیون
 - `src/renderer/index.html` — بخش کالیبراسیون + مارکرِ CALIBRATION_UI
 
+---
+
+## شاهدِ اجرای زنده (۱۴۰۴/۰۴/۱۴ — ۲۰۲۶-۰۷-۰۴)
+
+- **Build:** `npm run build:win` ✅
+- **Deploy:** NSIS silent install روی سرور 192.168.85.56 ✅
+- **Audit log:** `calibration-mapping` entries با `source=default, discoveryMethod=default, confidence=high, softwareId=sepidar, databaseName=Sepidar01` ✅
+- **verify-deployment-live.ps1:** **۱۸/۱۸ MATCH** ✅ (اجرای دوم — اجرای اول ۱۳/۱۸ به‌دلیلِ transient Gemini API failure)
+- **گزارش:** `ops/s33-dual-source-2026-07-04.json`
+
 > **پایانِ مسیرِ کالیبراسیون.** پس از فازهای ۳۳–۳۵: رجیستریِ صادقانه و سخت‌گیرانه + نقص‌های رفع‌شده + کالیبراسیونِ per-client که واقعاً اعمال می‌شود و توسطِ حسابدار قابلِ تأیید است = آمادگیِ واقعی برای چند مشتریِ سپیدار با کدینگِ متفاوت.
