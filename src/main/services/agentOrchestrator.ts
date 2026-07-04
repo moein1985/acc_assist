@@ -264,8 +264,24 @@ export class AgentOrchestrator {
       const { adapter, softwareId } = await this.resolveAdapter()
 
       // S34.1-S34.4: Load chart of accounts mapping from config or default
-      const { loadChartOfAccountsMapping } = await import('./financialEngine/chartOfAccountsMapping')
-      const mappingResult = loadChartOfAccountsMapping()
+      const { loadChartOfAccountsMapping, buildMappingFromDiscovery } = await import('./financialEngine/chartOfAccountsMapping')
+      let mappingResult = loadChartOfAccountsMapping()
+
+      // S34.5: For unknown installs (no config file, non-sepidar softwareId),
+      // run buildMappingFromDiscovery to create a candidate mapping
+      if (mappingResult.source === 'default' && softwareId !== 'sepidar') {
+        const settings = this.getSettings()
+        const db = settings.sql.database
+        try {
+          mappingResult = await buildMappingFromDiscovery(
+            softwareId,
+            db,
+            (query: string) => this.executeReadOnlySql(query) as Promise<Array<Record<string, string | number>>>,
+          )
+        } catch {
+          // Discovery failed — keep default mapping (will be low-confidence fallback)
+        }
+      }
 
       // S34.4: Audit calibration mapping source
       void this.safeAuditWrite({
@@ -277,6 +293,13 @@ export class AgentOrchestrator {
         ...(mappingResult.error ? { error: mappingResult.error } : {}),
       })
 
+      // S34.7: Compute deployment ID from connection settings
+      const { getDeploymentId } = await import('./financialEngine/chartOfAccountsMapping')
+      const settings = this.getSettings()
+      const deploymentId = getDeploymentId(softwareId, settings.sql.database, settings.sql.server)
+      // S34.9: Strict mode only for non-sepidar (unknown) deployments
+      const strictDeploymentMode = softwareId !== 'sepidar'
+
       const engine = new FinancialEngine({
         quoteSqlTableRef,
         quoteSqlIdentifier,
@@ -285,6 +308,8 @@ export class AgentOrchestrator {
         adapter,
         softwareId,
         chartOfAccountsMapping: mappingResult.mapping,
+        deploymentId,
+        strictDeploymentMode,
         plannerModel: {
           callModel: (plannerPrompt: string) => this.callPlannerModel(plannerPrompt)
         }

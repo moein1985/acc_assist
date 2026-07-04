@@ -21,6 +21,10 @@ export interface CompilerDeps {
   adapter?: SchemaAdapter
   /** S32.4: Per-deployment chart of accounts mapping for account concept filters */
   chartOfAccountsMapping?: ChartOfAccountsMapping
+  /** S34.9: Deployment ID for per-deployment verification gate */
+  deploymentId?: string
+  /** S34.9: Strict mode — reject unverified metrics (default: false for known deployments) */
+  strictDeploymentMode?: boolean
 }
 
 function buildMeasureExpr(
@@ -174,12 +178,23 @@ function buildWhereClauses(
 
   // S32.4: Resolve account concept filter via ChartOfAccountsMapping
   // S34.6: Safety gate — refuse low-confidence auto mappings
+  // S34.9: Per-deployment safety gate — refuse unverified metrics in strict mode
   if (definition.accountConceptFilter) {
     const mapping = deps.chartOfAccountsMapping
     if (mapping && mapping.discoveryMethod === 'auto' && mapping.confidence === 'low') {
       throw new Error(
         `S34.6 Safety Gate: Metric '${definition.id}' uses accountConceptFilter '${definition.accountConceptFilter}' but the chart of accounts mapping was auto-discovered with low confidence. Refusing to compile to prevent incorrect financial results. Please confirm or correct the mapping in config/chartOfAccountsMapping.json.`
       )
+    }
+    // S34.9: In strict deployment mode, refuse metrics that aren't verified for this deployment
+    if (deps.deploymentId && deps.strictDeploymentMode) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { isMetricVerified } = require('./deploymentRegistry') as typeof import('./deploymentRegistry')
+      if (!isMetricVerified(deps.deploymentId, definition.id)) {
+        throw new Error(
+          `S34.9 Deployment Gate: Metric '${definition.id}' is not verified for deployment '${deps.deploymentId}'. In strict mode, only verified metrics are allowed. Run verify:deployment to verify this metric.`
+        )
+      }
     }
     const accountFilter = resolveAccountFilter(
       deps.chartOfAccountsMapping,

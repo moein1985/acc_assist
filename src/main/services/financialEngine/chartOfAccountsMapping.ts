@@ -9,7 +9,9 @@
  */
 
 import { z } from 'zod'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { dirname } from 'path'
+import { createHash } from 'crypto'
 
 // ─── Account Concepts ────────────────────────────────────────────────────────
 
@@ -589,3 +591,91 @@ export function loadChartOfAccountsMapping(
 function isAccountConcept(key: string): boolean {
   return Object.values(AccountConcept).includes(key as AccountConcept)
 }
+
+// ─── S34.5: Build mapping from discovery for unknown installs ────────────────
+
+/**
+ * S34.5: Build a chart of accounts mapping from live discovery queries.
+ * For unknown installs (no config file, no known adapter), this function:
+ * 1. Runs discovery queries against the live DB to get Type 1 and Type 2 accounts
+ * 2. Calls discoverMapping() to build a candidate mapping
+ * 3. Saves it to config/chartOfAccountsMapping.json with discoveryMethod='auto'
+ * 4. Returns the mapping (confidence may be low/medium/high)
+ *
+ * The safety gate (S34.6) will refuse to compile accountConceptFilter metrics
+ * if confidence is low, so this is safe.
+ *
+ * @param softwareId - Software ID (e.g. 'sepidar', 'mahak', or 'unknown')
+ * @param databaseName - Database name
+ * @param executeSql - Function to execute read-only SQL queries
+ * @param configPath - Where to save the discovered mapping
+ * @returns The discovered mapping and any error
+ */
+export async function buildMappingFromDiscovery(
+  softwareId: string,
+  databaseName: string,
+  executeSql: (query: string) => Promise<Array<Record<string, string | number>>>,
+  configPath?: string
+): Promise<LoadMappingResult> {
+  const path = configPath ?? 'config/chartOfAccountsMapping.json'
+
+  try {
+    // Run discovery queries to get account structure
+    const type1Rows = (await executeSql(discoveryQueries.type1Accounts)) as Array<{ Code: string; Title: string }>
+    const type2Rows = (await executeSql(discoveryQueries.type2Accounts)) as Array<{ Code: string; Title: string; ParentAccountRef: string | number }>
+
+    // Build candidate mapping using existing discoverMapping heuristic
+    const mapping = discoverMapping(softwareId, databaseName, type1Rows, type2Rows)
+
+    // Save to config file for future use and user review (Phase 35 UI)
+    try {
+      const dir = dirname(path)
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+      }
+      writeFileSync(path, JSON.stringify(mapping, null, 2), 'utf-8')
+    } catch {
+      // If we can't save, still return the mapping — it will be used in-memory
+    }
+
+    return {
+      mapping,
+      source: 'config',
+    }
+  } catch (err) {
+    return {
+      mapping: defaultSepidarMapping,
+      source: 'default',
+      error: `buildMappingFromDiscovery failed: ${(err as Error).message}`,
+    }
+  }
+}
+
+// ─── S34.7: Deployment ID ────────────────────────────────────────────────────
+
+/**
+ * S34.7: Compute a stable deployment ID from connection parameters.
+ * The ID is a SHA-256 hash (first 16 hex chars) of:
+ *   softwareId + '|' + databaseName + '|' + host
+ *
+ * This uniquely identifies a deployment across sessions.
+ *
+ * @param softwareId - Software ID (e.g. 'sepidar', 'mahak')
+ * @param databaseName - Database name (e.g. 'Sepidar01')
+ * @param host - Server host/IP (e.g. '192.168.85.56')
+ * @returns 16-char hex deployment ID
+ */
+export function getDeploymentId(
+  softwareId: string,
+  databaseName: string,
+  host: string
+): string {
+  const input = `${softwareId}|${databaseName}|${host}`
+  return createHash('sha256').update(input).digest('hex').substring(0, 16)
+}
+
+/**
+ * Default deployment ID for the original Sepidar01 installation.
+ * Used for migrating the existing flat registry to per-deployment.
+ */
+export const DEFAULT_DEPLOYMENT_ID = getDeploymentId('sepidar', 'Sepidar01', '192.168.85.56')
