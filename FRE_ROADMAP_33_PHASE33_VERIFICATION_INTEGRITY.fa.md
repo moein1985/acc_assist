@@ -101,6 +101,7 @@
 - **تاریخِ اجرا:** 2026-07-04
 - **نتایجِ MATCH (۱۰):** purchases (226B), sales_count (202), fiscal_year_count (11), total_revenue (64B), total_expenses (11B), total_assets (128B), total_equity (84B), tax_collected (2B), fiscal_year_list (لیستی), recent_documents (لیستی)
 - **نتایجِ DIFF (۸ — تفاوتِ تعریف، نه باگ):** total_liabilities, net_profit, vat_liability, cashflow, cogs, unbalanced_vouchers, zero_amount_invoices, closing_status
+- **رفعِ مغایرت‌ها:** → فاز ۳۵ (FRE_ROADMAP_35) — ۸ Oracle SQL با تعریفِ موتور هم‌ساز شد، anchorهای گمشده اضافه شد، استخراجِ عدد اصلاح شد.
 - **گزارشِ JSON:** `ops/s33-dual-source-2026-07-04.json`
 - **اصلاحاتِ اسکریپت:** ۱) @() wrapper برای جلوگیری از ایندکس‌کردنِ رشته‌ای ۲) سالِ مالیِ پویا با subquery ۳) فیلترِ کد حساب با LIKE '41%' روی Type=1 ۴) total_revenue از SLS.Invoice ۵) استخراجِ عدد با [0-9] و فیلترِ سال
 
@@ -111,5 +112,5 @@
 - [x] `purchases` با منبعِ درست (`INV.InventoryReceipt`) = 226,110,419,451 و موتور == اوراکل. _(زاهدِ زنده: 2026-07-04، requestId=ssh-1783161119938)_
 - [x] `tax_paid`/`tax_collected` از heuristicِ معیوب به منبعِ ستونیِ درست منتقل شدند (`tax_collected` = oracle_only، `tax_paid` = needs_accountant_review).
 - [x] متریک‌های لیستی با محتوا (نه شمارش) تأیید شدند — ۱۰ متریک به content-sampling ارتقا یافتند، count-proxy guard فعال است.
-- [x] پاسِ دومنبعیِ زنده برای متریک‌های `oracle_only` اجرا و ثبت شد. _(S33.12: 10/18 MATCH, 8/18 DIFF — تفاوت‌های تعریفِ متریک)_
+- [x] پاسِ دومنبعیِ زنده برای متریک‌های `oracle_only` اجرا و ثبت شد. _(S33.12: 10/18 MATCH, 8/18 DIFF — تفاوت‌های تعریفِ متریک → رفع در فاز ۳۵)_
 - [x] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام. _(گزارشِ JSON: ops/s33-dual-source-2026-07-04.json)_

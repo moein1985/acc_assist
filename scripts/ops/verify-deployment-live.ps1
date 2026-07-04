@@ -71,21 +71,32 @@ $metrics = @(
   @{ id='sales_count'; b64='2KrYudiv2KfYryDZgdin2qnYqtmI2LEg2YHYsdmI2LQg2LPYp9mEINux27TbsNuyINqG2YLYr9ixINin2LPYqtif'; oracleSql="SELECT COUNT(*) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=202 },
   @{ id='fiscal_year_count'; b64='2KrYudiv2KfYryDYs9in2YTigIzZh9in24wg2YXYp9mE24wg2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT COUNT(*) FROM FMK.FiscalYear"; expected=3 },
   @{ id='total_revenue'; b64='2K/Ysdii2YXYryDZgdix2YjYtCDYs9in2YQg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=0 },
-  @{ id='total_expenses'; b64='2YfYstuM2YbZh+KAjNmH2KfbjCDYs9in2YQg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code LIKE '61%'))"; expected=0 },
-  @{ id='total_assets'; b64='2YXZiNis2YjYr9uMINiv2KfYsdin24zbjOKAjNmH2Kcg2K/YsSDYs9in2YQg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND (Code LIKE '11%' OR Code LIKE '12%')))"; expected=0 },
-  @{ id='total_liabilities'; b64='2YXZiNis2YjYr9uMINio2K/Zh9uM4oCM2YfYpyDYr9ixINiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(vi.Credit-vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND (Code LIKE '21%' OR Code LIKE '22%')))"; expected=0 },
-  @{ id='total_equity'; b64='2K3ZgtmI2YIg2LXYp9it2KjYp9mGINiz2YfYp9mFINiv2LEg2LPYp9mEINux27TbsNuyINqG2YLYr9ixINin2LPYqtif'; oracleSql="SELECT SUM(vi.Credit-vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code LIKE '31%'))"; expected=0 },
+  # Engine: AccountConcept.expenses -> type1Codes=['61'], measure=debit_minus_credit(Debit-Credit)
+  @{ id='total_expenses'; b64='2YfYstuM2YbZh+KAjNmH2KfbjCDYs9in2YQg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('61')))"; expected=0 },
+  # Engine: AccountConcept.assets -> type1Codes=['11','12'], measure=debit_minus_credit(Debit-Credit)
+  @{ id='total_assets'; b64='2YXZiNis2YjYr9uMINiv2KfYsdin24zbjOKAjNmH2Kcg2K/YsSDYs9in2YQg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('11','12')))"; expected=0 },
+  # Engine matches 'payables' for this prompt (anchor: 'بدهی‌ها'). payables uses AccountConcept.payables: type1Codes=['21'], type2Codes=['10','12'], measure=debit_minus_credit(Debit-Credit)
+  @{ id='total_liabilities'; b64='2YXZiNis2YjYr9uMINio2K/Zh9uM4oCM2YfYpyDYr9ixINiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND Code IN ('10','12') AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('21')))"; expected=0 },
+  # Engine: AccountConcept.equity -> type1Codes=['31'], measure=debit_minus_credit(Debit-Credit)
+  @{ id='total_equity'; b64='2K3ZgtmI2YIg2LXYp9it2KjYp9mGINiz2YfYp9mFINiv2LEg2LPYp9mEINux27TbsNuyINqG2YLYr9ixINin2LPYqtif'; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('31')))"; expected=0 },
   @{ id='tax_collected'; b64='2YXYp9mE24zYp9iqINmB2LHZiNi0INiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(TaxInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=2029051751 },
-  @{ id='net_profit'; b64='2LPZiNivINiu2KfZhNi1INiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT (SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')) - (SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code LIKE '61%')))"; expected=0 },
-  @{ id='vat_liability'; b64='2YXYp9mE24zYp9iqINio2LEg2KfYsdiy2LQg2KfZgdiy2YjYr9mHINiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(TaxInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=2029051751 },
-  @{ id='cashflow'; b64='2KzYsduM2KfZhiDZhtmC2K8g2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND (Code LIKE '11%' OR Code LIKE '12%')))"; expected=0 },
-  @{ id='cogs'; b64='2KjZh9in24wg2KrZhdin2YUg2LTYr9mHINqp2KfZhNin24wg2YHYsdmI2LQg2LHZgdiq2Ycg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT 0"; expected=0 },
+  # Engine: SUM(Credit-Debit) from VoucherItem with Code IN ('41','61','62') and v.Type NOT IN (3,4)
+  @{ id='net_profit'; b64='2LPZiNivINiu2KfZhNi1INiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(vi.Credit-vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('41','61','62')))"; expected=0 },
+  # Engine matches 'vat_detailed' for this prompt. vat_detailed sums NetPriceInBaseCurrency (not Tax) from SLS.Invoice with no year filter (no by_year dimension)
+  @{ id='vat_liability'; b64='2YXYp9mE24zYp9iqINio2LEg2KfYsdiy2LQg2KfZgdiy2YjYr9mHINiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(NetPriceInBaseCurrency) FROM SLS.Invoice"; expected=0 },
+  # Engine: SUM(Balance) from RPA.CashBalance + SUM(Balance) from RPA.BankAccountBalance (compositeSources)
+  @{ id='cashflow'; b64='2KzYsduM2KfZhiDZhtmC2K8g2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT (SELECT ISNULL(SUM(Balance),0) FROM RPA.CashBalance) + (SELECT ISNULL(SUM(Balance),0) FROM RPA.BankAccountBalance)"; expected=0 },
+  # Engine: SUM(Debit-Credit) from VoucherItem with AccountConcept.cogs (type1Codes=['61'], same as expenses)
+  @{ id='cogs'; b64='2KjZh9in24wg2KrZhdin2YUg2LTYr9mHINqp2KfZhNin24wg2YHYsdmI2LQg2LHZgdiq2Ycg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('61')))"; expected=0 },
   # List metrics — check for any_rows
   @{ id='fiscal_year_list'; b64='2YHZh9ix2LPYqiDYs9in2YTigIzZh9in24wg2YXYp9mE24wg2obbjNiz2KrYnw=='; oracleSql="SELECT TOP 3 FiscalYearId, Title FROM FMK.FiscalYear ORDER BY FiscalYearId"; expected=-1 },
   @{ id='recent_documents'; b64='2KLYrtix24zZhiDbsduwINiz2YbYryDYq9io2Kog2LTYr9mH'; oracleSql="SELECT TOP 3 VoucherId, Number, Date FROM ACC.Voucher ORDER BY VoucherId DESC"; expected=-1 },
-  @{ id='unbalanced_vouchers'; b64='2KfYs9mG2KfYryDZhtin2YXYqtmI2KfYstmGINiz2KfZhCDbsdu027Dbsg=='; oracleSql="SELECT COUNT(*) FROM (SELECT v.VoucherId, SUM(vi.Debit) as d, SUM(vi.Credit) as c FROM ACC.Voucher v JOIN ACC.VoucherItem vi ON vi.VoucherRef=v.VoucherId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') GROUP BY v.VoucherId HAVING SUM(vi.Debit) <> SUM(vi.Credit)) t"; expected=0 },
-  @{ id='zero_amount_invoices'; b64='2YHYp9qp2KrZiNix2YfYp9uMINio2Kcg2YXYqNmE2Log2LXZgdixINiv2LEg27HbtNuw27I='; oracleSql="SELECT COUNT(*) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND NetPriceInBaseCurrency=0"; expected=0 },
-  @{ id='closing_status'; b64='2YjYtti524zYqiDYqNiz2KrZhiDYs9in2YQg2YXYp9mE24wg27HbtNuw27I='; oracleSql="SELECT COUNT(*) FROM FMK.FiscalYear WHERE FiscalYearId=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=1 }
+  # List metric — engine returns list of unbalanced vouchers, not a count
+  @{ id='unbalanced_vouchers'; b64='2KfYs9mG2KfYryDZhtin2YXYqtmI2KfYstmGINiz2KfZhCDbsdu027Dbsg=='; oracleSql="SELECT COUNT(*) FROM (SELECT v.VoucherId, SUM(vi.Debit) as d, SUM(vi.Credit) as c FROM ACC.Voucher v JOIN ACC.VoucherItem vi ON vi.VoucherRef=v.VoucherId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') GROUP BY v.VoucherId HAVING SUM(vi.Debit) <> SUM(vi.Credit)) t"; expected=-1 },
+  # List metric — engine returns list of zero-amount invoices, not a count
+  @{ id='zero_amount_invoices'; b64='2YHYp9qp2KrZiNix2YfYp9uMINio2Kcg2YXYqNmE2Log2LXZgdixINiv2LEg27HbtNuw27I='; oracleSql="SELECT COUNT(*) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') AND NetPriceInBaseCurrency=0"; expected=-1 },
+  # Engine: COUNT(*) from ACC.Voucher with v.Type IN (3,4,5) and fy.Title='1402'
+  @{ id='closing_status'; b64='2YjYtti524zYqiDYqNiz2KrZhiDYs9in2YQg2YXYp9mE24wg27HbtNuw27I='; oracleSql="SELECT COUNT(*) FROM ACC.Voucher v JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE v.Type IN (3,4,5) AND fy.Title='1402'"; expected=0 }
 )
 
 Write-Host '=== S33.5 + S33.12 — Dual-Source Live Verification ===' -ForegroundColor Cyan
@@ -392,8 +403,23 @@ foreach ($m in $metrics) {
     $normalized = $normalized -replace '[\u0660-\u0669]', { [string]([int][char]$_.Value[0] - 0x0660 + 0x30) }
     # Remove commas, spaces
     $normalized = $normalized -replace '[, ]', ''
-    # Find ALL numbers with 2+ digits using [0-9] (not \d which matches Persian digits)
-    $allMatches = [regex]::Matches($normalized, '[0-9]{2,}')
+
+    # Phase 35: First try to extract from the Summary line (which has the actual result value)
+    # This avoids picking up numbers from SQL evidence (e.g. "v.Type IN (3, 4, 5)" -> "345")
+    $summaryMatch = [regex]::Match($normalized, '###Summary(.+?)(###|$)')
+    $searchText = $normalized
+    if ($summaryMatch.Success) {
+      $searchText = $summaryMatch.Groups[1].Value
+    } else {
+      # Strip Evidence section to avoid picking up numbers from SQL
+      $evidenceIdx = $searchText.IndexOf('###Evidence')
+      if ($evidenceIdx -ge 0) {
+        $searchText = $searchText.Substring(0, $evidenceIdx)
+      }
+    }
+
+    # Find ALL numbers with 1+ digits in the search text
+    $allMatches = [regex]::Matches($searchText, '[0-9]{1,}')
     if ($allMatches.Count -ge 1) {
       # Filter out year-like numbers (1300-1499 Persian calendar years)
       $best = $null

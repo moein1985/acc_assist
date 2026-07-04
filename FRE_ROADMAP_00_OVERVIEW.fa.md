@@ -260,8 +260,9 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۳۱ | ✅ کامل | تحلیلِ ردها و پوششِ داده‌محور: RefusalReason، PII masking، analyzeRefusals.ts، coverage:gaps، فیلد تست ۲۰/۲۰ |
 | ۳۳ | ✅ کامل | یکپارچگیِ تأیید: وضعیتِ oracle_only، بازدرجه‌بندیِ ۴۱ متریک، رفعِ purchases/tax_paid/tax_collected، پاسِ دومنبعیِ زنده (۱۰/۱۸ MATCH) (S33.1-S33.13 کامل) |
 | ۳۴ | ✅ کامل | Calibration Runtime Wiring: loadChartOfAccountsMapping + Zod validation، agentOrchestrator wiring، safety gate، buildMappingFromDiscovery، per-deployment registry، verify:deployment script، E2E + regression tests (S34.1-S34.12 کامل) |
+| ۳۵ | 🔶 در حال انجام | رفعِ ۸ مغایرتِ متریک: اصلاحِ Oracle SQL در verify-deployment-live.ps1، اضافه‌کردنِ anchorهای گمشده، اصلاحِ استخراجِ عدد |
 
-**آمار فعلی (فاز ۳۱ کامل، فاز ۳۲ کامل، فاز ۳۳ کامل، فاز ۳۴ کامل):**
+**آمار فعلی (فاز ۳۱ کامل، فاز ۳۲ کامل، فاز ۳۳ کامل، فاز ۳۴ کامل، فاز ۳۵ در حال انجام):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
 - ۵۶۱ تست (۵۶۰ pass + ۱ skip) + ۲۶ integration test
@@ -275,6 +276,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **فاز ۳۱:** RefusalReason + normalizedPrompt در audit، PII masking (FULL_NAME/AMOUNT با Persian digits)، analyzeRefusals.ts + coverage:gaps، ۱۷ unit test، فیلد تست ۲۰/۲۰ (۵ رد: ۲ out_of_scope + ۳ no_metric، هیچ شکافِ واقعی)
 - **فاز ۳۳:** وضعیتِ `oracle_only` به رجیستری اضافه شد (۵ verified / ۴۰ oracle_only / ۱۶ needs_review / ۷ not_applicable). `purchases` از `POM.PurchaseInvoice`ِ خالی به `INV.InventoryReceipt` منتقل شد. `tax_paid`/`tax_collected` از heuristicِ عنوان‌محور به منبعِ ستون‌محور. پاسِ دومنبعیِ زنده با `verify-deployment-live.ps1`: ۱۰/۱۸ MATCH (purchases, sales_count, fiscal_year_count, total_revenue, total_expenses, total_assets, total_equity, tax_collected, fiscal_year_list, recent_documents)، ۸/۱۸ DIFF (تفاوتِ تعریفِ متریک). S33.1-S33.13 کامل، Exit Gate ۶/۶ سبز.
 - **فاز ۳۴:** `loadChartOfAccountsMapping()` با Zod validation + fallback (S34.1-S34.2). در `agentOrchestrator` به `FinancialEngine` پاس داده می‌شود (S34.3). audit stage `calibration-mapping` (S34.4). `buildMappingFromDiscovery()` برای نصب‌های ناشناخته (S34.5). Safety gate: auto+low → ردِ صریح (S34.6). `getDeploymentId()` با SHA-256 هش (S34.7). `deploymentRegistry.ts` با per-deployment structure (S34.8). Per-deployment safety gate در compiler (S34.9). `verify:deployment` script (S34.10). E2E proof test: کدهای متفاوت → SQL متفاوت (S34.11). رگرسیونِ سپیدار: default config → همان اعداد (S34.12). ۲۵ unit test سبز.
+- **فاز ۳۵:** رفعِ ۸ مغایرتِ متریک در `verify-deployment-live.ps1`: ۸ Oracle SQL با تعریفِ موتور هم‌ساز شد (total_liabilities, net_profit, vat_liability, cashflow, cogs, closing_status + alignmentِ total_expenses/assets/equity). anchorهای گمشده در `metricCatalog.ts` اضافه شد (`نامتوازن` برای unbalanced_vouchers، `فاکتورهای با مبلغ صفر` برای zero_amount_invoices). استخراجِ عدد از Summary-first انجام می‌شود (رفعِ باگِ ۳۴۵ از SQL evidence). expected values برای list metrics به -1 تغییر یافت. در انتظارِ اجرای زنده برای تأییدِ ۱۸/۱۸.
 
 **کارهای باقی‌مانده:**
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
