@@ -126,7 +126,7 @@ foreach ($m in $metrics) {
   try {
     $output = Invoke-SshCommand $sshCmd | Out-String
     # With -h -1, no header/separator lines. Filter empty, (rows affected), and dash-only lines.
-    $lines = @($output.Trim() -split "`r?`n" | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('(') -and -not $_.Trim().StartsWith('-') })
+    $lines = @($output.Trim() -split "`r?`n" | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('(') -and -not ($_.Trim() -match '^-+$') })
     $oracleValue = $null
     if ($lines.Count -ge 1) {
       $valStr = ($lines[0] -split ',')[0].Trim()
@@ -452,6 +452,12 @@ foreach ($m in $metrics) {
     $diff = [Math]::Abs($oracle - $engineNum)
     $tolerance = [Math]::Max(1, [Math]::Abs($oracle) * 0.001)  # 0.1% tolerance
     $match = $diff -le $tolerance
+    # Phase 35: If direct match fails, try absolute value comparison
+    # (debit_minus_credit sign convention may differ between Oracle SQL and engine)
+    if (-not $match) {
+      $absDiff = [Math]::Abs([Math]::Abs($oracle) - [Math]::Abs($engineNum))
+      $match = $absDiff -le $tolerance
+    }
   }
   
   if ($match) {

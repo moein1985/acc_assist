@@ -32,7 +32,12 @@ import type {
   SshProgressEvent,
   ConnectionHealthStatus,
   ConnectionDiagnosticInfo,
-  ConnectionLogEntry
+  ConnectionLogEntry,
+  CalibrationGetMappingResult,
+  CalibrationDiscoverResult,
+  CalibrationSaveRequest,
+  CalibrationConceptEntry,
+  CalibrationAccountRow
 } from '../shared/contracts'
 import { AgentOrchestrator } from './services/agentOrchestrator'
 import { AgentDebugServer } from './services/agentDebugServer'
@@ -1154,6 +1159,188 @@ function registerIpcHandlers(): void {
         return ok(base64)
       } catch (error) {
         return failWithContext(error, 'python:read-file')
+      }
+    }
+  )
+
+  // S32.5 — Calibration UI IPC handlers
+  ipcMain.handle(
+    'calibration:get-mapping',
+    async (): Promise<IpcResponse<CalibrationGetMappingResult>> => {
+      try {
+        const { loadChartOfAccountsMapping, AccountConcept } = await import('./services/financialEngine/chartOfAccountsMapping')
+        const result = loadChartOfAccountsMapping()
+        const mapping = result.mapping
+        const conceptLabels: Record<string, string> = {
+          [AccountConcept.assets]: 'دارایی‌ها',
+          [AccountConcept.liabilities]: 'بدهی‌ها',
+          [AccountConcept.equity]: 'حقوق صاحبان سهام',
+          [AccountConcept.revenue]: 'درآمدها',
+          [AccountConcept.expenses]: 'هزینه‌ها',
+          [AccountConcept.current_assets]: 'دارایی‌های جاری',
+          [AccountConcept.fixed_assets_concept]: 'دارایی‌های ثابت',
+          [AccountConcept.current_liabilities]: 'بدهی‌های جاری',
+          [AccountConcept.receivables]: 'دریافتنی‌ها',
+          [AccountConcept.payables]: 'پرداختنی‌ها',
+          [AccountConcept.cash_bank]: 'نقد و بانک',
+          [AccountConcept.cogs]: 'بهای تمام‌شده',
+          [AccountConcept.payroll]: 'حقوق و دستمزد',
+          [AccountConcept.tax_paid]: 'مالیات پرداختنی',
+          [AccountConcept.tax_collected]: 'مالیات دریافتنی',
+          [AccountConcept.tax_liability]: 'مالیات بر ارزش افزوده',
+          [AccountConcept.depreciation]: 'استهلاک',
+          [AccountConcept.fixed_assets_register]: 'ثبت دارایی‌های ثابت',
+          [AccountConcept.revenue_and_expenses]: 'درآمدها و هزینه‌ها',
+          [AccountConcept.balance_sheet_accounts]: 'حساب‌های ترازنامه'
+        }
+        const concepts: CalibrationConceptEntry[] = Object.values(AccountConcept).map((concept) => {
+          const cm = mapping.concepts[concept]
+          return {
+            concept,
+            label: conceptLabels[concept] ?? concept,
+            description: cm?.description ?? '',
+            available: cm?.available ?? false,
+            type1Codes: cm?.type1Codes ?? [],
+            type2Codes: cm?.type2Codes ?? [],
+            type3Codes: cm?.type3Codes ?? [],
+            titlePattern: cm?.titlePattern ?? null
+          }
+        })
+        return ok({
+          softwareId: mapping.softwareId,
+          databaseName: mapping.databaseName,
+          discoveryMethod: mapping.discoveryMethod,
+          confidence: mapping.confidence,
+          source: result.source,
+          concepts
+        })
+      } catch (error) {
+        return failWithContext(error, 'calibration:get-mapping')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'calibration:discover',
+    async (): Promise<IpcResponse<CalibrationDiscoverResult>> => {
+      try {
+        const saved = settingsStore.get()
+        const runtimeConnection = await resolveRuntimeSqlConnection(saved.sql, saved.ssh)
+        const { discoveryQueries, discoverMapping, AccountConcept } = await import('./services/financialEngine/chartOfAccountsMapping')
+        const type1Rows = (await sqlConnectionManager.executeReadOnlyQuery(
+          runtimeConnection,
+          discoveryQueries.type1Accounts,
+          'discovery'
+        )) as Array<{ Code: string; Title: string }>
+        const type2Rows = (await sqlConnectionManager.executeReadOnlyQuery(
+          runtimeConnection,
+          discoveryQueries.type2Accounts,
+          'discovery'
+        )) as Array<{ Code: string; Title: string; ParentAccountRef: string | number }>
+        const softwareId = saved.schemaCatalogs.find((c) => c.databaseName === saved.sql.database)?.selectedSoftwareId ?? 'sepidar'
+        const mapping = discoverMapping(softwareId, saved.sql.database, type1Rows, type2Rows)
+        const conceptLabels: Record<string, string> = {
+          [AccountConcept.assets]: 'دارایی‌ها',
+          [AccountConcept.liabilities]: 'بدهی‌ها',
+          [AccountConcept.equity]: 'حقوق صاحبان سهام',
+          [AccountConcept.revenue]: 'درآمدها',
+          [AccountConcept.expenses]: 'هزینه‌ها',
+          [AccountConcept.current_assets]: 'دارایی‌های جاری',
+          [AccountConcept.fixed_assets_concept]: 'دارایی‌های ثابت',
+          [AccountConcept.current_liabilities]: 'بدهی‌های جاری',
+          [AccountConcept.receivables]: 'دریافتنی‌ها',
+          [AccountConcept.payables]: 'پرداختنی‌ها',
+          [AccountConcept.cash_bank]: 'نقد و بانک',
+          [AccountConcept.cogs]: 'بهای تمام‌شده',
+          [AccountConcept.payroll]: 'حقوق و دستمزد',
+          [AccountConcept.tax_paid]: 'مالیات پرداختنی',
+          [AccountConcept.tax_collected]: 'مالیات دریافتنی',
+          [AccountConcept.tax_liability]: 'مالیات بر ارزش افزوده',
+          [AccountConcept.depreciation]: 'استهلاک',
+          [AccountConcept.fixed_assets_register]: 'ثبت دارایی‌های ثابت',
+          [AccountConcept.revenue_and_expenses]: 'درآمدها و هزینه‌ها',
+          [AccountConcept.balance_sheet_accounts]: 'حساب‌های ترازنامه'
+        }
+        const concepts: CalibrationConceptEntry[] = Object.values(AccountConcept).map((concept) => {
+          const cm = mapping.concepts[concept]
+          return {
+            concept,
+            label: conceptLabels[concept] ?? concept,
+            description: cm?.description ?? '',
+            available: cm?.available ?? false,
+            type1Codes: cm?.type1Codes ?? [],
+            type2Codes: cm?.type2Codes ?? [],
+            type3Codes: cm?.type3Codes ?? [],
+            titlePattern: cm?.titlePattern ?? null
+          }
+        })
+        const type1Accounts: CalibrationAccountRow[] = type1Rows.map((r) => ({
+          code: String(r.Code),
+          title: String(r.Title),
+          type: 1,
+          parentCode: null
+        }))
+        const type2Accounts: CalibrationAccountRow[] = type2Rows.map((r) => ({
+          code: String(r.Code),
+          title: String(r.Title),
+          type: 2,
+          parentCode: r.ParentAccountRef != null ? String(r.ParentAccountRef) : null
+        }))
+        return ok({
+          type1Accounts,
+          type2Accounts,
+          mapping: {
+            softwareId: mapping.softwareId,
+            databaseName: mapping.databaseName,
+            discoveryMethod: mapping.discoveryMethod,
+            confidence: mapping.confidence,
+            source: 'config',
+            concepts
+          }
+        })
+      } catch (error) {
+        return failWithContext(error, 'calibration:discover')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'calibration:save',
+    async (_, payload: CalibrationSaveRequest): Promise<IpcResponse<{ saved: boolean; path: string }>> => {
+      try {
+        const { writeFileSync, existsSync, mkdirSync } = await import('node:fs')
+        const { join } = await import('node:path')
+        const { AccountConcept } = await import('./services/financialEngine/chartOfAccountsMapping')
+        const configDir = join(app.getPath('userData'), 'config')
+        const configPath = join(configDir, 'chartOfAccountsMapping.json')
+        const concepts: Record<string, unknown> = {}
+        for (const [conceptKey, entry] of Object.entries(payload.mapping.concepts)) {
+          if ((Object.values(AccountConcept) as string[]).includes(conceptKey)) {
+            concepts[conceptKey] = {
+              type1Codes: entry.type1Codes ?? [],
+              type2Codes: entry.type2Codes ?? [],
+              type3Codes: entry.type3Codes ?? [],
+              titlePattern: entry.titlePattern ?? undefined,
+              available: entry.available ?? true,
+              description: entry.description ?? ''
+            }
+          }
+        }
+        const mappingToSave = {
+          softwareId: payload.mapping.softwareId,
+          databaseName: payload.mapping.databaseName,
+          discoveryMethod: payload.mapping.discoveryMethod,
+          confidence: payload.mapping.confidence,
+          discoveredAt: new Date().toISOString(),
+          concepts
+        }
+        if (!existsSync(configDir)) {
+          mkdirSync(configDir, { recursive: true })
+        }
+        writeFileSync(configPath, JSON.stringify(mappingToSave, null, 2), 'utf-8')
+        return ok({ saved: true, path: configPath })
+      } catch (error) {
+        return failWithContext(error, 'calibration:save')
       }
     }
   )

@@ -30,7 +30,10 @@ import type {
   SshProgressEvent,
   ConnectionHealthStatus,
   ConnectionDiagnosticInfo,
-  ConnectionLogEntry
+  ConnectionLogEntry,
+  CalibrationGetMappingResult,
+  CalibrationDiscoverResult,
+  CalibrationSaveRequest
 } from '../shared/contracts'
 
 export interface AccAssistApi {
@@ -107,6 +110,11 @@ export interface AccAssistApi {
     status: () => Promise<IpcResponse<{ available: boolean; version: string | null }>>
     readFile: (filePath: string) => Promise<IpcResponse<string>>
     saveFile: (filePath: string) => Promise<IpcResponse<string>>
+  }
+  calibration: {
+    getMapping: () => Promise<IpcResponse<CalibrationGetMappingResult>>
+    discover: () => Promise<IpcResponse<CalibrationDiscoverResult>>
+    save: (payload: CalibrationSaveRequest) => Promise<IpcResponse<{ saved: boolean; path: string }>>
   }
 }
 

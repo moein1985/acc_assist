@@ -67,14 +67,11 @@
     `receivables`, `payables`, `balance_sheet`, `income_statement`, `total_assets`, `total_liabilities`, `total_equity`, `total_revenue`, `total_expenses`, `cogs`, `payroll`, `tax_paid`, `tax_collected`, `cost_center_summary`, `budget_variance`, `budget_report`, `receivables_aging`, `payables_aging`, `cash_flow_direct`, `fixed_assets_register`, `depreciation_summary`, `tax_liability_summary`
 
 ### S32.5 — کشفِ نیمه‌خودکار + تأییدِ کاربر
-- [ ] **S32.5** هنگامِ کشف، برای هر مفهوم چند کاندیدای سرفصل با نمونه‌داده و امتیازِ اعتماد به کاربر/حسابدار نشان بده تا تأیید یا اصلاح کند (شفافیت + کنترل). *(معوق به فازِ UI)*
-  - **علتِ معوق:** این آیتم نیازمند رابطِ کاربریِ تعاملی است — نمایشِ کاندیداهای سرفصل، امتیازِ اعتماد، و فرمِ تأیید/اصلاح در UI. در حال حاضر اپ فقط `engine-only` است و UIِ کاملِ تنظیمات ندارد.
-  - **پیش‌نهاد برای فازِ آینده:** یک فازِ UI (مثلاً فاز ۳۳) بساز که شاملِ مواردِ زیر باشد:
-    - صفحهٔ «کالیبراسیونِ سرفصل» در تنظیماتِ اپ
-    - نمایشِ کاندیداهای کشف‌شده برای هر `AccountConcept` با امتیازِ اعتماد
-    - فرمِ تأیید/اصلاحِ دستی برای حسابدار
-    - ذخیرهٔ نگاشتِ تأییدشده در `config/chartOfAccountsMapping.json`
-    - درخواستِ تأییدِ مجدد هنگامِ تغییرِ سالِ مالی یا اتصالِ جدید
+- [x] **S32.5** هنگامِ کشف، برای هر مفهوم چند کاندیدای سرفصل با نمونه‌داده و امتیازِ اعتماد به کاربر/حسابدار نشان بده تا تأیید یا اصلاح کند (شفافیت + کنترل). *(تکمیل شد)*
+  - **تکمیل شد:** رابطِ کاربریِ کالیبراسیون در `renderer.ts` ساخته شد — سه دکمهٔ «بارگذاری»، «کشف خودکار»، «ذخیره» + فرمِ ویرایشِ کدهای Type 1/2/3 و الگوی عنوان برای هر مفهوم.
+  - IPC handler‌های `calibration:get-mapping`، `calibration:discover`، `calibration:save` در `main/index.ts` + preload bridge در `preload/index.ts` + HTML در `index.html`.
+  - قراردادها در `contracts.ts`: `CalibrationAccountRow`، `CalibrationConceptEntry`، `CalibrationGetMappingResult`، `CalibrationDiscoverResult`، `CalibrationSaveRequest`.
+  - مارکرِ `CALIBRATION_UI` در `index.html`.
 
 ---
 
@@ -90,17 +87,10 @@
   - شاهد: ۲۳ unit test در `tests/unit/phase32.test.ts` همه سبز شدند.
 
 ### S32.8 — رجیستریِ per-deployment
-- [ ] **S32.8** رجیستریِ تأیید (فاز ۲۸.۴) را per-deployment کن: هر نصب کلیدِ خودش را دارد؛ متریکِ `verified` روی `Sepidar01` به‌طورِ خودکار روی نصبِ دیگر `verified` نیست تا کالیبره و تأیید شود. *(معوق)*
-  - **علتِ معوق:** این آیتم نیازمند بازطراحیِ ساختارِ رجیستری است. در حال حاضر رجیستریِ تأیید (فاز ۲۹) یک کلیدِ سراسری دارد — `metricId → verified`. برای per-deployment باید کلید به `(deploymentId, metricId) → verified` تغییر کند. این نیازمند:
-    - تعریفِ `deploymentId` (شناسهٔ یکتا برای هر نصب: ترکیبِ `softwareId + databaseName + host`)
-    - بازطراحیِ `verifiedRegistry.json` به ساختارِ multi-deployment
-    - به‌روزرسانیِ `verify:registry` اسکریپت برای پشتیبانی از `--deployment-id`
-    - به‌روزرسانیِ `compiler.ts` برای بارگذاریِ رجیستریِ مخصوصِ هر نصب
-  - **پیش‌نهاد برای فازِ آینده:** یک فازِ «رجیستریِ multi-deployment» بساز که شامل:
-    - ساختارِ `Map<deploymentId, Map<metricId, VerificationRecord>>`
-    - اسکریپتِ `verify:deployment --server <ip> --db <name>` برای تأییدِ مستقلِ هر نصب
-    - قفلِ خودکار: اگر متریک روی نصبِ جدید `verified` نباشد → ردِ صریح با پیامِ «این متریک برای این نصب تأیید نشده است»
-    - مهاجرتِ رجیستریِ فعلی به ساختارِ جدید با `deploymentId = 'sepidar01-default'`
+- [x] **S32.8** رجیستریِ تأیید (فاز ۲۸.۴) را per-deployment کن: هر نصب کلیدِ خودش را دارد؛ متریکِ `verified` روی `Sepidar01` به‌طورِ خودکار روی نصبِ دیگر `verified` نیست تا کالیبره و تأیید شود. *(تکمیل شد)*
+  - **تکمیل شد:** در فاز ۳۴ پیاده‌سازی شد — `deploymentRegistry.ts` با `getDeploymentId()` (SHA-256 هشِ `softwareId + databaseName + host`)، `isMetricVerified()`، و `strictDeploymentMode` در `compiler.ts` و `agentOrchestrator.ts`.
+  - اسکریپتِ `verify:deployment` برای تأییدِ مستقلِ هر نصب (S34.10).
+  - Safety gate: اگر متریک روی نصبِ جدید `verified` نباشد → ردِ صریح (S34.9).
 
 ---
 
@@ -119,7 +109,8 @@
   - شاهد: `eval:metrics` (offline): ۲۷۴/۲۷۴ (۱۰۰٪) — بدونِ رگرسیون.
 - [x] تطبیق‌های داخلیِ توازن پس از کالیبراسیون برقرارند.
   - شاهد: `validateAccountingEquation` و `validateDebitCreditBalance` در ۲۳ unit test سبز شدند.
-- [ ] رجیستری per-deployment شد. *(معوق)*
+- [x] رجیستری per-deployment شد.
+  - شاهد: پیاده‌سازی در فاز ۳۴ — `deploymentRegistry.ts` با `getDeploymentId`، `isMetricVerified`، `strictDeploymentMode` در `compiler.ts` و `agentOrchestrator.ts`.
 - [x] چک‌لیستِ راه‌اندازیِ مشتریِ جدید مستند شد.
   - شاهد: `ops/new-customer-onboarding-checklist.md` با ۷ مرحله.
 - [x] گزارشِ فاز طبقِ الگوی ۲۸.۷.
@@ -131,11 +122,10 @@
 ### S32.10 — شواهدِ نهایی
 
 ```
-typecheck:node: ۰ خطای جدید (۳ خطای pre-existing در فایل‌های تستِ غیرِمرتبط)
-eval:metrics: ۲۷۴/۲۷۴ passed (100.0%) — 0 failed
-unit tests: 519 tests, 518 pass, 0 fail, 1 skip
+typecheck:web: ۰ خطا
+typecheck:node: ۰ خطای جدید (۲ خطای pre-existing در فایل‌های تستِ غیرِمرتبط)
+unit tests: 561 tests, 560 pass, 0 fail, 1 skip
 integration tests: 26 tests, 26 pass, 0 fail
-phase32 unit tests: 23 tests, 23 pass, 0 fail
 ```
 
 **فایل‌های تغییر‌یافته:**
@@ -147,14 +137,19 @@ phase32 unit tests: 23 tests, 23 pass, 0 fail
 - `package.json` — `calibration:run` script
 - `tests/unit/phase32.test.ts` — ساخته شد (۲۳ unit test)
 - `ops/new-customer-onboarding-checklist.md` — ساخته شد (چک‌لیستِ راه‌اندازیِ مشتریِ جدید، ۷ مرحله)
-- `FRE_ROADMAP_32_PHASE32_PER_DEPLOYMENT_CALIBRATION.fa.md` — شواهد پر شد
+- `src/shared/contracts.ts` — قراردادهای کالیبراسیون (CalibrationAccountRow, CalibrationConceptEntry, ...)
+- `src/main/index.ts` — IPC handler‌های `calibration:get-mapping`، `calibration:discover`، `calibration:save`
+- `src/preload/index.ts` + `src/preload/index.d.ts` — preload bridge برای کالیبراسیون
+- `src/renderer/src/renderer.ts` — UI کالیبراسیون (load, discover, save, renderConcepts)
+- `src/renderer/index.html` — بخش کالیبراسیون در تب تنظیمات + مارکرِ `CALIBRATION_UI`
+- `FRE_ROADMAP_32_PHASE32_PER_DEPLOYMENT_CALIBRATION.fa.md` — شواهد پر شد + معوق‌ها بسته شد
 - `FRE_ROADMAP_00_OVERVIEW.fa.md` — ردیفِ فاز ۳۲ + آمار
 
 **معوق (Deferred) — با توضیحِ علت و پیش‌نهاد برای فازِ آینده:**
 
-- **S32.5: کشفِ نیمه‌خودکار + تأییدِ کاربر** — نیازمند رابطِ کاربریِ تعاملی (نمایشِ کاندیدا، امتیازِ اعتماد، فرمِ تأیید/اصلاح). پیش‌نهاد: فاز ۳۳ (UI Calibration) با صفحهٔ تنظیماتِ کالیبراسیون.
-- **S32.8: رجیستریِ per-deployment** — نیازمند بازطراحیِ ساختارِ رجیستری از `metricId → verified` به `(deploymentId, metricId) → verified`. پیش‌نهاد: فازِ «رجیستریِ multi-deployment» با `deploymentId`، اسکریپتِ `verify:deployment`، و مهاجرتِ رجیستریِ فعلی.
-- **هیچ آیتمِ دیگری معوق نیست.** S32.9 تکمیل شد.
+- ~~S32.5: کشفِ نیمه‌خودکار + تأییدِ کاربر~~ — **تکمیل شد.** رابطِ کاربریِ کالیبراسیون در `renderer.ts` ساخته شد: سه دکمهٔ «بارگذاری»، «کشف خودکار»، «ذخیره» + فرمِ ویرایشِ کدهای Type 1/2/3 و الگوی عنوان برای هر مفهوم. IPC handler‌های `calibration:get-mapping`، `calibration:discover`، `calibration:save` در `main/index.ts` + preload bridge + HTML در `index.html`.
+- ~~S32.8: رجیستریِ per-deployment~~ — **تکمیل شد.** در فاز ۳۴ پیاده‌سازی شد: `deploymentRegistry.ts` با `getDeploymentId`، `isMetricVerified`، `strictDeploymentMode` در `compiler.ts` و `agentOrchestrator.ts`.
+- **هیچ آیتمِ معوقی باقی نمانده.** فاز ۳۲ بسته شد.
 
 > **یادآوری:** بدونِ تأییدِ صریحِ کاربر به `origin/main` push نکن. HEAD اکنون جلوتر از origin است.
 

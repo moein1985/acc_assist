@@ -30,7 +30,10 @@ import type {
   ConnectionHealthStatus,
   ConnectionLogEntry,
   ResponseMetadata,
-  ScheduledReport
+  ScheduledReport,
+  CalibrationConceptEntry,
+  CalibrationGetMappingResult,
+  CalibrationSaveRequest
 } from '../../shared/contracts'
 import { localizeAgentFallbackMessage, localizeChatErrorFa, localizeInfraErrorFa } from './errorLocalization'
 import { renderInteractiveChart, exportChartAsPng, destroyChart, type ChartSeriesData } from './charts'
@@ -345,7 +348,12 @@ const ui = {
   connWizardSoftwareSelect: getById<HTMLSelectElement>('connWizardSoftwareSelect'),
   connWizardProfileName: getById<HTMLInputElement>('connWizardProfileName'),
   connWizardProfileDesc: getById<HTMLTextAreaElement>('connWizardProfileDesc'),
-  connWizardSaveResult: getById<HTMLElement>('connWizardSaveResult')
+  connWizardSaveResult: getById<HTMLElement>('connWizardSaveResult'),
+  calibrationLoadBtn: getById<HTMLButtonElement>('calibrationLoadBtn'),
+  calibrationDiscoverBtn: getById<HTMLButtonElement>('calibrationDiscoverBtn'),
+  calibrationSaveBtn: getById<HTMLButtonElement>('calibrationSaveBtn'),
+  calibrationStatus: getById<HTMLElement>('calibrationStatus'),
+  calibrationConcepts: getById<HTMLElement>('calibrationConcepts')
 }
 
 const state: {
@@ -530,6 +538,9 @@ function bindEvents(): void {
   ui.schemaWizardCloseBtn.addEventListener('click', () => closeSchemaMappingWizard())
   ui.saveSchemaMappingsBtn.addEventListener('click', () => void saveSchemaMappings())
   ui.resetSchemaMappingsBtn.addEventListener('click', () => resetSchemaMappingsToSuggestions())
+  ui.calibrationLoadBtn.addEventListener('click', () => void loadCalibrationMapping())
+  ui.calibrationDiscoverBtn.addEventListener('click', () => void discoverCalibrationMapping())
+  ui.calibrationSaveBtn.addEventListener('click', () => void saveCalibrationMapping())
   ui.startSshTunnelBtn.addEventListener('click', () => void startSshTunnel())
   ui.stopSshTunnelBtn.addEventListener('click', () => void stopSshTunnel())
   ui.refreshStatusBtn.addEventListener('click', () => void refreshRuntimeStatuses(false))
@@ -5031,4 +5042,188 @@ function getById<T extends HTMLElement>(id: string): T {
     throw new Error(`Missing required element: #${id}`)
   }
   return element as T
+}
+
+// ─── S32.5: Calibration UI ───────────────────────────────────────────────────
+
+let calibrationCurrentMapping: CalibrationGetMappingResult | null = null
+
+async function loadCalibrationMapping(): Promise<void> {
+  toggleButton(ui.calibrationLoadBtn, true, 'در حال بارگذاری...')
+  const response = await window.api.calibration.getMapping()
+  toggleButton(ui.calibrationLoadBtn, false, 'بارگذاری mapping')
+
+  if (!response.ok || !response.data) {
+    setCalibrationStatus(response.error ?? 'بارگذاری mapping ناموفق بود.', 'error')
+    return
+  }
+
+  calibrationCurrentMapping = response.data
+  renderCalibrationConcepts(response.data.concepts)
+  const sourceLabel = response.data.source === 'config' ? 'فایل پیکربندی' : 'پیش‌فرض'
+  setCalibrationStatus(
+    `mapping بارگذاری شد — منبع: ${sourceLabel} | نرم‌افزار: ${response.data.softwareId} | دیتابیس: ${response.data.databaseName} | اطمینان: ${response.data.confidence}`,
+    'success'
+  )
+}
+
+async function discoverCalibrationMapping(): Promise<void> {
+  toggleButton(ui.calibrationDiscoverBtn, true, 'در حال کشف...')
+  const response = await window.api.calibration.discover()
+  toggleButton(ui.calibrationDiscoverBtn, false, 'کشف خودکار از دیتابیس')
+
+  if (!response.ok || !response.data) {
+    setCalibrationStatus(response.error ?? 'کشف خودکار ناموفق بود.', 'error')
+    return
+  }
+
+  calibrationCurrentMapping = response.data.mapping
+  renderCalibrationConcepts(response.data.mapping.concepts)
+  const t1Count = response.data.type1Accounts.length
+  const t2Count = response.data.type2Accounts.length
+  setCalibrationStatus(
+    `کشف انجام شد — ${t1Count} حساب Type 1 و ${t2Count} حساب Type 2 یافت شد. اطمینان: ${response.data.mapping.confidence}`,
+    'success'
+  )
+}
+
+async function saveCalibrationMapping(): Promise<void> {
+  if (!calibrationCurrentMapping) {
+    setCalibrationStatus('ابتدا mapping را بارگذاری یا کشف کنید.', 'error')
+    return
+  }
+
+  const concepts: CalibrationSaveRequest['mapping']['concepts'] = {}
+  const conceptRows = ui.calibrationConcepts.querySelectorAll<HTMLElement>('[data-concept-key]')
+
+  for (const row of conceptRows) {
+    const conceptKey = row.dataset.conceptKey
+    if (!conceptKey) continue
+
+    const type1Input = row.querySelector<HTMLInputElement>('input[data-field="type1Codes"]')
+    const type2Input = row.querySelector<HTMLInputElement>('input[data-field="type2Codes"]')
+    const type3Input = row.querySelector<HTMLInputElement>('input[data-field="type3Codes"]')
+    const titlePatternInput = row.querySelector<HTMLInputElement>('input[data-field="titlePattern"]')
+    const availableCheckbox = row.querySelector<HTMLInputElement>('input[data-field="available"]')
+    const descInput = row.querySelector<HTMLInputElement>('input[data-field="description"]')
+
+    concepts[conceptKey] = {
+      type1Codes: type1Input?.value.trim().split(',').map((s) => s.trim()).filter(Boolean) ?? [],
+      type2Codes: type2Input?.value.trim().split(',').map((s) => s.trim()).filter(Boolean) ?? [],
+      type3Codes: type3Input?.value.trim().split(',').map((s) => s.trim()).filter(Boolean) ?? [],
+      titlePattern: titlePatternInput?.value.trim() || null,
+      available: availableCheckbox?.checked ?? true,
+      description: descInput?.value.trim() ?? ''
+    }
+  }
+
+  const payload: CalibrationSaveRequest = {
+    mapping: {
+      softwareId: calibrationCurrentMapping.softwareId,
+      databaseName: calibrationCurrentMapping.databaseName,
+      discoveryMethod: 'confirmed',
+      confidence: calibrationCurrentMapping.confidence,
+      concepts
+    }
+  }
+
+  toggleButton(ui.calibrationSaveBtn, true, 'در حال ذخیره...')
+  const response = await window.api.calibration.save(payload)
+  toggleButton(ui.calibrationSaveBtn, false, 'ذخیره mapping')
+
+  if (!response.ok || !response.data) {
+    setCalibrationStatus(response.error ?? 'ذخیره mapping ناموفق بود.', 'error')
+    return
+  }
+
+  setCalibrationStatus(`mapping با موفقیت ذخیره شد: ${response.data.path}`, 'success')
+}
+
+function renderCalibrationConcepts(concepts: CalibrationConceptEntry[]): void {
+  ui.calibrationConcepts.innerHTML = ''
+
+  for (const entry of concepts) {
+    const card = document.createElement('div')
+    card.className = 'field-grid'
+    card.dataset.conceptKey = entry.concept
+    card.style.border = '1px solid #e0e0e0'
+    card.style.padding = '8px'
+    card.style.borderRadius = '4px'
+    card.style.marginBottom = '8px'
+
+    const header = document.createElement('div')
+    header.style.fontWeight = 'bold'
+    header.style.marginBottom = '4px'
+    header.textContent = entry.label
+    card.appendChild(header)
+
+    const desc = document.createElement('div')
+    desc.style.fontSize = '11px'
+    desc.style.color = '#666'
+    desc.style.marginBottom = '6px'
+    desc.textContent = entry.description
+    card.appendChild(desc)
+
+    const availableLabel = document.createElement('label')
+    availableLabel.className = 'toggle'
+    const availableCheckbox = document.createElement('input')
+    availableCheckbox.type = 'checkbox'
+    availableCheckbox.checked = entry.available
+    availableCheckbox.dataset.field = 'available'
+    availableLabel.appendChild(availableCheckbox)
+    availableLabel.appendChild(document.createTextNode(' فعال'))
+    card.appendChild(availableLabel)
+
+    const type1Label = document.createElement('label')
+    type1Label.textContent = 'کدهای Type 1 (کاما جدا)'
+    const type1Input = document.createElement('input')
+    type1Input.type = 'text'
+    type1Input.value = entry.type1Codes.join(', ')
+    type1Input.dataset.field = 'type1Codes'
+    type1Label.appendChild(type1Input)
+    card.appendChild(type1Label)
+
+    const type2Label = document.createElement('label')
+    type2Label.textContent = 'کدهای Type 2 (کاما جدا)'
+    const type2Input = document.createElement('input')
+    type2Input.type = 'text'
+    type2Input.value = entry.type2Codes.join(', ')
+    type2Input.dataset.field = 'type2Codes'
+    type2Label.appendChild(type2Input)
+    card.appendChild(type2Label)
+
+    const type3Label = document.createElement('label')
+    type3Label.textContent = 'کدهای Type 3 (کاما جدا)'
+    const type3Input = document.createElement('input')
+    type3Input.type = 'text'
+    type3Input.value = entry.type3Codes.join(', ')
+    type3Input.dataset.field = 'type3Codes'
+    type3Label.appendChild(type3Input)
+    card.appendChild(type3Label)
+
+    const titlePatternLabel = document.createElement('label')
+    titlePatternLabel.textContent = 'الگوی عنوان (اختیاری)'
+    const titlePatternInput = document.createElement('input')
+    titlePatternInput.type = 'text'
+    titlePatternInput.value = entry.titlePattern ?? ''
+    titlePatternInput.dataset.field = 'titlePattern'
+    titlePatternLabel.appendChild(titlePatternInput)
+    card.appendChild(titlePatternLabel)
+
+    const descLabel = document.createElement('label')
+    descLabel.textContent = 'توضیحات'
+    const descInput = document.createElement('input')
+    descInput.type = 'text'
+    descInput.value = entry.description
+    descInput.dataset.field = 'description'
+    descLabel.appendChild(descInput)
+    card.appendChild(descLabel)
+
+    ui.calibrationConcepts.appendChild(card)
+  }
+}
+
+function setCalibrationStatus(message: string, kind: 'success' | 'error' | 'info'): void {
+  ui.calibrationStatus.textContent = message
+  ui.calibrationStatus.className = `inline-alert note-${kind === 'error' ? 'error' : kind === 'success' ? 'success' : 'info'}`
 }

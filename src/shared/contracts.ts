@@ -671,3 +671,54 @@ export interface IpcResponse<T> {
   data?: T
   error?: string
 }
+
+// S32.5: Calibration UI contracts
+export interface CalibrationAccountRow {
+  code: string
+  title: string
+  type: number
+  parentCode?: string | null
+}
+
+export interface CalibrationConceptEntry {
+  concept: string
+  label: string
+  description: string
+  available: boolean
+  type1Codes: string[]
+  type2Codes: string[]
+  type3Codes: string[]
+  titlePattern: string | null
+}
+
+export interface CalibrationGetMappingResult {
+  softwareId: string
+  databaseName: string
+  discoveryMethod: string
+  confidence: 'high' | 'medium' | 'low'
+  source: 'config' | 'default'
+  concepts: CalibrationConceptEntry[]
+}
+
+export interface CalibrationDiscoverResult {
+  type1Accounts: CalibrationAccountRow[]
+  type2Accounts: CalibrationAccountRow[]
+  mapping: CalibrationGetMappingResult
+}
+
+export interface CalibrationSaveRequest {
+  mapping: {
+    softwareId: string
+    databaseName: string
+    discoveryMethod: string
+    confidence: 'high' | 'medium' | 'low'
+    concepts: Record<string, {
+      type1Codes?: string[]
+      type2Codes?: string[]
+      type3Codes?: string[]
+      titlePattern?: string | null
+      available?: boolean
+      description?: string
+    }>
+  }
+}

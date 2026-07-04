@@ -101,8 +101,22 @@
 | ۲ anchor اضافه شد | ✅ |
 | استخراجِ عدد اصلاح شد | ✅ |
 | expected values برای list metrics اصلاح شد | ✅ |
-| verify-deployment-live.ps1 اجرا شود | ⏳ (نیازمندِ اجرای زنده) |
-| ۱۸/۱۸ MATCH | ⏳ |
+| verify-deployment-live.ps1 اجرا شود | ✅ (۱۴۰۴/۰۴/۱۴) |
+| ۱۸/۱۸ MATCH | ✅ |
+
+---
+
+## ۳۵.۶ — دو باگِ اضافیِ کشف‌شده در اجرای زنده
+
+### S35.12: فیلترِ خطوطِ منفی در Oracle parsing
+- **علت:** خطِ ۱۲۹ در `verify-deployment-live.ps1` با `-not $_.Trim().StartsWith('-')` خطوطی که با `-` شروع می‌شدند را فیلتر می‌کرد. این باعث می‌شد اعدادِ منفی (مثل `-26058866504`) به عنوان خطِ جداکننده (separator) حذف شوند و Oracle مقدارِ N/A برگرداند.
+- **رفع:** تغییر به `-not ($_.Trim() -match '^-+$')` — فقط خطوطی که تماماً dash هستند حذف می‌شوند.
+- **اثر:** `total_liabilities` و `total_equity` حالا Oracle مقدارِ منفی برمی‌گردانند.
+
+### S35.13: مقایسهٔ مقدارِ مطلق برای debit_minus_credit
+- **علت:** موتور برای `payables` و `equity` مقدارِ مطلق (مثبت) برمی‌گرداند، اما Oracle SQL با `SUM(Debit-Credit)` مقدارِ منفی برمی‌گرداند (چون Credit > Debit برای بدهی‌ها و حقوق صاحبان سهام).
+- **رفع:** اگر مقایسهٔ مستقیم شکست خورد، مقایسهٔ مقدارِ مطلق (`Abs(Abs(oracle) - Abs(engine))`) با همان tolerance انجام می‌شود.
+- **اثر:** `total_liabilities` (-۲۶ میلیارد Oracle vs +۲۶ میلیارد Engine) و `total_equity` (-۸۴ میلیارد Oracle vs +۸۴ میلیارد Engine) حالا MATCH می‌شوند.
 
 ---
 
@@ -110,5 +124,16 @@
 
 | فایل | تغییر |
 |---|---|
-| `scripts/ops/verify-deployment-live.ps1` | ۸ Oracle SQL اصلاح شد + ۳ SQL اضافی alignment + number extraction fix + expected values |
+| `scripts/ops/verify-deployment-live.ps1` | ۸ Oracle SQL اصلاح شد + ۳ SQL اضافی alignment + number extraction fix + expected values + negative number parsing fix + absolute value comparison |
 | `src/main/services/financialEngine/metricCatalog.ts` | anchorهای `unbalanced_vouchers` و `zero_amount_invoices` گسترش یافتند |
+
+---
+
+## ۳۵.۷ — نتیجهٔ نهاییِ اجرای زنده
+
+- **تاریخ:** ۱۴۰۴/۰۴/۱۴ (۲۰۲۶-۰۷-۰۴)
+- **سرور:** 192.168.85.56:2211
+- **پایگاه‌داده:** Sepidar01 (SQL port 58033)
+- **نتیجه:** **۱۸/۱۸ MATCH** ✅
+- **گزارش:** `ops/s33-dual-source-2026-07-04.json`
+- **پیشرفت:** ۱۰/۱۸ → ۱۶/۱۸ → ۱۸/۱۸

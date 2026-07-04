@@ -62,6 +62,7 @@
     <meta name="discovery-confidence" content="discoveryConfidence" />
     <meta name="cutover-locked" content="CUTOVER_LOCKED" />
     <meta name="engine-only-gate" content="engineOnlyGate" />
+    <meta name="calibration-ui" content="CALIBRATION_UI" />
     <title>ACC Assist</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta
@@ -756,6 +757,24 @@
                     </button>
                   </div>
                 </div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>کالیبراسیون سرفصل‌های حسابداری</legend>
+              <div class="field-grid">
+                <div class="inline-alert note-info">
+                  کالیبراسیون سرفصل‌ها: کدهای حساب‌ها را برای هر مفهوم مالی بررسی و تأیید کنید.
+                </div>
+                <div id="calibrationStatus" class="inline-alert note-info">
+                  mapping بارگذاری نشده. دکمه «بارگذاری» را بزنید.
+                </div>
+                <div class="row">
+                  <button id="calibrationLoadBtn" class="btn" type="button">بارگذاری mapping</button>
+                  <button id="calibrationDiscoverBtn" class="btn" type="button">کشف خودکار از دیتابیس</button>
+                  <button id="calibrationSaveBtn" class="btn btn-primary" type="button">ذخیره mapping</button>
+                </div>
+                <div id="calibrationConcepts" class="field-grid"></div>
               </div>
             </fieldset>
 

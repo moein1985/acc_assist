@@ -31,7 +31,10 @@ import type {
   SshProgressEvent,
   ConnectionHealthStatus,
   ConnectionDiagnosticInfo,
-  ConnectionLogEntry
+  ConnectionLogEntry,
+  CalibrationGetMappingResult,
+  CalibrationDiscoverResult,
+  CalibrationSaveRequest
 } from '../shared/contracts'
 
 const api = {
@@ -175,6 +178,14 @@ const api = {
       ipcRenderer.invoke('python:read-file', filePath),
     saveFile: (filePath: string): Promise<IpcResponse<string>> =>
       ipcRenderer.invoke('python:save-file', filePath)
+  },
+  calibration: {
+    getMapping: (): Promise<IpcResponse<CalibrationGetMappingResult>> =>
+      ipcRenderer.invoke('calibration:get-mapping'),
+    discover: (): Promise<IpcResponse<CalibrationDiscoverResult>> =>
+      ipcRenderer.invoke('calibration:discover'),
+    save: (payload: CalibrationSaveRequest): Promise<IpcResponse<{ saved: boolean; path: string }>> =>
+      ipcRenderer.invoke('calibration:save', payload)
   }
 }
 
