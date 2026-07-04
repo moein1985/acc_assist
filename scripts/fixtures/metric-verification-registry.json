@@ -103,13 +103,13 @@
     "status": "oracle_only",
     "expectedValue": 11,
     "fiscalYear": null,
-    "oracleSql": "SELECT COUNT(*) FROM FMK.FiscalYear (list proxy: count=11)",
+    "oracleSql": "SELECT TOP 3 FiscalYearId, Title, StartDate, EndDate FROM FMK.FiscalYear ORDER BY FiscalYearId",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "List metric — verified via count proxy (11 years). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample rows (FiscalYearId, Title, StartDate, EndDate). Content verification requires live engine pass to compare row values. | Previous: List metric — verified via count proxy (11 years). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "party_balance",
@@ -170,16 +170,16 @@
   {
     "metricId": "sales_by_period",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 12,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(DISTINCT MONTH(src.Date)) FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (period count proxy)",
+    "oracleSql": "SELECT TOP 3 MONTH(src.Date) AS MonthNum, SUM(src.NetPriceInBaseCurrency) AS MonthlySales FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') GROUP BY MONTH(src.Date) ORDER BY MonthNum",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via period count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample rows (MonthNum, MonthlySales). Period boundary logic requires accountant review to confirm correct month grouping. | Previous: Row-based metric — verified via period count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "account_turnover",
@@ -201,13 +201,13 @@
     "status": "oracle_only",
     "expectedValue": 3115,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(*) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (count proxy)",
+    "oracleSql": "SELECT TOP 3 v.VoucherId, v.Date, v.Number, v.Type FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) ORDER BY v.Date DESC",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 most recent vouchers (VoucherId, Date, Number, Type). Content verification requires live engine pass. | Previous: Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "balance_sheet",
@@ -520,30 +520,30 @@
   {
     "metricId": "vouchers_by_date",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 3115,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(*) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (count proxy)",
+    "oracleSql": "SELECT TOP 3 CONVERT(DATE, v.Date) AS VoucherDate, COUNT(*) AS VoucherCount FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) GROUP BY CONVERT(DATE, v.Date) ORDER BY VoucherDate DESC",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample dates (VoucherDate, VoucherCount). Grouping by date requires accountant review to confirm correct aggregation. | Previous: Row-based metric — verified via count proxy (3115 vouchers). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "vouchers_by_type",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 3,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(DISTINCT v.Type) FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) (type count proxy)",
+    "oracleSql": "SELECT TOP 3 v.Type, COUNT(*) AS TypeCount FROM ACC.Voucher v WHERE v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') AND v.Type NOT IN (3, 4) GROUP BY v.Type ORDER BY v.Type",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via distinct type count proxy (3 types). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample types (Type, TypeCount). Type semantics (1=normal, 2=?) require accountant review. | Previous: Row-based metric — verified via distinct type count proxy (3 types). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "unbalanced_vouchers",
@@ -646,16 +646,16 @@
   {
     "metricId": "tax_monthly_summary",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 12,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(DISTINCT MONTH(src.Date)) FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (month count proxy)",
+    "oracleSql": "SELECT TOP 3 MONTH(src.Date) AS MonthNum, SUM(src.TaxInBaseCurrency) AS MonthlyTax FROM SLS.Invoice src WHERE src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') GROUP BY MONTH(src.Date) ORDER BY MonthNum",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via month count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample rows (MonthNum, MonthlyTax). Tax monthly grouping requires accountant review to confirm correct period logic. | Previous: Row-based metric — verified via month count proxy (12 months). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "invoices_without_tax",
@@ -758,16 +758,16 @@
   {
     "metricId": "period_comparison",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 11,
     "fiscalYear": null,
-    "oracleSql": "SELECT COUNT(DISTINCT FiscalYearRef) FROM ACC.Voucher WHERE Type NOT IN (3, 4) (year count proxy)",
+    "oracleSql": "SELECT TOP 3 fy.Title AS FiscalYear, SUM(vi.Debit) AS TotalDebit, SUM(vi.Credit) AS TotalCredit FROM ACC.Voucher v JOIN ACC.VoucherItem vi ON v.VoucherId = vi.VoucherRef JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId WHERE v.Type NOT IN (3, 4) GROUP BY fy.Title ORDER BY fy.Title DESC",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via year count proxy (11 fiscal years with voucher data). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample years (FiscalYear, TotalDebit, TotalCredit). Cross-year comparison logic requires accountant review. | Previous: Row-based metric — verified via year count proxy (11 fiscal years with voucher data). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "sales_reconciliation",
@@ -842,16 +842,16 @@
   {
     "metricId": "trend_analysis",
     "tier": "T3",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 11,
     "fiscalYear": null,
-    "oracleSql": "SELECT COUNT(DISTINCT FiscalYearRef) FROM ACC.Voucher WHERE Type NOT IN (3, 4) (year count proxy)",
+    "oracleSql": "SELECT TOP 3 fy.Title AS FiscalYear, SUM(vi.Debit) - SUM(vi.Credit) AS NetMovement FROM ACC.Voucher v JOIN ACC.VoucherItem vi ON v.VoucherId = vi.VoucherRef JOIN FMK.FiscalYear fy ON v.FiscalYearRef = fy.FiscalYearId WHERE v.Type NOT IN (3, 4) GROUP BY fy.Title ORDER BY fy.Title DESC",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "11 fiscal years with voucher data. Multi-year trend metric — verified via year count proxy. Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample years (FiscalYear, NetMovement). Trend analysis methodology requires accountant review. | Previous: 11 fiscal years with voucher data. Multi-year trend metric — verified via year count proxy. Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "fixed_assets_register",
@@ -898,16 +898,16 @@
   {
     "metricId": "cogs_detailed",
     "tier": "T2",
-    "status": "oracle_only",
+    "status": "needs_accountant_review",
     "expectedValue": 1228,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(*) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '61')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (row count proxy)",
+    "oracleSql": "SELECT TOP 3 vi.VoucherRef, vi.Debit, vi.Credit, a.Code, a.Title FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef = v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef = a.AccountId WHERE v.Type NOT IN (3, 4) AND EXISTS (SELECT 1 FROM ACC.Account p1 WHERE p1.AccountId = a.ParentAccountRef AND EXISTS (SELECT 1 FROM ACC.Account p2 WHERE p2.AccountId = p1.ParentAccountRef AND p2.Type = 1 AND p2.Code = '61')) AND v.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') ORDER BY vi.VoucherRef",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via row count proxy (1228 voucher items under Code=61). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample rows (VoucherRef, Debit, Credit, Code, Title). COGS account hierarchy requires accountant review. | Previous: Row-based metric — verified via row count proxy (1228 voucher items under Code=61). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "bank_reconciliation",
@@ -929,13 +929,13 @@
     "status": "oracle_only",
     "expectedValue": 66,
     "fiscalYear": "1402",
-    "oracleSql": "SELECT COUNT(*) FROM SLS.Invoice WHERE ISNULL(TaxInBaseCurrency, 0) > 0 AND FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') (row count proxy)",
+    "oracleSql": "SELECT TOP 3 src.InvoiceId, src.Date, src.NetPriceInBaseCurrency, src.TaxInBaseCurrency FROM SLS.Invoice src WHERE ISNULL(src.TaxInBaseCurrency, 0) > 0 AND src.FiscalYearRef = (SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title = N'1402') ORDER BY src.InvoiceId",
     "engineRequestId": "sweep-2026-07-03",
     "diff": 0,
     "tolerance": 0,
     "verifiedAt": "2026-07-03",
     "commit": "",
-    "notes": "Row-based metric — verified via row count proxy (66 invoices with tax). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
+    "notes": "S33.10: Content-sampling oracle — 3 sample invoices (InvoiceId, Date, NetPrice, Tax). VAT detail content requires live engine pass to compare. | Previous: Row-based metric — verified via row count proxy (66 invoices with tax). Row-level content needs accountant review — Phase 30 | S33.2: Downgraded from verified to oracle_only (no live engineRequestId)"
   },
   {
     "metricId": "tax_liability_summary",

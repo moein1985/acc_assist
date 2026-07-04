@@ -263,6 +263,20 @@ export class AgentOrchestrator {
       // S15.22: Resolve adapter based on softwareMode
       const { adapter, softwareId } = await this.resolveAdapter()
 
+      // S34.1-S34.4: Load chart of accounts mapping from config or default
+      const { loadChartOfAccountsMapping } = await import('./financialEngine/chartOfAccountsMapping')
+      const mappingResult = loadChartOfAccountsMapping()
+
+      // S34.4: Audit calibration mapping source
+      void this.safeAuditWrite({
+        timestamp: new Date().toISOString(),
+        requestId: payload.requestId,
+        conversationId: payload.conversationId,
+        stage: 'calibration-mapping',
+        toolName: `source=${mappingResult.source}, discoveryMethod=${mappingResult.mapping.discoveryMethod}, confidence=${mappingResult.mapping.confidence}, softwareId=${mappingResult.mapping.softwareId}, databaseName=${mappingResult.mapping.databaseName}`,
+        ...(mappingResult.error ? { error: mappingResult.error } : {}),
+      })
+
       const engine = new FinancialEngine({
         quoteSqlTableRef,
         quoteSqlIdentifier,
@@ -270,6 +284,7 @@ export class AgentOrchestrator {
         executeReadOnlySql: (query, signal) => this.executeReadOnlySql(query, signal ?? undefined),
         adapter,
         softwareId,
+        chartOfAccountsMapping: mappingResult.mapping,
         plannerModel: {
           callModel: (plannerPrompt: string) => this.callPlannerModel(plannerPrompt)
         }

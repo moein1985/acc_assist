@@ -173,7 +173,14 @@ function buildWhereClauses(
   }
 
   // S32.4: Resolve account concept filter via ChartOfAccountsMapping
+  // S34.6: Safety gate — refuse low-confidence auto mappings
   if (definition.accountConceptFilter) {
+    const mapping = deps.chartOfAccountsMapping
+    if (mapping && mapping.discoveryMethod === 'auto' && mapping.confidence === 'low') {
+      throw new Error(
+        `S34.6 Safety Gate: Metric '${definition.id}' uses accountConceptFilter '${definition.accountConceptFilter}' but the chart of accounts mapping was auto-discovered with low confidence. Refusing to compile to prevent incorrect financial results. Please confirm or correct the mapping in config/chartOfAccountsMapping.json.`
+      )
+    }
     const accountFilter = resolveAccountFilter(
       deps.chartOfAccountsMapping,
       definition.accountConceptFilter,

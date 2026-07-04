@@ -8,6 +8,9 @@
  * @see FRE_ROADMAP_32_PHASE32_PER_DEPLOYMENT_CALIBRATION.fa.md
  */
 
+import { z } from 'zod'
+import { existsSync, readFileSync } from 'fs'
+
 // ─── Account Concepts ────────────────────────────────────────────────────────
 
 /**
@@ -492,4 +495,97 @@ export function validateDebitCreditBalance(
       ? `Debit (${totalDebit}) = Credit (${totalCredit}) ✓`
       : `Debit (${totalDebit}) ≠ Credit (${totalCredit}), diff=${difference}`,
   }
+}
+
+// ─── S34.1: Runtime Mapping Loader ──────────────────────────────────────────
+
+const accountConceptMappingSchema = z.object({
+  type1Codes: z.array(z.string()).optional(),
+  type2Codes: z.array(z.string()).optional(),
+  type3Codes: z.array(z.string()).optional(),
+  titlePattern: z.string().optional(),
+  available: z.boolean(),
+  description: z.string(),
+})
+
+const chartOfAccountsMappingSchema = z.object({
+  softwareId: z.string(),
+  databaseName: z.string(),
+  concepts: z.record(z.string(), accountConceptMappingSchema),
+  discoveredAt: z.string().optional(),
+  discoveryMethod: z.enum(['default', 'auto', 'manual', 'confirmed']),
+  confidence: z.enum(['high', 'medium', 'low']),
+})
+
+export interface LoadMappingResult {
+  mapping: ChartOfAccountsMapping
+  source: 'config' | 'default'
+  error?: string
+}
+
+/**
+ * S34.1: Load chart of accounts mapping from config file.
+ * If config/chartOfAccountsMapping.json exists and is valid, use it.
+ * Otherwise, fall back to defaultSepidarMapping.
+ *
+ * S34.2: Invalid mapping → warning + fallback to default (no crash).
+ *
+ * @param configPath - Path to the mapping JSON file (default: config/chartOfAccountsMapping.json)
+ * @param fallbackSoftwareId - Software ID to use for default mapping (default: 'sepidar')
+ */
+export function loadChartOfAccountsMapping(
+  configPath?: string
+): LoadMappingResult {
+  const path = configPath ?? 'config/chartOfAccountsMapping.json'
+
+  try {
+    if (!existsSync(path)) {
+      return {
+        mapping: defaultSepidarMapping,
+        source: 'default',
+      }
+    }
+
+    const raw = readFileSync(path, 'utf-8')
+    const parsed = JSON.parse(raw)
+    const result = chartOfAccountsMappingSchema.safeParse(parsed)
+
+    if (!result.success) {
+      return {
+        mapping: defaultSepidarMapping,
+        source: 'default',
+        error: `Invalid chartOfAccountsMapping.json: ${result.error.issues.map(i => i.path.join('.') + ': ' + i.message).join('; ')}`,
+      }
+    }
+
+    // Convert validated plain object to ChartOfAccountsMapping with proper enum keys
+    const concepts: Partial<Record<AccountConcept, AccountConceptMapping>> = {}
+    for (const [key, value] of Object.entries(result.data.concepts)) {
+      if (isAccountConcept(key)) {
+        concepts[key as AccountConcept] = value as AccountConceptMapping
+      }
+    }
+
+    return {
+      mapping: {
+        softwareId: result.data.softwareId,
+        databaseName: result.data.databaseName,
+        concepts,
+        discoveredAt: result.data.discoveredAt,
+        discoveryMethod: result.data.discoveryMethod,
+        confidence: result.data.confidence,
+      },
+      source: 'config',
+    }
+  } catch (err) {
+    return {
+      mapping: defaultSepidarMapping,
+      source: 'default',
+      error: `Failed to load chartOfAccountsMapping.json: ${(err as Error).message}`,
+    }
+  }
+}
+
+function isAccountConcept(key: string): boolean {
+  return Object.values(AccountConcept).includes(key as AccountConcept)
 }

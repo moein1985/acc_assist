@@ -68,11 +68,38 @@ console.log(`         ${overallOracleOnly}/${totalMetrics} oracle_only (${Math.r
 console.log(`         ${overallNeedsReview}/${totalMetrics} needs_accountant_review (${Math.round((overallNeedsReview / totalMetrics) * 100)}%)`)
 console.log(`         ${overallNotApplicable}/${totalMetrics} not_applicable (${Math.round((overallNotApplicable / totalMetrics) * 100)}%)`)
 
+// ── S33.11: Count-proxy guard ──
+// List metrics verified via count-proxy (cardinality only) cannot be 'verified'.
+// They must have content-sampling oracles (SELECT TOP N ... with key columns).
+const countProxyPatterns = [
+  /count\s*proxy/i,
+  /row count proxy/i,
+  /period count proxy/i,
+  /type count proxy/i,
+  /month count proxy/i,
+  /year count proxy/i,
+  /list proxy/i,
+]
+const verifiedWithCountProxy = registry.filter(
+  (r) =>
+    r.status === 'verified' &&
+    countProxyPatterns.some((p) => p.test(r.oracleSql)),
+)
+if (verifiedWithCountProxy.length > 0) {
+  console.log('\n⚠ S33.11 VIOLATION: The following verified metrics still use count-proxy oracles:')
+  for (const e of verifiedWithCountProxy) {
+    console.log(`  - ${e.metricId}: ${e.oracleSql.substring(0, 80)}...`)
+  }
+  console.log('Count-proxy is no longer sufficient for verified status. Use content-sampling oracles.')
+}
+
 // ── Exit code: 0 if T1 has no unverified entries, 1 otherwise ──
 // needs_accountant_review, oracle_only, and not_applicable are valid non-verified statuses
 const t1Unverified = registry.filter((r) => r.tier === 'T1' && r.status === 'unverified')
-if (t1Unverified.length > 0) {
-  console.log(`\nWARNING: ${t1Unverified.length} T1 metrics still unverified`)
+if (t1Unverified.length > 0 || verifiedWithCountProxy.length > 0) {
+  if (t1Unverified.length > 0) {
+    console.log(`\nWARNING: ${t1Unverified.length} T1 metrics still unverified`)
+  }
   process.exit(1)
 } else {
   const t1NeedsReview = registry.filter((r) => r.tier === 'T1' && r.status === 'needs_accountant_review').length

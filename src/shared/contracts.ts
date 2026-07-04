@@ -631,6 +631,7 @@ export type AuditLogStage =
   | 'discovery-relationships'
   | 'discovery-enums'
   | 'discovery-confidence'
+  | 'calibration-mapping'
 
 export interface AuditLogQueryRequest {
   limit?: number

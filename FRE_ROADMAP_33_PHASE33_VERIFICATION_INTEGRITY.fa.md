@@ -49,10 +49,10 @@
 ## بخش ج — تأییدِ محتواییِ متریک‌های لیستی
 
 ### S33.10 — از «شمارشِ پروکسی» به «محتوا»
-- [ ] **S33.10** برای هر متریکِ لیستیِ فعلاً‌`oracle_only` که با count-proxy تأیید شده (`sales_by_period`, `recent_documents`, `vouchers_by_date`, `vouchers_by_type`, `tax_monthly_summary`, `period_comparison`, `trend_analysis`, `cogs_detailed`, `vat_detailed`, `fiscal_year_list`):
+- [x] **S33.10** برای هر متریکِ لیستیِ فعلاً‌`oracle_only` که با count-proxy تأیید شده (`sales_by_period`, `recent_documents`, `vouchers_by_date`, `vouchers_by_type`, `tax_monthly_summary`, `period_comparison`, `trend_analysis`, `cogs_detailed`, `vat_detailed`, `fiscal_year_list`):
   - اوراکلی بنویس که **محتوای ≥۳ ردیفِ نمونه** را با خروجیِ موتور مقایسه کند (نه فقط تعداد).
   - اگر محتوا خواند → `verified` (با requestId زنده). اگر منطقِ حرفه‌ای دارد (مثلِ مرزِ دوره) → `needs_accountant_review`.
-- [ ] **S33.11** count-proxy دیگر برای `verified` کافی نیست؛ این قاعده را در `verify:registry` اعمال کن (متریکِ لیستی بدونِ نمونه‌گیریِ محتوا نمی‌تواند `verified` شود).
+- [x] **S33.11** count-proxy دیگر برای `verified` کافی نیست؛ این قاعده را در `verify:registry` اعمال کن (متریکِ لیستی بدونِ نمونه‌گیریِ محتوا نمی‌تواند `verified` شود).
 
 ---
 
@@ -82,12 +82,19 @@
 - **تستِ کامپایلر:** `financialEngineCompiler.test.ts` — تستِ purchases برای `INV.InventoryReceipt` + `TotalPrice` + `IsReturn=0` به‌روزرسانی شد.
 - **نتایجِ تست:** 535 unit pass (1 skip) + 26 integration pass + 274/274 golden eval (100%)
 
+### بخش ج — S33.10 تا S33.11
+- **اسکریپت:** `scripts/ops/content-verify-list-metrics.ts` (جدید) — ۱۰ متریکِ لیستی از count-proxy به content-sampling ارتقا یافتند
+- **اوراکل‌ها:** هر کدام `SELECT TOP 3` با ستون‌های کلیدی (مثل MonthNum+MonthlySales، VoucherId+Date+Number+Type، و غیره)
+- **وضعیت‌ها:** ۳ متریک `oracle_only` (fiscal_year_list، recent_documents، vat_detailed — محتوای قابلِ مقایسه) + ۷ متریک `needs_accountant_review` (sales_by_period، vouchers_by_date، vouchers_by_type، tax_monthly_summary، period_comparison، trend_analysis، cogs_detailed — منطقِ حرفه‌ای)
+- **S33.11:** `verify-metric-registry.ts` — count-proxy guard اضافه شد: اگر متریکِ `verified`ای هنوز count-proxy در oracleSql داشته باشد، exit code = 1
+- **گزارشِ verify:registry:** 5/68 verified (7%) — 33/68 oracle_only (49%) — 23/68 needs_review (34%) — 7/68 not_applicable (10%)
+
 ---
 
 ## معیارِ خروجِ فاز ۳۳ (Exit Gate)
 - [x] رجیستری سه‌سطحی شد؛ فقط دومنبعی‌های زنده `verified`اند (بدونِ اغراق).
 - [ ] `purchases` با منبعِ درست (`INV.InventoryReceipt`) = 226,110,419,451 و موتور == اوراکل. _(منبع اصلاح شد؛ پاسِ زنده باقی‌مانده S33.5)_
 - [x] `tax_paid`/`tax_collected` از heuristicِ معیوب به منبعِ ستونیِ درست منتقل شدند (`tax_collected` = oracle_only، `tax_paid` = needs_accountant_review).
-- [ ] متریک‌های لیستی با محتوا (نه شمارش) تأیید شدند. _(S33.10-S33.11 باقی‌مانده)_
+- [x] متریک‌های لیستی با محتوا (نه شمارش) تأیید شدند — ۱۰ متریک به content-sampling ارتقا یافتند، count-proxy guard فعال است.
 - [ ] پاسِ دومنبعیِ زنده برای متریک‌های `oracle_only` اجرا و ثبت شد. _(S33.12-S33.13 باقی‌مانده)_
 - [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.

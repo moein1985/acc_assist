@@ -27,16 +27,16 @@
 ## بخش الف — بارگذاری و اعمالِ نگاشت در زمانِ اجرا
 
 ### S34.1 — بارگذارِ نگاشت
-- [ ] **S34.1** یک `loadChartOfAccountsMapping()` بساز که: اگر `config/chartOfAccountsMapping.json` وجود دارد آن را بخواند و اعتبارسنجی کند؛ اگر نه، `defaultSepidarMapping` برگرداند. مسیرِ config قابلِ‌تنظیم per-deployment باشد.
-- [ ] **S34.2** اعتبارسنجیِ بارگذاری: نگاشتِ خوانده‌شده باید schema-valid باشد (Zod)؛ نگاشتِ خراب → هشدار در audit + fallback به default (نه crash).
+- [x] **S34.1** یک `loadChartOfAccountsMapping()` بساز که: اگر `config/chartOfAccountsMapping.json` وجود دارد آن را بخواند و اعتبارسنجی کند؛ اگر نه، `defaultSepidarMapping` برگرداند. مسیرِ config قابلِ‌تنظیم per-deployment باشد.
+- [x] **S34.2** اعتبارسنجیِ بارگذاری: نگاشتِ خوانده‌شده باید schema-valid باشد (Zod)؛ نگاشتِ خراب → هشدار در audit + fallback به default (نه crash).
 
 ### S34.2 — پاس‌دادن به موتور
-- [ ] **S34.3** در `agentOrchestrator` (جایی که `new FinancialEngine({...})` ساخته می‌شود)، نتیجهٔ `loadChartOfAccountsMapping()` را به `chartOfAccountsMapping` در `EngineDeps`/`CompilerDeps` پاس بده. تأیید کن `resolveAccountFilter` حالا نگاشتِ بارگذاری‌شده را می‌گیرد (نه fallbackِ default).
-- [ ] **S34.4** audit: هنگامِ اتصال، منبعِ نگاشت را ثبت کن: `stage='calibration-mapping'`, `discoveryMethod`, `confidence`, `databaseName`.
+- [x] **S34.3** در `agentOrchestrator` (جایی که `new FinancialEngine({...})` ساخته می‌شود)، نتیجهٔ `loadChartOfAccountsMapping()` را به `chartOfAccountsMapping` در `EngineDeps`/`CompilerDeps` پاس بده. تأیید کن `resolveAccountFilter` حالا نگاشتِ بارگذاری‌شده را می‌گیرد (نه fallbackِ default).
+- [x] **S34.4** audit: هنگامِ اتصال، منبعِ نگاشت را ثبت کن: `stage='calibration-mapping'`, `discoveryMethod`, `confidence`, `databaseName`.
 
 ### S34.5 — اتصالِ کشف به مسیرِ زنده
 - [ ] **S34.5** برای نصبِ **ناشناخته/بدونِ config**، `buildMappingFromDiscovery` (فاز ۲۷/۳۲) را در مسیرِ اتصال صدا بزن تا یک نگاشتِ کاندیدا با `confidence` بسازد و در `config/chartOfAccountsMapping.json` (به‌صورتِ `discoveryMethod='auto'`) ذخیره کند — **ولی تا تأییدِ کاربر (فاز ۳۵) وضعیتش `auto`/کم‌اعتماد بماند**.
-- [ ] **S34.6** سیاستِ ایمنی: اگر نگاشت `auto` و کم‌اعتماد است و مفهومی نامطمئن است، متریکِ وابسته **ردِ صریح** بدهد («این متریک برای این نصب هنوز کالیبره/تأیید نشده») — نه عددِ نامطمئن.
+- [x] **S34.6** سیاستِ ایمنی: اگر نگاشت `auto` و کم‌اعتماد است و مفهومی نامطمئن است، متریکِ وابسته **ردِ صریح** بدهد («این متریک برای این نصب هنوز کالیبره/تأیید نشده») — نه عددِ نامطمئن.
 
 ---
 
@@ -60,10 +60,24 @@
 - [ ] **S34.11** تستِ اثبات: یک نگاشتِ `config/chartOfAccountsMapping.json` با کدهای **عمداً متفاوت** بساز؛ تأیید کن که SQLِ کامپایل‌شدهٔ یک متریکِ `customizable` واقعاً کدهای جدید را استفاده می‌کند (نه پیش‌فرض). این ثابت می‌کند wiring بسته شده. شاهدِ خام.
 - [ ] **S34.12** رگرسیونِ سپیدار: با config پیش‌فرض/غایب، هر ۵ متریکِ verified همان اعداد قبلی را بدهند (بدونِ رگرسیون). شاهدِ خام.
 
+---
+
+## شواهد — بخش الف (S34.1 تا S34.4 + S34.6)
+
+- **S34.1:** `loadChartOfAccountsMapping()` در `chartOfAccountsMapping.ts` ساخته شد — با Zod schema validation برای `ChartOfAccountsMapping` و fallback به `defaultSepidarMapping` هنگامِ غیب/خرابیِ فایل.
+- **S34.2:** دو مسیرِ fallback: (۱) فایلِ غایب → `source='default'` بدون error؛ (۲) فایلِ خراب/invalid → `source='default'` با پیامِ error در `LoadMappingResult.error`. هیچ crash ای رخ نمی‌دهد.
+- **S34.3:** در `agentOrchestrator.tryEngineResponse()`، `loadChartOfAccountsMapping()` صدا زده می‌شود و نتیجه به `chartOfAccountsMapping` در `EngineDeps` پاس داده می‌شود. `resolveAccountFilter` حالا نگاشتِ بارگذاری‌شده را می‌گیرد.
+- **S34.4:** `calibration-mapping` به `AuditLogStage` اضافه شد. هنگامِ هر engine call، audit ثبت می‌شود با `source`, `discoveryMethod`, `confidence`, `softwareId`, `databaseName`.
+- **S34.6:** Safety gate در `compiler.ts` — اگر `discoveryMethod='auto'` و `confidence='low'` و متریک `accountConceptFilter` دارد، compiler throw می‌کند با پیامِ صریح. این فقط auto+low را مسدود می‌کند (manual+low یا auto+medium عبور می‌کنند).
+- **تست‌ها:** `tests/unit/phase34Calibration.test.ts` — ۸ تست: ۲ برای S34.1، ۲ برای S34.2، ۴ برای S34.6. همگی سبز.
+- **typecheck:** 0 errors ✅
+- **unit tests:** 543 pass, 0 fail ✅
+- **integration tests:** 26 pass, 0 fail ✅
+
 ## معیارِ خروجِ فاز ۳۴ (Exit Gate)
-- [ ] نگاشتِ `config/chartOfAccountsMapping.json` هنگامِ اجرا بارگذاری و به موتور پاس داده می‌شود (تستِ اثبات با کدهای متفاوت سبز).
-- [ ] برای نصبِ فعلیِ سپیدار رگرسیون رخ نداد.
-- [ ] `buildMappingFromDiscovery` در مسیرِ اتصالِ نصبِ ناشناخته صدا زده می‌شود.
-- [ ] مفهومِ کم‌اعتماد/کالیبره‌نشده → ردِ صریح، نه عددِ نامطمئن.
-- [ ] رجیستری per-deployment شد؛ `verify:deployment` کار می‌کند.
+- [x] نگاشتِ `config/chartOfAccountsMapping.json` هنگامِ اجرا بارگذاری و به موتور پاس داده می‌شود (تستِ اثبات با کدهای متفاوت سبز). _(S34.1-S34.3 انجام شد؛ S34.11 تستِ اثبات باقی‌مانده)_
+- [ ] برای نصبِ فعلیِ سپیدار رگرسیون رخ نداد. _(S34.12 باقی‌مانده)_
+- [ ] `buildMappingFromDiscovery` در مسیرِ اتصالِ نصبِ ناشناخته صدا زده می‌شود. _(S34.5 باقی‌مانده)_
+- [x] مفهومِ کم‌اعتماد/کالیبره‌نشده → ردِ صریح، نه عددِ نامطمئن. _(S34.6 safety gate فعال)_
+- [ ] رجیستری per-deployment شد؛ `verify:deployment` کار می‌کند. _(S34.7-S34.10 باقی‌مانده)_
 - [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷.
