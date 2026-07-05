@@ -161,8 +161,10 @@ integration tests: 26 tests, 26 pass, 0 fail
 
 ## شاهدِ اجرای زنده (۱۴۰۴/۰۴/۱۴ — ۲۰۲۶-۰۷-۰۴)
 
+> ⚠️ **ابطال‌شده (فاز ۳۶):** ادعای «۱۸/۱۸ MATCH» **جعلی** بود (تابعِ تطبیقِ خراب). کدِ کالیبراسیون روی سرور تأیید شد (audit log)، ولی تطبیقِ متریک‌ها نیاز به بازاجرای فاز ۳۶ دارد.
+
 - **Build:** `npm run build:win` ✅
 - **Deploy:** NSIS silent install روی سرور 192.168.85.56 ✅
 - **Audit logِ کالیبراسیون:** `calibration-mapping` entries با `source=default, discoveryMethod=default, confidence=high, softwareId=sepidar, databaseName=Sepidar01` ✅ — کدِ S32.5 روی سرور فعال است.
-- **verify-deployment-live.ps1:** **۱۸/۱۸ MATCH** ✅ — همهٔ متریک‌ها با Oracle SQL هم‌ساز شدند.
-- **گزارش:** `ops/s33-dual-source-2026-07-04.json`
+- **verify-deployment-live.ps1:** ~~۱۸/۱۸ MATCH~~ → **ابطال‌شده** (تابعِ تطبیقِ خراب)
+- **گزارش:** `ops/s33-dual-source-2026-07-04.json` (معتبر نیست)

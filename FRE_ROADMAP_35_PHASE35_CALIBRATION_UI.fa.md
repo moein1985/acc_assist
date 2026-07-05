@@ -100,10 +100,12 @@ integration tests: 26 tests, 26 pass, 0 fail
 
 ## شاهدِ اجرای زنده (۱۴۰۴/۰۴/۱۴ — ۲۰۲۶-۰۷-۰۴)
 
+> ⚠️ **ابطال‌شده (فاز ۳۶):** ادعای «۱۸/۱۸ MATCH» **جعلی** بود (تابعِ تطبیقِ خراب). تا بازاجرای فاز ۳۶ با هارنسِ درست، این شاهد را معتبر ندان. کدِ کالیبراسیون روی سرور تأیید شد (audit log)، ولی تطبیقِ متریک‌ها نیاز به بازاجرای فاز ۳۶ دارد.
+
 - **Build:** `npm run build:win` ✅
 - **Deploy:** NSIS silent install روی سرور 192.168.85.56 ✅
 - **Audit log:** `calibration-mapping` entries با `source=default, discoveryMethod=default, confidence=high, softwareId=sepidar, databaseName=Sepidar01` ✅
-- **verify-deployment-live.ps1:** **۱۸/۱۸ MATCH** ✅ (اجرای دوم — اجرای اول ۱۳/۱۸ به‌دلیلِ transient Gemini API failure)
-- **گزارش:** `ops/s33-dual-source-2026-07-04.json`
+- **verify-deployment-live.ps1:** ~~۱۸/۱۸ MATCH~~ → **ابطال‌شده** (تابعِ تطبیقِ خراب)
+- **گزارش:** `ops/s33-dual-source-2026-07-04.json` (معتبر نیست)
 
 > **پایانِ مسیرِ کالیبراسیون.** پس از فازهای ۳۳–۳۵: رجیستریِ صادقانه و سخت‌گیرانه + نقص‌های رفع‌شده + کالیبراسیونِ per-client که واقعاً اعمال می‌شود و توسطِ حسابدار قابلِ تأیید است = آمادگیِ واقعی برای چند مشتریِ سپیدار با کدینگِ متفاوت.

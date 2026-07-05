@@ -359,7 +359,7 @@ const catalog: MetricDefinition[] = [
     id: 'payables',
     titleFa: 'پرداختنی‌ها',
     anchors: ['پرداختنی', 'مانده پرداختنی', 'حساب‌های پرداختنی', 'طرف حساب پرداختنی', 'بدهی', 'بدهی‌ها'],
-    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی', 'VAT', 'ارزش افزوده', 'مالیاتی'],
+    excludeSignals: ['دریافتنی', 'فروش', 'خرید', 'تراز', 'بانک', 'صندوق', 'گردش', 'کل', 'مجموع', 'معوق', 'سررسید', 'تحلیل سنی', 'VAT', 'ارزش افزوده', 'مالیاتی', 'موجودی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -695,8 +695,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'total_liabilities',
     titleFa: 'کل بدهی‌ها',
-    anchors: ['کل بدهی‌ها', 'مجموع بدهی‌ها', 'کل بدهی', 'مجموع بدهی'],
-    excludeSignals: ['دارایی', 'حقوق', 'درآمد', 'هزینه', 'ترازنامه', 'آزمایشی', 'پرداختنی', 'طرف حساب'],
+    anchors: ['کل بدهی‌ها', 'مجموع بدهی‌ها', 'کل بدهی', 'مجموع بدهی', 'بدهی‌ها', 'موجودی بدهی‌ها', 'مانده بدهی‌ها', 'بدهی کل'],
+    excludeSignals: ['دارایی', 'حقوق', 'درآمد', 'هزینه', 'ترازنامه', 'آزمایشی', 'طرف حساب', 'پرداختنی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
     source: {
@@ -1886,16 +1886,28 @@ const catalog: MetricDefinition[] = [
   {
     id: 'vat_liability',
     titleFa: 'بدهی مالیات ارزش افزوده',
-    anchors: ['بدهی VAT', 'مالیات پرداختنی', 'خالص مالیات ارزش افزوده', 'چقدر مالیات باید بدهیم'],
-    excludeSignals: ['ماهانه', 'فاکتور بدون', 'معاف'],
+    anchors: ['بدهی VAT', 'مالیات پرداختنی', 'خالص مالیات ارزش افزوده', 'چقدر مالیات باید بدهیم', 'مالیات بر ارزش افزوده', 'مالیات ارزش افزوده'],
+    excludeSignals: ['ماهانه', 'فاکتور بدون', 'معاف', 'تفصیلی', 'تفکیک'],
     softwareId: 'sepidar',
-    grainSupported: ['total'],
+    grainSupported: ['total', 'by_year'],
     source: {
       primaryTable: 'SLS.Invoice',
       alias: 'inv'
     },
     measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
-    dimensions: [],
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'inv'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
     mandatoryFilters: [],
     dateColumn: 'inv.Date'
   },
@@ -2483,16 +2495,27 @@ const catalog: MetricDefinition[] = [
   {
     id: 'vat_detailed',
     titleFa: 'تفکیک مالیات بر ارزش افزوده',
-    anchors:['مالیات بر ارزش افزوده تفصیلی', 'VAT تفصیلی', 'تفکیک VAT', 'مالیات فروش تفصیلی', 'تفکیک مالیات بر ارزش افزوده', 'مالیات بر ارزش افزوده'],
-    excludeSignals: ['تطبیق', 'اختلاف'],
+    anchors:['مالیات بر ارزش افزوده تفصیلی', 'VAT تفصیلی', 'تفکیک VAT', 'مالیات فروش تفصیلی', 'تفکیک مالیات بر ارزش افزوده'],
+    excludeSignals: ['تطبیق', 'اختلاف', 'بدهی', 'پرداختنی'],
     softwareId: 'sepidar',
-    grainSupported: ['total', 'by_rate', 'by_month', 'by_customer'],
+    grainSupported: ['total', 'by_rate', 'by_month', 'by_customer', 'by_year'],
     source: {
       primaryTable: 'SLS.Invoice',
       alias: 'inv'
     },
-    measure: { kind: 'sum', column: 'NetPriceInBaseCurrency' },
+    measure: { kind: 'sum', column: 'TaxInBaseCurrency' },
     dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' },
+          sourceAlias: 'inv'
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      },
       {
         dimension: 'by_rate',
         labelColumn: "CASE WHEN inv.TaxInBaseCurrency > 0 THEN 'standard' ELSE 'exempt' END",
