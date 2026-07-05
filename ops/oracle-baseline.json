@@ -1,0 +1,74 @@
+{
+  "zero_amount_invoices": {
+    "sqlHash": "fc59572589240bded711bb5320a063a9df1d1de926fc0211002bcda7c49e4b62",
+    "expectedMetricId": "zero_amount_invoices"
+  },
+  "cashflow": {
+    "sqlHash": "f1f01cd626a44de6df29e831c8444305f6257cc3e33c967b8b6473f76be7c677",
+    "expectedMetricId": "cashflow"
+  },
+  "fiscal_year_count": {
+    "sqlHash": "b54998c0e1095ef45c9c2eb047407225444fd2c6e8b2a8a68023d1b3a6fc0a5e",
+    "expectedMetricId": "fiscal_year_count"
+  },
+  "sales_count": {
+    "sqlHash": "0032118b50c60c690a76bc90c521ff849f9c8ed1ef9a9f2cd361e8217ef0cd0c",
+    "expectedMetricId": "sales_count"
+  },
+  "closing_status": {
+    "sqlHash": "fc80c96185abeda6b4a099a0bd2ef5a573f17feeabfde488a11e2c4d4aee221b",
+    "expectedMetricId": "closing_status"
+  },
+  "total_revenue": {
+    "sqlHash": "bbc0a56ed317a2d26f9d5a19e8f34e06fbd6e89d5989a8e4245cfa34a9a7bc22",
+    "expectedMetricId": "net_sales"
+  },
+  "total_liabilities": {
+    "sqlHash": "6d5c308c02e10a8030baf24cd8cb3ad6bcd28f3b8bf844c85a5072d7d7ee2c47",
+    "expectedMetricId": "total_liabilities"
+  },
+  "unbalanced_vouchers": {
+    "sqlHash": "3fc7eb3e37fa18464f95d9896261986caf358a2672e5b623e7d8c97964d5784a",
+    "expectedMetricId": "unbalanced_vouchers"
+  },
+  "purchases": {
+    "sqlHash": "b3bcc6433a378f0d3ba32accd066581e5f0a4a4f24f1a4c7637578a02b0d0b96",
+    "expectedMetricId": "purchases"
+  },
+  "vat_liability": {
+    "sqlHash": "dedd50b4620b8ac56a96fb3089f0bfde0988e81dee6761fafd88655425ee30a3",
+    "expectedMetricId": "vat_liability"
+  },
+  "total_equity": {
+    "sqlHash": "7104c10bd382374f415a08cde7c4b2a0463664ed2713d7aca3081a1eba4945c0",
+    "expectedMetricId": "total_equity"
+  },
+  "total_expenses": {
+    "sqlHash": "afec22c41f6213d323bdb18bc7e344517e87b5553f26ed1ab97606339dbeb3b8",
+    "expectedMetricId": "total_expenses"
+  },
+  "fiscal_year_list": {
+    "sqlHash": "d481fec2f93ab05fda9ecc29afd142169c432eb648ec6c5243a92b1c3ef24edb",
+    "expectedMetricId": "fiscal_year_list"
+  },
+  "cogs": {
+    "sqlHash": "1a830704f77162ae1e945efa53f0ef495c4905c75549e12d2656456be55e33c2",
+    "expectedMetricId": "cogs"
+  },
+  "net_profit": {
+    "sqlHash": "7e24d8cbd430cb53992ce3d85e9fa0cf2cabe724f8ffeb12da7db9b20ff28528",
+    "expectedMetricId": "net_profit"
+  },
+  "tax_collected": {
+    "sqlHash": "dedd50b4620b8ac56a96fb3089f0bfde0988e81dee6761fafd88655425ee30a3",
+    "expectedMetricId": "tax_collected"
+  },
+  "recent_documents": {
+    "sqlHash": "ac5dfdc76ce93292e8056df8a385d343a24b778ac339f70fcc9ed5e04cd21092",
+    "expectedMetricId": "recent_documents"
+  },
+  "total_assets": {
+    "sqlHash": "b2599f85662e73fe6eff574a378635c67a7f42a4fe192450c1b93ebccaed6566",
+    "expectedMetricId": "total_assets"
+  }
+}

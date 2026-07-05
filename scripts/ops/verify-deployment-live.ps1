@@ -79,7 +79,7 @@ $metrics = @(
   @{ id='net_profit'; expectedMetricId='net_profit'; b64='2LPZiNivINiu2KfZhNi1INiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(vi.Credit-vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('41','61','62')))"; expected=0 },
   @{ id='vat_liability'; expectedMetricId='vat_liability'; b64='2YXYp9mE24zYp9iqINio2LEg2KfYsdiy2LQg2KfZgdiy2YjYr9mHINiz2KfZhCDbsdu027DbsiDahtmC2K/YsSDYp9iz2KrYnw=='; oracleSql="SELECT SUM(TaxInBaseCurrency) FROM SLS.Invoice WHERE FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402')"; expected=2029051751 },
   @{ id='cashflow'; expectedMetricId='cashflow'; b64='2KzYsduM2KfZhiDZhtmC2K8g2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT (SELECT ISNULL(SUM(Balance),0) FROM RPA.CashBalance) + (SELECT ISNULL(SUM(Balance),0) FROM RPA.BankAccountBalance)"; expected=0 },
-  @{ id='cogs'; expectedMetricId='cogs'; b64='2KjZh9in24wg2KrZhdin2YUg2LTYr9mHINqp2KfZhNin24wg2YHYsdmI2LQg2LHZgdiq2Ycg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit-vi.Credit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('61')))"; expected=0 },
+  @{ id='cogs'; expectedMetricId='cogs'; b64='2KjZh9in24wg2KrZhdin2YUg2LTYr9mHINqp2KfZhNin24wg2YHYsdmI2LQg2LHZgdiq2Ycg27HbtNuw27Ig2obZgtiv2LEg2KfYs9iq2J8='; oracleSql="SELECT SUM(vi.Debit) FROM ACC.VoucherItem vi JOIN ACC.Voucher v ON vi.VoucherRef=v.VoucherId JOIN ACC.Account a ON vi.AccountSLRef=a.AccountId JOIN FMK.FiscalYear fy ON v.FiscalYearRef=fy.FiscalYearId WHERE fy.Title='1402' AND v.Type NOT IN (3,4) AND a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type=1 AND Code IN ('51')))"; expected=0 },
   @{ id='fiscal_year_list'; expectedMetricId='fiscal_year_list'; b64='2YHZh9ix2LPYqiDYs9in2YTigIzZh9in24wg2YXYp9mE24wg2obbjNiz2KrYnw=='; oracleSql="SELECT TOP 3 FiscalYearId, Title FROM FMK.FiscalYear ORDER BY FiscalYearId"; expected=-1 },
   @{ id='recent_documents'; expectedMetricId='recent_documents'; b64='2KLYrtix24zZhiDbsduwINiz2YbYryDYq9io2Kog2LTYr9mH'; oracleSql="SELECT TOP 3 VoucherId, Number, Date FROM ACC.Voucher ORDER BY VoucherId DESC"; expected=-1 },
   @{ id='unbalanced_vouchers'; expectedMetricId='unbalanced_vouchers'; b64='2KfYs9mG2KfYryDZhtin2YXYqtmI2KfYstmGINiz2KfZhCDbsdu027Dbsg=='; oracleSql="SELECT COUNT(*) FROM (SELECT v.VoucherId, SUM(vi.Debit) as d, SUM(vi.Credit) as c FROM ACC.Voucher v JOIN ACC.VoucherItem vi ON vi.VoucherRef=v.VoucherId WHERE v.FiscalYearRef=(SELECT FiscalYearId FROM FMK.FiscalYear WHERE Title='1402') GROUP BY v.VoucherId HAVING SUM(vi.Debit) <> SUM(vi.Credit)) t"; expected=-1 },
@@ -517,6 +517,18 @@ foreach ($m in $metrics) {
         $match = $false
         $matchReason = "numeric_diff: engine=$engineNum oracle=$oracle diff=$diff"
       }
+    }
+  } elseif ($engineMetricId -and $engineMetricId -eq $m.expectedMetricId -and ($null -eq $oracle -or $oracle -eq 0 -or "$oracle" -eq 'NULL') -and $null -eq $engineNum) {
+    # Both oracle and engine agree: no data. Engine has correct metricId but returned no number.
+    $noDataPatterns = @('یافت نشد', 'ثبت نشده', 'داده‌ای', 'داده ای', 'رکوردی')
+    $hasNoData = $false
+    foreach ($p in $noDataPatterns) { if ($engine.text -match $p) { $hasNoData = $true; break } }
+    if ($hasNoData) {
+      $match = $true
+      $matchReason = 'both_empty: oracle=NULL engine=no_data'
+    } else {
+      $match = $false
+      $matchReason = 'no_number_extracted'
     }
   } else {
     $match = $false
