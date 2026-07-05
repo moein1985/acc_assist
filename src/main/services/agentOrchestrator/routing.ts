@@ -4,14 +4,14 @@
  * no orchestrator state — they classify prompts and extract year comparisons
  * using only text normalization utilities.
  */
-import { normalizePersianDigits, normalizePersianText } from '../textNormalization'
+import { normalizePersianText } from '../textNormalization'
 
 /**
  * Heuristic: does the text contain a financial claim/keyword?
  * Used by routing, evidence-contract, and strict-fetch guards.
  */
 export function appearsToContainFinancialClaim(text: string): boolean {
-  const normalized = normalizePersianDigits(text)
+  const normalized = normalizePersianText(text)
   const strongFinancialSignal =
     /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|موجودی|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار|account|جریان\s*نقد|حساب|ledger|voucher|invoice)/iu.test(
       normalized
@@ -105,7 +105,7 @@ export function extractYearComparison(
 // --- S24.6: Financial vs text-only classifier ---
 
 const FINANCIAL_NUMERIC_SIGNALS =
-  /(?:چقدر| چند |مبلغ|مانده|موجودی|جمع|مجموع|گردش|بدهکار|بستانکار|درآمد|فروش|خرید|هزینه|سود|زیان|دارایی|بدهی|حقوق|پرداخت|دریافتنی|پرداختنی|نقد|بانک|حساب|تراز|صورت\s*سود|صورت\s*مالی|گردش\s*حساب|how\s*much|what\s+is\s+the\s+(?:total|balance|amount|revenue|sales)|total\s+(?:sales|revenue|expenses|balance)|net\s+(?:sales|income|profit)|balance\s+(?:sheet|of)|cash\s+flow|receivable|payable|trial\s+balance|income\s+statement|profit\s+and\s+loss|p&l|depreciation|amortization|cost\s+of\s+goods|cogs|gross\s+margin|operating\s+margin|roe|roa|current\s+ratio|debt\s+ratio|inventory\s+turnover|accounts?\s+(?:payable|receivable)|voucher|invoice|ledger|fiscal\s+year|سال(?:های)?\s*مالی)/iu
+  /(?:چقدر| چند |مبلغ|مانده|موجودی|جمع|مجموع|گردش|بدهکار|بستانکار|درآمد|فروش|خرید|هزینه|سود|زیان|دارایی|بدهی|حقوق|پرداخت|دریافتنی|پرداختنی|نقد|بانک|حساب|تراز|صورت\s*سود|صورت\s*مالی|گردش\s*حساب|سند|اسناد|نامتوازن|فاکتور|اختتامیه|افتتاحیه|how\s*much|what\s+is\s+the\s+(?:total|balance|amount|revenue|sales)|total\s+(?:sales|revenue|expenses|balance)|net\s+(?:sales|income|profit)|balance\s+(?:sheet|of)|cash\s+flow|receivable|payable|trial\s+balance|income\s+statement|profit\s+and\s+loss|p&l|depreciation|amortization|cost\s+of\s+goods|cogs|gross\s+margin|operating\s+margin|roe|roa|current\s+ratio|debt\s+ratio|inventory\s+turnover|accounts?\s+(?:payable|receivable)|voucher|invoice|ledger|fiscal\s+year|سال(?:\s*های)?\s*مالی)/iu
 
 const TEXT_GUIDANCE_SIGNALS =
   /(?:چطور|چگونه|راهنما|کمک|آموزش|توضیح|شرح|بده|نشون\s*بده|نشان\s*بده|how\s+(?:do|to|can)|guide|tutorial|explain|help|instruction|step\s+by\s+step|what\s+is|what\s+are|define|difference\s+between|meaning\s+of)/iu
@@ -126,7 +126,7 @@ const NUMERIC_REQUEST_SIGNALS =
  * guidance queries go to the text-only path.
  */
 export function isFinancialNumericQuery(prompt: string): boolean {
-  const normalized = normalizePersianDigits(prompt)
+  const normalized = normalizePersianText(prompt)
 
   const hasFinancialSignal = FINANCIAL_NUMERIC_SIGNALS.test(normalized)
   const hasTextGuidanceSignal = TEXT_GUIDANCE_SIGNALS.test(normalized)

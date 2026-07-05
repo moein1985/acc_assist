@@ -93,10 +93,11 @@
 - [x] شاهدِ جعلیِ «۱۸/۱۸» باطل و با گزارشِ واقعی جایگزین شد.
 - [x] درصدِ verifiedِ واقعی اعلام شد: ۷۲٪ پایدار (۱۳/۱۸). ۴ نقصِ list-routing باقی‌مانده.
 - [x] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام در `ops/s33-dual-source-2026-07-05.json`.
+- [x] **S36.13:** ۴ علتِ ریشه‌ایِ روتینگِ متریک‌های لیستی کشف و رفع شد (ZWNJ + کلیدواژه‌های غایب + evaluateResult + verify regex). ۵۶۱ unit test + ۲۷۴ golden eval سبز. در انتظارِ verify زنده.
 
 ---
 
-## Progress Witness (2026-07-05)
+## Progress Witness (2026-07-05 + 2026-07-06)
 
 ### Completed (S36.1-S36.10):
 
@@ -114,12 +115,46 @@
 | S36.10 | DONE — cogs separated | `chartOfAccountsMapping.ts`: type1Codes `['61']`→`['51']` (default + discovery); `metricCatalog.ts`: measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` mandatoryFilter '61'→'51'. تأیید: COGS 1403 = ۳۰,۲۹۹,۴۹۵,۵۶۱ |
 | S36.11 | DONE — live rerun | build:win ✅ → deploy ✅ → verify: 13/18 MATCH پایدار. cogs both_empty MATCH (oracle NULL, engine no data). tax_collected transient. ۴ list metric routing DIFF (pre-existing). |
 | S36.12 | DONE — real report | `ops/s33-dual-source-2026-07-05.json` + `ops/s33-dual-source-2026-07-06.json`. درصدِ واقعی: ۷۲٪ پایدار. اوراکلِ cogs اصلاح شد (Code 51, SUM(Debit)). match function: both_empty case اضافه شد. |
+| S36.13 | DONE — list routing fixed | `routing.ts`: normalizePersianText + ۶ کلیدواژه + regex سال fix. `resultEvaluator.ts`: ۰ ردیفِ لیستی پذیرفته شد. `verify-deployment-live.ps1`: regex تعداد رکوردها. ۵۶۱ unit + ۲۷۴ golden سبز. |
+
+### S36.13 — رفعِ نهاییِ روتینگِ ۴ متریکِ لیستی (۱۴۰۴/۰۴/۱۶)
+
+- [x] **S36.13** ریشه‌یابیِ عمیق‌تر نشان داد که مشکلِ ۴ متریکِ لیستی (fiscal_year_list, recent_documents, unbalanced_vouchers, zero_amount_invoices) سه علتِ ریشه‌ای داشت که از S36.8 پنهان مانده بود:
+
+  **علت ۱ — `isFinancialNumericQuery` از `normalizePersianDigits` استفاده می‌کرد (نه `normalizePersianText`):**
+  نیم‌فاصله (ZWNJ, U+200C) در عبارت «سال‌های مالی» به فاصله تبدیل نمی‌شد. در نتیجه regex `سال(?:های)?\s*مالی` با «سال‌های مالی» مطابقت نداشت → پرامپت به‌عنوان غیرمالی طبقه‌بندی می‌شد → به مسیر متن‌محور می‌رفت به‌جای موتور.
+  - **اصلاح:** `isFinancialNumericQuery` و `appearsToContainFinancialClaim` از `normalizePersianText` استفاده می‌کنند (ZWNJ → فاصله).
+  - **الگوی regex:** `سال(?:های)?` → `سال(?:\s*های)?` برای تطبیقِ فاصلهٔ احتمالی پس از نیم‌فاصله.
+
+  **علت ۲ — کلیدواژه‌های فارسیِ غایب در `FINANCIAL_NUMERIC_SIGNALS`:**
+  کلمات «سند»، «اسناد»، «نامتوازن»، «فاکتور»، «اختتامیه»، «افتتاحیه» در سیگنال‌های مالی وجود نداشتند. پرامپت‌هایی مثل «آخرین اسناد» یا «اسناد نامتوازن» به‌عنوان غیرمالی تشخیص داده می‌شدند → به مسیر متن‌محور هدایت می‌شدند.
+  - **اصلاح:** این ۶ کلیدواژه به `FINANCIAL_NUMERIC_SIGNALS` اضافه شدند.
+
+  **علت ۳ — `evaluateResult` ردیف‌های صفر را رد می‌کرد:**
+  متریک‌های لیستی مثل `zero_amount_invoices` و `unbalanced_vouchers` به‌طور قانونی ۰ ردیف برمی‌گردانند (وقتی داده‌ای مطابقت ندارد). ولی `evaluateResult` با `reason: 'zero-rows'` نتیجه را رد می‌کرد → موتور retry می‌کرد → در نهایت `no-metric-match` برمی‌گرداند → پاسخِ نثر/رد تولید می‌شد.
+  - **اصلاح:** در `evaluateResult`، وقتی `rows.length === 0` و `def.measure.kind === 'list'` است، `acceptable: true` با `reason: 'empty-list'` برمی‌گردد.
+
+  **علت ۴ — regex شمارش ردیف در verify script:**
+  الگوی `(\d+)\s*رکورد` فقط ارقامِ قبل از «رکورد» را تشخیص می‌داد. در حالتِ ۰ ردیف، explainer عبارت `تعداد رکوردها: 0` چاپ می‌کند که با این regex نمی‌خواند.
+  - **اصلاح:** regex جایگزین `تعداد\s*رکوردها:\s*(\d+)` اضافه شد.
+
+  **فایل‌های اصلاح‌شده:**
+  - `src/main/services/agentOrchestrator/routing.ts` — `normalizePersianText` + کلیدواژه‌های جدید + regex fix
+  - `src/main/services/financialEngine/resultEvaluator.ts` — پذیرشِ ۰ ردیف برای متریک‌های لیستی
+  - `scripts/ops/verify-deployment-live.ps1` — regex شمارش ردیف برای حالتِ ۰
+
+  **تأیید:**
+  - typecheck: ۰ خطای جدید (۲ خطای از‌قبل‌موجود TS6307)
+  - Unit tests: ۵۶۱ تست، ۵۶۰ pass، ۰ fail، ۱ skip
+  - Golden eval: ۲۷۴/۲۷۴ (۱۰۰٪)
+  - تست‌های phase24 (isFinancialNumericQuery): ۲۴/۲۴ pass
+  - تست‌های phase22 (evaluateResult): ۱۶/۱۶ pass
 
 ### Remaining:
 
 | Step | Description | Key Notes |
 |---|---|---|
-| — | ۴ متریکِ لیستی (fiscal_year_list, recent_documents, unbalanced_vouchers, zero_amount_invoices) planner route نمی‌شود | نیاز به بهبودِ anchorهای planner برای متریک‌های لیستی (فازِ آینده) |
+| — | build + deploy + verify زنده برای تأییدِ نهایی روی Sepidar01 | در انتظار اجرا |
 
 ### Files Modified in Phase 36 (so far):
 - `scripts/ops/verify-deployment-live.ps1` - match function + oracle baseline + expectedMetricId
@@ -135,5 +170,8 @@
 - `src/main/services/financialEngine/chartOfAccountsMapping.ts` - `AccountConcept.cogs` type1Codes `['61']`→`['51']` (default + discovery) (S36.10)
 - `src/main/services/financialEngine/metricCatalog.ts` - `cogs` measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` mandatoryFilter '61'→'51' (S36.10)
 - `scripts/ops/verify-deployment-live.ps1` - cogs oracle SQL fix (Code '61'→'51', SUM(Debit)) + both_empty match case (S36.11)
+- `src/main/services/agentOrchestrator/routing.ts` - `normalizePersianText` + ۶ کلیدواژهٔ جدید + regex `سال` fix (S36.13)
+- `src/main/services/financialEngine/resultEvaluator.ts` - پذیرشِ ۰ ردیف برای متریک‌های لیستی (S36.13)
+- `scripts/ops/verify-deployment-live.ps1` - regex شمارش ردیف `تعداد رکوردها: N` برای حالتِ ۰ (S36.13)
 - `FRE_ROADMAP_36_PHASE36_VERIFICATION_HARNESS_REPAIR.fa.md` - this file
 - `FRE_ROADMAP_00_OVERVIEW.fa.md` - Phase 36 updated with S36.11-S36.12 results

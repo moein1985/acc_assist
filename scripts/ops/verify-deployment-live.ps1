@@ -480,6 +480,9 @@ foreach ($m in $metrics) {
     $hasMetricId = $engine.text -match 'metricId='
     # S36.8c: Look for row count pattern: "N رکورد" or "تعداد رکوردها: N"
     $rowCountMatch = [regex]::Match($engine.text, '(\d+)\s*رکورد')
+    if (-not $rowCountMatch.Success) {
+      $rowCountMatch = [regex]::Match($engine.text, 'تعداد\s*رکوردها:\s*(\d+)')
+    }
     $rowCount = if ($rowCountMatch.Success) { [int]$rowCountMatch.Groups[1].Value } else { 0 }
     $hasRowCount = $rowCountMatch.Success
     $hasTable = $engine.text -match '\|.*\|.*\n\|.*---.*\|'

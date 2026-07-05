@@ -1,6 +1,7 @@
 import type { MetricId, MetricPlan } from './types'
 import type { SqlQueryRow } from '../../../shared/contracts'
 import { normalizePersianText, normalizePersianDigits } from '../textNormalization'
+import { findMetricById } from './metricCatalog'
 
 export interface EvaluationResult {
   acceptable: boolean
@@ -33,6 +34,10 @@ export function evaluateResult(
           suggestedMetricId: mismatch.correctMetric
         }
       }
+    }
+    const def = findMetricById(metricId)
+    if (def?.measure.kind === 'list') {
+      return { acceptable: true, reason: 'empty-list' }
     }
     return { acceptable: false, reason: 'zero-rows' }
   }
