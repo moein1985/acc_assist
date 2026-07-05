@@ -173,9 +173,9 @@ export const defaultSepidarMapping: ChartOfAccountsMapping = {
       description: 'حساب‌های نقدی و بانکی (کد ۰۱ و ۰۲)',
     },
     [AccountConcept.cogs]: {
-      type1Codes: ['61'],
+      type1Codes: ['51'],
       available: true,
-      description: 'بهای تمام‌شده (زیرمجموعه هزینه‌ها)',
+      description: 'بهای تمام‌شده کالای فروش‌رفته (سرفصل مستقل ۵۱)',
     },
     [AccountConcept.payroll]: {
       type1Codes: ['61'],
@@ -383,9 +383,9 @@ export function discoverMapping(
   }
 
   concepts[AccountConcept.cogs] = {
-    type1Codes: ['61'],
-    available: hasType1('61'),
-    description: 'بهای تمام‌شده',
+    type1Codes: ['51'],
+    available: hasType1('51'),
+    description: 'بهای تمام‌شده کالای فروش‌رفته',
   }
 
   concepts[AccountConcept.payroll] = {

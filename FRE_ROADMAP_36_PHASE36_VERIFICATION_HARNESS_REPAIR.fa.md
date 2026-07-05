@@ -65,10 +65,10 @@
   - **علت ۲ (planner):** فیلترِ سال فقط با `grainSupported.includes('by_year')` فعال می‌شد. متریک‌های لیستی مثل `unbalanced_vouchers` بعدِ `by_year` دارند ولی `grainSupported: ['total']`. → فلگِ `canFilterByYear` اضافه شد که هم `grainSupported` و هم `dimensions` را بررسی می‌کند (فقط برای سالِ صریح در پرامپت، نه استنتاجِ خودکار).
   - **علت ۳ (verify script):** تطبیقِ متریکِ لیستی سهل‌گیرانه بود — `list_empty_valid` حتی با خروجیِ «یافت نشد» تطبیق می‌خورد. → نیازمند `metricId=` در evidence، الگوی شمارش رکورد (`N رکورد`)، و ساختارِ جدول مارک‌داون.
   - **تست:** ۵۶۰ unit pass + ۲۶ integration pass + ۰ typecheck error در فایل‌های اصلاح‌شده.
-- [ ] **S36.9** `unbalanced_vouchers`: در فاز ۳۳ موتور «۶ سندِ نامتوازن» یافت ولی اوراکل ۰ بود. این اختلافِ **واقعی** را حل کن: آیا واقعاً ۶ سندِ نامتوازن هست (یافتهٔ یکپارچگیِ داده) یا باگِ متریک؟ با sqlcmdِ مستقل قطعی کن.
+- [x] **S36.9** `unbalanced_vouchers`: در فاز ۳۳ موتور «۶ سندِ نامتوازن» یافت ولی اوراکل ۰ بود. **قطعی شد با sqlcmd مستقل:** `SELECT COUNT(*) … HAVING SUM(Debit) <> SUM(vi.Credit)` = **۰ سند در کل دیتابیس**. مقدارِ ۶ باگِ موتور در فاز ۳۳ بوده (احتمالاً بدون فیلترِ سال و با منطقِ متفاوت). اوراکل = ۰ صحیح است.
 
 ### S36.10 — `cogs` در برابر `total_expenses`
-- [ ] **S36.10** `cogs` همان SQLِ `total_expenses` (Code 61) را دارد. مشخص کن آیا COGS تعریفِ جداگانه دارد (بهای تمام‌شدهٔ کالای فروش‌رفته ≠ کلِ هزینه). اگر منبعِ متمایز ندارد → `needs_accountant_review` یا تعریفِ درست؛ **نه** هم‌سان با total_expenses و marked verified.
+- [x] **S36.10** `cogs` همان SQLِ `total_expenses` (Code 61) را داشت. **ریشه‌یابی:** سرفصلِ مستقلِ ۵۱ («بهای تمام‌شده کالای فروش‌رفته») در Sepidar وجود دارد. `type1Codes` از `['61']` به `['51']` اصلاح شد. همچنین `measure` از `debit_minus_credit` (همیشه ۰ چون Debit=Credit) به `sum(Debit)` تغییر یافت. `cogs_detailed` mandatory filter نیز از '61' به '51' اصلاح شد. تأیید با sqlcmd: COGS 1403 = ۳۰,۲۹۹,۴۹۵,۵۶۱ (غیرصفر و معنادار).
 
 ---
 
@@ -86,7 +86,7 @@
 - [ ] `vat_liability` عددِ درستِ مالیات (~۲.۰۳B) با فیلترِ سال می‌دهد، نه کلِ فروش.
 - [ ] «بدهی‌ها» به `total_liabilities` route می‌شود، نه `payables`.
 - [x] متریک‌های لیستی/ناهنجاری داده می‌دهند یا ردِ صریح — نه تعریفِ مدل.
-- [ ] `unbalanced_vouchers` (۶ در برابر ۰) با sqlcmد قطعی شد.
+- [x] `unbalanced_vouchers` (۶ در برابر ۰) با sqlcmd قطعی شد: ۰ سندِ نامتوازن در کل دیتابیس.
 - [x] شاهدِ جعلیِ «۱۸/۱۸» باطل و با گزارشِ واقعی جایگزین شد.
 - [ ] درصدِ verifiedِ واقعی اعلام شد؛ تگِ نسخه فقط پس از پاسِ واقعی «production-ready» شود.
 - [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.
@@ -112,8 +112,8 @@
 
 | Step | Description | Key Notes for Implementation |
 |---|---|---|
-| S36.9 | Verify unbalanced_vouchers 6 vs 0 | Run sqlcmd: `HAVING SUM(Debit) <> SUM(Credit)` on Sepidar01 (192.168.85.56:58033) |
-| S36.10 | Separate cogs from total_expenses | `accountConceptFilter: AccountConcept.cogs` with `type1Codes=['61']` = same as total_expenses. Need separate definition. |
+| S36.9 | DONE — 0 confirmed | sqlcmd: `HAVING SUM(Debit) <> SUM(Credit)` = 0 in all years. 6 was engine bug. |
+| S36.10 | DONE — cogs separated | `chartOfAccountsMapping.ts`: type1Codes `['61']`→`['51']`; `metricCatalog.ts`: measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` filter '61'→'51' |
 | S36.11 | Deploy + live verify | `npm run build:win` -> deploy to 192.168.85.56 -> `verify-deployment-live.ps1` |
 | S36.12 | Real report | `ops/dual-source-<date>.json` + registry update |
 
@@ -128,4 +128,6 @@
 - `src/main/services/financialEngine/explainer.ts` - `composeListResponseMarkdown` function (S36.8a)
 - `src/main/services/financialEngine/planner.ts` - `canFilterByYear` flag for list metrics with by_year dimension (S36.8b)
 - `scripts/ops/verify-deployment-live.ps1` - strict list metric matching with row count + table detection (S36.8c)
+- `src/main/services/financialEngine/chartOfAccountsMapping.ts` - `AccountConcept.cogs` type1Codes `['61']`→`['51']` (default + discovery) (S36.10)
+- `src/main/services/financialEngine/metricCatalog.ts` - `cogs` measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` mandatoryFilter '61'→'51' (S36.10)
 - `FRE_ROADMAP_36_PHASE36_VERIFICATION_HARNESS_REPAIR.fa.md` - this file

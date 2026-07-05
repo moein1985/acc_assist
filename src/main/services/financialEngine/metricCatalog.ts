@@ -887,7 +887,7 @@ const catalog: MetricDefinition[] = [
         }
       ]
     },
-    measure: { kind: 'debit_minus_credit', debitColumn: 'Debit', creditColumn: 'Credit' },
+    measure: { kind: 'sum', column: 'Debit' },
     dimensions: [
       {
         dimension: 'by_year',
@@ -2441,7 +2441,7 @@ const catalog: MetricDefinition[] = [
     ],
     mandatoryFilters: [
       { sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' },
-      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '61'))", description: 'فقط حساب‌های هزینه' }
+      { sql: "a.ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 2 AND ParentAccountRef IN (SELECT AccountId FROM ACC.Account WHERE Type = 1 AND Code = '51'))", description: 'فقط حساب‌های بهای تمام‌شده' }
     ],
     dateColumn: 'v.Date'
   },
