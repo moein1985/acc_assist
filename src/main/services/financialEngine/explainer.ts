@@ -41,6 +41,12 @@ export function composeEngineResponseMarkdown(
 
   const def = findMetricById(result.plan.metricId)
   const titleFa = def?.titleFa ?? result.plan.metricId
+
+  // S36.8a: List metrics — format rows as a markdown table
+  if (def?.measure.kind === 'list') {
+    return composeListResponseMarkdown(result, verdict, titleFa)
+  }
+
   const value = extractResultValue(result)
 
   const summaryLine = formatSummaryLine(titleFa, value, result.plan)
@@ -65,6 +71,73 @@ export function composeEngineResponseMarkdown(
     '',
     '### Actions',
     ...actionsLines
+  ].join('\n')
+}
+
+function composeListResponseMarkdown(
+  result: EngineResult,
+  verdict: EngineVerdict,
+  titleFa: string
+): string {
+  const rows = result.rows
+  const rowCount = rows.length
+
+  if (rowCount === 0) {
+    return [
+      '### Summary',
+      `${titleFa}: رکوردی یافت نشد.`,
+      '',
+      '### Findings',
+      `- مسیر پاسخ: engine`,
+      `- ${titleFa}: هیچ رکوردی ثبت نشده است.`,
+      '',
+      '### Evidence',
+      `- منبع داده: Financial Engine (metricId=${result.plan.metricId})`,
+      `- SQL: ${result.compiled.sql.replace(/\s+/g, ' ').slice(0, 220)}`,
+      `- Verifier: ${verdict.ok ? 'passed' : 'failed'}`,
+      `- تعداد رکوردها: 0`,
+      '',
+      '### Assumptions',
+      '- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.',
+      '',
+      '### Actions',
+      '- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.'
+    ].join('\n')
+  }
+
+  // Build markdown table from rows
+  const columns = Object.keys(rows[0]!).filter(k => k !== 'result_value' && k !== 'base_value')
+  const headerRow = `| ${columns.join(' | ')} |`
+  const separatorRow = `| ${columns.map(() => '---').join(' | ')} |`
+  const dataRows = rows.slice(0, 50).map(row =>
+    `| ${columns.map(col => String(row[col] ?? '').replace(/\|/g, '\\|')).join(' | ')} |`
+  )
+
+  const summaryLine = `${titleFa}: ${rowCount} رکورد یافت شد${rowCount > 50 ? ` (نمایش ۵۰ رکورد اول)` : ''}.`
+
+  return [
+    '### Summary',
+    summaryLine,
+    '',
+    '### Findings',
+    `- مسیر پاسخ: engine`,
+    `- ${titleFa}: ${rowCount} رکورد`,
+    '',
+    '### Evidence',
+    `- منبع داده: Financial Engine (metricId=${result.plan.metricId})`,
+    `- SQL: ${result.compiled.sql.replace(/\s+/g, ' ').slice(0, 220)}`,
+    `- Verifier: ${verdict.ok ? 'passed' : 'failed'}`,
+    `- تعداد رکوردها: ${rowCount}`,
+    '',
+    headerRow,
+    separatorRow,
+    ...dataRows,
+    '',
+    '### Assumptions',
+    '- پاسخ بر پایه دادهٔ واقعی ابزار read-only است.',
+    '',
+    '### Actions',
+    '- در صورت نیاز، بازه زمانی یا scope را دقیق‌تر مشخص کنید.'
   ].join('\n')
 }
 

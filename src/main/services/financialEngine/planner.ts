@@ -215,6 +215,11 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
   let entityName: string | undefined
   let comparison: MetricPlan['comparison'] | undefined
 
+  // S36.8b: Year filtering should work if either grainSupported includes 'by_year'
+  // OR the metric has a by_year dimension defined (e.g. list metrics like unbalanced_vouchers)
+  const hasYearDimension = def.dimensions.some(d => d.dimension === 'by_year')
+  const canFilterByYear = def.grainSupported.includes('by_year') || hasYearDimension
+
   const yearMatches = normalized.match(/(\d{4})/g)
   if (yearMatches && yearMatches.length > 0) {
     const years = [...new Set(yearMatches)]
@@ -231,7 +236,7 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
         baseValue: years[0]!,
         targetValue: years[1]!
       }
-    } else if (years.length >= 2 && def.grainSupported.includes('by_year') && rangePattern) {
+    } else if (years.length >= 2 && canFilterByYear && rangePattern) {
       const rangeMatch = normalized.match(/از\s*(\d{4})\s*تا\s*(\d{4})/u)
       if (rangeMatch) {
         filters.push({
@@ -240,11 +245,13 @@ export function buildDeterministicPlan(prompt: string, metricId: MetricId): Metr
           values: [rangeMatch[1]!, rangeMatch[2]!]
         })
       }
-    } else if (years.length === 1 && def.grainSupported.includes('by_year')) {
+    } else if (years.length === 1 && canFilterByYear) {
       filters.push({ dimension: 'by_year', op: 'eq', values: [years[0]!] })
     }
   } else {
     // S10.8: No year in prompt → infer current Persian year
+    // S36.8b: Only auto-infer year for metrics that explicitly support by_year grain
+    // (don't auto-infer for list metrics like recent_documents that have a by_year dimension but grainSupported=['total'])
     if (def.grainSupported.includes('by_year')) {
       const currentPersianYear = getCurrentPersianYear()
       filters.push({ dimension: 'by_year', op: 'eq', values: [currentPersianYear] })

@@ -475,15 +475,29 @@ foreach ($m in $metrics) {
     $match = $false
     $matchReason = 'model_prose: no metricId in evidence'
   } elseif ($m.expected -eq -1) {
-    # List metric — require actual data rows in Summary (not just text length > 10)
+    # List metric — require structured data with row count in Summary or Evidence
     $hasSummary = $engine.text -match '### Summary'
-    $hasDataRows = $engine.text -match '\n.*\d+.*\n'
-    if ($hasSummary -and $engineNum -ne $null -and $engineNum -gt 0) {
+    $hasMetricId = $engine.text -match 'metricId='
+    # S36.8c: Look for row count pattern: "N رکورد" or "تعداد رکوردها: N"
+    $rowCountMatch = [regex]::Match($engine.text, '(\d+)\s*رکورد')
+    $rowCount = if ($rowCountMatch.Success) { [int]$rowCountMatch.Groups[1].Value } else { 0 }
+    $hasRowCount = $rowCountMatch.Success
+    $hasTable = $engine.text -match '\|.*\|.*\n\|.*---.*\|'
+    if ($hasSummary -and $hasMetricId -and $hasRowCount -and $rowCount -gt 0) {
       $match = $true
-      $matchReason = 'list_with_data'
-    } elseif ($hasSummary) {
+      $matchReason = "list_with_data:$rowCount"
+    } elseif ($hasSummary -and $hasMetricId -and $hasRowCount -and $rowCount -eq 0) {
       $match = $true
       $matchReason = 'list_empty_valid'
+    } elseif ($hasSummary -and $hasMetricId) {
+      # Has structure but no explicit row count — check for table
+      if ($hasTable) {
+        $match = $true
+        $matchReason = 'list_with_table'
+      } else {
+        $match = $false
+        $matchReason = 'list_no_rowcount: structured but no row count'
+      }
     } else {
       $match = $false
       $matchReason = 'list_no_summary: engine did not produce structured data'
