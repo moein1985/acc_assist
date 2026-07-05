@@ -95,7 +95,7 @@
 
 ## Progress Witness (2026-07-05)
 
-### Completed (S36.1-S36.8):
+### Completed (S36.1-S36.10):
 
 | Step | Status | Files Modified |
 |---|---|---|
@@ -107,13 +107,13 @@
 | S36.6 | DONE | `src/main/services/financialEngine/metricCatalog.ts` - `vat_liability` anchors + by_year + `vat_detailed` measure fix (NetPriceInBaseCurrency -> TaxInBaseCurrency) |
 | S36.7 | DONE | same - `total_liabilities` anchors + `payables` excludeSignals |
 | S36.8 | DONE | `src/main/services/financialEngine/explainer.ts` - `composeListResponseMarkdown`; `planner.ts` - `canFilterByYear`; `verify-deployment-live.ps1` - strict list metric matching |
+| S36.9 | DONE — 0 confirmed | sqlcmd مستقل روی Sepidar01: `HAVING SUM(Debit) <> SUM(Credit)` = ۰ در کل دیتابیس. ۶ باگِ موتور فاز ۳۳ بود. |
+| S36.10 | DONE — cogs separated | `chartOfAccountsMapping.ts`: type1Codes `['61']`→`['51']` (default + discovery); `metricCatalog.ts`: measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` mandatoryFilter '61'→'51'. تأیید: COGS 1403 = ۳۰,۲۹۹,۴۹۵,۵۶۱ |
 
-### Remaining (S36.9-S36.12):
+### Remaining (S36.11-S36.12):
 
 | Step | Description | Key Notes for Implementation |
 |---|---|---|
-| S36.9 | DONE — 0 confirmed | sqlcmd: `HAVING SUM(Debit) <> SUM(Credit)` = 0 in all years. 6 was engine bug. |
-| S36.10 | DONE — cogs separated | `chartOfAccountsMapping.ts`: type1Codes `['61']`→`['51']`; `metricCatalog.ts`: measure `debit_minus_credit`→`sum(Debit)`; `cogs_detailed` filter '61'→'51' |
 | S36.11 | Deploy + live verify | `npm run build:win` -> deploy to 192.168.85.56 -> `verify-deployment-live.ps1` |
 | S36.12 | Real report | `ops/dual-source-<date>.json` + registry update |
 
