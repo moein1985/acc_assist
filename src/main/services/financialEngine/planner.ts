@@ -800,6 +800,22 @@ Example 28:
 Question: نمودار دایره‌ای ترکیب هزینه‌ها
 Answer: {"metricId":"total_expenses","grain":"by_account","filters":[],"pythonOutput":{"enabled":true,"outputType":"chart","chartType":"pie","title":"ترکیب هزینه‌ها","xAxis":"account","yAxis":"value"},"confidence":0.85}
 
+Example 29 (S38.7):
+Question: سندهای تکراری ۱۴۰۲
+Answer: {"metricId":"duplicate_vouchers","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
+Example 30 (S38.8):
+Question: سندهای بدون حساب ۱۴۰۲
+Answer: {"metricId":"vouchers_without_account","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
+Example 31 (S38.6):
+Question: آیا اختتامیه ۱۴۰۲ ثبت شده؟
+Answer: {"metricId":"closing_status","grain":"by_year","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
+Example 32 (S38.4):
+Question: جریان نقد ۱۴۰۲
+Answer: {"metricId":"cash_flow_statement","grain":"by_year","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
+
 ${DOMAIN_KNOWLEDGE}
 ${retryHint ? `\n⚠ توجه: metric «${retryHint.failedMetricId}» قبلاً امتحان شد اما نتیجه قابل‌قبول نبود (دلیل: ${retryHint.reason}). لطفاً metric دیگری پیشنهاد بده.\n` : ''}
 سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}${buildConversationContext(conversationContext)}

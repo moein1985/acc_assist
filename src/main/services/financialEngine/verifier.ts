@@ -87,8 +87,14 @@ export function checkIntentAlignment(
 ): { passed: boolean; reason?: string } {
   const normalizedPrompt = normalizePersianText(prompt).toLowerCase()
 
-  // Layer 1: excludeSignals of the plan's metric
+  // S38.5: Derived metrics (e.g. sales_to_purchase_ratio) are not in the regular catalog.
+  // findMetricById returns null → Layer 1 skipped, but Layer 2/3 fire false positives
+  // because the router routes to a base metric (e.g. net_sales) not the derived ID.
+  // Derived metrics are already validated by routeDerivedMetric before reaching here.
   const planDef = findMetricById(plan.metricId)
+  if (!planDef) {
+    return { passed: true }
+  }
   if (planDef?.excludeSignals) {
     for (const signal of planDef.excludeSignals) {
       const normalizedSignal = normalizePersianText(signal).toLowerCase()

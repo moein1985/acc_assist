@@ -33,7 +33,7 @@ for (const line of lines) {
 const todayEvents = events.filter(e => e.timestamp.startsWith('2026-07-06'))
 
 // Also get the latest events before today for context
-const allSorted = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+void [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
 
 // Summary by category
 const byCategory: Record<string, number> = {}

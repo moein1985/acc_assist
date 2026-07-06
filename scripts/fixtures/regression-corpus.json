@@ -1,0 +1,38 @@
+[
+  {
+    "prompt": "مانده حساب صندوق ۱۴۰۲",
+    "expectedMetricId": "cash_bank_balance",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-06",
+    "category": "A-excludeSignal",
+    "notes": "excludeSignal 'صندوق' blocks legitimate cash query. Root fix in Phase 40 (S40.6 weighted signals)."
+  },
+  {
+    "prompt": "فاکتورهای مبلغ صفر ۱۴۰۲",
+    "expectedMetricId": "zero_amount_invoices",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-06",
+    "category": "A-excludeSignal",
+    "notes": "excludeSignal 'فاکتور' blocks zero_amount_invoices. Root fix in Phase 40 (S40.6 weighted signals)."
+  },
+  {
+    "prompt": "فاکتورهای مبلغ یک ریال ۱۴۰۲",
+    "expectedMetricId": "zero_amount_invoices",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-06",
+    "category": "A-excludeSignal",
+    "notes": "excludeSignal 'فاکتور' blocks zero_amount_invoices. Root fix in Phase 40 (S40.6 weighted signals)."
+  },
+  {
+    "prompt": "فاکتورهای بدون مالیات ۱۴۰۲",
+    "expectedMetricId": "invoices_without_tax",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-06",
+    "category": "A-excludeSignal",
+    "notes": "excludeSignal 'فاکتور' blocks invoices_without_tax. Root fix in Phase 40 (S40.6 weighted signals)."
+  }
+]

@@ -401,8 +401,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cashflow',
     titleFa: 'جریان نقد',
-    anchors: ['جریان نقد', 'جریان وجه نقد', 'نقد و بانک', 'جریان نقدی'],
-    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی', 'مستقیم', 'وجوه نقد', 'صورت', 'نقدینگی'],
+    anchors: ['جریان وجه نقد', 'نقد و بانک', 'جریان نقدی'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی', 'مستقیم', 'وجوه نقد', 'صورت', 'نقدینگی', 'جریان نقد'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -1531,7 +1531,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'vouchers_by_type',
     titleFa: 'اسناد بر اساس نوع',
-    anchors: ['سندهای اختتامیه', 'سند اختتام', 'سندهای افتتاحیه', 'سندهای عملیاتی', 'اسناد بستن حساب', 'سندهای بستن', 'اختتامیه', 'افتتاحیه', 'سند بستن حساب'],
+    anchors: ['سندهای اختتامیه', 'سند اختتام', 'سندهای افتتاحیه', 'سندهای عملیاتی', 'اسناد بستن حساب', 'سندهای بستن', 'سند بستن حساب'],
     excludeSignals: ['فروش', 'خرید', 'مانده', 'تراز', 'فاکتور', 'جزئیات سند', 'اسناد اخیر'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year'],
@@ -2115,7 +2115,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cash_flow_statement',
     titleFa: 'صورت جریان وجوه نقد',
-    anchors: ['جریان وجوه نقد', 'صورت جریان نقد', 'cash flow', 'جریان نقدینگی', 'گردش نقد'],
+    anchors: ['جریان نقد', 'جریان وجوه نقد', 'صورت جریان نقد', 'cash flow', 'جریان نقدینگی', 'گردش نقد'],
     excludeSignals: ['ترازنامه', 'سود و زیان', 'تراز آزمایشی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_category'],
