@@ -1,0 +1,459 @@
+[
+  {
+    "index": 1,
+    "requestId": "26475f9e-2b30-473a-9a52-ca0f883ceeea",
+    "timestamp": "2026-07-06T09:36:03.322Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "net_sales",
+    "verdict": "ok"
+  },
+  {
+    "index": 2,
+    "requestId": "0aa3fff2-650c-4034-97ad-e36e0cf08b16",
+    "timestamp": "2026-07-06T09:39:05.934Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "purchases",
+    "verdict": "ok"
+  },
+  {
+    "index": 3,
+    "requestId": "9c3e0a5e-08c5-4e36-b097-ed550392163c",
+    "timestamp": "2026-07-06T09:39:23.811Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "cash_bank_balance",
+    "verdict": "ok"
+  },
+  {
+    "index": 4,
+    "requestId": "a0678648-53c5-4771-ae34-61f4005278d8",
+    "timestamp": "2026-07-06T09:39:58.998Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "balance_sheet",
+    "verdict": "ok"
+  },
+  {
+    "index": 5,
+    "requestId": "025ffae0-cb32-4f5f-aa46-410ad82fe9ee",
+    "timestamp": "2026-07-06T09:40:23.504Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "trial_balance",
+    "verdict": "ok"
+  },
+  {
+    "index": 6,
+    "requestId": "7d493494-1750-439c-8683-0b4434efff62",
+    "timestamp": "2026-07-06T09:40:36.363Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "total_assets",
+    "verdict": "ok"
+  },
+  {
+    "index": 7,
+    "requestId": "dc70f1f2-206d-46a5-9d7b-43c5513623bd",
+    "timestamp": "2026-07-06T09:41:04.409Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "total_liabilities",
+    "verdict": "ok"
+  },
+  {
+    "index": 8,
+    "requestId": "09f0b433-e73c-4cb4-9189-10634c2538cd",
+    "timestamp": "2026-07-06T09:41:34.405Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "total_equity",
+    "verdict": "ok"
+  },
+  {
+    "index": 9,
+    "requestId": "f7da0fd8-044d-4826-8228-7706bfa64887",
+    "timestamp": "2026-07-06T09:41:56.646Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "total_revenue",
+    "verdict": "ok"
+  },
+  {
+    "index": 10,
+    "requestId": "842699d7-d839-4686-ad4f-bd22eb4fa740",
+    "timestamp": "2026-07-06T09:42:10.691Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "total_expenses",
+    "verdict": "ok"
+  },
+  {
+    "index": 11,
+    "requestId": "cda5bb91-78a9-4237-ad5e-107535817493",
+    "timestamp": "2026-07-06T09:42:21.429Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "net_profit",
+    "verdict": "ok"
+  },
+  {
+    "index": 12,
+    "requestId": "8fabd776-557a-4961-a672-4c21d0fd07dc",
+    "timestamp": "2026-07-06T09:42:33.401Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 13,
+    "requestId": "5254c13b-37f2-41f0-8bdc-8be33fff83dc",
+    "timestamp": "2026-07-06T09:43:19.826Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "sales_count",
+    "verdict": "ok"
+  },
+  {
+    "index": 14,
+    "requestId": "300c5086-f16c-4726-85ba-ee646a63d1ce",
+    "timestamp": "2026-07-06T09:43:37.230Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "fiscal_year_count",
+    "verdict": "ok"
+  },
+  {
+    "index": 15,
+    "requestId": "92796f27-1b41-4728-84c6-ce421b5150e2",
+    "timestamp": "2026-07-06T09:43:48.936Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "fiscal_year_list",
+    "verdict": "ok"
+  },
+  {
+    "index": 16,
+    "requestId": "7432decb-6766-46b2-a1bf-4b4f4496e73c",
+    "timestamp": "2026-07-06T09:44:02.992Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "recent_documents",
+    "verdict": "ok"
+  },
+  {
+    "index": 17,
+    "requestId": "1220347c-7fa2-4646-b89d-219962f34876",
+    "timestamp": "2026-07-06T09:44:26.957Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 18,
+    "requestId": "25fc647a-b46f-45ce-a6fd-cd4d28d00aee",
+    "timestamp": "2026-07-06T09:44:40.468Z",
+    "userPrompt": "جریان نقد ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt routed to cashflow but plan is cash_flow_statement"
+  },
+  {
+    "index": 19,
+    "requestId": "d6ad34c9-3510-471c-ad4e-38f6b1cb5421",
+    "timestamp": "2026-07-06T09:44:53.761Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "receivables",
+    "verdict": "ok"
+  },
+  {
+    "index": 20,
+    "requestId": "1a491a8e-39ec-4efd-b2a0-d8fb622532f2",
+    "timestamp": "2026-07-06T09:45:06.421Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "payables",
+    "verdict": "ok"
+  },
+  {
+    "index": 21,
+    "requestId": "de228bdf-5164-43ee-bdef-8c3125d3a932",
+    "timestamp": "2026-07-06T09:45:42.447Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "net_sales",
+    "verdict": "ok"
+  },
+  {
+    "index": 22,
+    "requestId": "971dffaf-efad-403b-8004-dba24bdb0a1e",
+    "timestamp": "2026-07-06T09:45:54.236Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served"
+  },
+  {
+    "index": 23,
+    "requestId": "24ab9f54-fcaf-41dc-a11b-22df65a4b5ec",
+    "timestamp": "2026-07-06T09:46:10.504Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "sales_by_period",
+    "verdict": "ok"
+  },
+  {
+    "index": 24,
+    "requestId": "a8c8cc97-428b-4317-81a1-c9fe55a5c158",
+    "timestamp": "2026-07-06T09:46:22.462Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "sales_by_period",
+    "verdict": "ok"
+  },
+  {
+    "index": 25,
+    "requestId": "7c407d06-d17c-4188-abb1-fbd77fd6a846",
+    "timestamp": "2026-07-06T09:46:36.199Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "sales_by_period",
+    "verdict": "ok"
+  },
+  {
+    "index": 26,
+    "requestId": "c771098d-f0e6-46ff-a580-215907eb6d2e",
+    "timestamp": "2026-07-06T09:47:14.382Z",
+    "userPrompt": "مانده حساب صندوق ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'صندوق' of a different metric"
+  },
+  {
+    "index": 27,
+    "requestId": "66716ba4-94b9-45c3-beeb-b07b157d47c5",
+    "timestamp": "2026-07-06T09:48:03.746Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "account_turnover",
+    "verdict": "ok"
+  },
+  {
+    "index": 28,
+    "requestId": "e6a63a81-6fb2-4e4a-bdbb-825e44e5dfba",
+    "timestamp": "2026-07-06T09:49:04.841Z",
+    "userPrompt": "گردش حساب بانک ملت [REDACTED:FULL_NAME] زاده ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "engine-no-result: planner-error: no-valid-json"
+  },
+  {
+    "index": 29,
+    "requestId": "99aa9fe6-d65e-4bb5-8c1b-b39a343f377c",
+    "timestamp": "2026-07-06T09:49:48.803Z",
+    "userPrompt": "نسبت فروش به خرید ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt contains anchor 'فروش' of metric net_sales but plan is sales_to_purchase_ratio"
+  },
+  {
+    "index": 30,
+    "requestId": "e6635521-be13-4290-9cbc-759442fa188c",
+    "timestamp": "2026-07-06T09:50:28.555Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "income_statement",
+    "verdict": "ok"
+  },
+  {
+    "index": 31,
+    "requestId": "9cca88a5-5cc5-4255-8946-a677113e383f",
+    "timestamp": "2026-07-06T09:50:58.857Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "payroll",
+    "verdict": "ok"
+  },
+  {
+    "index": 32,
+    "requestId": "6676b024-bfe5-454e-9c35-6e5832793045",
+    "timestamp": "2026-07-06T09:51:33.294Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served"
+  },
+  {
+    "index": 33,
+    "requestId": "5c30176e-2f73-475d-9958-a0d3a2005abc",
+    "timestamp": "2026-07-06T09:52:15.402Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served"
+  },
+  {
+    "index": 34,
+    "requestId": "e490fac7-38d4-4e8c-a175-d127fab8db72",
+    "timestamp": "2026-07-06T09:52:48.037Z",
+    "userPrompt": "اختتامیه ۱۴۰۲ ثبت شده؟",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt routed to vouchers_by_type but plan is closing_status"
+  },
+  {
+    "index": 35,
+    "requestId": "1a2e9708-c32e-4331-86eb-a4afa496d986",
+    "timestamp": "2026-07-06T09:53:24.497Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "trial_balance_check",
+    "verdict": "ok"
+  },
+  {
+    "index": 36,
+    "requestId": "b329a990-92dd-433b-bbc7-383e47de2bd9",
+    "timestamp": "2026-07-06T09:54:02.987Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "unbalanced_vouchers",
+    "verdict": "ok"
+  },
+  {
+    "index": 37,
+    "requestId": "52df069e-5d63-4af8-9d37-24768b74075b",
+    "timestamp": "2026-07-06T09:54:36.546Z",
+    "userPrompt": "فاکتورهای مبلغ صفر ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+  },
+  {
+    "index": 38,
+    "requestId": "49d92f56-9bb3-4d84-a88b-a0818e45776b",
+    "timestamp": "2026-07-06T09:54:54.127Z",
+    "userPrompt": "فاکتورهای مبلغ یک ریال ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+  },
+  {
+    "index": 39,
+    "requestId": "8ad19a06-3108-4606-bd39-ac8ccd33f1e2",
+    "timestamp": "2026-07-06T09:55:13.548Z",
+    "userPrompt": "فاکتورهای بدون مالیات ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+  },
+  {
+    "index": 40,
+    "requestId": "815d10e9-9cc1-4e7d-9fce-80865f43ddc4",
+    "timestamp": "2026-07-06T09:55:34.132Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 41,
+    "requestId": "1d8b825b-73b1-496d-a4cd-ab9418d8ba26",
+    "timestamp": "2026-07-06T09:55:56.451Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 42,
+    "requestId": "a6a85314-8f88-4257-92cb-b0827116e5db",
+    "timestamp": "2026-07-06T09:56:14.204Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 43,
+    "requestId": "42f9eade-9e5d-407e-972f-85dfa20dd03e",
+    "timestamp": "2026-07-06T09:56:43.681Z",
+    "userPrompt": "مانده طرف حساب معین محسنی فرد ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "engine-no-result: execution-error"
+  },
+  {
+    "index": 44,
+    "requestId": "85fbe530-893e-4470-8c1a-46012d58f859",
+    "timestamp": "2026-07-06T09:57:03.133Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 45,
+    "requestId": "2b25b664-cbdc-4888-9b07-4f2aa92eb972",
+    "timestamp": "2026-07-06T09:57:39.806Z",
+    "userPrompt": "(text guidance)",
+    "stage": "text-guidance"
+  },
+  {
+    "index": 46,
+    "requestId": "9f813544-4d91-4e57-aa41-8320c5af6957",
+    "timestamp": "2026-07-06T09:58:03.897Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "net_profit",
+    "verdict": "ok"
+  },
+  {
+    "index": 47,
+    "requestId": "0442c85b-5a70-48e3-8d7f-172ef6839dde",
+    "timestamp": "2026-07-06T09:58:19.661Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "net_sales",
+    "verdict": "ok"
+  },
+  {
+    "index": 48,
+    "requestId": "728d1eb8-5cdc-4e00-a49b-4007985829b3",
+    "timestamp": "2026-07-06T09:58:38.047Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "receivables_aging",
+    "verdict": "ok"
+  },
+  {
+    "index": 49,
+    "requestId": "8f74530a-0e4f-4abb-bcac-c2e40bb2ace5",
+    "timestamp": "2026-07-06T09:59:12.610Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "payables_aging",
+    "verdict": "ok"
+  },
+  {
+    "index": 50,
+    "requestId": "27eb731d-efaa-495c-bbdc-2a54875ae226",
+    "timestamp": "2026-07-06T09:59:24.746Z",
+    "userPrompt": "سندهای تکراری ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt routed to duplicate_vouchers but plan is payables_aging"
+  },
+  {
+    "index": 51,
+    "requestId": "4a96488b-036f-45b3-9f9b-0cf7d8bde3db",
+    "timestamp": "2026-07-06T10:00:02.691Z",
+    "userPrompt": "ردیف‌های بدون حساب ۱۴۰۲",
+    "stage": "engine-refuse",
+    "refusalReason": "no_metric",
+    "error": "intent-mismatch: intent mismatch: prompt routed to vouchers_without_account but plan is payables_aging"
+  },
+  {
+    "index": 52,
+    "requestId": "f2e86469-dbd7-432a-8da0-f581525fe6ec",
+    "timestamp": "2026-07-06T10:00:25.944Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "checks_summary",
+    "verdict": "ok"
+  },
+  {
+    "index": 53,
+    "requestId": "d6f7fc09-01aa-4f07-a61d-dab36e21c97a",
+    "timestamp": "2026-07-06T10:01:20.907Z",
+    "userPrompt": "(prompt not logged for successful queries)",
+    "stage": "engine-served",
+    "metricId": "sales_reconciliation",
+    "verdict": "ok"
+  }
+]

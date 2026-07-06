@@ -1,0 +1,93 @@
+{
+  "totalEvents": 1484,
+  "todayEvents": 5,
+  "byCategory": {
+    "release.update": 1,
+    "app.lifecycle": 1,
+    "agent.debug-server": 1,
+    "sql.auto-connect": 1,
+    "schema.auto-discover": 1
+  },
+  "byEvent": {
+    "disabled": 1,
+    "app-ready": 1,
+    "started": 1,
+    "connected": 1,
+    "cache-hit": 1
+  },
+  "byLevel": {
+    "info": 5
+  },
+  "events": [
+    {
+      "id": "mr90wy3p-8rn5q3de",
+      "timestamp": "2026-07-06T09:34:25.957Z",
+      "level": "info",
+      "category": "release.update",
+      "event": "disabled",
+      "process": "main",
+      "appVersion": "1.0.0",
+      "platform": "win32",
+      "arch": "x64",
+      "details": {
+        "reason": "opt-in-disabled"
+      }
+    },
+    {
+      "id": "mr90wy4m-3iwerr06",
+      "timestamp": "2026-07-06T09:34:25.990Z",
+      "level": "info",
+      "category": "app.lifecycle",
+      "event": "app-ready",
+      "process": "main",
+      "appVersion": "1.0.0",
+      "platform": "win32",
+      "arch": "x64"
+    },
+    {
+      "id": "mr90wy5y-1brbus2t",
+      "timestamp": "2026-07-06T09:34:26.038Z",
+      "level": "info",
+      "category": "agent.debug-server",
+      "event": "started",
+      "process": "main",
+      "appVersion": "1.0.0",
+      "platform": "win32",
+      "arch": "x64",
+      "details": {
+        "host": "127.0.0.1",
+        "port": 3322,
+        "enabled": true
+      }
+    },
+    {
+      "id": "mr90wzg6-m39bedvo",
+      "timestamp": "2026-07-06T09:34:27.703Z",
+      "level": "info",
+      "category": "sql.auto-connect",
+      "event": "connected",
+      "process": "main",
+      "appVersion": "1.0.0",
+      "platform": "win32",
+      "arch": "x64",
+      "details": {
+        "profileId": "default-profile"
+      }
+    },
+    {
+      "id": "mr90wzgl-qag9hpd6",
+      "timestamp": "2026-07-06T09:34:27.717Z",
+      "level": "info",
+      "category": "schema.auto-discover",
+      "event": "cache-hit",
+      "process": "main",
+      "appVersion": "1.0.0",
+      "platform": "win32",
+      "arch": "x64",
+      "details": {
+        "profileId": "default-profile",
+        "database": "Sepidar01"
+      }
+    }
+  ]
+}

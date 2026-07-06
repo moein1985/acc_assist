@@ -1,0 +1,85 @@
+{
+  "total": 53,
+  "engineServed": 35,
+  "engineRefuse": 11,
+  "textGuidance": 7,
+  "engineModeError": 0,
+  "byMetric": {
+    "net_sales": 3,
+    "purchases": 1,
+    "cash_bank_balance": 1,
+    "balance_sheet": 1,
+    "trial_balance": 1,
+    "total_assets": 1,
+    "total_liabilities": 1,
+    "total_equity": 1,
+    "total_revenue": 1,
+    "total_expenses": 1,
+    "net_profit": 2,
+    "sales_count": 1,
+    "fiscal_year_count": 1,
+    "fiscal_year_list": 1,
+    "recent_documents": 1,
+    "receivables": 1,
+    "payables": 1,
+    "sales_by_period": 3,
+    "account_turnover": 1,
+    "income_statement": 1,
+    "payroll": 1,
+    "trial_balance_check": 1,
+    "unbalanced_vouchers": 1,
+    "receivables_aging": 1,
+    "payables_aging": 1,
+    "checks_summary": 1,
+    "sales_reconciliation": 1
+  },
+  "byRefusalReason": {
+    "no_metric": 11
+  },
+  "errors": [
+    {
+      "prompt": "جریان نقد ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt routed to cashflow but plan is cash_flow_statement"
+    },
+    {
+      "prompt": "مانده حساب صندوق ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'صندوق' of a different metric"
+    },
+    {
+      "prompt": "گردش حساب بانک ملت [REDACTED:FULL_NAME] زاده ۱۴۰۲",
+      "error": "engine-no-result: planner-error: no-valid-json"
+    },
+    {
+      "prompt": "نسبت فروش به خرید ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt contains anchor 'فروش' of metric net_sales but plan is sales_to_purchase_ratio"
+    },
+    {
+      "prompt": "اختتامیه ۱۴۰۲ ثبت شده؟",
+      "error": "intent-mismatch: intent mismatch: prompt routed to vouchers_by_type but plan is closing_status"
+    },
+    {
+      "prompt": "فاکتورهای مبلغ صفر ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+    },
+    {
+      "prompt": "فاکتورهای مبلغ یک ریال ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+    },
+    {
+      "prompt": "فاکتورهای بدون مالیات ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt contains exclusive signal 'فاکتور' of a different metric"
+    },
+    {
+      "prompt": "مانده طرف حساب معین محسنی فرد ۱۴۰۲",
+      "error": "engine-no-result: execution-error"
+    },
+    {
+      "prompt": "سندهای تکراری ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt routed to duplicate_vouchers but plan is payables_aging"
+    },
+    {
+      "prompt": "ردیف‌های بدون حساب ۱۴۰۲",
+      "error": "intent-mismatch: intent mismatch: prompt routed to vouchers_without_account but plan is payables_aging"
+    }
+  ]
+}
