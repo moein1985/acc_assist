@@ -834,7 +834,18 @@ Answer: {"metricId":"cash_flow_statement","grain":"by_year","filters":[{"dimensi
 
 ${DOMAIN_KNOWLEDGE}
 ${retryHint ? (retryHint.failedMetricId
-  ? `\n⚠ توجه: metric «${retryHint.failedMetricId}» قبلاً امتحان شد اما نتیجه قابل‌قبول نبود (دلیل: ${retryHint.reason}). لطفاً metric دیگری پیشنهاد بده.\n`
+  ? `\n⚠ توجه: metric «${retryHint.failedMetricId}» قبلاً امتحان شد اما نتیجه قابل‌قبول نبود (دلیل: ${retryHint.reason}).${retryHint.errorType === 'empty-data'
+    ? ' این metric داده‌ای برنگرداند. یا grain را عوض کن (مثلاً total به جای by_year) یا فیلترها را تسکین کن یا metric کاملاً متفاوتی پیشنهاد بده.'
+    : retryHint.errorType === 'intent-mismatch'
+    ? ' این metric با intent کاربر همخوانی نداشت. لطفاً metric کاملاً متفاوتی که دقیقاً匹配 با درخواست کاربر باشد پیشنهاد بده.'
+    : retryHint.errorType === 'execution-error'
+    ? ' اجرای این metric با خطای فنی مواجه شد. لطفاً metric ساده‌تری با JOIN کمتر پیشنهاد بده.'
+    : retryHint.errorType === 'insufficient-evidence'
+    ? ' شواهد کافی برای این metric وجود نداشت. لطفاً metric دیگری با پوشش داده‌ای بهتر پیشنهاد بده.'
+    : retryHint.errorType === 'semantic-check-failed'
+    ? ' نتیجه این metric از نظر معنایی نامعتبر بود. لطفاً metric دیگری پیشنهاد بده.'
+    : ' لطفاً metric دیگری پیشنهاد بده.'
+  }\n`
   : `\n⚠ توجه: در پاسخ قبلی JSON معتبر تولید نشد (دلیل: ${retryHint.reason}). لطفاً فقط یک JSON معتبر بدون متن اضافه تولید کن. نام‌های چندبخشی را در entityName با فاصله قرار بده.\n`
 ) : ''}
 سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}${buildConversationContext(conversationContext)}
@@ -994,9 +1005,18 @@ export interface PlannerModelDeps {
   callModel: (prompt: string) => Promise<string>
 }
 
+export type RetryErrorType =
+  | 'empty-data'
+  | 'intent-mismatch'
+  | 'execution-error'
+  | 'parse-error'
+  | 'insufficient-evidence'
+  | 'semantic-check-failed'
+
 export interface RetryHint {
   failedMetricId: string
   reason: string
+  errorType?: RetryErrorType
 }
 
 // S10.4: buildModelPlan now returns ParsePlannerResult which may include multiPlan

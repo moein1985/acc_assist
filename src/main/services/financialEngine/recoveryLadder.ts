@@ -21,6 +21,7 @@ import type { SqlQueryRow } from '../../../shared/contracts'
 import { getMetricCatalog } from './metricCatalog'
 import { buildDeterministicPlan } from './planner'
 import { shouldInvestigate, investigate, DEFAULT_BUDGET, type InvestigatorDeps, SchemaCache } from './investigator'
+import { evaluateEngineEvidence } from './verifier'
 
 // ─── S39.2: Budget Configuration ───
 
@@ -301,9 +302,10 @@ export async function runRecoveryLadder(
           },
         }
 
-        // S39.3b: Semantic check on investigator result
+        // S39.3: Evidence contract + S39.3b: Semantic check on investigator result
+        const evidenceVerdict = evaluateEngineEvidence(investigatorResult)
         const semanticCheck = semanticVerify('account_turnover', investigatorResult.rows)
-        if (semanticCheck.passed) {
+        if (evidenceVerdict.kind !== 'INSUFFICIENT' && semanticCheck.passed) {
           steps.push({
             step: 3,
             name: 'investigator',

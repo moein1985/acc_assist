@@ -36,7 +36,8 @@ import {
 } from './planner'
 import { findMetricById } from './metricCatalog'
 import { compileMetricPlan, type CompilerDeps } from './compiler'
-import { verifyResult } from './verifier'
+import { verifyResult, evaluateEngineEvidence } from './verifier'
+import { semanticVerify } from './recoveryLadder'
 import { evaluateResult } from './resultEvaluator'
 import { resolvePartyByName, buildPartyClarifyMessage } from './resolvePartyByName'
 import {
@@ -147,12 +148,13 @@ export class FinancialEngine {
 
     let lastFailedMetric = ''
     let lastFailReason = ''
+    let lastFailErrorType: import('./planner').RetryErrorType | undefined
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (!this.deps.plannerModel) break
 
       const retryHint: RetryHint | undefined = attempt > 0 && (lastFailedMetric || lastFailReason)
-        ? { failedMetricId: lastFailedMetric, reason: lastFailReason }
+        ? { failedMetricId: lastFailedMetric, reason: lastFailReason, errorType: lastFailErrorType }
         : undefined
 
       const modelResult = await buildModelPlan(
@@ -193,6 +195,14 @@ export class FinancialEngine {
 
         lastFailedMetric = modelResult.plan.metricId
         lastFailReason = evaluation.reason
+        // S39.8: Categorize error type for type-specific retry guidance
+        if (evaluation.reason.startsWith('metric-mismatch:')) {
+          lastFailErrorType = 'intent-mismatch'
+        } else if (evaluation.reason === 'zero-rows' || evaluation.reason === 'empty-list') {
+          lastFailErrorType = 'empty-data'
+        } else {
+          lastFailErrorType = 'execution-error'
+        }
         continue
       }
 
@@ -583,21 +593,32 @@ export class FinancialEngine {
 
           if (investigation.kind === 'answer' && investigation.clusters.length > 0) {
             const cluster = investigation.clusters[0]!
+            const investigatorRows: SqlQueryRow[] = [{
+              result_value: cluster.netBalance,
+              account_title: cluster.accountTitle,
+              account_code: cluster.accountCode,
+              total_debit: cluster.totalDebit,
+              total_credit: cluster.totalCredit,
+              voucher_count: cluster.voucherCount,
+              partner_title: cluster.partnerTitle ?? '',
+            }]
+            // S39.3: Verify investigator result — evidence contract + semantic sanity
+            const investigatorResult: EngineResult = { rows: investigatorRows, plan, compiled }
+            const evidenceVerdict = evaluateEngineEvidence(investigatorResult)
+            const semanticCheck = semanticVerify(plan.metricId, investigatorRows)
+            if (evidenceVerdict.kind === 'INSUFFICIENT' || !semanticCheck.passed) {
+              const reason = evidenceVerdict.kind === 'INSUFFICIENT'
+                ? 'investigator-insufficient-evidence'
+                : semanticCheck.reason ?? 'investigator-semantic-check-failed'
+              return {
+                verdict: { ok: false, reason, reconciliations: [] },
+                result: null,
+                pythonOutput: null,
+              }
+            }
             return {
               verdict: { ok: true, reason: undefined, reconciliations: [] },
-              result: {
-                rows: [{
-                  result_value: cluster.netBalance,
-                  account_title: cluster.accountTitle,
-                  account_code: cluster.accountCode,
-                  total_debit: cluster.totalDebit,
-                  total_credit: cluster.totalCredit,
-                  voucher_count: cluster.voucherCount,
-                  partner_title: cluster.partnerTitle ?? '',
-                }],
-                plan,
-                compiled,
-              },
+              result: investigatorResult,
               pythonOutput: null,
             }
           } else if (investigation.kind === 'clarify') {
