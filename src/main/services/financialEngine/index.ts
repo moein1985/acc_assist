@@ -46,6 +46,13 @@ import {
   SchemaCache,
   type InvestigatorDeps,
 } from './investigator'
+import {
+  runRecoveryLadder,
+  DEFAULT_RECOVERY_BUDGET,
+  type RecoveryContext,
+  type RecoveryTrigger,
+  type RecoveryDeps,
+} from './recoveryLadder'
 
 export interface EngineDeps extends CompilerDeps {
   executeReadOnlySql: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>
@@ -227,78 +234,56 @@ export class FinancialEngine {
     if (route.metricId && route.confidence >= 0.5) {
       const plan = buildDeterministicPlan(prompt, route.metricId)
       if (plan) {
-        return this.runPlan(plan, signal, pythonPlan)
-      }
-    }
-
-    // S26.1: No metric match → check if investigation is warranted
-    const metricMatched = !!route.metricId
-    if (shouldInvestigate(prompt, metricMatched, false)) {
-      const investigatorDeps: InvestigatorDeps = {
-        executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
-        normalizePersianText: this.deps.normalizePersianText,
-      }
-      const investigation = await investigate(
-        prompt,
-        investigatorDeps,
-        signal,
-        DEFAULT_BUDGET,
-        this.schemaCache
-      )
-
-      if (investigation.kind === 'answer' && investigation.clusters.length > 0) {
-        const cluster = investigation.clusters[0]!
-        const result: EngineResult = {
-          rows: [{
-            result_value: cluster.netBalance,
-            account_title: cluster.accountTitle,
-            account_code: cluster.accountCode,
-            total_debit: cluster.totalDebit,
-            total_credit: cluster.totalCredit,
-            voucher_count: cluster.voucherCount,
-            partner_title: cluster.partnerTitle ?? '',
-          }],
-          plan: {
-            metricId: 'account_turnover' as MetricId,
-            grain: 'total',
-            filters: [],
-            confidence: 0.7,
-          },
-          compiled: {
-            sql: `-- investigator: ${investigation.queryBudgetUsed} queries, ${investigation.evidence.length} evidence entries`,
-            bindingsDescription: 'investigator loop result',
-          },
-        }
-        return {
-          verdict: { ok: true, reason: undefined, reconciliations: [] },
-          result,
-        }
-      } else if (investigation.kind === 'clarify') {
-        return {
-          verdict: {
-            ok: false,
-            reason: investigation.message,
-            reconciliations: [],
-          },
-          result: null,
-        }
-      } else if (investigation.kind === 'refuse') {
-        return {
-          verdict: {
-            ok: false,
-            reason: investigation.reason,
-            reconciliations: [],
-          },
-          result: null,
+        const fallbackOutcome = await this.runPlan(plan, signal, pythonPlan)
+        // S39.0: Only return if verdict is OK; otherwise fall through to recovery ladder
+        if ((fallbackOutcome as EngineRunResult).verdict.ok) {
+          return fallbackOutcome
         }
       }
     }
 
-    // Step 4: No metric match → degrade
+    // S39.1: Recovery Ladder — instead of immediate refusal, try recovery steps
+    const trigger: RecoveryTrigger = route.metricId ? 'planner-error' : 'no-metric-match'
+    const recoveryCtx: RecoveryContext = {
+      prompt,
+      trigger,
+      failedMetricId: route.metricId ?? undefined,
+      failReason: lastFailReason || undefined,
+    }
+    const recoveryDeps: RecoveryDeps = {
+      executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
+      normalizePersianText: this.deps.normalizePersianText,
+      runPlan: (plan, sig) => this.runPlan(plan, sig),
+    }
+
+    const recovery = await runRecoveryLadder(
+      recoveryCtx,
+      recoveryDeps,
+      this.schemaCache,
+      DEFAULT_RECOVERY_BUDGET,
+      signal
+    )
+
+    if (recovery.outcome === 'answer' && recovery.result && recovery.verdict) {
+      return { verdict: recovery.verdict, result: recovery.result }
+    }
+
+    if (recovery.outcome === 'clarify') {
+      return {
+        verdict: {
+          ok: false,
+          reason: recovery.clarifyMessage ?? 'clarify',
+          reconciliations: []
+        },
+        result: null
+      }
+    }
+
+    // S39.12: Honest refusal with trace of what was tried
     return {
       verdict: {
         ok: false,
-        reason: route.metricId ? 'plan-failed' : 'no-metric-match',
+        reason: recovery.refuseReason ?? (route.metricId ? 'plan-failed' : 'no-metric-match'),
         reconciliations: []
       },
       result: null
