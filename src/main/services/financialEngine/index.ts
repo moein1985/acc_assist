@@ -149,12 +149,13 @@ export class FinancialEngine {
     let lastFailedMetric = ''
     let lastFailReason = ''
     let lastFailErrorType: import('./planner').RetryErrorType | undefined
+    let lastFailSuggestedMetric: string | undefined
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (!this.deps.plannerModel) break
 
       const retryHint: RetryHint | undefined = attempt > 0 && (lastFailedMetric || lastFailReason)
-        ? { failedMetricId: lastFailedMetric, reason: lastFailReason, errorType: lastFailErrorType }
+        ? { failedMetricId: lastFailedMetric, reason: lastFailReason, errorType: lastFailErrorType, suggestedMetricId: lastFailSuggestedMetric }
         : undefined
 
       const modelResult = await buildModelPlan(
@@ -203,6 +204,8 @@ export class FinancialEngine {
         } else {
           lastFailErrorType = 'execution-error'
         }
+        // S39.8b: Pass suggestedMetricId from evaluator to planner for explicit correction
+        lastFailSuggestedMetric = evaluation.suggestedMetricId
         continue
       }
 
@@ -225,6 +228,7 @@ export class FinancialEngine {
         if (isParseError && attempt < MAX_RETRIES - 1) {
           lastFailedMetric = ''
           lastFailReason = `planner output parse failed: ${modelResult.error}`
+          lastFailErrorType = 'parse-error'
           continue
         }
         return {

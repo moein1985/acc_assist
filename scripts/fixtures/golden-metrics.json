@@ -188,7 +188,7 @@
     {
       "id": "golden-cashflow",
       "prompt": "جریان نقد چقدر است؟",
-      "expectedMetricId": "cashflow",
+      "expectedMetricId": "cash_flow_statement",
       "expectedGrain": "total",
       "expectedValue": 2127900602,
       "tolerance": 1000000000
