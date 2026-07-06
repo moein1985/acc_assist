@@ -12,6 +12,7 @@ import {
   PLANNER_CONFIDENCE_THRESHOLD,
   type PlannerModelDeps
 } from '../../src/main/services/financialEngine/planner'
+import { routeMetric } from '../../src/main/services/financialEngine/router'
 import type { MetricPlan } from '../../src/main/services/financialEngine/types'
 
 test('buildPlannerPrompt includes metric catalog and schema', () => {
@@ -366,4 +367,87 @@ test('S14.42: buildFollowUpPlan — confidence is set to 0.9', () => {
   const plan = buildFollowUpPlan('نمایش بده فاکتورها', baseNetSalesPlan)
   assert.ok(plan)
   assert.equal(plan!.confidence, 0.9)
+})
+
+// ─── S38.8 — List metric routing & multi-word entity name tests ─────────────
+
+test('S38.8: routeMetric routes «چه سال‌های مالی در سیستم ثبت شده» to fiscal_year_list', () => {
+  const result = routeMetric('چه سال‌های مالی در سیستم ثبت شده؟')
+  assert.ok(result.metricId)
+  assert.equal(result.metricId, 'fiscal_year_list')
+  assert.ok(result.confidence >= 0.5)
+})
+
+test('S38.8: routeMetric routes «۱۰ سند اخیر» to recent_documents', () => {
+  const result = routeMetric('۱۰ سند اخیر')
+  assert.ok(result.metricId)
+  assert.equal(result.metricId, 'recent_documents')
+  assert.ok(result.confidence >= 0.5)
+})
+
+test('S38.8: routeMetric routes «کدام سندها تراز نیستند» to unbalanced_vouchers', () => {
+  const result = routeMetric('کدام سندها تراز نیستند؟')
+  assert.ok(result.metricId)
+  assert.equal(result.metricId, 'unbalanced_vouchers')
+  assert.ok(result.confidence >= 0.5)
+})
+
+test('S38.8: routeMetric does not route «ترازنامه» to unbalanced_vouchers (excludeSignal)', () => {
+  const result = routeMetric('ترازنامه سال ۱۴۰۲')
+  assert.notEqual(result.metricId, 'unbalanced_vouchers')
+})
+
+test('S38.8: buildDeterministicPlan for fiscal_year_list — no year filter needed', () => {
+  const plan = buildDeterministicPlan('چه سال‌های مالی ثبت شده؟', 'fiscal_year_list')
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'fiscal_year_list')
+  assert.equal(plan!.grain, 'total')
+})
+
+test('S38.8: buildDeterministicPlan for unbalanced_vouchers with year filter', () => {
+  const plan = buildDeterministicPlan('سندهای ترازنشده ۱۴۰۲', 'unbalanced_vouchers')
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'unbalanced_vouchers')
+  const yearFilter = plan!.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter, 'should have by_year filter')
+  assert.equal(yearFilter!.values[0], '1402')
+})
+
+test('S38.8: buildDeterministicPlan for recent_documents with topN', () => {
+  const plan = buildDeterministicPlan('۱۰ سند اخیر', 'recent_documents')
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'recent_documents')
+  assert.ok(plan!.topN, 'should have topN')
+  assert.equal(plan!.topN, 10)
+})
+
+test('S38.8: buildDeterministicPlan extracts multi-word entity name «آقای معین محسنی فرد»', () => {
+  const plan = buildDeterministicPlan('مانده طرف حساب آقای معین محسنی فرد ۱۴۰۲', 'party_balance')
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'party_balance')
+  assert.ok(plan!.entityName, 'should have entityName')
+  assert.ok(plan!.entityName!.includes('معین'), `entityName should include "معین", got "${plan!.entityName}"`)
+})
+
+test('S38.8: buildDeterministicPlan extracts entity name after «شرکت»', () => {
+  const plan = buildDeterministicPlan('مانده طرف حساب شرکت پارس صنعت ۱۴۰۲', 'party_balance')
+  assert.ok(plan)
+  assert.ok(plan!.entityName, 'should have entityName')
+  assert.ok(plan!.entityName!.includes('پارس'), `entityName should include "پارس", got "${plan!.entityName}"`)
+})
+
+test('S38.8: buildDeterministicPlan extracts entity name after «طرف حساب»', () => {
+  const plan = buildDeterministicPlan('مانده طرف حساب علی احمدی تهرانی', 'party_balance')
+  assert.ok(plan)
+  assert.ok(plan!.entityName, 'should have entityName')
+  assert.ok(plan!.entityName!.includes('علی'), `entityName should include "علی", got "${plan!.entityName}"`)
+})
+
+test('S38.8: buildDeterministicPlan for party_balance with year filter', () => {
+  const plan = buildDeterministicPlan('مانده طرف حساب آقای مرادی ۱۴۰۲', 'party_balance')
+  assert.ok(plan)
+  assert.equal(plan!.metricId, 'party_balance')
+  const yearFilter = plan!.filters.find((f) => f.dimension === 'by_year')
+  assert.ok(yearFilter, 'should have by_year filter')
+  assert.equal(yearFilter!.values[0], '1402')
 })
