@@ -711,16 +711,32 @@ ${metricList}
 پاسخ: {"metricId":"net_sales","grain":"by_month","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
 
 مثال ۸:
-سؤال: نسبت فروش به خرید
-پاسخ: {"metricId":"net_sales","grain":"total","filters":[],"confidence":0.1}
+سؤال: نسبت فروش به خرید ۱۴۰۲
+پاسخ: {"metricId":"sales_to_purchase_ratio","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
 
 مثال ۹:
 سؤال: ۱۰ سند اخیر
 پاسخ: {"metricId":"recent_documents","grain":"total","filters":[],"topN":10,"confidence":0.85}
 
+مثال ۹‌ب:
+سؤال: چه سال‌های مالی در سیستم ثبت شده؟
+پاسخ: {"metricId":"fiscal_year_list","grain":"total","filters":[],"confidence":0.85}
+
+مثال ۹‌ج:
+سؤال: کدام سندها تراز نیستند؟
+پاسخ: {"metricId":"unbalanced_vouchers","grain":"total","filters":[],"confidence":0.85}
+
+مثال ۹‌د:
+سؤال: سندهای ترازنشده ۱۴۰۲
+پاسخ: {"metricId":"unbalanced_vouchers","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.85}
+
 مثال ۱۰:
 سؤال: مانده طرف حساب آقای مرادی
 پاسخ: {"metricId":"party_balance","grain":"total","filters":[],"entityName":"مرادی","confidence":0.8}
+
+مثال ۱۰‌ب:
+سؤال: مانده طرف حساب آقای معین محسنی فرد ۱۴۰۲
+پاسخ: {"metricId":"party_balance","grain":"total","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"entityName":"معین محسنی فرد","confidence":0.8}
 
 مثال ۱۱:
 سؤال: مقایسه فروش و خرید ۱۴۰۲
@@ -817,7 +833,10 @@ Question: جریان نقد ۱۴۰۲
 Answer: {"metricId":"cash_flow_statement","grain":"by_year","filters":[{"dimension":"by_year","op":"eq","values":["1402"]}],"confidence":0.9}
 
 ${DOMAIN_KNOWLEDGE}
-${retryHint ? `\n⚠ توجه: metric «${retryHint.failedMetricId}» قبلاً امتحان شد اما نتیجه قابل‌قبول نبود (دلیل: ${retryHint.reason}). لطفاً metric دیگری پیشنهاد بده.\n` : ''}
+${retryHint ? (retryHint.failedMetricId
+  ? `\n⚠ توجه: metric «${retryHint.failedMetricId}» قبلاً امتحان شد اما نتیجه قابل‌قبول نبود (دلیل: ${retryHint.reason}). لطفاً metric دیگری پیشنهاد بده.\n`
+  : `\n⚠ توجه: در پاسخ قبلی JSON معتبر تولید نشد (دلیل: ${retryHint.reason}). لطفاً فقط یک JSON معتبر بدون متن اضافه تولید کن. نام‌های چندبخشی را در entityName با فاصله قرار بده.\n`
+) : ''}
 سؤال کاربر: ${userPrompt}${buildSchemaContext(softwareId)}${buildConversationContext(conversationContext)}
 پاسخ JSON:`
 }
@@ -854,6 +873,23 @@ export function parsePlannerOutput(raw: string): ParsePlannerResult {
     // Try finding first { ... } block
     if (!jsonText) {
       const braceMatch = raw.match(/\{[\s\S]*\}/)
+      if (braceMatch) {
+        try {
+          JSON.parse(braceMatch[0])
+          jsonText = braceMatch[0]
+        } catch {
+          // continue
+        }
+      }
+    }
+
+    // S38.9: Try cleaning common model output issues before giving up
+    if (!jsonText) {
+      const cleaned = raw
+        .replace(/[\u201c\u201d]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/,\s*([}\]])/g, '$1')
+      const braceMatch = cleaned.match(/\{[\s\S]*\}/)
       if (braceMatch) {
         try {
           JSON.parse(braceMatch[0])

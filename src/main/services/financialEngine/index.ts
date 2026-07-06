@@ -144,7 +144,7 @@ export class FinancialEngine {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (!this.deps.plannerModel) break
 
-      const retryHint: RetryHint | undefined = attempt > 0 && lastFailedMetric
+      const retryHint: RetryHint | undefined = attempt > 0 && (lastFailedMetric || lastFailReason)
         ? { failedMetricId: lastFailedMetric, reason: lastFailReason }
         : undefined
 
@@ -202,8 +202,14 @@ export class FinancialEngine {
         }
       }
 
-      // Parse error → degrade
+      // S38.9: Parse error → retry with corrective hint instead of immediate degrade
       if (modelResult.error) {
+        const isParseError = modelResult.error === 'no-valid-json' || modelResult.error === 'json-parse-failed'
+        if (isParseError && attempt < MAX_RETRIES - 1) {
+          lastFailedMetric = ''
+          lastFailReason = `planner output parse failed: ${modelResult.error}`
+          continue
+        }
         return {
           verdict: {
             ok: false,
@@ -463,24 +469,28 @@ export class FinancialEngine {
       // S25.9: Resolve party name to exact PartyId before compilation
       // Only for metrics where entityNameMatch targets p.Name (party), not a.Title (account)
       if (plan.entityName && def.entityNameMatch && def.entityNameMatch.column === 'p.Name' && plan.resolvedPartyId == null) {
-        const resolveResult = await resolvePartyByName(plan.entityName, {
-          executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
-          normalizePersianText: this.deps.normalizePersianText
-        }, combinedSignal)
+        try {
+          const resolveResult = await resolvePartyByName(plan.entityName, {
+            executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
+            normalizePersianText: this.deps.normalizePersianText
+          }, combinedSignal)
 
-        if (resolveResult.kind === 'one') {
-          plan = { ...plan, resolvedPartyId: resolveResult.candidate.partyId }
-        } else if (resolveResult.kind === 'many') {
-          return {
-            verdict: {
-              ok: false,
-              reason: buildPartyClarifyMessage(resolveResult.candidates, resolveResult.queryName),
-              reconciliations: []
-            },
-            result: null
+          if (resolveResult.kind === 'one') {
+            plan = { ...plan, resolvedPartyId: resolveResult.candidate.partyId }
+          } else if (resolveResult.kind === 'many') {
+            return {
+              verdict: {
+                ok: false,
+                reason: buildPartyClarifyMessage(resolveResult.candidates, resolveResult.queryName),
+                reconciliations: []
+              },
+              result: null
+            }
           }
+          // kind === 'zero': fall through with no resolvedPartyId; compiler will use LIKE fallback
+        } catch {
+          // S38.10: If party resolution fails (SQL error), fall through to LIKE fallback
         }
-        // kind === 'zero': fall through with no resolvedPartyId; compiler will use LIKE fallback
       }
 
       const compiled = compileMetricPlan(plan, def, this.deps)
@@ -498,7 +508,8 @@ export class FinancialEngine {
         throw execError
       }
 
-      if (rows.length === 0 || (rows.length === 1 && !rows[0]['result_value'])) {
+      const isListMetric = def.measure.kind === 'list'
+      if (rows.length === 0 || (!isListMetric && rows.length === 1 && !rows[0]['result_value'])) {
         if (def.source.fallbackTables && def.source.fallbackTables.length > 0) {
           for (const fallback of def.source.fallbackTables) {
             const fallbackPlan: MetricPlan = {
@@ -571,7 +582,7 @@ export class FinancialEngine {
       if (!finalVerdict.ok) {
         // S26: Investigator loop — when metric matched but returned zero rows,
         // try to discover the answer via schema exploration before refusing.
-        const rowsEmpty = rows.length === 0 || (rows.length === 1 && !rows[0]['result_value'])
+        const rowsEmpty = rows.length === 0 || (!isListMetric && rows.length === 1 && !rows[0]['result_value'])
         if (shouldInvestigate(plan.entityName ?? plan.metricId, true, rowsEmpty)) {
           const investigatorDeps: InvestigatorDeps = {
             executeReadOnlySql: (q, s) => this.deps.executeReadOnlySql(q, s),
@@ -624,9 +635,9 @@ export class FinancialEngine {
 
       return { verdict: finalVerdict, result: finalResult, pythonOutput: pythonOutput }
     } catch (error) {
-      void error
+      const errMsg = error instanceof Error ? error.message : String(error)
       return {
-        verdict: { ok: false, reason: 'execution-error', reconciliations: [] },
+        verdict: { ok: false, reason: `execution-error: ${errMsg}`, reconciliations: [] },
         result: null
       }
     } finally {

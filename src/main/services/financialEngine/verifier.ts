@@ -196,7 +196,7 @@ export function verifyResult(
 ): EngineVerdict {
   // S25.10: Scope check — if resolvedPartyId was set, the compiled SQL must use it
   if (plan.resolvedPartyId != null) {
-    const expectedFilter = `p.PartnerId = ${plan.resolvedPartyId}`
+    const expectedFilter = `p.PartyId = ${plan.resolvedPartyId}`
     if (!result.compiled.sql.includes(expectedFilter)) {
       return {
         ok: false,
