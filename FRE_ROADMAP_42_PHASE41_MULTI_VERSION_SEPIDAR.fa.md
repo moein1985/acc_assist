@@ -42,10 +42,18 @@
 ## بخش ج — ماتریسِ تستِ چند‌نسخه‌ای (اثباتِ واقعی)
 
 ### S41.6 — جمع‌آوریِ schema از نسخه‌های واقعی
-- [ ] **S41.6** حداقل **۲ نسخهٔ واقعیِ متفاوتِ سپیدار** را فراهم کن (یا DBِ واقعی، یا export/fixtureِ schema از نصب‌های واقعی). اگر دسترسی محدود است، حداقل schemaِ کاملِ دو نسخه را برای تستِ کشف/نگاشت فراهم کن.
+- [x] **S41.6** دو نسخهٔ واقعیِ متفاوتِ سپیدار فراهم شد: `Sepidar01` (۱۱ سال مالی، ۲۰۲ فاکتور، ۲۵۸۷۲ سند، ۹۷۳ طرف حساب) و `Sepidar03` (۴ سال مالی، ۰ فاکتور برای ۱۴۰۲، ۵۳ سند، ۱۵ طرف حساب). هر دو روی سرور 192.168.85.56:58033. تفاوتِ schema: Sepidar03 دارای ۵ ستونِ CostCenterRef اضافی در AST.
 ### S41.7 — اجرای سوییت روی هر نسخه
-- [ ] **S41.7** برای هر نسخه: `detectVersion` → کالیبراسیون/کشف → اجرای متریک‌های Tier 1 → تأیید با اوراکلِ **همان نسخه** (sqlcmd مستقل روی همان DB). جدولِ «نسخه | متریک | نتیجه | تأیید».
-- [ ] **S41.8** موردهای تفاوت را ثبت و ریشه‌یابی کن: کدام تفاوت با adapter/concept جذب شد و کدام نیازمندِ اصلاح بود.
+- [x] **S41.7** متریک‌های Tier 1 روی هر دو نسخه اجرا شد. نتایج:
+  - **Sepidar01** (۸ متریک): ۵ MATCH (net_sales, sales_count, purchases, tax_collected, fiscal_year_count)، ۱ MISMATCH (cashflow: engine=0 vs oracle=9.5B — تفاوتِ تعریفِ متریک)، ۲ REFUSED (party_count, voucher_count — planner route نشد).
+  - **Sepidar03** (۸ متریک): ۲ MATCH (sales_count=0, fiscal_year_count=4)، ۵ REFUSED (net_sales, purchases, tax_collected, cashflow, party_count, voucher_count — دادهٔ خالی یا planner route نشد)، ۱ N/A.
+  - روش: Oracle SQL مستقل با sqlcmd + engine query با remote:ask-ai. برای Sepidar03 از machine-level env var `ACC_SQL_DATABASE=Sepidar03` استفاده شد (app settings persist() مشکل داشت).
+  - گزارشِ CSV: `ops/s41-tier1-comparison.csv`.
+- [x] **S41.8** تفاوت‌ها ثبت و ریشه‌یابی شد:
+  1. **cashflow mismatch (Sepidar01)**: engine از VoucherItem Debit-Credit استفاده می‌کند (نتیجه=0) در حالی که Oracle از RPA.CashBalance+BankAccountBalance (نتیجه=9.5B). این تفاوتِ تعریفِ متریک است، نه bug. نیاز به اصلاحِ conceptSource برای cashflow.
+  2. **party_count/voucher_count refused (هر دو)**: planner این درخواست‌ها را به متریک route نمی‌کند. نیاز به anchor یا metricId اضافه کردن در metricCatalog.
+  3. **net_sales/purchases/tax_collected refused on Sepidar03**: درست و منطقی — Sepidar03 هیچ فاکتور/رسید برای ۱۴۰۲ ندارد. Engine درست refuse کرد.
+  4. **Settings persistence bug**: app در startup با `persist()` تنظیماتِ Sepidar03 را به Sepidar01 بازنویسی می‌کند. workaround: machine-level env var `ACC_SQL_DATABASE`. نیاز به fix در settingsStore.ts.
 
 ### S41.9 — تستِ رگرسیونِ چند‌نسخه‌ای
 - [ ] **S41.9** کورپوسِ رگرسیون (فاز ۴۰) را روی هر دو نسخه اجراپذیر کن (با fixtureهای schemaِ هر نسخه). گیت: هیچ نسخه‌ای رگرسیون نگیرد.

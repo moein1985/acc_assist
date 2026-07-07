@@ -1,0 +1,9 @@
+metric_id,Sepidar01_Oracle,Sepidar01_Engine,Sepidar01_Match,Sepidar03_Oracle,Sepidar03_Engine,Sepidar03_Match,Notes
+net_sales,64252437897,64252437897,MATCH,NULL,REFUSED,N/A,"S03 has no invoices for 1402; engine correctly refused (no data)"
+sales_count,202,202,MATCH,0,0,MATCH,"Both match"
+purchases,226110419451,226110419451,MATCH,NULL,REFUSED,N/A,"S03 has no inventory receipts; engine refused"
+tax_collected,2029051751,2029051751,MATCH,NULL,REFUSED,N/A,"S03 has no invoices for 1402; engine refused"
+fiscal_year_count,11,11,MATCH,4,4,MATCH,"Both match"
+cashflow,9521507066,0,MISMATCH,0,REFUSED,N/A,"S01: engine uses VoucherItem Debit-Credit (returns 0) vs Oracle RPA balance (9.5B); S03: engine refused"
+party_count,973,REFUSED,N/A,15,REFUSED,N/A,"Engine refused on both DBs (planner did not route to metric)"
+voucher_count,25872,REFUSED,N/A,53,REFUSED,N/A,"Engine refused on both DBs (planner did not route to metric)"

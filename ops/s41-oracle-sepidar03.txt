@@ -1,0 +1,8 @@
+Sepidar03|net_sales|oracle=NULL
+Sepidar03|sales_count|oracle=0
+Sepidar03|purchases|oracle=NULL
+Sepidar03|tax_collected|oracle=NULL
+Sepidar03|fiscal_year_count|oracle=4
+Sepidar03|cashflow|oracle=.0000
+Sepidar03|party_count|oracle=15
+Sepidar03|voucher_count|oracle=53

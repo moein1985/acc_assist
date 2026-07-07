@@ -1,0 +1,8 @@
+Sepidar01|net_sales|engine=engine-served|metricId=net_sales
+Sepidar01|sales_count|engine=engine-served|metricId=sales_count
+Sepidar01|purchases|engine=engine-served|metricId=purchases
+Sepidar01|tax_collected|engine=engine-served|metricId=tax_collected
+Sepidar01|fiscal_year_count|engine=engine-served|metricId=fiscal_year_count
+Sepidar01|cashflow|engine=engine-served|metricId=cash_flow_statement
+Sepidar01|party_count|engine=|metricId=
+Sepidar01|voucher_count|engine=|metricId=

@@ -1,0 +1,8 @@
+Sepidar01|net_sales|oracle=64252437897.0000
+Sepidar01|sales_count|oracle=202
+Sepidar01|purchases|oracle=226110419451.000
+Sepidar01|tax_collected|oracle=2029051751.0000
+Sepidar01|fiscal_year_count|oracle=11
+Sepidar01|cashflow|oracle=9521507066.0000
+Sepidar01|party_count|oracle=973
+Sepidar01|voucher_count|oracle=25872

@@ -1,0 +1,723 @@
+=== S41.6 â?" Schema Fingerprint Collection ===
+Server: 192.168.85.56:2211, SQL port: 58033
+
+=== DATABASE: Sepidar01 ===
+--- Table Existence ---
+  ACC.Voucher => 1
+  ACC.VoucherItem => 1
+  ACC.Account => 1
+  ACC.Check => 0
+  SLS.Invoice => 1
+  SLS.InvoiceItem => 1
+  INV.InventoryReceipt => 1
+  INV.vwItemStockSummary => 1
+  FMK.FiscalYear => 1
+  RPA.CashBalance => 1
+  RPA.BankAccountBalance => 1
+  AST.Asset => 1
+  AST.AssetTransaction => 1
+  CNT.Project => 1
+  CNT.CostCenter => 0
+  GNR.Party => 1
+  POM.PurchaseInvoice => 1
+--- AST.Asset Columns ---
+    AssetId
+    PlaqueNumber
+    OldPlaqueNumber
+    PlaqueSerial
+    Title
+    Title_En
+    State
+    AssetGroupRef
+    CostCenterRef
+    EmplacementRef
+    ReceiverPartyRef
+    Description
+    Details
+    Version
+    Creator
+    CreationDate
+    LastModifier
+    LastModificationDate
+    IsInitial
+    CostCenterDlRef
+--- ACC.VoucherItem Columns ---
+    VoucherItemId
+    VoucherRef
+    RowNumber
+    AccountSLRef
+    DLRef
+    Debit
+    Credit
+    CurrencyRef
+    CurrencyRate
+    CurrencyDebit
+    CurrencyCredit
+    TrackingNumber
+    TrackingDate
+    IssuerEntityName
+    IssuerEntityRef
+    Description
+    Description_En
+    Version
+--- SLS.Invoice Columns ---
+    InvoiceId
+    QuotationRef
+    CustomerPartyRef
+    CustomerRealName
+    CustomerRealName_En
+    SaleTypeRef
+    PartyAddressRef
+    Number
+    Date
+    CurrencyRef
+    SLRef
+    DeliveryLocationRef
+    State
+    Price
+    PriceInBaseCurrency
+    Discount
+    DiscountInBaseCurrency
+    Addition
+    AdditionInBaseCurrency
+    Tax
+    TaxInBaseCurrency
+    Duty
+    DutyInBaseCurrency
+    NetPriceInBaseCurrency
+    Rate
+    Version
+    Creator
+    CreationDate
+    LastModifier
+    LastModificationDate
+    FiscalYearRef
+    VoucherRef
+    BaseOnInventoryDelivery
+    OrderRef
+    ShouldControlCustomerCredit
+    Guid
+    AdditionFactor_VatEffective
+    AdditionFactorInBaseCurrency_VatEffective
+    AdditionFactor_VatIneffective
+    AdditionFactorInBaseCurrency_VatIneffective
+    AgreementRef
+    TaxPayerBillIssueDateTime
+    SettlementType
+    Description
+    NetPrice
+--- Row Counts ---
+  ACC.Voucher => 25872 rows
+  ACC.VoucherItem => 100435 rows
+  SLS.Invoice => 2825 rows
+  FMK.FiscalYear => 11 rows
+  GNR.Party => 973 rows
+  INV.InventoryReceipt => 3704 rows
+--- CostCenterRef Presence ---
+  ACC.VoucherItem.CostCenterRef => 0
+  SLS.Invoice.CostCenterRef => 0
+  INV.InventoryReceipt.CostCenterRef => 0
+  AST.Asset.CostCenterRef => 1
+  AST.AssetTransaction.CostCenterRef => 1
+--- Voucher Type Values ---
+  ACC.Voucher.Type => 1, 2, 3, 4, 5
+--- RPA Schema Tables ---
+    RPA.AccountType
+    RPA.Bank
+    RPA.BankAccount
+    RPA.BankAccountBalance
+    RPA.BankBill
+    RPA.BankBillItem
+    RPA.BankBranch
+    RPA.Cash
+    RPA.CashBalance
+    RPA.ChequeBook
+    RPA.DocSpecification
+    RPA.PartyAccountSettlement
+    RPA.PartyAccountSettlementItem
+    RPA.PartySettlement
+    RPA.PartySettlementItem
+    RPA.PaymentCheque
+    RPA.PaymentChequeBanking
+    RPA.PaymentChequeBankingItem
+    RPA.PaymentChequeHistory
+    RPA.PaymentChequeOther
+    RPA.PaymentDraft
+    RPA.PaymentHeader
+    RPA.PettyCash
+    RPA.PettyCashBill
+    RPA.PettyCashBillItem
+    RPA.Pos
+    RPA.PosBalance
+    RPA.PosSettlement
+    RPA.PosSettlementReceipt
+    RPA.ReceiptCheque
+    RPA.ReceiptChequeBanking
+    RPA.ReceiptChequeBankingItem
+    RPA.ReceiptChequeHistory
+    RPA.ReceiptDraft
+    RPA.ReceiptHeader
+    RPA.ReceiptPettyCash
+    RPA.ReceiptPos
+    RPA.Reconciliation
+    RPA.ReconciliationBankItem
+    RPA.ReconciliationItem
+    RPA.RefundCheque
+    RPA.RefundChequeItem
+    RPA.vwBankAccount
+    RPA.vwBankAccountBalance
+    RPA.vwBankAccountBalanceFiscalYear
+    RPA.vwBankAccountGuaranteeCashDeposit
+    RPA.vwBankBill
+    RPA.vwBankBillItem
+    RPA.vwBankBranch
+    RPA.vwCash
+    RPA.vwCashBalance
+    RPA.vwCashBalanceFiscalYear
+    RPA.vwChequeBook
+    RPA.vwPartyAccountSettlement
+    RPA.vwPartyAccountSettlementCreditItem
+    RPA.vwPartyAccountSettlementDebitItem
+    RPA.vwPartySettlement
+    RPA.vwPartySettlementItem
+    RPA.vwPaymentCheque
+    RPA.vwPaymentChequeBanking
+    RPA.vwPaymentChequeBankingItem
+    RPA.vwPaymentChequeHistory
+    RPA.vwPaymentChequeOther
+    RPA.vwPaymentDraft
+    RPA.vwPaymentHeader
+    RPA.vwPettyCash
+    RPA.vwPettyCashBill
+    RPA.vwPettyCashBillItem
+    RPA.vwPos
+    RPA.vwPosBalance
+    RPA.vwPosSettlement
+    RPA.vwPosSettlementReceipt
+    RPA.vwReceiptCheque
+    RPA.vwReceiptChequeBanking
+    RPA.vwReceiptChequeBankingItem
+    RPA.vwReceiptChequeHistory
+    RPA.vwReceiptDraft
+    RPA.vwReceiptHeader
+    RPA.vwReceiptPettyCash
+    RPA.vwReceiptPos
+    RPA.vwReconciliation
+    RPA.vwReconciliationBankItem
+    RPA.vwReconciliationItem
+    RPA.vwRefundCheque
+    RPA.vwRefundChequeItem
+--- CNT Schema Tables ---
+    CNT.ChangeItem
+    CNT.Coefficient
+    CNT.Contract
+    CNT.ContractAgreementItem
+    CNT.ContractCoefficientItem
+    CNT.ContractCompromiseItem
+    CNT.ContractEmployerMaterialsItem
+    CNT.ContractPreReceiptItem
+    CNT.ContractPriceList
+    CNT.ContractRelatedPurchaseInvoice
+    CNT.ContractSupportingInsurance
+    CNT.ContractType
+    CNT.ContractWarrantyItem
+    CNT.ContractWorkshopItem
+    CNT.Cost
+    CNT.CostStatement
+    CNT.CostStatementItem
+    CNT.Guarantee
+    CNT.GuaranteeOperation
+    CNT.GuaranteeRelated
+    CNT.Project
+    CNT.Settlement
+    CNT.SettlementDebtItem
+    CNT.SettlementItem
+    CNT.Status
+    CNT.StatusCoefficientItem
+    CNT.StatusItem
+    CNT.StatusOnAccountItem
+    CNT.StatusReceiptItem
+    CNT.Tender
+    CNT.vwCoefficient
+    CNT.vwContract
+    CNT.vwContractAgreementItem
+    CNT.vwContractCoefficientItem
+    CNT.vwContractCompromiseItem
+    CNT.vwContractEmployerMaterialsItem
+    CNT.vwContractGuarantee
+    CNT.vwContractHistory
+    CNT.vwContractPreReceiptItem
+    CNT.vwContractPriceList
+    CNT.vwContractSupportingInsurance
+    CNT.vwContractType
+    CNT.vwContractWarrantyItem
+    CNT.vwContractWorkshopItem
+    CNT.vwCost
+    CNT.vwCostStatement
+    CNT.vwCostStatementItem
+    CNT.vwEmployerMaterialsItem
+    CNT.vwGuarantee
+    CNT.vwGuaranteeHistory
+    CNT.vwGuaranteeOperation
+    CNT.vwGuaranteeRelated
+    CNT.vwProject
+    CNT.vwSettlement
+    CNT.vwSettlementDebtItem
+    CNT.vwSettlementItem
+    CNT.vwStatus
+    CNT.vwStatusCoefficientItem
+    CNT.vwStatusItem
+    CNT.vwStatusOnAccountItem
+    CNT.vwStatusReceiptItem
+    CNT.vwTender
+    CNT.vwTenderRelatedPurchaseInvoice
+    CNT.vwWarranty
+    CNT.vwWorkshop
+    CNT.Warranty
+    CNT.Workshop
+--- AST Schema Tables ---
+    AST.AcquisitionReceipt
+    AST.AcquisitionReceiptItem
+    AST.Asset
+    AST.AssetClass
+    AST.AssetGroup
+    AST.AssetRelatedPurchaseInvoice
+    AST.AssetTransaction
+    AST.ChangeDepreciationMethod
+    AST.ChangeDepreciationMethodItem
+    AST.CostPart
+    AST.CostPartTransaction
+    AST.Depreciation
+    AST.DepreciationItem
+    AST.DepreciationRule
+    AST.Elimination
+    AST.EliminationItem
+    AST.Emplacement
+    AST.Repair
+    AST.RepairItem
+    AST.Sale
+    AST.SaleItem
+    AST.Salvage
+    AST.SalvageItem
+    AST.Transfer
+    AST.TransferItem
+    AST.Unuseable
+    AST.UnuseableItem
+    AST.Useable
+    AST.UseableItem
+    AST.vwAcquisitionReceipt
+    AST.vwAcquisitionReceiptItem
+    AST.vwAcquisitionRelatedPurchaseInvoice
+    AST.vwAsset
+    AST.vwAssetAccAccountVoucher
+    AST.vwAssetClass
+    AST.vwAssetDepreciationSummary
+    AST.vwAssetExitFinacial
+    AST.vwAssetGroup
+    AST.vwAssetRelatedPurchaseInvoice
+    AST.vwAssetTransaction
+    AST.vwAssetTransactionCosts
+    AST.vwAstCostCenter
+    AST.vwChangeDepreciationMethod
+    AST.vwChangeDepreciationMethodItem
+    AST.vwCostPart
+    AST.vwCostPartTransaction
+    AST.vwDepreciation
+    AST.vwDepreciationItem
+    AST.vwDepreciationRule
+    AST.vwElimination
+    AST.vwEliminationItem
+    AST.vwEmplacement
+    AST.vwEstablishment
+    AST.vwEstablishmentItem
+    AST.vwRepair
+    AST.vwRepairItem
+    AST.vwRepairRelatedPurchaseInvoice
+    AST.vwSale
+    AST.vwSaleItem
+    AST.vwSalvage
+    AST.vwSalvageItem
+    AST.vwTransfer
+    AST.vwTransferItem
+    AST.vwUnuseable
+    AST.vwUnuseableItem
+    AST.vwUseable
+    AST.vwUseableItem
+--- All Schemas ---
+  ACC|11
+  AST|29
+  CNT|32
+  DST|38
+  FMK|25
+  GNR|59
+  INV|32
+  MRP|9
+  MSG|13
+  PAY|30
+  POM|23
+  POS|9
+  RPA|42
+  SCD|2
+  SLS|43
+  WKO|10
+
+=== DATABASE: Sepidar03 ===
+--- Table Existence ---
+  ACC.Voucher => 1
+  ACC.VoucherItem => 1
+  ACC.Account => 1
+  ACC.Check => 0
+  SLS.Invoice => 1
+  SLS.InvoiceItem => 1
+  INV.InventoryReceipt => 1
+  INV.vwItemStockSummary => 1
+  FMK.FiscalYear => 1
+  RPA.CashBalance => 1
+  RPA.BankAccountBalance => 1
+  AST.Asset => 1
+  AST.AssetTransaction => 1
+  CNT.Project => 1
+  CNT.CostCenter => 0
+  GNR.Party => 1
+  POM.PurchaseInvoice => 1
+--- AST.Asset Columns ---
+    AssetId
+    PlaqueNumber
+    OldPlaqueNumber
+    PlaqueSerial
+    Title
+    Title_En
+    State
+    AssetGroupRef
+    CostCenterDlRef
+    EmplacementRef
+    ReceiverPartyRef
+    Description
+    Details
+    Version
+    Creator
+    CreationDate
+    LastModifier
+    LastModificationDate
+    IsInitial
+--- ACC.VoucherItem Columns ---
+    VoucherItemId
+    VoucherRef
+    RowNumber
+    AccountSLRef
+    DLRef
+    Debit
+    Credit
+    CurrencyRef
+    CurrencyRate
+    CurrencyDebit
+    CurrencyCredit
+    TrackingNumber
+    TrackingDate
+    IssuerEntityName
+    IssuerEntityRef
+    Description
+    Description_En
+    Version
+--- SLS.Invoice Columns ---
+    InvoiceId
+    QuotationRef
+    OrderRef
+    CustomerPartyRef
+    CustomerRealName
+    CustomerRealName_En
+    SaleTypeRef
+    PartyAddressRef
+    Number
+    Date
+    CurrencyRef
+    SLRef
+    DeliveryLocationRef
+    State
+    Price
+    PriceInBaseCurrency
+    Discount
+    DiscountInBaseCurrency
+    Addition
+    AdditionInBaseCurrency
+    Tax
+    TaxInBaseCurrency
+    Duty
+    DutyInBaseCurrency
+    AdditionFactor_VatEffective
+    AdditionFactorInBaseCurrency_VatEffective
+    AdditionFactor_VatIneffective
+    AdditionFactorInBaseCurrency_VatIneffective
+    NetPriceInBaseCurrency
+    Rate
+    Version
+    Creator
+    CreationDate
+    LastModifier
+    LastModificationDate
+    FiscalYearRef
+    VoucherRef
+    AgreementRef
+    ShouldControlCustomerCredit
+    Guid
+    BaseOnInventoryDelivery
+    TaxPayerBillIssueDateTime
+    SettlementType
+    Description
+    NetPrice
+--- Row Counts ---
+  ACC.Voucher => 53 rows
+  ACC.VoucherItem => 172 rows
+  SLS.Invoice => 59 rows
+  FMK.FiscalYear => 4 rows
+  GNR.Party => 15 rows
+  INV.InventoryReceipt => 0 rows
+--- CostCenterRef Presence ---
+  ACC.VoucherItem.CostCenterRef => 0
+  SLS.Invoice.CostCenterRef => 0
+  INV.InventoryReceipt.CostCenterRef => 0
+  AST.Asset.CostCenterRef => 0
+  AST.AssetTransaction.CostCenterRef => 0
+--- Voucher Type Values ---
+  ACC.Voucher.Type => 2
+--- RPA Schema Tables ---
+    RPA.AccountType
+    RPA.Bank
+    RPA.BankAccount
+    RPA.BankAccountBalance
+    RPA.BankBill
+    RPA.BankBillItem
+    RPA.BankBranch
+    RPA.Cash
+    RPA.CashBalance
+    RPA.ChequeBook
+    RPA.DocSpecification
+    RPA.PartyAccountSettlement
+    RPA.PartyAccountSettlementItem
+    RPA.PartySettlement
+    RPA.PartySettlementItem
+    RPA.PaymentCheque
+    RPA.PaymentChequeBanking
+    RPA.PaymentChequeBankingItem
+    RPA.PaymentChequeHistory
+    RPA.PaymentChequeOther
+    RPA.PaymentDraft
+    RPA.PaymentHeader
+    RPA.PettyCash
+    RPA.PettyCashBill
+    RPA.PettyCashBillItem
+    RPA.Pos
+    RPA.PosBalance
+    RPA.PosSettlement
+    RPA.PosSettlementReceipt
+    RPA.ReceiptCheque
+    RPA.ReceiptChequeBanking
+    RPA.ReceiptChequeBankingItem
+    RPA.ReceiptChequeHistory
+    RPA.ReceiptDraft
+    RPA.ReceiptHeader
+    RPA.ReceiptPettyCash
+    RPA.ReceiptPos
+    RPA.Reconciliation
+    RPA.ReconciliationBankItem
+    RPA.ReconciliationItem
+    RPA.RefundCheque
+    RPA.RefundChequeItem
+    RPA.vwBankAccount
+    RPA.vwBankAccountBalance
+    RPA.vwBankAccountBalanceFiscalYear
+    RPA.vwBankAccountGuaranteeCashDeposit
+    RPA.vwBankBill
+    RPA.vwBankBillItem
+    RPA.vwBankBranch
+    RPA.vwCash
+    RPA.vwCashBalance
+    RPA.vwCashBalanceFiscalYear
+    RPA.vwChequeBook
+    RPA.vwPartyAccountSettlement
+    RPA.vwPartyAccountSettlementCreditItem
+    RPA.vwPartyAccountSettlementDebitItem
+    RPA.vwPartySettlement
+    RPA.vwPartySettlementItem
+    RPA.vwPaymentCheque
+    RPA.vwPaymentChequeBanking
+    RPA.vwPaymentChequeBankingItem
+    RPA.vwPaymentChequeHistory
+    RPA.vwPaymentChequeOther
+    RPA.vwPaymentDraft
+    RPA.vwPaymentHeader
+    RPA.vwPettyCash
+    RPA.vwPettyCashBill
+    RPA.vwPettyCashBillItem
+    RPA.vwPos
+    RPA.vwPosBalance
+    RPA.vwPosSettlement
+    RPA.vwPosSettlementReceipt
+    RPA.vwReceiptCheque
+    RPA.vwReceiptChequeBanking
+    RPA.vwReceiptChequeBankingItem
+    RPA.vwReceiptChequeHistory
+    RPA.vwReceiptDraft
+    RPA.vwReceiptHeader
+    RPA.vwReceiptPettyCash
+    RPA.vwReceiptPos
+    RPA.vwReconciliation
+    RPA.vwReconciliationBankItem
+    RPA.vwReconciliationItem
+    RPA.vwRefundCheque
+    RPA.vwRefundChequeItem
+--- CNT Schema Tables ---
+    CNT.ChangeItem
+    CNT.Coefficient
+    CNT.Contract
+    CNT.ContractAgreementItem
+    CNT.ContractCoefficientItem
+    CNT.ContractCompromiseItem
+    CNT.ContractEmployerMaterialsItem
+    CNT.ContractPreReceiptItem
+    CNT.ContractPriceList
+    CNT.ContractRelatedPurchaseInvoice
+    CNT.ContractSupportingInsurance
+    CNT.ContractType
+    CNT.ContractWarrantyItem
+    CNT.ContractWorkshopItem
+    CNT.Cost
+    CNT.CostStatement
+    CNT.CostStatementItem
+    CNT.Guarantee
+    CNT.GuaranteeOperation
+    CNT.GuaranteeRelated
+    CNT.Project
+    CNT.Settlement
+    CNT.SettlementDebtItem
+    CNT.SettlementItem
+    CNT.Status
+    CNT.StatusCoefficientItem
+    CNT.StatusItem
+    CNT.StatusOnAccountItem
+    CNT.StatusReceiptItem
+    CNT.Tender
+    CNT.vwCoefficient
+    CNT.vwContract
+    CNT.vwContractAgreementItem
+    CNT.vwContractCoefficientItem
+    CNT.vwContractCompromiseItem
+    CNT.vwContractEmployerMaterialsItem
+    CNT.vwContractGuarantee
+    CNT.vwContractHistory
+    CNT.vwContractPreReceiptItem
+    CNT.vwContractPriceList
+    CNT.vwContractSupportingInsurance
+    CNT.vwContractType
+    CNT.vwContractWarrantyItem
+    CNT.vwContractWorkshopItem
+    CNT.vwCost
+    CNT.vwCostStatement
+    CNT.vwCostStatementItem
+    CNT.vwEmployerMaterialsItem
+    CNT.vwGuarantee
+    CNT.vwGuaranteeHistory
+    CNT.vwGuaranteeOperation
+    CNT.vwGuaranteeRelated
+    CNT.vwProject
+    CNT.vwSettlement
+    CNT.vwSettlementDebtItem
+    CNT.vwSettlementItem
+    CNT.vwStatus
+    CNT.vwStatusCoefficientItem
+    CNT.vwStatusItem
+    CNT.vwStatusOnAccountItem
+    CNT.vwStatusReceiptItem
+    CNT.vwTender
+    CNT.vwTenderRelatedPurchaseInvoice
+    CNT.vwWarranty
+    CNT.vwWorkshop
+    CNT.Warranty
+    CNT.Workshop
+--- AST Schema Tables ---
+    AST.AcquisitionReceipt
+    AST.AcquisitionReceiptItem
+    AST.Asset
+    AST.AssetClass
+    AST.AssetGroup
+    AST.AssetRelatedPurchaseInvoice
+    AST.AssetTransaction
+    AST.ChangeDepreciationMethod
+    AST.ChangeDepreciationMethodItem
+    AST.CostPart
+    AST.CostPartTransaction
+    AST.Depreciation
+    AST.DepreciationItem
+    AST.DepreciationRule
+    AST.Elimination
+    AST.EliminationItem
+    AST.Emplacement
+    AST.Repair
+    AST.RepairItem
+    AST.Sale
+    AST.SaleItem
+    AST.Salvage
+    AST.SalvageItem
+    AST.Transfer
+    AST.TransferItem
+    AST.Unuseable
+    AST.UnuseableItem
+    AST.Useable
+    AST.UseableItem
+    AST.vwAcquisitionReceipt
+    AST.vwAcquisitionReceiptItem
+    AST.vwAcquisitionRelatedPurchaseInvoice
+    AST.vwAsset
+    AST.vwAssetAccAccountVoucher
+    AST.vwAssetClass
+    AST.vwAssetDepreciationSummary
+    AST.vwAssetExitFinacial
+    AST.vwAssetGroup
+    AST.vwAssetRelatedPurchaseInvoice
+    AST.vwAssetTransaction
+    AST.vwAssetTransactionCosts
+    AST.vwAstCostCenter
+    AST.vwChangeDepreciationMethod
+    AST.vwChangeDepreciationMethodItem
+    AST.vwCostPart
+    AST.vwCostPartTransaction
+    AST.vwDepreciation
+    AST.vwDepreciationItem
+    AST.vwDepreciationRule
+    AST.vwElimination
+    AST.vwEliminationItem
+    AST.vwEmplacement
+    AST.vwEstablishment
+    AST.vwEstablishmentItem
+    AST.vwRepair
+    AST.vwRepairItem
+    AST.vwRepairRelatedPurchaseInvoice
+    AST.vwSale
+    AST.vwSaleItem
+    AST.vwSalvage
+    AST.vwSalvageItem
+    AST.vwTransfer
+    AST.vwTransferItem
+    AST.vwUnuseable
+    AST.vwUnuseableItem
+    AST.vwUseable
+    AST.vwUseableItem
+--- All Schemas ---
+  ACC|11
+  AST|29
+  CNT|32
+  DST|38
+  FMK|25
+  GNR|59
+  INV|32
+  MRP|9
+  MSG|13
+  PAY|30
+  POM|23
+  POS|9
+  RPA|42
+  SCD|2
+  SLS|43
+  WKO|10
+
+=== Done ===
