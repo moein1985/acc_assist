@@ -602,9 +602,23 @@ export function compileMetricPlan(
   definition: MetricDefinition,
   deps: CompilerDeps
 ): CompiledQuery {
-  const resolvedDef = (deps.adapter && definition.conceptSource)
-    ? resolveDefinition(definition, deps.adapter)
-    : definition
+  let resolvedDef: MetricDefinition
+
+  // S41.5: Graceful concept resolution failure — return refusal instead of throwing
+  if (deps.adapter && definition.conceptSource) {
+    try {
+      resolvedDef = resolveDefinition(definition, deps.adapter)
+    } catch (err) {
+      const msg = (err as Error).message
+      return {
+        sql: '',
+        bindingsDescription: 'concept resolution failed',
+        refusalReason: `این متریک روی این نسخه از سپیدار در دسترس نیست (${msg})`
+      }
+    }
+  } else {
+    resolvedDef = definition
+  }
 
   let sql: string
 

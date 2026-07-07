@@ -656,21 +656,24 @@ export async function buildMappingFromDiscovery(
 /**
  * S34.7: Compute a stable deployment ID from connection parameters.
  * The ID is a SHA-256 hash (first 16 hex chars) of:
- *   softwareId + '|' + databaseName + '|' + host
+ *   softwareId + '|' + databaseName + '|' + host + '|' + versionId
  *
  * This uniquely identifies a deployment across sessions.
+ * S41.2: versionId parameter added to distinguish Sepidar schema versions.
  *
  * @param softwareId - Software ID (e.g. 'sepidar', 'mahak')
  * @param databaseName - Database name (e.g. 'Sepidar01')
  * @param host - Server host/IP (e.g. '192.168.85.56')
+ * @param versionId - Schema version ID (e.g. 'sepidar-v1', 'sepidar-v2'). Defaults to 'unknown'.
  * @returns 16-char hex deployment ID
  */
 export function getDeploymentId(
   softwareId: string,
   databaseName: string,
-  host: string
+  host: string,
+  versionId: string = 'unknown'
 ): string {
-  const input = `${softwareId}|${databaseName}|${host}`
+  const input = `${softwareId}|${databaseName}|${host}|${versionId}`
   return createHash('sha256').update(input).digest('hex').substring(0, 16)
 }
 

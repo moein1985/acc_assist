@@ -329,6 +329,8 @@ export interface PythonOutputPlan {
 export interface CompiledQuery {
   sql: string
   bindingsDescription: string
+  /** S41.5: When concept resolution fails, this contains a user-facing refusal message instead of throwing */
+  refusalReason?: string
 }
 
 export interface EngineResult {

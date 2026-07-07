@@ -34,6 +34,12 @@ export enum AccountingConcept {
   sales_invoice_item = 'sales_invoice_item',
   /** S27.1: Generic invoice concept (sales/purchase/return) */
   invoice = 'invoice',
+  /** S41.4: Fixed asset register */
+  fixed_asset = 'fixed_asset',
+  /** S41.4: Asset transaction (depreciation, acquisition, transfer) */
+  asset_transaction = 'asset_transaction',
+  /** S41.4: Inventory stock summary view */
+  inventory_stock_summary = 'inventory_stock_summary',
 }
 
 /**

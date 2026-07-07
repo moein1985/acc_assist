@@ -493,6 +493,15 @@ export class FinancialEngine {
       }
 
       const compiled = compileMetricPlan(plan, def, this.deps)
+
+      // S41.5: If concept resolution failed, return graceful refusal
+      if (compiled.refusalReason) {
+        return {
+          verdict: { ok: false, reason: compiled.refusalReason, reconciliations: [] },
+          result: null
+        }
+      }
+
       let rows: SqlQueryRow[]
 
       try {

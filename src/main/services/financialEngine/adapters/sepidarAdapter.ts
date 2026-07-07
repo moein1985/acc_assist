@@ -147,6 +147,9 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.chart_of_accounts]: 'ACC.Account',
     [AccountingConcept.party]: 'GNR.Party',
     [AccountingConcept.invoice]: 'SLS.Invoice',
+    [AccountingConcept.fixed_asset]: 'AST.Asset',
+    [AccountingConcept.asset_transaction]: 'AST.AssetTransaction',
+    [AccountingConcept.inventory_stock_summary]: 'INV.vwItemStockSummary',
   }
 
   private readonly columnMap: Record<string, Record<string, string>> = {
@@ -197,6 +200,38 @@ export class SepidarAdapter implements SchemaAdapter {
     [AccountingConcept.bank_balance]: {
       amount: 'Amount',
       primary_key: 'BankAccountBalanceId'
+    },
+    [AccountingConcept.check]: {
+      amount: 'Amount',
+      due_date: 'DueDate',
+      status: 'Status',
+      number: 'CheckNumber',
+      primary_key: 'CheckId'
+    },
+    [AccountingConcept.cost_center]: {
+      name: 'Title',
+      primary_key: 'CostCenterId'
+    },
+    [AccountingConcept.project]: {
+      name: 'ProjectName',
+      primary_key: 'ProjectId'
+    },
+    [AccountingConcept.fixed_asset]: {
+      name: 'AssetName',
+      primary_key: 'AssetId',
+      date: 'AcquisitionDate'
+    },
+    [AccountingConcept.asset_transaction]: {
+      amount: 'Amount',
+      primary_key: 'AssetTransactionId',
+      date: 'TransactionDate'
+    },
+    [AccountingConcept.inventory_stock_summary]: {
+      quantity: 'Quantity',
+      output_quantity: 'OutputQuantity',
+      item_code: 'ItemCode',
+      item_title: 'ItemTitle',
+      minimum_amount: 'ItemMinimumAmount'
     }
   }
 

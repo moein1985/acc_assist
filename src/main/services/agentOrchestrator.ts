@@ -294,9 +294,35 @@ export class AgentOrchestrator {
       })
 
       // S34.7: Compute deployment ID from connection settings
+      // S41.2: Detect Sepidar schema version and include in deployment ID
       const { getDeploymentId } = await import('./financialEngine/chartOfAccountsMapping')
       const settings = this.getSettings()
-      const deploymentId = getDeploymentId(softwareId, settings.sql.database, settings.sql.server)
+      let versionId = 'unknown'
+      if (softwareId === 'sepidar') {
+        try {
+          const { detectSepidarVersion } = await import('./financialEngine/versionDetect')
+          const versionInfo = await detectSepidarVersion(
+            (query: string) => this.executeReadOnlySql(query)
+          )
+          versionId = versionInfo.versionId
+          void this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId: payload.requestId,
+            conversationId: payload.conversationId,
+            stage: 'calibration-mapping',
+            toolName: `versionDetect: ${versionInfo.versionId} (${versionInfo.versionLabel}), confidence=${versionInfo.confidence}, fingerprint=${versionInfo.schemaFingerprint.substring(0, 80)}...`,
+          })
+        } catch (verr) {
+          void this.safeAuditWrite({
+            timestamp: new Date().toISOString(),
+            requestId: payload.requestId,
+            conversationId: payload.conversationId,
+            stage: 'calibration-mapping',
+            toolName: `versionDetect: failed — ${(verr as Error).message}`,
+          })
+        }
+      }
+      const deploymentId = getDeploymentId(softwareId, settings.sql.database, settings.sql.server, versionId)
       // S34.9: Strict mode only for non-sepidar (unknown) deployments
       const strictDeploymentMode = softwareId !== 'sepidar'
 

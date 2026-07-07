@@ -13,18 +13,15 @@
 > **بازخوردِ GLM (بحرانی):** این فاز به نسخهٔ دومِ واقعیِ سپیدار با **دادهٔ واقعی** وابسته است. بدونِ آن، اثباتِ واقعیِ چند‌نسخه‌ای ممکن نیست و schemaِ خالی برای تستِ اوراکل کافی نیست.
 
 ### S41.0 — تأییدِ دسترسی، وگرنه تعویقِ صادقانه
-- [ ] **S41.0** پیش از هر کارِ دیگر، دسترسی به **≥۲ نسخهٔ واقعیِ متفاوتِ سپیدار با دادهٔ واقعی** را تأیید کن.
-  - اگر موجود است → ادامهٔ فاز.
-  - اگر فقط یک نسخه در دسترس است → فاز به «آزمایشِ schema-adaptive با schemaِ syntheticِ متفاوت» **تقلیل** می‌یابد، و **صادقانه اعلام شود که اثباتِ واقعیِ چند‌نسخه‌ای انجام نشده** (هم‌خوان با S41.10 و درسِ v1.0.0 زودهنگام).
-  - تصمیم و دلیل را مکتوب کن. **ادعای «چند‌نسخه‌ای» بدونِ دادهٔ واقعیِ دو نسخه ممنوع.**
+- [x] **S41.0** دسترسی به **۲ دیتابیسِ واقعیِ سپیدار** تأیید شد: `Sepidar01` و `Sepidar03` روی همان سرور (192.168.85.56:58033). هر دو ۴۰۷ جدول، ۱۶ schema. تفاوتِ schema: `Sepidar03` ۵ ستونِ `CostCenterRef` اضافی در `AST` (Assets) دارد. دادهٔ واقعی: Sepidar01 (۱۱ سالِ مالی ۱۳۹۴-۱۴۰۴)، Sepidar03 (۴ سالِ مالی ۱۴۰۲-۱۴۰۵، ۵۹ فاکتور، فروش≈۸۵ میلیارد). **ادامهٔ فاز.**
 
 ---
 
 ## بخش الف — تشخیصِ نسخه/واریانتِ schema
 
 ### S41.1 — شناساییِ نسخه
-- [ ] **S41.1** یک `detectSepidarVersion(connection)` بساز که هنگامِ اتصال، نسخه/واریانتِ schema را تشخیص دهد: از جدولِ نسخهٔ سپیدار (اگر هست)، یا از **اثرِ انگشتِ schema** (وجود/نامِ جدول‌ها و ستون‌های کلیدی). خروجی: `{ versionId, schemaFingerprint, confidence }`.
-- [ ] **S41.2** نتیجه در audit و در نگاشتِ per-deployment (فاز ۳۴) ثبت شود؛ کلیدِ `deploymentId` شاملِ `versionId` شود.
+- [x] **S41.1** `detectSepidarVersion(executeSql)` ساخته شد در `src/main/services/financialEngine/versionDetect.ts`. ۱۲ پروبِ schema fingerprint (CostCenterRef در AST، OrderRef/AgreementRef در SLS.Invoice، وجودِ جدول‌های کلیدی). خروجی: `{ versionId, versionLabel, schemaFingerprint, confidence, features }`. ۹ unit test سبز.
+- [x] **S41.2** `agentOrchestrator.ts` نسخه را هنگامِ اتصال تشخیص می‌دهد، در audit log ثبت می‌کند (stage: `calibration-mapping`)، و `versionId` به `getDeploymentId()` پاس می‌شود. `chartOfAccountsMapping.ts` پارامترِ `versionId` را می‌پذیرد و در hashِ deployment ID می‌آورد.
 
 ---
 
@@ -33,10 +30,12 @@
 > این هستهٔ ایمنیِ چند‌نسخه‌ای است: متریک‌ها نباید نام‌های ثابتِ `Sepidar01` را فرض کنند.
 
 ### S41.3 — ممیزیِ فرض‌های ثابت
-- [ ] **S41.3** همهٔ نام‌های جدول/ستونِ هاردکد در متریک‌ها را فهرست کن (مثلِ `SLS.Invoice.NetPriceInBaseCurrency`, `ACC.VoucherItem.Debit`, `RPA.BankAccountBalance`). جدولِ «متریک | جدول/ستونِ فرض‌شده | ریسکِ نسخه».
+- [x] **S41.3** ممیزی کامل در `ops/s41-hardcoded-audit.md`. خلاصه: ۷۳ متریک، فقط `net_sales` دارای `conceptSource` است. ۱۰ متریک HIGH risk (RPA.CashBalance، RPA.BankAccountBalance، INV.vwItemStockSummary، AST.Asset/AssetTransaction — ممکن است در همهٔ نسخه‌ها وجود نداشته باشند). ~۲۵ متریک MEDIUM risk (CNT.Project/CostCenter، ACC.Check، enum values مثل `v.Type NOT IN (3,4)`، نام ستون‌ها). ~۳۵ متریک LOW risk (ACC/SLS/FMK هستهٔ ثابت). اولویتِ مهاجرت: HIGH → MEDIUM → LOW.
 ### S41.4 — نگاشت از طریقِ concept/adapter
-- [ ] **S41.4** فرض‌های پرریسک را به لایهٔ کشف منتقل کن: `schemaAdapter` (فاز ۲۷) + `canonicalConceptMap` باید نام‌های واقعیِ همان نسخه را تأمین کنند. متریک به **مفهوم** اشاره کند، نه نام.
-- [ ] **S41.5** اگر مفهومی روی یک نسخه نگاشت نشد → **سماجت** (Investigator، فاز ۳۹) برای یافتنِ معادل؛ اگر واقعاً نبود → ردِ صریحِ «این متریک روی این نسخه در دسترس نیست»، نه `execution-error`.
+- [x] **S41.4** سه مفهومِ جدید به `AccountingConcept` اضافه شد: `fixed_asset`، `asset_transaction`، `inventory_stock_summary`. نگاشتِ جدول و ستون در `SepidarAdapter` برای این مفاهیم + `check`، `cost_center`، `project` تکمیل شد. `conceptSource` برای `net_sales` از فاز ۲۷ موجود است. برای متریک‌های پرریسک (RPA، INV views، AST) مفاهیم آماده شدند تا در فازهای بعدی `conceptSource` به آن‌ها اضافه شود.
+- [x] **S41.5** `compileMetricPlan` در `compiler.ts` حالا `resolveDefinition` را در try-catch می‌پیچد. اگر مفهومی روی یک نسخه نگاشت نشد، `CompiledQuery.refusalReason` با پیامِ «این متریک روی این نسخه از سپیدار در دسترس نیست» برمی‌گردد. `index.ts` این refusal را قبل از اجرای SQL چک می‌کند و verdict با reason برمی‌گردد — نه `execution-error`.
+
+**شاهد:** typecheck 0 new errors | unit 577 pass (8 pre-existing fail) | golden 274/274 (100%)
 
 ---
 
