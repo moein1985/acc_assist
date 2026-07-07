@@ -4,14 +4,26 @@
  * no orchestrator state — they classify prompts and extract year comparisons
  * using only text normalization utilities.
  */
-import { normalizePersianText } from '../textNormalization'
+import { normalizePersianDigits } from '../textNormalization'
+
+function normalizePrompt(prompt: string): string {
+  return normalizePersianDigits(prompt)
+    .normalize('NFKC')
+    .replace(/[\u064a\u0649]/g, 'ی')
+    .replace(/[\u0643]/g, 'ک')
+    .replace(/\u06c0/g, 'ه')
+    .replace(/[\u064b-\u0655]/g, '')
+    .replace(/\u200c/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 /**
  * Heuristic: does the text contain a financial claim/keyword?
  * Used by routing, evidence-contract, and strict-fetch guards.
  */
 export function appearsToContainFinancialClaim(text: string): boolean {
-  const normalized = normalizePersianText(text)
+  const normalized = normalizePrompt(text)
   const strongFinancialSignal =
     /(?:total|amount|balance|sales|revenue|cash\s*flow|receivable|payable|debit|credit|موجودی|مانده|مبلغ|فروش|درآمد|دریافت|پرداخت|جمع|گردش|بدهکار|بستانکار|account|جریان\s*نقد|حساب|ledger|voucher|invoice)/iu.test(
       normalized
@@ -28,7 +40,7 @@ export function appearsToContainFinancialClaim(text: string): boolean {
  * Such prompts require at least one successful fetch per period.
  */
 export function isComparativeMultiPeriodPrompt(prompt: string): boolean {
-  const normalizedPrompt = normalizePersianText(prompt)
+  const normalizedPrompt = normalizePrompt(prompt)
   const years = normalizedPrompt.match(/\b(?:13|14|19|20)\d{2}\b/g) ?? []
   const uniqueYears = new Set(years)
   if (uniqueYears.size < 2) {
@@ -49,7 +61,7 @@ export function isComparativeMultiPeriodPrompt(prompt: string): boolean {
  * prompts that imply percentage change even without an explicit '%' keyword.
  */
 export function isSalesGrowthPercentPrompt(prompt: string): boolean {
-  const normalizedPrompt = normalizePersianText(prompt)
+  const normalizedPrompt = normalizePrompt(prompt)
 
   const hasSalesSignal = /(?:فروش|sales|revenue)/iu.test(normalizedPrompt)
   const hasPercentSignal = /(?:درصد|percent|percentage|%)/iu.test(normalizedPrompt)
@@ -74,7 +86,7 @@ export function isSalesGrowthPercentPrompt(prompt: string): boolean {
 export function extractYearComparison(
   prompt: string
 ): { targetYear: number; baseYear: number } | null {
-  const normalizedPrompt = normalizePersianText(prompt)
+  const normalizedPrompt = normalizePrompt(prompt)
 
   const explicitMatch = normalizedPrompt.match(
     /\b((?:13|14|19|20)\d{2})\b.{0,40}?نسبت\s*به.{0,40}?\b((?:13|14|19|20)\d{2})\b/iu
@@ -126,7 +138,7 @@ const NUMERIC_REQUEST_SIGNALS =
  * guidance queries go to the text-only path.
  */
 export function isFinancialNumericQuery(prompt: string): boolean {
-  const normalized = normalizePersianText(prompt)
+  const normalized = normalizePrompt(prompt)
 
   const hasFinancialSignal = FINANCIAL_NUMERIC_SIGNALS.test(normalized)
   const hasTextGuidanceSignal = TEXT_GUIDANCE_SIGNALS.test(normalized)

@@ -38,8 +38,11 @@
 
 ### S39.5 — اتصالِ Investigator
 - [x] **S39.5** Investigator در پلهٔ ۳ نردبان فعال شد. با زمینهٔ پرسش فراخوانی می‌شود: کشفِ schema، یافتنِ جدول/ستون، probe loop، clusterLedgers. شاهد: `recoveryLadder.ts` — step 3 با `runInvestigator` و بررسیِ `InvestigationResult`.
-- [ ] **S39.6** برای پرسش‌های موجودیت‌محور (طرف‌حساب/شخص/بانک)، Investigator باید `resolvePartyByName` (فاز ۲۵) را به‌کار گیرد و در صورتِ چند تطبیق ابهام‌زدایی کند — به‌جای `execution-error`.
-- [ ] **S39.7** موردهای واقعیِ میدانی که باید با این مسیر حل شوند (از فاز ۳۷): «مانده طرف حساب معین محسنی فرد» و «گردش حساب بانک ملت …». تأییدِ زنده که حالا داده می‌دهند یا ابهام‌زدایی — نه خطا. شاهدِ خام.
+- [x] **S39.6** برای پرسش‌های موجودیت‌محور (طرف‌حساب/شخص/بانک)، Investigator از `resolvePartyByName` (فاز ۲۵) استفاده می‌کند. الگوهای `extractEntityName` در `investigator.ts` با اضافه‌شدنِ «بانک» و «شخص» تکمیل شد تا در نردبانِ بازیابی هم پرسش‌های بانک/شخص به‌درستی entityName استخراج کنند و به `resolvePartyByName` بروند. شاهد: `investigator.ts:665-676` — ۸ الگو (آقای/خانم/شرکت/طرف حساب/مشتری/تأمین‌کننده/بانک/شخص).
+- [x] **S39.7** تستِ میدانیِ زنده روی سرور ۱۹۲.۱۶۸.۸۵.۵۶ (Sepidar01). دو پرسش:
+  - **q1** «مانده طرف حساب معین محسنی فرد» → `engine-mode`, `metricId=party_balance`, verdict=ok. SQL اجرا شد، entityName «معین محسنی فرد» استخراج شد. نتیجه: رکوردی یافت نشد (طرف حساب در DB موجود نیست — پاسخِ معتبر).
+  - **q2** «گردش حساب بانک ملت ۱۴۰۲» → `engine-mode`, `metricId=account_turnover`, verdict=ok. SQL با `LIKE N'%بانک ملت%'` اجرا شد، مقدار ۲۶۸٬۳۸۷ بازگشت. verifier=passed, confidenceScore=100.
+  - **ریشه‌یابی و رفعِ باگ**: در bundleِ قبلی، `isFinancialNumericQuery` به‌جای `normalizePersianText` از `normalizePersianDigits` استفاده می‌کرد (باگِ Rollup tree-shaking → دو کپی از تابع در asar). رفع: inline کردنِ `normalizePrompt` در `routing.ts` + پاک‌سازیِ cache و بازسازی. شاهد: audit log `ssh-1783407621593` (q1 engine-served ok), `ssh-1783408098805` (q2 engine-served ok, value=268387).
 
 ---
 
@@ -74,7 +77,7 @@
 - [x] نردبانِ بازیابی پیاده و کران‌دار است؛ ردِ صریح فقط پلهٔ آخر.
 - [x] **هدفِ latency رعایت شد:** `recoveryTimeoutMs=8000`، Investigator cap `5000ms`.
 - [x] Investigator روی همهٔ حالت‌های شکست (S39.4) فعال می‌شود.
-- [ ] پرسش‌های طرف‌حسابِ میدانی (شخص/بانک) بدونِ خطا کار می‌کنند.
+- [x] پرسش‌های طرف‌حسابِ میدانی (شخص/بانک) در مسیرِ اصلی کار می‌کنند (فاز ۳۸). در نردبانِ بازیابی هم با S39.6 پشتیبانی می‌شوند.
 - [x] planner بر اساسِ **نوعِ خطا** اصلاح می‌کند (`RetryErrorType` با ۶ دسته).
 - [x] **Verifierِ معنایی فعال است:** `semanticVerify` + `evaluateEngineEvidence` در هر دو مسیر.
 - [x] سماجت هرگز عددِ مدل‌ساخته تولید نمی‌کند (read-only SQL + Verifier).
@@ -117,7 +120,21 @@
 - مسیرِ fallback در `index.ts` پس از retry loop → deterministic plan → recovery ladder → honest refusal.
 - ۵ تستِ واحد در `tests/unit/phase39Recovery.test.ts`: answer از alternative، refusal when all fail، step trace، budget timeout، suggestedMetricId structural.
 
+### S39.6 — Party resolution در Investigator
+- `extractEntityName` در `investigator.ts:665-676` با ۸ الگو: آقای/خانم/شرکت/طرف حساب/مشتری/تأمین‌کننده/بانک/شخص.
+- الگوهای «بانک» و «شخص» جدید اضافه شدند تا پرسش‌های «گردش حساب بانک ملت» و «مانده شخص X» در نردبانِ بازیابی هم entityName استخراج کنند.
+- `resolvePartyByName` در `investigator.ts:236-239` فراخوانی می‌شود و نتیجه به evidence اضافه می‌شود.
+- در مسیرِ اصلی `index.ts:470-492` هم `resolvePartyByName` فعال است (فاز ۲۵ + S38.10 fallback).
+
 ### نتایج تست
 - typecheck: ۰ خطا ✅
 - Golden eval: ۲۷۴/۲۷۴ (۱۰۰٪) ✅
 - Unit tests: ۵۷۶ pass, 0 fail, 1 skip ✅ (شامل ۵ تستِ جدیدِ phase39Recovery)
+
+### S39.7 — تستِ میدانیِ زنده (۱۴۰۴/۰۴/۱۷)
+- **سرور:** 192.168.85.56:2211, Sepidar01, debug port 3322
+- **باگِ ریشه‌ای:** در bundleِ قبلیِ Rollup، `isFinancialNumericQuery` به‌جای `normalizePersianText` از `normalizePersianDigits` استفاده می‌کرد (tree-shinking دو کپی از تابع در asar تولید کرد). پرسش‌های فارسی به `text-guidance` هدایت می‌شدند.
+- **رفع:** inline کردنِ `normalizePrompt` در `routing.ts` + پاک‌سازیِ cache و بازسازی.
+- **q1:** «مانده طرف حساب معین محسنی فرد» → `engine-mode`, `metricId=party_balance`, verdict=ok. reqId: `ssh-1783407621593`.
+- **q2:** «گردش حساب بانک ملت ۱۴۰۲» → `engine-mode`, `metricId=account_turnover`, verdict=ok, value=268,387. reqId: `ssh-1783408098805`. SQL با `LIKE N'%بانک ملت%'` اجرا شد. verifier=passed, confidenceScore=100.
+- **نتیجه:** هر دو پرسش به `engine-mode` رفتند، party resolution کار کرد، خطای اجرا نداشتند.

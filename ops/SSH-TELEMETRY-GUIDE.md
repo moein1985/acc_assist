@@ -604,5 +604,116 @@ npm run remote:start -- -ServerHost 192.168.85.56 -User administrator -Password 
 
 ---
 
-**تاریخ آپدیت:** 2026-06-29 (بخش اتصال برنامه به سرور از راه دور — فاز ۱۶ اضافه شد)
-**نسخه:** 3.0.0
+## ⚡ عملیاتِ سریع (Remote Ops Toolkit)
+
+> **فاز ۴۳** — ماژولِ یکپارچهٔ `remote-server-control.ps1` با اکشن‌های جدید.
+> همهٔ دستورات با `npm run remote:*` قابل اجرا هستند.
+> پارامترهای SSH می‌توانند با Environment Variables تنظیم شوند (بخش ۳ را ببینید).
+
+### تنظیمِ Environment Variables (یک‌بار)
+
+```powershell
+$env:ACC_REMOTE_HOST = "192.168.85.56"
+$env:ACC_REMOTE_USER = "administrator"
+$env:ACC_REMOTE_SSH_PASSWORD = "Hs-co@12321#"
+$env:ACC_REMOTE_HOST_KEY = "ssh-ed25519 255 SHA256:sEP9p+Bs2vmC7FrAS/CjaodoZVs9LyB2ro4fELRt+iQ"
+$env:ACC_REMOTE_SQL_USER = "damavand"
+$env:ACC_REMOTE_SQL_PASSWORD = "damavand"
+```
+
+### استقرارِ سریعِ app.asar (deploy-asar)
+
+کلِ چرخهٔ stop → copy asar → (اختیاری write settings) → start در یک دستور:
+
+```powershell
+# بدون نوشتنِ settings (فقط asar کپی شود)
+npm run remote:deploy-asar -- -LocalBuildDir dist/win-unpacked
+
+# با نوشتنِ settings + اجرا در debug mode
+npm run remote:deploy-asar -- -LocalBuildDir dist2/win-unpacked -WriteSettings -DebugMode
+
+# با debug token مشخص
+npm run remote:deploy-asar -- -LocalBuildDir dist2/win-unpacked -WriteSettings -DebugMode -DebugToken accassist-s39-field-test
+```
+
+### پرسش از AI (ask-ai) — با پشتیبانیِ فارسی
+
+```powershell
+# پرسشِ فارسی (base64 خودکار تبدیل می‌شود — دیگر mojibake نیست)
+npm run remote:ask-ai -- -Prompt "مانده طرف حساب معین محسنی فرد"
+
+# با debug token
+npm run remote:ask-ai -- -Prompt "فروش ۱۴۰۲" -DebugToken accassist-s39-field-test
+
+# با base64 از پیش محاسبه‌شده
+npm run remote:ask-ai -- -PromptBase64 "2YXYp9mG2K/ZhyDYt9ix2YEg2K3Ys9in2Kgg2YXYuduM2YYg2YXYrdiz2YbbjCDZgdix2K8="
+```
+
+### پرسشِ دسته‌ای (ask-batch) — چند پرسش در یک نشستِ SSH
+
+فایلِ JSON با فرمت:
+```json
+[
+  { "id": "q1", "prompt": "فروش ۱۴۰۲", "expectedMetricId": "net_sales" },
+  { "id": "q2", "prompt": "خرید ۱۴۰۲", "expectedMetricId": "total_purchases" },
+  { "id": "q3", "prompt": "مانده طرف حساب معین محسنی فرد", "expectedMetricId": "party_balance" }
+]
+```
+
+```powershell
+# از فایل
+npm run remote:ask-batch -- -QuestionsFile scripts/ops/test-questions.json
+
+# با debug mode و timeout طولانی‌تر
+npm run remote:ask-batch -- -QuestionsFile scripts/ops/test-questions.json -DebugToken accassist-test -QueryTimeoutSec 300 -QuestionDelaySec 5
+```
+
+خروجی: جدولِ نتایج با `id, verdict, requestId, finalTextLen` + پیش‌نمایشِ متن.
+
+### بررسیِ سلامتِ Debug Endpoint (health)
+
+```powershell
+npm run remote:health
+# خروجی: "Debug endpoint: HEALTHY" یا "NOT RUNNING"
+```
+
+### جستجوی Audit Log (audit-log)
+
+```powershell
+# بر اساسِ requestId
+npm run remote:audit -- -RequestId ssh-1783407621593
+
+# آخرین N خط
+npm run remote:audit -- -Tail 30
+```
+
+### نوشتنِ settings.json (write-settings)
+
+```powershell
+# با تنظیماتِ پیش‌فرضِ Sepidar
+npm run remote:write-settings -- -SqlDatabase Sepidar01 -SqlUser damavand -SqlPassword damavand -SqlPort 58033
+```
+
+### مرورِ کاملِ دستورات
+
+| دستور | توضیح |
+|-------|-------|
+| `npm run remote:status` | وضعیتِ فرایند + تنظیمات + فایل‌های لاگ |
+| `npm run remote:start` | شروعِ برنامه |
+| `npm run remote:stop` | توقفِ برنامه |
+| `npm run remote:restart` | راه‌اندازیِ مجدد |
+| `npm run remote:deploy-asar` | استقرارِ app.asar (+ settings + debug) |
+| `npm run remote:ask-ai` | یک پرسش از AI (پشتیبانیِ فارسی) |
+| `npm run remote:ask-batch` | چند پرسش در یک نشست |
+| `npm run remote:health` | بررسیِ debug endpoint |
+| `npm run remote:audit` | جستجوی audit log |
+| `npm run remote:write-settings` | نوشتنِ settings.json |
+| `npm run remote:logs` | آخرین لاگ‌های تلمتری |
+| `npm run remote:install` | نصب از installer |
+| `npm run remote:uninstall` | حذفِ برنامه |
+| `npm run remote:autoconfig-sql` | تنظیمِ خودکارِ SQL در settings |
+
+---
+
+**تاریخ آپدیت:** 2026-07-07 (بخشِ Remote Ops Toolkit — فاز ۴۳ اضافه شد)
+**نسخه:** 4.0.0

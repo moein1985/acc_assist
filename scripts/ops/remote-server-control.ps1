@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('status', 'install', 'uninstall', 'start', 'stop', 'restart', 'logs', 'settings', 'autoconfig-sql', 'ask-ai')]
+  [ValidateSet('status', 'install', 'uninstall', 'start', 'stop', 'restart', 'logs', 'settings', 'autoconfig-sql', 'ask-ai', 'ask-batch', 'deploy-asar', 'audit-log', 'health', 'write-settings')]
   [string]$Action = 'status',
 
   [string]$ServerHost = $env:ACC_REMOTE_HOST,
@@ -23,7 +23,22 @@ param(
   [string]$ConversationId = 'ssh-debug',
   [string]$DebugToken = '',
 
-  [int]$Tail = 60
+  [int]$Tail = 60,
+
+  # deploy-asar parameters
+  [string]$LocalBuildDir = 'dist/win-unpacked',
+  [string]$RemoteAppDir = 'C:\Users\Administrator\AppData\Local\Programs\acc-assist',
+  [switch]$WriteSettings,
+  [switch]$DebugMode,
+
+  # ask-batch parameters
+  [string]$QuestionsFile = '',
+  [string]$QuestionsJson = '',
+  [int]$QuestionDelaySec = 3,
+  [int]$QueryTimeoutSec = 240,
+
+  # audit-log parameters
+  [string]$RequestId = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -163,6 +178,16 @@ function Copy-Installer {
   }
 
   & pscp -P $Port -batch -hostkey $HostKey -pw $SshPasswordPlainText $InstallerPath "$User@${ServerHost}:$RemoteInstallerPath"
+}
+
+function Copy-File {
+  param([string]$LocalPath, [string]$RemotePath)
+  & pscp -P $Port -batch -hostkey $HostKey -pw $SshPasswordPlainText $LocalPath "${User}@${ServerHost}:$RemotePath"
+}
+
+function ConvertTo-PromptBase64 {
+  param([string]$Text)
+  return [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
 }
 
 switch ($Action) {
@@ -347,7 +372,6 @@ Get-Content -Path `$logPath -Tail $Tail -Wait
     $script = @"
 `$ProgressPreference = 'SilentlyContinue'
 `$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
-`$prompt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$finalPromptBase64'))
 
 function New-DebugHeaders {
   param([string]`$Token)
@@ -394,7 +418,7 @@ function Test-DebugEndpoint {
 }
 
 `$body = @{
-  prompt = `$prompt
+  promptBase64 = '$finalPromptBase64'
   mode = 'manual'
   conversationId = '$ConversationId'
 } | ConvertTo-Json -Depth 5
@@ -453,5 +477,339 @@ Write-Output '__ACC_ASSIST_JSON_END__'
     } else {
       $rawOutput
     }
+  }
+
+  'deploy-asar' {
+    $localAsar = Join-Path $LocalBuildDir 'resources\app.asar'
+    if (-not (Test-Path $localAsar)) {
+      throw "app.asar not found at '$localAsar'. Run npm run build:win first or specify -LocalBuildDir."
+    }
+    $asarSizeMB = [math]::Round((Get-Item $localAsar).Length / 1MB, 1)
+    Write-Host "Deploying app.asar ($asarSizeMB MB) to $ServerHost..." -ForegroundColor Cyan
+
+    # 1. Stop app
+    Write-Host '[1/4] Stopping app...' -NoNewline
+    Invoke-RemotePowerShell "Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ' stopped'"
+    Start-Sleep -Seconds 2
+
+    # 2. Copy files
+    Write-Host '[2/4] Copying files...' -NoNewline
+    $remoteResources = "$RemoteAppDir\resources"
+    Copy-File $localAsar "$remoteResources/app.asar"
+
+    $localSnapshotBlob = Join-Path $LocalBuildDir 'snapshot_blob.bin'
+    $localV8Context = Join-Path $LocalBuildDir 'v8_context_snapshot.bin'
+    if (Test-Path $localSnapshotBlob) { Copy-File $localSnapshotBlob "$RemoteAppDir/snapshot_blob.bin" }
+    if (Test-Path $localV8Context) { Copy-File $localV8Context "$RemoteAppDir/v8_context_snapshot.bin" }
+    Write-Host ' done' -ForegroundColor Green
+
+    # 3. Optionally write settings
+    if ($WriteSettings) {
+      Write-Host '[3/4] Writing settings.json...' -NoNewline
+      $settingsJson = @{
+        gemini = @{
+          apiKey = 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI'
+          baseUrl = 'https://api.avalai.ir/v1'
+          mode = 'openai'
+          model = 'gemini-2.5-pro'
+        }
+        sql = @{
+          server = '127.0.0.1'
+          database = $SqlDatabase
+          user = $SqlUser
+          password = $SqlPassword
+          port = $SqlPort
+          encrypt = $false
+          trustServerCertificate = $true
+          connectionTimeoutMs = 15000
+          requestTimeoutMs = 45000
+          connectionRetryCount = 2
+          connectionRetryDelayMs = 2000
+        }
+        sqlSecurity = @{
+          enforceReadOnlyLogin = $false
+          forbidWildcardSelect = $true
+          requireOrderByWhenLimited = $true
+          blockQueryHints = $true
+        }
+        ssh = @{ enabled = $false }
+        mobileBridge = @{ enabled = $false; host = '127.0.0.1'; port = 3310; allowedOrigin = 'xapi.test' }
+        telemetry = @{
+          enabled = $false; ingestUrl = ''; bearerToken = ''; logLevel = 'debug'
+          flushIntervalMs = 5000; requestTimeoutMs = 8000; maxBatchSize = 25
+          maxQueueSize = 5000; includeRendererErrors = $true; retentionDays = 30
+        }
+        connectionProfiles = @(
+          @{
+            id = 'direct-sql-sepidar'
+            metadata = @{ name = 'Sepidar Direct SQL'; description = 'Direct SQL'; type = 'direct'; lastTestStatus = 'never'; lastTestMessage = ''; lastTestAt = $null }
+            sql = @{ server = '127.0.0.1'; database = $SqlDatabase; user = $SqlUser; password = $SqlPassword; port = $SqlPort; encrypt = $false; trustServerCertificate = $true; connectionTimeoutMs = 15000; requestTimeoutMs = 45000; connectionRetryCount = 2; connectionRetryDelayMs = 2000 }
+          }
+        )
+        activeConnectionProfileId = 'direct-sql-sepidar'
+        schemaCatalogs = @()
+        promptTemplates = @()
+        sshHostKeys = @{}
+      } | ConvertTo-Json -Depth 10
+
+      $tempSettings = Join-Path $env:TEMP 'acc-assist-deploy-settings.json'
+      $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+      [System.IO.File]::WriteAllText($tempSettings, $settingsJson, $utf8NoBom)
+
+      $remoteSettingsDir = 'C:\Users\Administrator\AppData\Roaming\acc-assist'
+      $remoteSettingsPath = "$remoteSettingsDir\acc-assist.settings.json"
+      Invoke-RemotePowerShell "New-Item -ItemType Directory -Force -Path '$remoteSettingsDir' | Out-Null"
+      Copy-File $tempSettings $remoteSettingsPath
+      Remove-Item $tempSettings -Force -ErrorAction SilentlyContinue
+      Write-Host ' done' -ForegroundColor Green
+    } else {
+      Write-Host '[3/4] Skipping settings (use -WriteSettings to enable)' -ForegroundColor Gray
+    }
+
+    # 4. Start app
+    Write-Host '[4/4] Starting app...' -NoNewline
+    $startScript = if ($DebugMode) {
+      "`$env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'; `$env:ACC_AGENT_DEBUG_TOKEN = '$DebugToken'; Start-Process -FilePath (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe') -ArgumentList '--agent-debug-server-only'; Write-Host ' started (debug)'"
+    } else {
+      "Start-Process -FilePath (Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'); Write-Host ' started'"
+    }
+    Invoke-RemotePowerShell $startScript
+    Write-Host ' done' -ForegroundColor Green
+    Write-Host "Deploy complete." -ForegroundColor Cyan
+  }
+
+  'ask-batch' {
+    if ([string]::IsNullOrWhiteSpace($DebugToken)) {
+      $DebugToken = ([guid]::NewGuid().ToString('N'))
+    }
+
+    # Load questions from file or JSON string
+    $questions = @()
+    if (-not [string]::IsNullOrWhiteSpace($QuestionsFile)) {
+      if (-not (Test-Path $QuestionsFile)) { throw "Questions file not found: $QuestionsFile" }
+      $questions = (Get-Content -Raw -Path $QuestionsFile -Encoding UTF8 | ConvertFrom-Json)
+    } elseif (-not [string]::IsNullOrWhiteSpace($QuestionsJson)) {
+      $questions = ($QuestionsJson | ConvertFrom-Json)
+    } else {
+      throw 'QuestionsFile or QuestionsJson is required for Action=ask-batch.'
+    }
+
+    # Build base64 for each question
+    $questionLines = @()
+    foreach ($q in $questions) {
+      $b64 = ConvertTo-PromptBase64 -Text ([string]$q.prompt)
+      $id = if ($q.id) { [string]$q.id } else { [guid]::NewGuid().ToString('N').Substring(0, 8) }
+      $expectedMetric = if ($q.expectedMetricId) { [string]$q.expectedMetricId } else { '' }
+      $questionLines += "  @{ id='$id'; b64='$b64'; expectedMetric='$expectedMetric' }"
+    }
+    $questionsBlock = $questionLines -join ",`n"
+
+    $script = @"
+`$ProgressPreference = 'SilentlyContinue'
+`$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
+
+`$env:ACC_ENABLE_AGENT_DEBUG_SERVER = '1'
+`$env:ACC_AGENT_DEBUG_TOKEN = '$DebugToken'
+
+function New-DebugHeaders { return @{ 'x-debug-token' = '$DebugToken' } }
+function Test-DebugEndpoint {
+  try { Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3322/health' -Headers (New-DebugHeaders) -TimeoutSec 2 | Out-Null; return `$true } catch { return `$false }
+}
+
+if (-not (Test-DebugEndpoint)) {
+  `$exe = Join-Path `$env:LOCALAPPDATA 'Programs\\acc-assist\\ACCAssist.exe'
+  if (-not (Test-Path `$exe)) { Write-Host 'EXE_NOT_FOUND'; exit 1 }
+  Start-Process -FilePath `$exe -ArgumentList '--agent-debug-server-only'
+  `$ready = `$false
+  for (`$i = 0; `$i -lt 30; `$i++) {
+    Start-Sleep -Seconds 1
+    if (Test-DebugEndpoint) { `$ready = `$true; break }
+  }
+  if (-not `$ready) { Write-Host 'APP_NOT_READY'; exit 1 }
+}
+Start-Sleep -Seconds 3
+Write-Host 'APP_READY'
+
+`$questions = @(
+$questionsBlock
+)
+
+foreach (`$q in `$questions) {
+  Write-Host "QUESTION_START[`$(`$q.id)]"
+  `$body = @{ promptBase64 = `$q.b64; mode = 'manual'; conversationId = 'batch-$(ConversationId)' } | ConvertTo-Json -Depth 5
+  `$utf8Body = [Text.Encoding]::UTF8.GetBytes(`$body)
+  try {
+    `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers (New-DebugHeaders) -Body `$utf8Body -ContentType 'application/json; charset=utf-8' -TimeoutSec $QueryTimeoutSec
+    `$finalText = [string]`$response.result.finalText
+    `$requestId = [string]`$response.requestId
+    `$isOk = [bool]`$response.ok
+    `$textB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(`$finalText))
+    Write-Host "QUESTION_RESULT[`$(`$q.id)]|ok=`$isOk|reqId=`$requestId|textLen=`$(`$finalText.Length)|textB64=`$textB64"
+  } catch {
+    `$errMsg = if (`$_.ErrorDetails -and `$_.ErrorDetails.Message) { [string]`$_.ErrorDetails.Message } else { [string]`$_.Exception.Message }
+    `$errB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(`$errMsg))
+    Write-Host "QUESTION_RESULT[`$(`$q.id)]|ok=False|reqId=|textLen=0|errB64=`$errB64"
+  }
+  Start-Sleep -Seconds $QuestionDelaySec
+}
+
+Get-Process ACCAssist -ErrorAction SilentlyContinue | Stop-Process -Force
+Write-Host 'BATCH_DONE'
+"@
+
+    $localTempScript = Join-Path $env:TEMP 'acc-assist-batch-remote.ps1'
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($localTempScript, $script, $utf8NoBom)
+
+    $remoteScriptPath = 'C:\Users\Administrator\AppData\Local\Temp\acc-assist-batch-remote.ps1'
+    Copy-File $localTempScript $remoteScriptPath
+    Remove-Item $localTempScript -Force -ErrorAction SilentlyContinue
+
+    Write-Host "Running $($questions.Count) questions on $ServerHost..." -ForegroundColor Cyan
+    $rawOutput = & plink -P $Port -ssh -batch -hostkey $HostKey -pw $SshPasswordPlainText "${User}@${ServerHost}" "powershell -NoProfile -ExecutionPolicy Bypass -File $remoteScriptPath" 2>&1 | Out-String
+
+    # Parse results
+    $results = @()
+    $okCount = 0
+    foreach ($line in ($rawOutput -split "`r?`n")) {
+      $line = $line.Trim()
+      if ($line -match '^QUESTION_RESULT\[(.+?)\]\|ok=(True|False)\|reqId=(.*?)\|textLen=(\d+)\|textB64=(.*)$') {
+        $qId = $Matches[1]
+        $isOk = $Matches[2] -eq 'True'
+        $reqId = $Matches[3]
+        $textLen = [int]$Matches[4]
+        $textB64 = $Matches[5]
+        $finalText = if ($textB64 -and $textB64 -ne '') { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($textB64)) } else { '' }
+
+        $verdict = if ($isOk -and $textLen -gt 20) { 'ok' } elseif (-not $isOk -and $textLen -gt 20) { 'refuse' } else { 'fail' }
+        if ($verdict -eq 'ok' -or $verdict -eq 'refuse') { $okCount++ }
+
+        $q = $questions | Where-Object { ([string]$_.id) -eq $qId }
+        $promptText = if ($q) { [string]$q.prompt } else { $qId }
+        $color = if ($verdict -eq 'ok') { 'Green' } else { 'Red' }
+        Write-Host "  [$qId] $promptText -> $($verdict.ToUpper()) (reqId: $reqId, len: $textLen)" -ForegroundColor $color
+        $preview = $finalText.Substring(0, [Math]::Min(200, $finalText.Length))
+        Write-Host "      $preview" -ForegroundColor Gray
+
+        $results += [pscustomobject]@{
+          Id = $qId; Prompt = $promptText; Ok = $isOk; Verdict = $verdict
+          RequestId = $reqId; FinalTextLen = $textLen; FinalText = $preview
+        }
+      }
+    }
+
+    Write-Host ''
+    Write-Host "Total: $($results.Count) | OK/Refuse: $okCount | Fail: $($results.Count - $okCount)" -ForegroundColor Cyan
+    if ($results.Count -gt 0) {
+      $results | Format-Table Id, Verdict, RequestId, FinalTextLen -AutoSize
+    }
+  }
+
+  'audit-log' {
+    if (-not [string]::IsNullOrWhiteSpace($RequestId)) {
+      $script = "Select-String '$RequestId' 'C:\Users\Administrator\AppData\Roaming\acc-assist\logs\agent-audit.log'"
+      $rawOutput = Invoke-SshCommand $script | Out-String
+      foreach ($line in ($rawOutput -split "`r?`n")) {
+        $line = $line.Trim()
+        if ($line -match 'agent-audit\.log:\d+:(.*)') {
+          try {
+            $json = $Matches[1] | ConvertFrom-Json
+            Write-Host "[$($json.timestamp)] stage=$($json.stage) reqId=$($json.requestId)" -ForegroundColor Cyan
+            if ($json.prompt) { Write-Host "  prompt: $($json.prompt)" -ForegroundColor Gray }
+            if ($json.refusalReason) { Write-Host "  refusalReason: $($json.refusalReason)" -ForegroundColor Yellow }
+            if ($json.error) { Write-Host "  error: $($json.error)" -ForegroundColor Red }
+            if ($json.normalizedPrompt) { Write-Host "  normalizedPrompt: $($json.normalizedPrompt)" -ForegroundColor Gray }
+          } catch {
+            Write-Host $Matches[1] -ForegroundColor Gray
+          }
+        }
+      }
+    } else {
+      $script = "Get-Content 'C:\Users\Administrator\AppData\Roaming\acc-assist\logs\agent-audit.log' -Tail $Tail"
+      $rawOutput = Invoke-SshCommand $script | Out-String
+      Write-Host $rawOutput
+    }
+  }
+
+  'health' {
+    if ([string]::IsNullOrWhiteSpace($DebugToken)) {
+      $DebugToken = 'accassist-health-check'
+    }
+    $script = @"
+try {
+  `$r = Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:3322/health' -Headers @{ 'x-debug-token' = '$DebugToken' } -TimeoutSec 3
+  if (`$r.ok) { Write-Host 'HEALTHY' } else { Write-Host 'UNHEALTHY' }
+} catch {
+  Write-Host 'NOT_RUNNING'
+}
+"@
+    $rawOutput = Invoke-RemotePowerShell $script | Out-String
+    $result = $rawOutput.Trim()
+    if ($result -match 'HEALTHY') {
+      Write-Host "Debug endpoint: HEALTHY" -ForegroundColor Green
+    } elseif ($result -match 'NOT_RUNNING') {
+      Write-Host "Debug endpoint: NOT RUNNING (use -Action start or -DebugMode)" -ForegroundColor Red
+    } else {
+      Write-Host "Debug endpoint: UNKNOWN ($result)" -ForegroundColor Yellow
+    }
+  }
+
+  'write-settings' {
+    $settingsJson = @{
+      gemini = @{
+        apiKey = 'aa-aDiE3jyTPH5opHafdpUc5d4c2mJU2NS96YisP3FXlcs46ANI'
+        baseUrl = 'https://api.avalai.ir/v1'
+        mode = 'openai'
+        model = 'gemini-2.5-pro'
+      }
+      sql = @{
+        server = '127.0.0.1'
+        database = $SqlDatabase
+        user = $SqlUser
+        password = $SqlPassword
+        port = $SqlPort
+        encrypt = $false
+        trustServerCertificate = $true
+        connectionTimeoutMs = 15000
+        requestTimeoutMs = 45000
+        connectionRetryCount = 2
+        connectionRetryDelayMs = 2000
+      }
+      sqlSecurity = @{
+        enforceReadOnlyLogin = $false
+        forbidWildcardSelect = $true
+        requireOrderByWhenLimited = $true
+        blockQueryHints = $true
+      }
+      ssh = @{ enabled = $false }
+      mobileBridge = @{ enabled = $false; host = '127.0.0.1'; port = 3310; allowedOrigin = 'xapi.test' }
+      telemetry = @{
+        enabled = $false; ingestUrl = ''; bearerToken = ''; logLevel = 'debug'
+        flushIntervalMs = 5000; requestTimeoutMs = 8000; maxBatchSize = 25
+        maxQueueSize = 5000; includeRendererErrors = $true; retentionDays = 30
+      }
+      connectionProfiles = @(
+        @{
+          id = 'direct-sql-sepidar'
+          metadata = @{ name = 'Sepidar Direct SQL'; description = 'Direct SQL'; type = 'direct'; lastTestStatus = 'never'; lastTestMessage = ''; lastTestAt = $null }
+          sql = @{ server = '127.0.0.1'; database = $SqlDatabase; user = $SqlUser; password = $SqlPassword; port = $SqlPort; encrypt = $false; trustServerCertificate = $true; connectionTimeoutMs = 15000; requestTimeoutMs = 45000; connectionRetryCount = 2; connectionRetryDelayMs = 2000 }
+        }
+      )
+      activeConnectionProfileId = 'direct-sql-sepidar'
+      schemaCatalogs = @()
+      promptTemplates = @()
+      sshHostKeys = @{}
+    } | ConvertTo-Json -Depth 10
+
+    $tempSettings = Join-Path $env:TEMP 'acc-assist-write-settings.json'
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($tempSettings, $settingsJson, $utf8NoBom)
+
+    $remoteSettingsDir = 'C:\Users\Administrator\AppData\Roaming\acc-assist'
+    $remoteSettingsPath = "$remoteSettingsDir\acc-assist.settings.json"
+    Invoke-RemotePowerShell "New-Item -ItemType Directory -Force -Path '$remoteSettingsDir' | Out-Null"
+    Copy-File $tempSettings $remoteSettingsPath
+    Remove-Item $tempSettings -Force -ErrorAction SilentlyContinue
+    Write-Host "Settings written to $ServerHost (DB: $SqlDatabase, Port: $SqlPort)" -ForegroundColor Green
   }
 }

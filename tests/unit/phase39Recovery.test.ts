@@ -4,11 +4,15 @@ import {
   runRecoveryLadder,
   type RecoveryContext,
   type RecoveryDeps,
-  type RecoveryBudget,
+  type RecoveryBudget
 } from '../../src/main/services/financialEngine/recoveryLadder'
 import { SchemaCache } from '../../src/main/services/financialEngine/investigator'
 import type { SqlQueryRow } from '../../src/shared/contracts'
-import type { EngineResult, EngineVerdict, MetricPlan } from '../../src/main/services/financialEngine/types'
+import type {
+  EngineResult,
+  EngineVerdict,
+  MetricPlan
+} from '../../src/main/services/financialEngine/types'
 
 function makeNormText(s: string): string {
   return s
@@ -25,12 +29,15 @@ function makeSchemaCache(): SchemaCache {
 
 function makeRecoveryDeps(
   executeFn: (query: string, signal?: AbortSignal) => Promise<SqlQueryRow[]>,
-  runPlanFn: (plan: MetricPlan, signal?: AbortSignal) => Promise<{ verdict: EngineVerdict; result: EngineResult | null }>
+  runPlanFn: (
+    plan: MetricPlan,
+    signal?: AbortSignal
+  ) => Promise<{ verdict: EngineVerdict; result: EngineResult | null }>
 ): RecoveryDeps {
   return {
     executeReadOnlySql: executeFn,
     normalizePersianText: makeNormText,
-    runPlan: runPlanFn,
+    runPlan: runPlanFn
   }
 }
 
@@ -40,7 +47,7 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
   const smallBudget: RecoveryBudget = {
     timeoutMs: 3000,
     maxAlternatives: 2,
-    maxInvestigatorQueries: 10,
+    maxInvestigatorQueries: 10
   }
 
   test('recovery ladder returns answer when alternative metric succeeds', async () => {
@@ -48,7 +55,7 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
       prompt: 'گردش حساب صندوق ۱۴۰۲',
       trigger: 'intent-mismatch',
       failedMetricId: 'trial_balance',
-      failReason: 'metric-mismatch:گردش→trial_balance',
+      failReason: 'metric-mismatch:گردش→trial_balance'
     }
 
     const deps = makeRecoveryDeps(
@@ -58,8 +65,8 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
         result: {
           rows: [{ result_value: 5000000, account_title: 'صندوق' }],
           plan,
-          compiled: { sql: '-- test', bindingsDescription: 'test' },
-        },
+          compiled: { sql: '-- test', bindingsDescription: 'test' }
+        }
       })
     )
 
@@ -72,14 +79,14 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
   test('recovery ladder returns refusal when all steps fail', async () => {
     const ctx: RecoveryContext = {
       prompt: 'سؤال نامفهوم',
-      trigger: 'no-metric-match',
+      trigger: 'no-metric-match'
     }
 
     const deps = makeRecoveryDeps(
       async () => [],
-      async (plan) => ({
+      async () => ({
         verdict: { ok: false, reason: 'execution-error', reconciliations: [] },
-        result: null,
+        result: null
       })
     )
 
@@ -93,23 +100,26 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
       prompt: 'داده‌ای که وجود ندارد',
       trigger: 'empty-result',
       failedMetricId: 'net_sales',
-      failReason: 'zero-rows',
+      failReason: 'zero-rows'
     }
 
     const deps = makeRecoveryDeps(
       async () => [],
       async () => ({
         verdict: { ok: false, reason: 'zero-rows', reconciliations: [] },
-        result: null,
+        result: null
       })
     )
 
     const result = await runRecoveryLadder(ctx, deps, makeSchemaCache(), smallBudget)
     // Outcome could be 'refuse' or 'clarify' depending on investigator behavior
-    assert.ok(result.outcome === 'refuse' || result.outcome === 'clarify', `expected refuse or clarify, got ${result.outcome}`)
+    assert.ok(
+      result.outcome === 'refuse' || result.outcome === 'clarify',
+      `expected refuse or clarify, got ${result.outcome}`
+    )
     assert.ok(result.steps.length > 0)
     // Steps should have at least alternative-metric step
-    const altStep = result.steps.find(s => s.name === 'alternative-metric')
+    const altStep = result.steps.find((s) => s.name === 'alternative-metric')
     assert.ok(altStep, 'should have alternative-metric step')
   })
 
@@ -118,13 +128,13 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
       prompt: 'گردش حساب بانک ملت ۱۴۰۲',
       trigger: 'intent-mismatch',
       failedMetricId: 'trial_balance',
-      failReason: 'metric-mismatch:گردش→trial_balance',
+      failReason: 'metric-mismatch:گردش→trial_balance'
     }
 
     const tinyBudget: RecoveryBudget = {
       timeoutMs: 1, // 1ms — should timeout immediately
       maxAlternatives: 5,
-      maxInvestigatorQueries: 100,
+      maxInvestigatorQueries: 100
     }
 
     const deps = makeRecoveryDeps(
@@ -134,8 +144,8 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
         result: {
           rows: [{ result_value: 100 }],
           plan,
-          compiled: { sql: '-- test', bindingsDescription: 'test' },
-        },
+          compiled: { sql: '-- test', bindingsDescription: 'test' }
+        }
       })
     )
 
@@ -151,7 +161,7 @@ describe('S39.9-10: Recovery ladder fallback after retry', () => {
       failedMetricId: 'trial_balance',
       reason: 'metric-mismatch:گردش→trial_balance',
       errorType: 'intent-mismatch' as const,
-      suggestedMetricId: 'account_turnover',
+      suggestedMetricId: 'account_turnover'
     }
     assert.equal(retryHint.suggestedMetricId, 'account_turnover')
     assert.equal(retryHint.errorType, 'intent-mismatch')
