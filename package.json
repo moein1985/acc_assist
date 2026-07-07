@@ -25,6 +25,7 @@
     "test:integration": "tsx --test tests/integration/**/*.test.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:golden": "tsx scripts/ops/goldenPromptHarness.ts",
+    "test:regression": "tsx scripts/ops/regressionCorpusEval.ts",
     "eval:metrics": "tsx scripts/ops/goldenMetricEval.ts",
     "eval:metrics:live": "tsx scripts/ops/goldenMetricEval.ts --live",
     "verify:registry": "tsx scripts/ops/verify-metric-registry.ts",

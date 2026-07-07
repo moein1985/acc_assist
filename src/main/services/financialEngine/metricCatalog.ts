@@ -16,7 +16,7 @@ const catalog: MetricDefinition[] = [
     id: 'net_sales',
     titleFa: 'فروش خالص',
     anchors: ['فروش', 'مبلغ فروش', 'درآمد فروش', 'فروختیم', 'فروخت', 'sales', 'revenue', 'total sales', 'net sales'],
-    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'مالیات', 'تطبیق', 'تحلیل', 'نرخ رشد', 'CAGR', 'VAT', 'ارزش افزوده', 'purchase', 'expense', 'cost', 'گردش', 'مانده', 'تراز'],
+    excludeSignals: ['خرید', 'هزینه', 'تعداد', 'چند', 'به تفکیک', 'بهای تمام', 'فروش‌رفته', 'فروش رفته', 'برگشت', 'مالیات', 'تطبیق', 'تحلیل', 'نرخ رشد', 'CAGR', 'VAT', 'ارزش افزوده', 'purchase', 'expense', 'cost', 'گردش', 'مانده', 'تراز'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -201,7 +201,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cash_bank_balance',
     titleFa: 'مانده نقد و بانک',
-    anchors: ['مانده نقد', 'مانده بانک', 'مانده صندوق', 'مانده کش', 'مانده حساب بانکی', 'cash balance', 'bank balance', 'cash and bank'],
+    anchors: ['مانده نقد', 'مانده بانک', 'مانده صندوق', 'مانده کش', 'مانده حساب بانکی', 'حساب صندوق', 'cash balance', 'bank balance', 'cash and bank'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -424,7 +424,7 @@ const catalog: MetricDefinition[] = [
     id: 'sales_by_period',
     titleFa: 'فروش به تفکیک دوره',
     anchors: ['فروش ماهانه', 'فروش فصلی', 'فروش به تفکیک ماه', 'فروش به تفکیک فصل', 'فروش به تفکیک سال', 'خلاصه فروش', 'فروش دوره', 'فروش به تفکیک مشتری', 'فروش مشتریان'],
-    excludeSignals: ['خرید', 'مانده', 'تراز', 'تعداد', 'صندوق', 'بانک'],
+    excludeSignals: ['خرید', 'مانده', 'تراز', 'تعداد', 'صندوق', 'بانک', 'برگشت'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_month', 'by_quarter', 'by_customer'],
     source: { primaryTable: 'SLS.Invoice', alias: 'src' },
@@ -1600,7 +1600,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'zero_amount_invoices',
     titleFa: 'فاکتورهای مبلغ صفر',
-    anchors: ['فاکتور صفر', 'فاکتور مبلغ صفر', 'فاکتور با مبلغ نامعتبر', 'فاکتورهای صفر', 'فاکتور صفر ریال', 'فاکتورهای مبلغ صفر', 'فاکتورها مبلغ صفر', 'فاکتور صفر کدام', 'فاکتورهای با مبلغ صفر'],
+    anchors: ['فاکتور صفر', 'فاکتور مبلغ صفر', 'فاکتور با مبلغ نامعتبر', 'فاکتورهای صفر', 'فاکتور صفر ریال', 'فاکتورهای مبلغ صفر', 'فاکتورها مبلغ صفر', 'فاکتور صفر کدام', 'فاکتورهای با مبلغ صفر', 'فاکتور یک ریال', 'فاکتورهای یک ریال', 'فاکتورهای مبلغ یک ریال'],
     excludeSignals: ['سند', 'مانده', 'تراز', 'اسناد اخیر'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
@@ -1867,7 +1867,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'invoices_without_tax',
     titleFa: 'فاکتورهای بدون مالیات',
-    anchors: ['فاکتور بدون مالیات', 'فاکتور بدون VAT', 'کدام فاکتورها مالیات ندارند', 'فاکتورهای معاف'],
+    anchors: ['فاکتور بدون مالیات', 'فاکتور بدون VAT', 'کدام فاکتورها مالیات ندارند', 'فاکتورهای معاف', 'فاکتورهای بدون مالیات', 'فاکتورهای بدون VAT'],
     excludeSignals: ['ماهانه', 'بدهی', 'خالص'],
     softwareId: 'sepidar',
     grainSupported: ['total'],

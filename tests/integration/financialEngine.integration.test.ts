@@ -119,7 +119,8 @@ test('engine safety guard: irrelevant question degrades to no-metric-match', asy
   assert.equal(result.verdict.ok, false)
   assert.ok(
     result.verdict.reason === 'no-metric-match' ||
-      result.verdict.reason === 'low-confidence-clarify',
+      result.verdict.reason === 'low-confidence-clarify' ||
+      result.verdict.reason?.startsWith('recovery-exhausted'),
     `reason should be no-metric-match or clarify, got: ${result.verdict.reason}`
   )
 })

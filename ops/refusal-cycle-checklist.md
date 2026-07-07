@@ -20,6 +20,7 @@
 - [ ] خوشه‌های `out_of_scope` تأیید شوند: ردِ سالم = مرزِ سالمِ محصول
 
 ### ۳. اقدام
+- [ ] **S40.4 — قاعدهٔ «هر شکست → یک تست»: هر شکستِ میدانیِ جدید پیش از رفع، به `scripts/fixtures/regression-corpus.json` اضافه شود؛ سپس رفع؛ سپس `npm run test:regression` سبز شود.**
 - [ ] اگر متریکِ جدید: طبقِ فاز ۲۹ با اوراکل تأیید شود → `verified` در رجیستری
 - [ ] اگر بهبودِ anchor: `metricCatalog.ts` به‌روزرسانی + typecheck + test
 - [ ] اگر باگِ SQL: fix + test + golden eval

@@ -128,8 +128,8 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
   const normalized = normalizePersianText(normalizePersianDigits(prompt)).toLowerCase()
   if (!normalized) return { metricId: null, confidence: 0 }
 
-  // S22.5: Cache key includes version to invalidate after weighting changes
-  const cacheKey = `v2:${softwareId ? softwareId + ':' : ''}${normalized}`
+  // S40.6: Cache key bumped to v3 for weighted excludeSignals
+  const cacheKey = `v3:${softwareId ? softwareId + ':' : ''}${normalized}`
   const cached = getCachedRoute(cacheKey)
   if (cached) return cached
 
@@ -146,7 +146,6 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
 
   for (const metric of catalog) {
     let score = 0
-    let excluded = false
 
     // S15.17: Use adapter-specific anchors when available
     const anchors = (softwareId && metric.adapterAnchors?.[softwareId])
@@ -166,17 +165,22 @@ export function routeMetric(prompt: string, softwareId?: string): RouterResult {
       }
     }
 
+    // S40.6: excludeSignals are now weighted penalties, not hard blocks.
+    // Each excludeSignal subtracts a penalty from the score. The metric is
+    // only fully excluded if the penalty exceeds the anchor score.
     if (metric.excludeSignals) {
       for (const signal of metric.excludeSignals) {
         const normalizedSignal = normalizePersianText(signal).toLowerCase()
         if (normalized.includes(normalizedSignal)) {
-          excluded = true
-          break
+          // Penalty proportional to signal length (longer = stronger exclusion)
+          const penalty = 1 + Math.floor(normalizedSignal.length / 6)
+          score -= penalty
         }
       }
     }
 
-    if (excluded) continue
+    // S40.6: Only skip if score dropped to zero or below (net negative = strong exclusion)
+    if (score <= 0) continue
 
     if (score > bestScore) {
       bestScore = score

@@ -95,14 +95,27 @@ export function checkIntentAlignment(
   if (!planDef) {
     return { passed: true }
   }
+  // S40.6: Weighted excludeSignals — only fail if penalty exceeds anchor score
   if (planDef?.excludeSignals) {
+    let anchorScore = 0
+    const planAnchors = planDef.anchors ?? []
+    for (const anchor of planAnchors) {
+      const normalizedAnchor = normalizePersianText(anchor).toLowerCase()
+      if (normalizedPrompt.includes(normalizedAnchor)) {
+        anchorScore += 1 + Math.floor(normalizedAnchor.length / 6)
+      }
+    }
+    let penaltyScore = 0
     for (const signal of planDef.excludeSignals) {
       const normalizedSignal = normalizePersianText(signal).toLowerCase()
       if (normalizedPrompt.includes(normalizedSignal)) {
-        return {
-          passed: false,
-          reason: `intent mismatch: prompt contains exclusive signal '${signal}' of a different metric`
-        }
+        penaltyScore += 1 + Math.floor(normalizedSignal.length / 6)
+      }
+    }
+    if (penaltyScore > anchorScore) {
+      return {
+        passed: false,
+        reason: `intent mismatch: excludeSignal penalty (${penaltyScore}) exceeds anchor score (${anchorScore}) for metric ${plan.metricId}`
       }
     }
   }

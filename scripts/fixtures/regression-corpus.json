@@ -6,7 +6,8 @@
     "source": "field-test-37",
     "addedAt": "2026-07-06",
     "category": "A-excludeSignal",
-    "notes": "excludeSignal 'صندوق' blocks legitimate cash query. Root fix in Phase 40 (S40.6 weighted signals)."
+    "rootCluster": "hard-block-keyword",
+    "notes": "excludeSignal 'صندوق' in account_balance blocks. cash_bank_balance has anchor 'مانده صندوق' but planner may route to account_balance first. Root fix: weighted excludeSignals (S40.6)."
   },
   {
     "prompt": "فاکتورهای مبلغ صفر ۱۴۰۲",
@@ -15,7 +16,8 @@
     "source": "field-test-37",
     "addedAt": "2026-07-06",
     "category": "A-excludeSignal",
-    "notes": "excludeSignal 'فاکتور' blocks zero_amount_invoices. Root fix in Phase 40 (S40.6 weighted signals)."
+    "rootCluster": "hard-block-keyword",
+    "notes": "excludeSignal 'فاکتور' blocks zero_amount_invoices. Root fix: weighted signals (S40.6)."
   },
   {
     "prompt": "فاکتورهای مبلغ یک ریال ۱۴۰۲",
@@ -24,7 +26,8 @@
     "source": "field-test-37",
     "addedAt": "2026-07-06",
     "category": "A-excludeSignal",
-    "notes": "excludeSignal 'فاکتور' blocks zero_amount_invoices. Root fix in Phase 40 (S40.6 weighted signals)."
+    "rootCluster": "hard-block-keyword",
+    "notes": "Same root as above — excludeSignal 'فاکتور'."
   },
   {
     "prompt": "فاکتورهای بدون مالیات ۱۴۰۲",
@@ -33,6 +36,267 @@
     "source": "field-test-37",
     "addedAt": "2026-07-06",
     "category": "A-excludeSignal",
-    "notes": "excludeSignal 'فاکتور' blocks invoices_without_tax. Root fix in Phase 40 (S40.6 weighted signals)."
+    "rootCluster": "hard-block-keyword",
+    "notes": "excludeSignal 'فاکتور' blocks invoices_without_tax. Root fix: weighted signals (S40.6)."
+  },
+  {
+    "prompt": "سندهای تکراری ۱۴۰۲",
+    "expectedMetricId": "duplicate_vouchers",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "A-planner-routing",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Planner routes to payables_aging instead of duplicate_vouchers. Root fix: planner few-shot or anchor strengthening (S40.5)."
+  },
+  {
+    "prompt": "ردیف‌های بدون حساب ۱۴۰۲",
+    "expectedMetricId": "vouchers_without_account",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "A-planner-routing",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Planner routes to payables_aging instead of vouchers_without_account. Root fix: anchor strengthening (S40.5)."
+  },
+  {
+    "prompt": "خلاصه چک‌ها چقدر است؟",
+    "expectedMetricId": "checks_summary",
+    "expectedBehavior": "answer",
+    "source": "field-test-39-regression",
+    "addedAt": "2026-07-07",
+    "category": "regression",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Phase 37: ok. Phase 39: refuse no_metric. Regression — planner lost routing to checks_summary."
+  },
+  {
+    "prompt": "جریان نقد ۱۴۰۲",
+    "expectedMetricId": "cash_flow_statement",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "B-fixed-in-39",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Phase 37: refuse (intent-mismatch cashflow→cash_flow_statement). Phase 39: ok. Verify no regression."
+  },
+  {
+    "prompt": "نسبت فروش به خرید ۱۴۰۲",
+    "expectedMetricId": "sales_to_purchase_ratio",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "B-fixed-in-39",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Phase 37: refuse (derived metric not in catalog). Phase 39: ok. Verify no regression."
+  },
+  {
+    "prompt": "اختتامیه ۱۴۰۲ ثبت شده؟",
+    "expectedMetricId": "closing_status",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "B-fixed-in-39",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Phase 37: refuse (planner hallucination vouchers_by_type). Phase 39: ok. Verify no regression."
+  },
+  {
+    "prompt": "مانده طرف حساب معین محسنی فرد ۱۴۰۲",
+    "expectedMetricId": "party_balance",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "B-fixed-in-39",
+    "rootCluster": "entity-resolution",
+    "notes": "Phase 37: execution-error. Phase 39: ok. Verify no regression."
+  },
+  {
+    "prompt": "گردش حساب بانک ملت ۱۴۰۲",
+    "expectedMetricId": "account_turnover",
+    "expectedBehavior": "answer",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "B-fixed-in-39",
+    "rootCluster": "planner-catalog-gap",
+    "notes": "Phase 37: planner-error no-valid-json. Phase 39: ok. Verify no regression."
+  },
+  {
+    "prompt": "سود چقدره؟",
+    "expectedMetricId": null,
+    "expectedBehavior": "clarify",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "C-ambiguous",
+    "rootCluster": "ambiguous",
+    "notes": "Ambiguous: net_profit vs gross_profit. Should clarify, not refuse."
+  },
+  {
+    "prompt": "وضعیت آب و هوا چطوره؟",
+    "expectedMetricId": null,
+    "expectedBehavior": "refuse",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "C-out-of-scope",
+    "rootCluster": "out-of-scope",
+    "notes": "Out of scope — must refuse."
+  },
+  {
+    "prompt": "چطور در سپیدار فاکتور فروش ثبت کنم؟",
+    "expectedMetricId": null,
+    "expectedBehavior": "refuse",
+    "source": "field-test-37",
+    "addedAt": "2026-07-07",
+    "category": "C-text-guidance",
+    "rootCluster": "text-guidance",
+    "notes": "How-to question — text guidance, not engine."
+  },
+  {
+    "prompt": "خرید ۱۴۰۲ چقدر بود؟",
+    "expectedMetricId": "purchases",
+    "expectedBehavior": "answer",
+    "source": "anti-hallucination",
+    "addedAt": "2026-07-07",
+    "category": "anti-hallucination",
+    "rootCluster": "precision-guard",
+    "notes": "Must NOT route to net_sales. Classic خرید vs فروش confusion."
+  },
+  {
+    "prompt": "فروش ۱۴۰۲ چقدر بود؟",
+    "expectedMetricId": "net_sales",
+    "expectedBehavior": "answer",
+    "source": "anti-hallucination",
+    "addedAt": "2026-07-07",
+    "category": "anti-hallucination",
+    "rootCluster": "precision-guard",
+    "notes": "Must route to net_sales, not purchases."
+  },
+  {
+    "prompt": "برگشت از فروش سال ۱۴۰۲",
+    "expectedMetricId": null,
+    "expectedBehavior": "refuse",
+    "source": "anti-hallucination",
+    "addedAt": "2026-07-07",
+    "category": "anti-hallucination",
+    "rootCluster": "precision-guard",
+    "notes": "Sales returns — not net_sales. Should refuse or clarify."
+  },
+  {
+    "prompt": "فروش ماهانه ۱۴۰۲",
+    "expectedMetricId": "sales_by_period",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Formal phrasing — should route to sales_by_period."
+  },
+  {
+    "prompt": "فروش فصلی ۱۴۰۲",
+    "expectedMetricId": "sales_by_period",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Quarterly phrasing — should route to sales_by_period."
+  },
+  {
+    "prompt": "فروش به تفکیک مشتری ۱۴۰۲",
+    "expectedMetricId": "sales_by_period",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "By-customer phrasing — should route to sales_by_period."
+  },
+  {
+    "prompt": "فروش پارسال چقدر بود؟",
+    "expectedMetricId": "net_sales",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Conversational phrasing (پارسال=1401). Should route to net_sales."
+  },
+  {
+    "prompt": "ترازنامه ۱۴۰۲",
+    "expectedMetricId": "balance_sheet",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Standard balance sheet query."
+  },
+  {
+    "prompt": "صورت سود و زیان ۱۴۰۲",
+    "expectedMetricId": "income_statement",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Standard income statement query."
+  },
+  {
+    "prompt": "تحلیل سنی دریافتنی‌ها",
+    "expectedMetricId": "receivables_aging",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Aging analysis — receivables."
+  },
+  {
+    "prompt": "تحلیل سنی پرداختنی‌ها",
+    "expectedMetricId": "payables_aging",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Aging analysis — payables."
+  },
+  {
+    "prompt": "تطبیق فروش با دفتر کل ۱۴۰۲",
+    "expectedMetricId": "sales_reconciliation",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Reconciliation query."
+  },
+  {
+    "prompt": "مانده حساب بانکی ۱۴۰۲",
+    "expectedMetricId": "cash_bank_balance",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Cash/bank balance query."
+  },
+  {
+    "prompt": "اسناد نامتوازن ۱۴۰۲",
+    "expectedMetricId": "unbalanced_vouchers",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Unbalanced vouchers query."
+  },
+  {
+    "prompt": "آیا تراز آزمایشی می‌بندد؟",
+    "expectedMetricId": "trial_balance_check",
+    "expectedBehavior": "answer",
+    "source": "phrasing-robustness",
+    "addedAt": "2026-07-07",
+    "category": "phrasing",
+    "rootCluster": "phrasing",
+    "notes": "Trial balance check query."
   }
 ]
