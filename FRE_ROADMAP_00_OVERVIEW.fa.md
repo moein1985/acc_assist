@@ -262,10 +262,11 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۳۴ | ✅ کامل | Calibration Runtime Wiring: loadChartOfAccountsMapping + Zod validation، agentOrchestrator wiring، safety gate، buildMappingFromDiscovery، per-deployment registry، verify:deployment script، E2E + regression tests (S34.1-S34.12 کامل) |
 | ۳۵ | ✅ کامل | رفعِ ۸ مغایرتِ متریک: ۱۱ Oracle SQL اصلاح شد، anchorهای گمشده اضافه شد، استخراجِ عدد اصلاح شد، باگِ اعدادِ منفی رفع شد، مقایسهٔ مقدارِ مطلق اضافه شد، **۱۸/۱۸ MATCH** در اجرای زنده |
 | ۳۸ | ✅ کامل | رفعِ ۸/۱۱ شکستِ فاز ۳۷: engine-served ۸۱٪ (از ۶۶٪)، ۳ شکستِ Category A به فاز ۴۰ موکول شد |
-| ۳۹ | 🔄 در حال اجرا | هستهٔ سماجت: نردبانِ بازیابی + Investigator فعال + Verifier معنایی + planner self-correct. S39.0-S39.5, S39.8, S39.11-12 کامل. باقی‌مانده: S39.6-7, S39.8b-10, S39.13-14 |
+| ۳۹ | ✅ کامل | هستهٔ سماجت: نردبانِ بازیابی + Investigator فعال + Verifier معنایی + planner self-correct. S39.0-S39.14 کامل. engine-served ۶۸٪ (از ۶۶٪)، refuse ۱۴٪ (از ۲۱٪). ۵ شکستِ فاز ۳۷ رفع شد. Exit Gate سبز. |
 | ۴۰ | ✅ کامل | مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون: ۹۷ رکورد کورپوس، `test:regression` ۱۰۰٪، excludeSignal وزن‌دار (router+verifier)، روتینگِ دولایه، ۶۷ phrasing variant برای ۱۷ متریکِ Tier 1/2، رفعِ باگِ `isFinancialNumericQuery` (`\bبده\b` + سیگنال‌های گمشده). S40.1-S40.9 کامل. Exit Gate سبز. |
+| ۴۱ | 🔄 معوق | اثباتِ چند‌نسخه‌ایِ سپیدار: detectSepidarVersion، schema-adaptive metrics، ماتریسِ تست روی ≥۲ نسخهٔ واقعی. پیش‌نیاز: دسترسی به نسخهٔ دومِ سپیدار با دادهٔ واقعی (S41.0). |
 
-**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۴۰ کامل):**
+**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۳۹ کامل، فاز ۴۰ کامل):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
 - ۹۷ regression corpus cases (100% سبز)
