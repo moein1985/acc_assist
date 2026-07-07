@@ -636,7 +636,7 @@ $questionsBlock
 
 foreach (`$q in `$questions) {
   Write-Host "QUESTION_START[`$(`$q.id)]"
-  `$body = @{ promptBase64 = `$q.b64; mode = 'manual'; conversationId = 'batch-$(ConversationId)' } | ConvertTo-Json -Depth 5
+  `$body = @{ promptBase64 = `$q.b64; mode = 'manual'; conversationId = 'batch-$ConversationId' } | ConvertTo-Json -Depth 5
   `$utf8Body = [Text.Encoding]::UTF8.GetBytes(`$body)
   try {
     `$response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3322/ask' -Headers (New-DebugHeaders) -Body `$utf8Body -ContentType 'application/json; charset=utf-8' -TimeoutSec $QueryTimeoutSec
@@ -707,11 +707,11 @@ Write-Host 'BATCH_DONE'
 
   'audit-log' {
     if (-not [string]::IsNullOrWhiteSpace($RequestId)) {
-      $script = "Select-String '$RequestId' 'C:\Users\Administrator\AppData\Roaming\acc-assist\logs\agent-audit.log'"
-      $rawOutput = Invoke-SshCommand $script | Out-String
+      $script = "Select-String -Path 'C:\Users\Administrator\AppData\Roaming\acc-assist\logs\agent-audit.log' -Pattern '$RequestId' | ForEach-Object { `$_.Line }"
+      $rawOutput = Invoke-RemotePowerShell $script | Out-String
       foreach ($line in ($rawOutput -split "`r?`n")) {
         $line = $line.Trim()
-        if ($line -match 'agent-audit\.log:\d+:(.*)') {
+        if ($line -match '^\{.*\}') {
           try {
             $json = $Matches[1] | ConvertFrom-Json
             Write-Host "[$($json.timestamp)] stage=$($json.stage) reqId=$($json.requestId)" -ForegroundColor Cyan
@@ -726,7 +726,7 @@ Write-Host 'BATCH_DONE'
       }
     } else {
       $script = "Get-Content 'C:\Users\Administrator\AppData\Roaming\acc-assist\logs\agent-audit.log' -Tail $Tail"
-      $rawOutput = Invoke-SshCommand $script | Out-String
+      $rawOutput = Invoke-RemotePowerShell $script | Out-String
       Write-Host $rawOutput
     }
   }

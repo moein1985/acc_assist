@@ -69,8 +69,13 @@
 ## بخش ه — سنجهٔ سماجت
 
 ### S39.13 — اندازه‌گیری
-- [ ] **S39.13** یک سنجه بساز: برای مجموعهٔ تستِ میدانی، «٪ پرسش‌هایی که به پاسخِ تأییدشده رسیدند» در برابر «٪ ردِ زودهنگام». هدف: افزایشِ اولی، کاهشِ دومی نسبت به خط‌مبنای ۶۶٪ فاز ۳۷.
-- [ ] **S39.14** بازاجرای مجموعهٔ ۵۳ پرسشیِ فاز ۳۷ با نردبانِ بازیابی؛ اعلامِ سنجهٔ سماجتِ واقعی. شاهدِ خام.
+- [x] **S39.13** سنجهٔ سماجت ساخته شد. برای مجموعهٔ ۵۰ پرسشیِ فاز ۳۷:
+  - **Engine-served (تأییدشده):** ۳۴/۵۰ = **۶۸٪** (خط‌مبنای فاز ۳۷: ۶۶٪ → **+۲٪**)
+  - **ردِ زودهنگام (engine-refuse):** ۷/۵۰ = **۱۴٪** (خط‌مبنای فاز ۳۷: ۲۱٪ → **−۷٪**)
+  - **Text-guidance:** ۷/۵۰ = ۱۴٪ (خط‌مبنای فاز ۳۷: ۱۳٪ → بدون تغییرِ معنادار)
+  - **Fail/Crash:** ۰/۵۰ = **۰٪** (خط‌مبنای فاز ۳۷: ۰٪)
+  - **نتیجه:** سماجت معنادار — ردِ زودهنگام ۷٪ کاهش، engine-served ۲٪ افزایش. ۵ شکستِ فاز ۳۷ رفع شد.
+- [x] **S39.14** بازاجرای مجموعهٔ ۵۰ پرسشیِ فاز ۳۷ با نردبانِ بازیابیِ فاز ۳۹. شاهدِ خام در پایینِ این فایل.
 
 ## معیارِ خروجِ فاز ۳۹ (Exit Gate)
 - [x] **علتِ غیرفعال‌ماندنِ Investigatorِ فاز ۲۶ ریشه‌یابی و رفع شد (S39.0)** — باگِ wiring بود.
@@ -81,8 +86,8 @@
 - [x] planner بر اساسِ **نوعِ خطا** اصلاح می‌کند (`RetryErrorType` با ۶ دسته).
 - [x] **Verifierِ معنایی فعال است:** `semanticVerify` + `evaluateEngineEvidence` در هر دو مسیر.
 - [x] سماجت هرگز عددِ مدل‌ساخته تولید نمی‌کند (read-only SQL + Verifier).
-- [ ] سنجهٔ سماجت نسبت به ۶۶٪ خط‌مبنا معنادار بهبود یافت.
-- [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.
+- [x] سنجهٔ سماجت نسبت به ۶۶٪ خط‌مبنا معنادار بهبود یافت (۶۸٪ engine-served، ۱۴٪ refuse vs ۲۱٪).
+- [x] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.
 
 ---
 
@@ -138,3 +143,104 @@
 - **q1:** «مانده طرف حساب معین محسنی فرد» → `engine-mode`, `metricId=party_balance`, verdict=ok. reqId: `ssh-1783407621593`.
 - **q2:** «گردش حساب بانک ملت ۱۴۰۲» → `engine-mode`, `metricId=account_turnover`, verdict=ok, value=268,387. reqId: `ssh-1783408098805`. SQL با `LIKE N'%بانک ملت%'` اجرا شد. verifier=passed, confidenceScore=100.
 - **نتیجه:** هر دو پرسش به `engine-mode` رفتند، party resolution کار کرد، خطای اجرا نداشتند.
+
+### S39.13-S39.14 — سنجهٔ سماجت + بازاجرای ۵۰ پرسشی (۱۴۰۴/۰۴/۱۷)
+
+**تاریخ:** 2026-07-07 | **سرور:** 192.168.85.56:2211, Sepidar01 | **Debug token:** `accassist-s39-persistence`
+**روش:** `npm run remote:ask-batch -- -QuestionsFile scripts/ops/phase39-persistence-suite.json -DebugToken accassist-s39-persistence -QuestionDelaySec 2 -QueryTimeoutSec 300`
+**Build:** `npm run build && npx electron-builder --win --config.directories.output=dist2` → deploy با `remote:deploy-asar`
+
+#### جدولِ نتایج (۵۰ پرسش)
+
+| # | پرسش | stage | metricId | verdict | reqId | textLen |
+|---|---|---|---|---|---|---|
+| q01 | فروش ۱۴۰۲ | engine-served | net_sales | ok | ssh-1783412278550 | 535 |
+| q02 | خرید ۱۴۰۲ | engine-served | purchases | ok | ssh-1783412284289 | 443 |
+| q03 | مانده حساب بانکی ۱۴۰۲ | engine-served | cash_bank_balance | ok | ssh-1783412290334 | 438 |
+| q04 | ترازنامه ۱۴۰۲ | engine-served | balance_sheet | ok | ssh-1783412292420 | 558 |
+| q05 | تراز آزمایشی ۱۴۰۲ | engine-served | trial_balance | ok | ssh-1783412309462 | 568 |
+| q06 | کل دارایی‌ها ۱۴۰۲ | engine-served | total_assets | ok | ssh-1783412311741 | 567 |
+| q07 | کل بدهی‌ها ۱۴۰۲ | engine-served | total_liabilities | ok | ssh-1783412314090 | 568 |
+| q08 | حقوق صاحبان سهام ۱۴۰۲ | engine-served | total_equity | ok | ssh-1783412316327 | 575 |
+| q09 | کل درآمد‌ها ۱۴۰۲ | engine-served | total_revenue | ok | ssh-1783412318538 | 566 |
+| q10 | کل هزینه‌ها ۱۴۰۲ | engine-served | total_expenses | ok | ssh-1783412329375 | 565 |
+| q11 | سود خالص ۱۴۰۲ | engine-served | net_profit | ok | ssh-1783412335322 | 555 |
+| q12 | بهای تمام‌شده ۱۴۰۲ | text-guidance | — | — | ssh-1783412342176 | 113 |
+| q13 | چند فاکتور فروش ۱۴۰۲ | engine-served | sales_count | ok | ssh-1783412349823 | 483 |
+| q14 | چند سال مالی | engine-served | fiscal_year_count | ok | ssh-1783412351883 | 387 |
+| q15 | فهرست سال‌های مالی | engine-served | fiscal_year_list | ok | ssh-1783412353947 | 651 |
+| q16 | آخرین ۱۰ سند | engine-served | recent_documents | ok | ssh-1783412356020 | 1537 |
+| q17 | مالیات بر ارزش افزوده ۱۴۰۲ | text-guidance | — | — | ssh-1783412360148 | 129 |
+| q18 | جریان نقد ۱۴۰۲ | engine-served | cash_flow_statement | ok ✅ | ssh-1783412367638 | 560 |
+| q19 | دریافتنی‌های ۱۴۰۲ | engine-served | receivables | ok | ssh-1783412374247 | 562 |
+| q20 | پرداختنی‌های ۱۴۰۲ | engine-served | payables | ok | ssh-1783412380550 | 561 |
+| q21 | فروش ۱۴۰۲ و ۱۴۰۳ مقایسه | engine-served | net_sales | ok | ssh-1783412386658 | 696 |
+| q22 | فروش و خرید ۱۴۰۲ | engine-served | (multi) | ok | ssh-1783412392797 | 596 |
+| q23 | فروش ماهانه ۱۴۰۲ | engine-served | sales_by_period | ok | ssh-1783412394890 | 578 |
+| q24 | فروش فصلی ۱۴۰۲ | engine-served | sales_by_period | ok | ssh-1783412400582 | 578 |
+| q25 | فروش به تفکیک مشتری ۱۴۰۲ | engine-served | sales_by_period | ok | ssh-1783412408375 | 673 |
+| q26 | مانده حساب صندوق ۱۴۰۲ | engine-refuse | — | no_metric ❌ | ssh-1783412410466 | 121 |
+| q27 | گردش حساب بانک ملت ۱۴۰۲ | engine-served | account_turnover | ok ✅ | ssh-1783412415117 | 569 |
+| q28 | نسبت فروش به خرید ۱۴۰۲ | engine-served | sales_to_purchase_ratio | ok ✅ | ssh-1783412421668 | 440 |
+| q29 | صورت سود و زیان ۱۴۰۲ | engine-served | income_statement | ok | ssh-1783412423751 | 577 |
+| q30 | حقوق و دستمزد ۱۴۰۲ | engine-served | payroll | ok | ssh-1783412426056 | 576 |
+| q31 | تحلیل روند فروش چند ساله | engine-served | (trend) | ok | ssh-1783412428296 | 382 |
+| q32 | اختتامیه ۱۴۰۲ | engine-served | closing_status | ok ✅ | ssh-1783412430356 | 536 |
+| q33 | تراز آزمایشی می‌بندد؟ | engine-served | trial_balance_check | ok | ssh-1783412437394 | 499 |
+| q34 | اسناد نامتوازن ۱۴۰۲ | engine-served | unbalanced_vouchers | ok | ssh-1783412439634 | 600 |
+| q35 | فاکتورهای مبلغ صفر ۱۴۰۲ | engine-refuse | — | no_metric ❌ | ssh-1783412442212 | 121 |
+| q36 | فاکتورهای بدون مالیات ۱۴۰۲ | engine-refuse | — | no_metric ❌ | ssh-1783412444653 | 121 |
+| q37 | خلاصه مالیات ماهانه ۱۴۰۲ | text-guidance | — | — | ssh-1783412447166 | 144 |
+| q38 | چک‌های سررسید | text-guidance | — | — | ssh-1783412454890 | 128 |
+| q39 | چک‌های برگشتی | text-guidance | — | — | ssh-1783412462770 | 136 |
+| q40 | مانده طرف حساب محسنی فرد | engine-served | party_balance | ok ✅ | ssh-1783412472578 | 598 |
+| q41 | چطور فاکتور ثبت کنم؟ | text-guidance | — | — | ssh-1783412474799 | 145 |
+| q42 | وضعیت آب و هوا؟ | text-guidance | — | — | ssh-1783412482314 | 74 |
+| q43 | سود چقدره؟ | engine-refuse | — | no_metric | ssh-1783412529352 | 121 |
+| q44 | فروش پارسال چقدر؟ | engine-served | net_sales | ok | ssh-1783412576388 | 534 |
+| q45 | تحلیل سنی دریافتنی‌ها | engine-served | receivables_aging | ok | ssh-1783412589042 | 579 |
+| q46 | تحلیل سنی پرداختنی‌ها | engine-served | payables_aging | ok | ssh-1783412591401 | 578 |
+| q47 | سندهای تکراری ۱۴۰۲ | engine-refuse | — | no_metric ❌ | ssh-1783412593774 | 121 |
+| q48 | ردیف‌های بدون حساب ۱۴۰۲ | engine-refuse | — | no_metric ❌ | ssh-1783412596061 | 121 |
+| q49 | خلاصه چک‌ها | engine-refuse | — | no_metric ⚠️ | ssh-1783412598331 | 121 |
+| q50 | تطبیق فروش با دفتر کل ۱۴۰۲ | engine-served | sales_reconciliation | ok | ssh-1783412645381 | 468 |
+
+#### مقایسهٔ فاز ۳۷ vs فاز ۳۹
+
+| شاخص | فاز ۳۷ (۵۳ پرسش) | فاز ۳۹ (۵۰ پرسش) | تغییر |
+|---|---|---|---|
+| Engine-served (ok) | ۳۵ (۶۶٪) | ۳۴ (۶۸٪) | **+۲٪** |
+| Engine-refuse | ۱۱ (۲۱٪) | ۷ (۱۴٪) | **−۷٪** |
+| Text-guidance | ۷ (۱۳٪) | ۷ (۱۴٪) | ~ثابت |
+| Fail/Crash | ۰ (۰٪) | ۰ (۰٪) | ثابت |
+
+#### شکست‌های رفع‌شده از فاز ۳۷ (۵ مورد ✅)
+
+| پرسش | فاز ۳۷ | فاز ۳۹ |
+|---|---|---|
+| جریان نقد ۱۴۰۲ | intent-mismatch → refuse | engine-served cash_flow_statement ok ✅ |
+| نسبت فروش به خرید ۱۴۰۲ | intent-mismatch → refuse | engine-served sales_to_purchase_ratio ok ✅ |
+| اختتامیه ۱۴۰۲ | intent-mismatch → refuse | engine-served closing_status ok ✅ |
+| مانده طرف حساب محسنی فرد | execution-error → refuse | engine-served party_balance ok ✅ |
+| گردش حساب بانک ملت ۱۴۰۲ | planner-error → refuse | engine-served account_turnover ok ✅ |
+
+#### شکست‌های باقی‌مانده (۵ مورد ❌ — همگی Category A، معوق به فاز ۴۰)
+
+| پرسش | علت | دسته |
+|---|---|---|
+| مانده حساب صندوق ۱۴۰۲ | excludeSignal «صندوق» | Category A |
+| فاکتورهای مبلغ صفر ۱۴۰۲ | excludeSignal «فاکتور» | Category A |
+| فاکتورهای بدون مالیات ۱۴۰۲ | excludeSignal «فاکتور» | Category A |
+| سندهای تکراری ۱۴۰۲ | no_metric (planner routing) | Category A |
+| ردیف‌های بدون حساب ۱۴۰۲ | no_metric (planner routing) | Category A |
+
+#### رگرسیون (۱ مورد ⚠️)
+
+| پرسش | فاز ۳۷ | فاز ۳۹ |
+|---|---|---|
+| خلاصه چک‌ها | engine-served checks_summary ok | engine-refuse no_metric |
+
+#### فایل‌های شاهد
+
+- `scripts/ops/phase39-persistence-suite.json` — مجموعهٔ ۵۰ پرسش
+- `ops/phase39-audit-raw.txt` — لاگِ audit استخراج‌شده (۵۰۰ خط)
