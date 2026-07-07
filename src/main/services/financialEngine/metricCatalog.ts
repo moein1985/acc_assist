@@ -1914,7 +1914,7 @@ const catalog: MetricDefinition[] = [
   {
     id: 'checks_due',
     titleFa: 'چک\u200cهای سررسید',
-    anchors: ['چک سررسید', 'چک\u200cهای این هفته', 'چک\u200cهای دریافتی سررسید', 'چک\u200cهای پرداختی سررسید', 'چک\u200cهای در جریان'],
+    anchors: ['چک سررسید', 'چک\u200cهای این هفته', 'چک\u200cهای دریافتی سررسید', 'چک\u200cهای پرداختی سررسید'],
     excludeSignals: ['برگشتی', 'مجموع'],
     softwareId: 'sepidar',
     grainSupported: ['total'],

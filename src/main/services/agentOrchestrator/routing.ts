@@ -117,10 +117,10 @@ export function extractYearComparison(
 // --- S24.6: Financial vs text-only classifier ---
 
 const FINANCIAL_NUMERIC_SIGNALS =
-  /(?:چقدر| چند |مبلغ|مانده|موجودی|جمع|مجموع|گردش|بدهکار|بستانکار|درآمد|فروش|خرید|هزینه|سود|زیان|دارایی|بدهی|حقوق|پرداخت|دریافتنی|پرداختنی|نقد|بانک|حساب|تراز|صورت\s*سود|صورت\s*مالی|گردش\s*حساب|سند|اسناد|نامتوازن|فاکتور|اختتامیه|افتتاحیه|how\s*much|what\s+is\s+the\s+(?:total|balance|amount|revenue|sales)|total\s+(?:sales|revenue|expenses|balance)|net\s+(?:sales|income|profit)|balance\s+(?:sheet|of)|cash\s+flow|receivable|payable|trial\s+balance|income\s+statement|profit\s+and\s+loss|p&l|depreciation|amortization|cost\s+of\s+goods|cogs|gross\s+margin|operating\s+margin|roe|roa|current\s+ratio|debt\s+ratio|inventory\s+turnover|accounts?\s+(?:payable|receivable)|voucher|invoice|ledger|fiscal\s+year|سال(?:\s*های)?\s*مالی)/iu
+  /(?:چقدر| چند |مبلغ|مانده|موجودی|جمع|مجموع|گردش|بدهکار|بستانکار|درآمد|فروش|خرید|هزینه|سود|زیان|دارایی|بدهی|حقوق|پرداخت|دریافتنی|پرداختنی|نقد|بانک|حساب|تراز|صورت\s*سود|صورت\s*مالی|وضعیت\s*مالی|گردش\s*حساب|سند|اسناد|نامتوازن|فاکتور|اختتامیه|افتتاحیه|چک|how\s*much|what\s+is\s+the\s+(?:total|balance|amount|revenue|sales)|total\s+(?:sales|revenue|expenses|balance)|net\s+(?:sales|income|profit)|\bprofit\b|balance\s+(?:sheet|of)|cash\s+flow|receivable|payable|trial\s+balance|income\s+statement|profit\s+and\s+loss|p&l|depreciation|amortization|cost\s+of\s+goods|cogs|gross\s+margin|operating\s+margin|roe|roa|current\s+ratio|debt\s+ratio|inventory\s+turnover|accounts?\s+(?:payable|receivable)|voucher|invoice|ledger|fiscal\s+year|سال(?:\s*های)?\s*مالی)/iu
 
 const TEXT_GUIDANCE_SIGNALS =
-  /(?:چطور|چگونه|راهنما|کمک|آموزش|توضیح|شرح|بده|نشون\s*بده|نشان\s*بده|how\s+(?:do|to|can)|guide|tutorial|explain|help|instruction|step\s+by\s+step|what\s+is|what\s+are|define|difference\s+between|meaning\s+of)/iu
+  /(?:چطور|چگونه|راهنما|کمک|آموزش|توضیح|شرح|\bبده\b|نشون\s*بده|نشان\s*بده|how\s+(?:do|to|can)|guide|tutorial|explain|help|instruction|step\s+by\s+step|what\s+is|what\s+are|define|difference\s+between|meaning\s+of)/iu
 
 const NUMERIC_REQUEST_SIGNALS =
   /(?:چقدر|چند\s+(?:تومان|ریال|دلار)|what\s+(?:is|are|was|were)\s+(?:the\s+)?(?:total|balance|amount|net|gross|sum)|how\s+much|مبلغ\s+(?:کل|نهایی)|جمع\s+(?:کل|نهایی))/iu

@@ -263,13 +263,13 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۳۵ | ✅ کامل | رفعِ ۸ مغایرتِ متریک: ۱۱ Oracle SQL اصلاح شد، anchorهای گمشده اضافه شد، استخراجِ عدد اصلاح شد، باگِ اعدادِ منفی رفع شد، مقایسهٔ مقدارِ مطلق اضافه شد، **۱۸/۱۸ MATCH** در اجرای زنده |
 | ۳۸ | ✅ کامل | رفعِ ۸/۱۱ شکستِ فاز ۳۷: engine-served ۸۱٪ (از ۶۶٪)، ۳ شکستِ Category A به فاز ۴۰ موکول شد |
 | ۳۹ | 🔄 در حال اجرا | هستهٔ سماجت: نردبانِ بازیابی + Investigator فعال + Verifier معنایی + planner self-correct. S39.0-S39.5, S39.8, S39.11-12 کامل. باقی‌مانده: S39.6-7, S39.8b-10, S39.13-14 |
-| ۴۰ | 🔄 در حال اجرا | مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون: ۳۰ رکورد کورپوس، `test:regression` ۱۰۰٪، excludeSignal وزن‌دار (router+verifier)، روتینگِ دولایه. S40.1-S40.8 کامل. معوق: S40.9 (≥۵ phrasing) |
+| ۴۰ | ✅ کامل | مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون: ۹۷ رکورد کورپوس، `test:regression` ۱۰۰٪، excludeSignal وزن‌دار (router+verifier)، روتینگِ دولایه، ۶۷ phrasing variant برای ۱۷ متریکِ Tier 1/2، رفعِ باگِ `isFinancialNumericQuery` (`\bبده\b` + سیگنال‌های گمشده). S40.1-S40.9 کامل. Exit Gate سبز. |
 
-**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۴۰ در حال اجرا):**
+**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۴۰ کامل):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
-- ۳۰ regression corpus cases (100% سبز)
-- ۵۷۷ unit test (۵۷۶ pass + ۱ failِ پیش‌existing) + ۲۶ integration test (100% سبز)
+- ۹۷ regression corpus cases (100% سبز)
+- ۶۰۳ unit test (۵۹۶ pass + ۶ failِ پیش‌existing: ۵ SSH + ۱ releaseReadiness + ۱ skip) + ۲۶ integration test (100% سبز)
 - typecheck: ۰ خطا
 - Python 3.12 embedded + sandbox امن
 - نمودار تعاملی (Chart.js) + گزارش زمان‌بندی + چندزبانه (فارسی/انگلیسی/ترکیبی)

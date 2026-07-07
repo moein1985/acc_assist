@@ -1406,7 +1406,7 @@
     {
       "id": "s14-checks-due-alt",
       "prompt": "چک‌های در جریان",
-      "expectedMetricId": "checks_due",
+      "expectedMetricId": "checks_summary",
       "expectedGrain": "total",
       "expect": "any_rows"
     },

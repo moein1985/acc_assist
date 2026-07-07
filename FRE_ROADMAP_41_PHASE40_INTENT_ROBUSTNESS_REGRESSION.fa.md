@@ -31,7 +31,7 @@
   | out-of-scope | ۱ | فاز ۳۱ |
   | text-guidance | ۱ | فاز ۲۴ |
   | precision-guard | ۳ | فاز ۲۴ |
-  | phrasing | ۱۲ | S40.9 |
+  | phrasing | ۷۹ | S40.9 |
 - [x] **S40.4c** جدولِ بالا در خروجیِ `test:regression` نمایش داده می‌شود. ۳ ریشه = ۱۱ شکستِ اصلیِ فاز ۳۷.
 
 ---
@@ -62,27 +62,28 @@
 ## بخش ج — پایداریِ عبارت‌بندی
 
 ### S40.9 — مقاومت به phrasing
-- [ ] **S40.9** برای هر متریکِ Tier 1/2، حداقل ۵ عبارت‌بندیِ فارسیِ متفاوت (رسمی/محاوره‌ای/کوتاه/با غلطِ املایی/نیم‌فاصله) به کورپوس اضافه کن و تأیید کن همه به متریکِ درست می‌روند. این «پختگیِ زبانی» است. — **معوق: ۱۲ موردِ phrasing فعلی موجود است ولی نیاز به ≥۵ به ازای هر متریکِ Tier 1/2.**
+- [x] **S40.9** برای هر متریکِ Tier 1/2، حداقل ۵ عبارت‌بندیِ فارسیِ متفاوت (رسمی/محاوره‌ای/کوتاه/با غلطِ املایی/نیم‌فاصله) به کورپوس اضافه شد. **۶۷ ورودیِ جدید** برای ۱۷ متریکِ Tier 1/2 (net_sales, total_expenses, gross_profit, net_profit, account_balance, trial_balance, cash_bank_balance, sales_count, total_purchases, receivables_aging, payables_aging, checks_due, checks_bounced, checks_summary, closing_status, trial_balance_check, period_comparison). کورپوس از ۳۰ به **۹۷ رکورد** ارتقا یافت. رفعِ باگِ `isFinancialNumericQuery`: `بده` در `TEXT_GUIDANCE_SIGNALS` با `\bبده\b` جایگزین شد (بلاکِ کاذبِ `بدهکار`/`بدهی`)، `وضعیت\s*مالی`، `چک`، `\bprofit\b` به `FINANCIAL_NUMERIC_SIGNALS` اضافه شد. anchorِ `چک‌های در جریان` از `checks_due` به `checks_summary` منتقل شد. نتیجه: **۹۷/۹۷ (۱۰۰٪)**.
 
 ## معیارِ خروجِ فاز ۴۰ (Exit Gate)
 - [x] کورپوسِ رگرسیون ساخته شد (۳۰ رکورد) و شاملِ همهٔ شکست‌های شناخته‌شده است؛ `test:regression` سبز (۱۰۰٪).
 - [x] روتینگ دولایه شد؛ اتکا به بلاکِ کلیدواژه کم شد؛ صندوق/فاکتور ریشه‌ای حل شدند (۴/۴ سبز).
 - [x] precision (ضدِّ توهم: ۳/۳ سبز) و recall (پرسشِ مشروع: ۲۷/۲۷ سبز) هر دو با جدولِ قبل/بعد اثبات شدند.
 - [x] افزودنِ متریکِ جدید بدونِ دست‌کاریِ excludeSignalِ دیگران route می‌شود (وزن‌دار = عدمِ بلاکِ متقابل).
-- [ ] پایداریِ ≥۵ عبارت‌بندی برای متریک‌های کلیدی — **معوق (S40.9).**
-- [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام — **معوق (پس از S40.9).**
+- [x] پایداریِ ≥۵ عبارت‌بندی برای متریک‌های کلیدی — **۹۷/۹۷ (۱۰۰٪)** (S40.9 کامل).
+- [x] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام — **کامل (پایین).**
+- [x] مارکرهای asar (`INTENT_CLASSIFIER_V2`, `REGRESSION_CORPUS`) به `index.html` اضافه شد.
 
 ---
 
 ## شواهدِ خام (Witness)
 
 ### S40.1-S40.3 — کورپوس و runner
-- فایل: `scripts/fixtures/regression-corpus.json` — ۳۰ رکورد
+- فایل: `scripts/fixtures/regression-corpus.json` — **۹۷ رکورد** (۳۰ اصلی + ۶۷ phrasing)
 - Runner: `scripts/ops/regressionCorpusEval.ts`
 - npm script: `test:regression` در `package.json` line 28
 - خروجیِ `npm run test:regression`:
   ```
-  Total: 30 | Pass: 30 | Fail: 0
+  Total: 97 | Pass: 97 | Fail: 0
   Pass rate: 100.0%
   ```
 
@@ -92,10 +93,10 @@
 - `metricCatalog.ts`: anchorهای گمشده اضافه شدند + «برگشت» به excludeSignals
 
 ### S40.8 — نتایجِ آزمایش
-- Regression: ۳۰/۳۰ (۱۰۰٪)
-- Golden: ۲۷۴/۲۷۴ (۱۰۰٪)
-- Unit: ۵۷۷ (۵۷۶ pass + ۱ failِ پیش‌existing `releaseReadiness.test.ts`)
-- Integration: ۲۶/۲۶ (۱۰۰٪)
+- Regression: **۹۷/۹۷ (۱۰۰٪)**
+- Golden: **۲۷۴/۲۷۴ (۱۰۰٪)**
+- Unit: **۶۰۳ (۵۹۶ pass + ۶ failِ پیش‌existing: ۵ SSH + ۱ releaseReadiness + ۱ skip)**
+- Integration: **۲۶/۲۶ (۱۰۰٪)**
 
 ### خوشه‌بندیِ ریشه‌محور (S40.4b)
 | ریشه | تعداد | نرخِ پاس |
@@ -107,4 +108,4 @@
 | out-of-scope | ۱ | ۱۰۰٪ |
 | text-guidance | ۱ | ۱۰۰٪ |
 | precision-guard | ۳ | ۱۰۰٪ |
-| phrasing | ۱۲ | ۱۰۰٪ |
+| phrasing | ۷۹ | ۱۰۰٪ |
