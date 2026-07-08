@@ -194,13 +194,13 @@ export class SettingsStore {
       ...profile,
       sql: {
         ...profile.sql,
-        password: this.encryptIfPossible(profile.sql.password)
+        password: this.encryptIfPossible(profile.sql?.password)
       },
       ssh: {
         ...profile.ssh,
-        password: this.encryptIfPossible(profile.ssh.password),
-        privateKey: this.encryptIfPossible(profile.ssh.privateKey),
-        passphrase: this.encryptIfPossible(profile.ssh.passphrase)
+        password: this.encryptIfPossible(profile.ssh?.password),
+        privateKey: this.encryptIfPossible(profile.ssh?.privateKey),
+        passphrase: this.encryptIfPossible(profile.ssh?.passphrase)
       }
     }))
 
@@ -232,13 +232,13 @@ export class SettingsStore {
         ...profile,
         sql: {
           ...profile.sql,
-          password: this.decryptIfNeeded(profile.sql.password)
+          password: this.decryptIfNeeded(profile.sql?.password)
         },
         ssh: {
           ...profile.ssh,
-          password: this.decryptIfNeeded(profile.ssh.password),
-          privateKey: this.decryptIfNeeded(profile.ssh.privateKey),
-          passphrase: this.decryptIfNeeded(profile.ssh.passphrase)
+          password: this.decryptIfNeeded(profile.ssh?.password),
+          privateKey: this.decryptIfNeeded(profile.ssh?.privateKey),
+          passphrase: this.decryptIfNeeded(profile.ssh?.passphrase)
         }
       }))
     }

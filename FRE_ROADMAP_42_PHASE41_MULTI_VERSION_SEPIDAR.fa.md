@@ -47,13 +47,13 @@
 - [x] **S41.7** متریک‌های Tier 1 روی هر دو نسخه اجرا شد. نتایج:
   - **Sepidar01** (۸ متریک): ۵ MATCH (net_sales, sales_count, purchases, tax_collected, fiscal_year_count)، ۱ MISMATCH (cashflow: engine=0 vs oracle=9.5B — تفاوتِ تعریفِ متریک)، ۲ REFUSED (party_count, voucher_count — planner route نشد).
   - **Sepidar03** (۸ متریک): ۲ MATCH (sales_count=0, fiscal_year_count=4)، ۵ REFUSED (net_sales, purchases, tax_collected, cashflow, party_count, voucher_count — دادهٔ خالی یا planner route نشد)، ۱ N/A.
-  - روش: Oracle SQL مستقل با sqlcmd + engine query با remote:ask-ai. برای Sepidar03 از machine-level env var `ACC_SQL_DATABASE=Sepidar03` استفاده شد (app settings persist() مشکل داشت).
+  - روش: Oracle SQL مستقل با sqlcmd + engine query با remote:ask-ai. Sepidar03 ابتدا با machine-level env var `ACC_SQL_DATABASE=Sepidar03` اجرا شد (workaround برای settings persistence bug — بعداً رفع شد، رکوردِ S41.8/4 را ببینید).
   - گزارشِ CSV: `ops/s41-tier1-comparison.csv`.
 - [x] **S41.8** تفاوت‌ها ثبت و ریشه‌یابی شد:
   1. **cashflow mismatch (Sepidar01)**: engine از VoucherItem Debit-Credit استفاده می‌کند (نتیجه=0) در حالی که Oracle از RPA.CashBalance+BankAccountBalance (نتیجه=9.5B). این تفاوتِ تعریفِ متریک است، نه bug. نیاز به اصلاحِ conceptSource برای cashflow.
   2. **party_count/voucher_count refused (هر دو)**: planner این درخواست‌ها را به متریک route نمی‌کند. نیاز به anchor یا metricId اضافه کردن در metricCatalog.
   3. **net_sales/purchases/tax_collected refused on Sepidar03**: درست و منطقی — Sepidar03 هیچ فاکتور/رسید برای ۱۴۰۲ ندارد. Engine درست refuse کرد.
-  4. **Settings persistence bug**: app در startup با `persist()` تنظیماتِ Sepidar03 را به Sepidar01 بازنویسی می‌کند. workaround: machine-level env var `ACC_SQL_DATABASE`. نیاز به fix در settingsStore.ts.
+  4. **Settings persistence bug — رفع شد**: علتِ ریشه‌ای در `settingsStore.ts` کشف شد — `decryptSensitiveFields` هنگامِ دسترسی به `profile.ssh.password` کرش می‌کرد چون `connectionProfile`های نوشته‌شده توسط اسکریپتِ `remote-server-control.ps1` بدونِ بلوکِ `ssh` هستند. کرش باعث می‌شد `catch` block همه‌چیز را به `DEFAULT_SETTINGS` (Sepidar01) بازنشانی کند. **fix:** optional chaining (`profile.ssh?.password`) در `encryptSensitiveFields` و `decryptSensitiveFields`. **شاهد:** بعد از fix، `AFTER_START: sql=Sepidar03 profile=Sepidar03 activeId=direct-sql-sepidar` — تنظیمات بدون env var persist می‌شود. رگرسیون: Sepidar01 هم درست persist شد.
 
 ### S41.9 — تستِ رگرسیونِ چند‌نسخه‌ای
 - [ ] **S41.9** کورپوسِ رگرسیون (فاز ۴۰) را روی هر دو نسخه اجراپذیر کن (با fixtureهای schemaِ هر نسخه). گیت: هیچ نسخه‌ای رگرسیون نگیرد.
