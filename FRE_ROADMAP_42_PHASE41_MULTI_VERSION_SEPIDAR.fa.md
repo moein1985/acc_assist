@@ -50,8 +50,12 @@
   - روش: Oracle SQL مستقل با sqlcmd + engine query با remote:ask-ai. Sepidar03 ابتدا با machine-level env var `ACC_SQL_DATABASE=Sepidar03` اجرا شد (workaround برای settings persistence bug — بعداً رفع شد، رکوردِ S41.8/4 را ببینید).
   - گزارشِ CSV: `ops/s41-tier1-comparison.csv`.
 - [x] **S41.8** تفاوت‌ها ثبت و ریشه‌یابی شد:
-  1. **cashflow mismatch (Sepidar01)**: engine از VoucherItem Debit-Credit استفاده می‌کند (نتیجه=0) در حالی که Oracle از RPA.CashBalance+BankAccountBalance (نتیجه=9.5B). این تفاوتِ تعریفِ متریک است، نه bug. نیاز به اصلاحِ conceptSource برای cashflow.
-  2. **party_count/voucher_count refused (هر دو)**: planner این درخواست‌ها را به متریک route نمی‌کند. نیاز به anchor یا metricId اضافه کردن در metricCatalog.
+  1. **cashflow mismatch (Sepidar01) — رفع شد**: root cause routing بود نه تعریفِ متریک. متریکِ `cashflow` از قبل `RPA.CashBalance + RPA.BankAccountBalance` را داشت، اما prompt «جریان نقد ۱۴۰۲» به `cash_flow_statement` (VoucherItem Debit-Credit) روت می‌شد. **fix:**
+     - `cashflow` anchors اضافه/تصحیح شد: `['جریان نقد', 'جریان وجه نقد', 'جریان وجوه نقد', 'نقد و بانک', 'جریان نقدی', 'موجودی نقد', 'نقدینگی', 'گردش نقد']`
+     - `cash_flow_statement` محدود به عباراتِ رسمیِ صورت‌مالی شد: `['صورت جریان نقد', 'صورت جریان وجوه نقد', 'صورت گردش نقد', 'cash flow statement', 'statement of cash flow']`
+     - corpus رگرسیون و golden cases متناظر به `cashflow` به‌روز شدند.
+     - **شاهد:** `test:regression` 97/97، `eval:metrics` 274/274، `typecheck:node` 0 error.
+  2. **party_count/voucher_count refused (هر دو) — رفع شد**: `MetricId` در `types.ts` و دو متریک در `metricCatalog.ts` اضافه شد. **party_count** روی `GNR.Party` با `count`، **voucher_count** روی `ACC.Voucher` با `count` و فیلترِ `v.Type NOT IN (3,4)` (حذف اسناد اختتامیه/بستن) و grain `total`/`by_year`. **شاهد:** routing unit/integration با corpus جدید سبز.
   3. **net_sales/purchases/tax_collected refused on Sepidar03**: درست و منطقی — Sepidar03 هیچ فاکتور/رسید برای ۱۴۰۲ ندارد. Engine درست refuse کرد.
   4. **Settings persistence bug — رفع شد**: علتِ ریشه‌ای در `settingsStore.ts` کشف شد — `decryptSensitiveFields` هنگامِ دسترسی به `profile.ssh.password` کرش می‌کرد چون `connectionProfile`های نوشته‌شده توسط اسکریپتِ `remote-server-control.ps1` بدونِ بلوکِ `ssh` هستند. کرش باعث می‌شد `catch` block همه‌چیز را به `DEFAULT_SETTINGS` (Sepidar01) بازنشانی کند. **fix:** optional chaining (`profile.ssh?.password`) در `encryptSensitiveFields` و `decryptSensitiveFields`. **شاهد:** بعد از fix، `AFTER_START: sql=Sepidar03 profile=Sepidar03 activeId=direct-sql-sepidar` — تنظیمات بدون env var persist می‌شود. رگرسیون: Sepidar01 هم درست persist شد.
 

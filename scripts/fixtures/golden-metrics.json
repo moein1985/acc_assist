@@ -188,7 +188,7 @@
     {
       "id": "golden-cashflow",
       "prompt": "جریان نقد چقدر است؟",
-      "expectedMetricId": "cash_flow_statement",
+      "expectedMetricId": "cashflow",
       "expectedGrain": "total",
       "expectedValue": 2127900602,
       "tolerance": 1000000000
@@ -1532,7 +1532,7 @@
     {
       "id": "s19-cash-flow-statement-b",
       "prompt": "جریان نقدینگی ۱۴۰۲ چقدر است؟",
-      "expectedMetricId": "cash_flow_statement",
+      "expectedMetricId": "cashflow",
       "expectedGrain": "total",
       "expect": "any_rows"
     },

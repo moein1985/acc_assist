@@ -259,6 +259,42 @@ const catalog: MetricDefinition[] = [
     mandatoryFilters: []
   },
   {
+    id: 'party_count',
+    titleFa: 'تعداد طرف حساب',
+    anchors: ['تعداد طرف حساب', 'چند طرف حساب', 'تعداد اشخاص', 'چند شخص', 'تعداد مشتری', 'تعداد فروشنده', 'party count', 'number of parties', 'customer count'],
+    excludeSignals: ['مانده', 'تراز', 'گردش', 'فروش', 'خرید', 'صندوق', 'بانک'],
+    softwareId: 'sepidar',
+    grainSupported: ['total'],
+    source: { primaryTable: 'GNR.Party', alias: 'p' },
+    measure: { kind: 'count' },
+    dimensions: [],
+    mandatoryFilters: []
+  },
+  {
+    id: 'voucher_count',
+    titleFa: 'تعداد سند',
+    anchors: ['تعداد سند', 'چند سند', 'تعداد سند حسابداری', 'voucher count', 'number of vouchers', 'journal count'],
+    excludeSignals: ['ردیف', 'بدون حساب', 'فاکتور', 'فروش', 'خرید', 'مانده', 'تراز', 'گردش'],
+    softwareId: 'sepidar',
+    grainSupported: ['total', 'by_year'],
+    source: { primaryTable: 'ACC.Voucher', alias: 'v' },
+    measure: { kind: 'count' },
+    dimensions: [
+      {
+        dimension: 'by_year',
+        join: {
+          table: 'FMK.FiscalYear',
+          alias: 'fy',
+          on: { sourceColumn: 'FiscalYearRef', targetColumn: 'FiscalYearId' }
+        },
+        labelColumn: 'Title',
+        labelType: 'nstring'
+      }
+    ],
+    mandatoryFilters: [{ sql: 'v.Type NOT IN (3, 4)', description: 'حذف اسناد اختتامیه/بستن' }],
+    dateColumn: 'v.Date'
+  },
+  {
     id: 'fiscal_year_list',
     titleFa: 'فهرست سال‌های مالی',
     anchors: ['فهرست سال مالی', 'سال‌های مالی', 'لیست سال‌های مالی', 'چه سال‌هایی', 'سال مالی'],
@@ -401,8 +437,8 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cashflow',
     titleFa: 'جریان نقد',
-    anchors: ['جریان وجه نقد', 'نقد و بانک', 'جریان نقدی'],
-    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی', 'مستقیم', 'صورت', 'جریان نقد', 'جریان وجوه نقد', 'جریان نقدینگی', 'گردش نقد'],
+    anchors: ['جریان نقد', 'جریان وجه نقد', 'جریان وجوه نقد', 'نقد و بانک', 'جریان نقدی', 'موجودی نقد', 'نقدینگی', 'گردش نقد'],
+    excludeSignals: ['فروش', 'خرید', 'تراز', 'دریافتنی', 'پرداختنی', 'مستقیم', 'صورت', 'صورت جریان'],
     softwareId: 'sepidar',
     grainSupported: ['total'],
     source: {
@@ -2115,8 +2151,14 @@ const catalog: MetricDefinition[] = [
   {
     id: 'cash_flow_statement',
     titleFa: 'صورت جریان وجوه نقد',
-    anchors: ['جریان نقد', 'جریان وجوه نقد', 'صورت جریان نقد', 'cash flow', 'جریان نقدینگی', 'گردش نقد'],
-    excludeSignals: ['ترازنامه', 'سود و زیان', 'تراز آزمایشی'],
+    anchors: [
+      'صورت جریان نقد',
+      'صورت جریان وجوه نقد',
+      'صورت گردش نقد',
+      'cash flow statement',
+      'statement of cash flow'
+    ],
+    excludeSignals: ['مانده', 'موجودی', 'ترازنامه', 'سود و زیان', 'تراز آزمایشی'],
     softwareId: 'sepidar',
     grainSupported: ['total', 'by_year', 'by_category'],
     source: {
