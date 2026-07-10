@@ -264,7 +264,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۳۸ | ✅ کامل | رفعِ ۸/۱۱ شکستِ فاز ۳۷: engine-served ۸۱٪ (از ۶۶٪)، ۳ شکستِ Category A به فاز ۴۰ موکول شد |
 | ۳۹ | ✅ کامل | هستهٔ سماجت: نردبانِ بازیابی + Investigator فعال + Verifier معنایی + planner self-correct. S39.0-S39.14 کامل. engine-served ۶۸٪ (از ۶۶٪)، refuse ۱۴٪ (از ۲۱٪). ۵ شکستِ فاز ۳۷ رفع شد. Exit Gate سبز. |
 | ۴۰ | ✅ کامل | مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون: ۹۷ رکورد کورپوس، `test:regression` ۱۰۰٪، excludeSignal وزن‌دار (router+verifier)، روتینگِ دولایه، ۶۷ phrasing variant برای ۱۷ متریکِ Tier 1/2، رفعِ باگِ `isFinancialNumericQuery` (`\bبده\b` + سیگنال‌های گمشده). S40.1-S40.9 کامل. Exit Gate سبز. |
-| ۴۱ | 🔄 در حال اجرا | اثباتِ چند‌نسخه‌ایِ سپیدار: S41.0-S41.8 کامل (detectSepidarVersion، schema-adaptive metrics، ماتریسِ تست روی Sepidar01 + Sepidar03). ۷ متریک MATCH روی S01، ۲ MATCH روی S03. باگِ settings persistence کشف شد. S41.9-S41.11 باقی‌مانده. |
+| ۴۱ | 🔄 در حال اجرا | اثباتِ چند‌نسخه‌ایِ سپیدار: S41.0-S41.8 کامل (detectSepidarVersion، schema-adaptive metrics، ماتریسِ تست روی Sepidar01 + Sepidar03). ۸ متریک MATCH روی S01 (party_count=973, voucher_count=3115, cashflow=9.5B پس از رفعِ Zod schema + planner disambiguation)، ۲ MATCH روی S03. باگِ settings persistence کشف و رفع شد. S41.9-S41.11 باقی‌مانده. |
 
 **آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۳۹ کامل، فاز ۴۰ کامل، فاز ۴۱ در حال اجرا):**
 - ۷۳ متریک

@@ -45,7 +45,7 @@
 - [x] **S41.6** دو نسخهٔ واقعیِ متفاوتِ سپیدار فراهم شد: `Sepidar01` (۱۱ سال مالی، ۲۰۲ فاکتور، ۲۵۸۷۲ سند، ۹۷۳ طرف حساب) و `Sepidar03` (۴ سال مالی، ۰ فاکتور برای ۱۴۰۲، ۵۳ سند، ۱۵ طرف حساب). هر دو روی سرور 192.168.85.56:58033. تفاوتِ schema: Sepidar03 دارای ۵ ستونِ CostCenterRef اضافی در AST.
 ### S41.7 — اجرای سوییت روی هر نسخه
 - [x] **S41.7** متریک‌های Tier 1 روی هر دو نسخه اجرا شد. نتایج:
-  - **Sepidar01** (۸ متریک): ۵ MATCH (net_sales, sales_count, purchases, tax_collected, fiscal_year_count)، ۱ MISMATCH (cashflow: engine=0 vs oracle=9.5B — تفاوتِ تعریفِ متریک)، ۲ REFUSED (party_count, voucher_count — planner route نشد).
+  - **Sepidar01** (۸ متریک): ۸ MATCH (net_sales, sales_count, purchases, tax_collected, fiscal_year_count, party_count=973, voucher_count=3115, cashflow=9,521,507,066). تمام رفرول‌ها و mismatch‌ها رفع شد (S41.8).
   - **Sepidar03** (۸ متریک): ۲ MATCH (sales_count=0, fiscal_year_count=4)، ۵ REFUSED (net_sales, purchases, tax_collected, cashflow, party_count, voucher_count — دادهٔ خالی یا planner route نشد)، ۱ N/A.
   - روش: Oracle SQL مستقل با sqlcmd + engine query با remote:ask-ai. Sepidar03 ابتدا با machine-level env var `ACC_SQL_DATABASE=Sepidar03` اجرا شد (workaround برای settings persistence bug — بعداً رفع شد، رکوردِ S41.8/4 را ببینید).
   - گزارشِ CSV: `ops/s41-tier1-comparison.csv`.
@@ -56,6 +56,7 @@
      - corpus رگرسیون و golden cases متناظر به `cashflow` به‌روز شدند.
      - **شاهد:** `test:regression` 97/97، `eval:metrics` 274/274، `typecheck:node` 0 error.
   2. **party_count/voucher_count refused (هر دو) — رفع شد**: `MetricId` در `types.ts` و دو متریک در `metricCatalog.ts` اضافه شد. **party_count** روی `GNR.Party` با `count`، **voucher_count** روی `ACC.Voucher` با `count` و فیلترِ `v.Type NOT IN (3,4)` (حذف اسناد اختتامیه/بستن) و grain `total`/`by_year`. **شاهد:** routing unit/integration با corpus جدید سبز.
+     - **رفعِ نهاییِ ریموت (S41 verify):** `party_count` و `voucher_count` به دو Zod enum (`metricPlanSchema` و `metricDefinitionSchema`) در `types.ts` اضافه شدند (قبلاً فقط در `MetricId` type بودند). مثالِ few-shot شماره ۳۲ برای cashflow از `grain:"by_year"` به `grain:"total"` اصلاح شد. قاعدهٔ تفکیکِ planner خط ۶۲۱ از `«جریان نقد» → cash_flow_statement` به `«جریان نقد» (بدون صورت) → cashflow` و `«صورت جریان نقد» → cash_flow_statement` اصلاح شد. **تأییدِ ریموت:** party_count=973 ✅، voucher_count=3115 ✅، cashflow=9,521,507,066 ✅ روی Sepidar01.
   3. **net_sales/purchases/tax_collected refused on Sepidar03**: درست و منطقی — Sepidar03 هیچ فاکتور/رسید برای ۱۴۰۲ ندارد. Engine درست refuse کرد.
   4. **Settings persistence bug — رفع شد**: علتِ ریشه‌ای در `settingsStore.ts` کشف شد — `decryptSensitiveFields` هنگامِ دسترسی به `profile.ssh.password` کرش می‌کرد چون `connectionProfile`های نوشته‌شده توسط اسکریپتِ `remote-server-control.ps1` بدونِ بلوکِ `ssh` هستند. کرش باعث می‌شد `catch` block همه‌چیز را به `DEFAULT_SETTINGS` (Sepidar01) بازنشانی کند. **fix:** optional chaining (`profile.ssh?.password`) در `encryptSensitiveFields` و `decryptSensitiveFields`. **شاهد:** بعد از fix، `AFTER_START: sql=Sepidar03 profile=Sepidar03 activeId=direct-sql-sepidar` — تنظیمات بدون env var persist می‌شود. رگرسیون: Sepidar01 هم درست persist شد.
 
