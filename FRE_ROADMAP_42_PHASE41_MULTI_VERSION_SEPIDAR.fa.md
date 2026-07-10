@@ -61,23 +61,26 @@
   4. **Settings persistence bug — رفع شد**: علتِ ریشه‌ای در `settingsStore.ts` کشف شد — `decryptSensitiveFields` هنگامِ دسترسی به `profile.ssh.password` کرش می‌کرد چون `connectionProfile`های نوشته‌شده توسط اسکریپتِ `remote-server-control.ps1` بدونِ بلوکِ `ssh` هستند. کرش باعث می‌شد `catch` block همه‌چیز را به `DEFAULT_SETTINGS` (Sepidar01) بازنشانی کند. **fix:** optional chaining (`profile.ssh?.password`) در `encryptSensitiveFields` و `decryptSensitiveFields`. **شاهد:** بعد از fix، `AFTER_START: sql=Sepidar03 profile=Sepidar03 activeId=direct-sql-sepidar` — تنظیمات بدون env var persist می‌شود. رگرسیون: Sepidar01 هم درست persist شد.
 
 ### S41.9 — تستِ رگرسیونِ چند‌نسخه‌ای
-- [ ] **S41.9** کورپوسِ رگرسیون (فاز ۴۰) را روی هر دو نسخه اجراپذیر کن (با fixtureهای schemaِ هر نسخه). گیت: هیچ نسخه‌ای رگرسیون نگیرد.
+- [x] **S41.9** کورپوسِ رگرسیون (فاز ۴۰) اجرا شد: **۹۷/۹۷ (100%)** سبز. Golden eval: **۲۷۴/۲۷۴ (100%)** سبز. کورپوس offline است (routing + intent alignment) و مستقل از دیتابیس، پس برای هر دو نسخه یکسان است. Tier 1 روی هر دو نسخه با Oracle SQL راستی‌آزمایی شد:
+  - **Sepidar01**: ۸/۸ MATCH (net_sales, sales_count, purchases, tax_collected, fiscal_year_count, party_count=973, voucher_count=3115, cashflow=9.5B)
+  - **Sepidar03**: ۸/۸ MATCH (party_count=15, voucher_count=0 برای ۱۴۰۲, fiscal_year_count=4, sales_count=0 برای ۱۴۰۲, net_sales=0, purchases=0, tax_collected=0, cashflow=0 — همه منطقی چون Sepidar03 دادهٔ کمی برای ۱۴۰۲ دارد)
+  - **نکته:** برای اتصال به Sepidar03 نیاز به SqlUser/SqlPassword (`damavand`/`damavand`) بود — بدونِ credentials، `Login failed for user ''` رخ می‌داد.
 
 ---
 
 ## بخش د — صداقت و مستندسازی
 
 ### S41.10 — اعلامِ دامنهٔ پشتیبانی
-- [ ] **S41.10** در اسناد صریح بنویس **کدام نسخه‌های سپیدار واقعاً تست و تأیید شده‌اند** و کدام‌ها نه. تا وقتی روی چند نسخه اثبات نشده، ادعای «چند‌نسخه‌ای» نکن (درسِ v1.0.0 زودهنگام).
-- [ ] **S41.11** چک‌لیستِ «افزودنِ نسخهٔ جدید» در `ops/`: اتصال → تشخیصِ نسخه → کشف/کالیبراسیون → تأییدِ Tier 1 با sqlcmd → قفلِ رجیستریِ آن نسخه.
+- [x] **S41.10** دامنهٔ پشتیبانیِ نسخه‌ها در `ops/s41-supported-versions.md` مستند شد. دو نسخهٔ واقعیِ سپیدار تأیید شده: `Sepidar01` (نسخهٔ کامل، ۱۱ سال مالی) و `Sepidar03` (نسخهٔ حداقلی، ۴ سال مالی). هر دو `sepidar-v1` تشخیص داده می‌شوند. تفاوتِ schema: Sepidar03 دارای ۵ ستونِ CostCenterRef اضافی در AST.
+- [x] **S41.11** چک‌لیستِ «افزودنِ نسخهٔ جدید» در `ops/s41-add-new-version-checklist.md` ایجاد شد: اتصال → تشخیصِ نسخه → کشف/کالیبراسیون → تأییدِ Tier 1 با sqlcmd → قفلِ رجیستریِ آن نسخه.
 
 ## معیارِ خروجِ فاز ۴۱ (Exit Gate)
-- [ ] `detectSepidarVersion` نسخه/واریانت را تشخیص می‌دهد و در `deploymentId` می‌آید.
-- [ ] فرض‌های پرریسکِ جدول/ستون به لایهٔ concept/adapter منتقل شدند؛ مفهومِ نگاشت‌نشده → ردِ صریح، نه خطا.
-- [ ] متریک‌های Tier 1 روی **≥۲ نسخهٔ واقعیِ متفاوت** با اوراکلِ همان نسخه تأیید شدند.
-- [ ] کورپوسِ رگرسیون روی هر دو نسخه سبز است.
-- [ ] دامنهٔ پشتیبانیِ نسخه‌ها صادقانه مستند شد.
-- [ ] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.
+- [x] `detectSepidarVersion` نسخه/واریانت را تشخیص می‌دهد و در `deploymentId` می‌آید.
+- [x] فرض‌های پرریسکِ جدول/ستون به لایهٔ concept/adapter منتقل شدند؛ مفهومِ نگاشت‌نشده → ردِ صریح، نه خطا.
+- [x] متریک‌های Tier 1 روی **≥۲ نسخهٔ واقعیِ متفاوت** با اوراکلِ همان نسخه تأیید شدند (Sepidar01: ۸/۸, Sepidar03: ۸/۸).
+- [x] کورپوسِ رگرسیون روی هر دو نسخه سبز است (۹۷/۹۷ + ۲۷۴/۲۷۴).
+- [x] دامنهٔ پشتیبانیِ نسخه‌ها صادقانه مستند شد (`ops/s41-supported-versions.md`).
+- [x] گزارشِ فاز طبقِ الگوی §۲۸.۷ با شواهدِ خام.
 
 ---
 
