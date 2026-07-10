@@ -266,7 +266,7 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 | ۴۰ | ✅ کامل | مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون: ۹۷ رکورد کورپوس، `test:regression` ۱۰۰٪، excludeSignal وزن‌دار (router+verifier)، روتینگِ دولایه، ۶۷ phrasing variant برای ۱۷ متریکِ Tier 1/2، رفعِ باگِ `isFinancialNumericQuery` (`\bبده\b` + سیگنال‌های گمشده). S40.1-S40.9 کامل. Exit Gate سبز. |
 | ۴۱ | ✅ کامل | اثباتِ چند‌نسخه‌ایِ سپیدار: S41.0-S41.11 کامل. detectSepidarVersion، schema-adaptive metrics، ماتریسِ تست روی Sepidar01 (۸/۸ MATCH) + Sepidar03 (۸/۸ MATCH). باگِ settings persistence رفع شد. Zod schema + planner disambiguation + cashflow grain اصلاح شد. رگرسیون ۹۷/۹۷ + golden ۲۷۴/۲۷۴. دامنهٔ پشتیبانی مستند شد. Exit Gate سبز. |
 
-**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۳۹ کامل، فاز ۴۰ کامل، فاز ۴۱ کامل):**
+**آمار فعلی (فاز ۳۵ کامل، فاز ۳۸ کامل، فاز ۳۹ کامل، فاز ۴۰ کامل، فاز ۴۱ کامل، فاز ۴۳ کامل):**
 - ۷۳ متریک
 - ۲۷۴ golden cases offline (100% سبز) + ۲۷۸ golden cases live (100% سبز، diff=0)
 - ۹۷ regression corpus cases (100% سبز)
@@ -285,13 +285,13 @@ POM.PurchaseInvoice : خالی (0 ردیف) — خرید واقعی در INV.Inv
 - **فاز ۳۶ (کامل):** رفعِ تابعِ تطبیقِ خراب + باگ‌های واقعیِ موتور. S36.1-S36.4: تابعِ تطبیق سخت‌گیرانه (۶/۶ تست سبز). S36.5: شاهدِ جعلی باطل شد. S36.6-S36.7: `vat_liability` و `total_liabilities` anchors/filters اصلاح شد. S36.8: متریک‌های لیستی (explainer + planner + verify script). S36.9: `unbalanced_vouchers` = ۰ با sqlcmd مستقل قطعی شد (۶ باگِ موتور بود). S36.10: `cogs` از `total_expenses` تفکیک شد (type1Codes 61→51، measure debit_minus_credit→sum(Debit)، COGS 1403 = ۳۰.۳B). S36.11-S36.12: live rerun روی Sepidar01 — **۱۳/۱۸ MATCH پایدار (۷۲٪)**، cogs both_empty MATCH، tax_collected transient، ۴ متریکِ لیستی routing DIFF. **S36.13: رفعِ نهاییِ روتینگِ ۴ متریکِ لیستی** — ۴ علتِ ریشه‌ای کشف و رفع شد: (۱) `isFinancialNumericQuery` از `normalizePersianDigits` به `normalizePersianText` تغییر یافت (رفعِ ZWNJ در «سال‌های مالی»)؛ (۲) ۶ کلیدواژهٔ فارسی (سند/اسناد/نامتوازن/فاکتور/اختتامیه/افتتاحیه) به `FINANCIAL_NUMERIC_SIGNALS` اضافه شد؛ (۳) `evaluateResult` ردیف‌های صفرِ متریک‌های لیستی را پذیرفت (`empty-list`)؛ (۴) regex شمارش ردیف در verify script اصلاح شد. تأیید: ۵۶۱ unit test (۵۶۰ pass) + ۲۷۴/۲۷۴ golden eval + ۰ خطای typecheck. در انتظارِ build + deploy + verify زنده.
 - **فاز ۳۷ (کامل):** تستِ میدانیِ ۵۳ پرسشِ پرکاربرد. build با S36.13 → نصب روی سرور → اجرای ۵۳ پرسش → استخراجِ لاگ. **نتایج:** ۳۵ engine-served ok (۶۶٪)، ۷ text-guidance (۱۳٪)، ۱۱ engine-refuse (۲۱٪). موفقیتِ کلی ۷۹٪. **۲ باگِ بحرانی کشف شد:** (۱) «فاکتور» در excludeSignalsِ `zero_amount_invoices` و `invoices_without_tax` — باعث ردِ همهٔ پرسش‌های فاکتور؛ (۲) «صندوق» در excludeSignalsِ `account_balance` — باعث ردِ پرسشِ ماندهِ صندوق. **۳ باگِ بالا:** cashflow/cash_flow_statement هم‌پوشان، planner hallucination به vouchers_by_type، duplicate_vouchers/vouchers_without_account به payables_aging route می‌شوند. فایل: `FRE_ROADMAP_37_PHASE37_LIVE_FIELD_TEST_50.fa.md`.
 - **فاز ۳۸ (کامل):** رفعِ ۸/۱۱ شکستِ فاز ۳۷. engine-served rate: ۴۳/۵۳ = ۸۱٪ (از ۶۶٪). ۳ شکستِ باقی‌مانده: همه Category A (excludeSignal) — به فاز ۴۰ موکول شد. فایل: `FRE_ROADMAP_38_PHASE38_FIELD_DEFECT_CLOSURE.fa.md`.
-- **فاز ۳۹ (در حال اجرا):** هستهٔ سماجت و بازیابی. S39.0-S39.5، S39.8، S39.11-12 کامل. نردبانِ بازیابی (۵ پله) + Investigator فعال + Verifier معنایی + planner self-correct با `RetryErrorType` (۶ دسته). باقی‌مانده: S39.6-S39.7 (party resolution)، S39.8b-S39.10 (few-shot + unit test)، S39.13-S39.14 (سنجهٔ سماجت + بازتست میدانی). typecheck ۰ خطا، golden 273/274، planner 48/48. فایل: `FRE_ROADMAP_40_PHASE39_PERSISTENCE_RECOVERY_CORE.fa.md`.
-- **فاز ۴۰ (در حال اجرا):** مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون. S40.1-S40.8 کامل: ۳۰ رکوردِ کورپوس + `test:regression` (۱۰۰٪) + excludeSignal وزن‌دار در `router.ts` و `verifier.ts` + روتینگِ دولایه + anchorهای گمشده اصلاح شد. خوشه‌بندیِ ریشه‌محور (۸ ریشه). معوق: S40.9 (≥۵ phrasing به ازای هر متریکِ Tier 1/2). فایل: `FRE_ROADMAP_41_PHASE40_INTENT_ROBUSTNESS_REGRESSION.fa.md`.
+- **فاز ۳۹ (کامل):** هستهٔ سماجت و بازیابی. S39.0-S39.14 کامل. نردبانِ بازیابی (۵ پله) + Investigator فعال + Verifier معنایی + planner self-correct با `RetryErrorType` (۶ دسته). تست میدانی ۵۰ پرسشی: engine-served ۶۸٪ (از ۶۶٪)، refuse ۱۴٪ (از ۲۱٪). ۵ شکستِ فاز ۳۷ رفع شد. Exit Gate سبز. فایل: `FRE_ROADMAP_40_PHASE39_PERSISTENCE_RECOVERY_CORE.fa.md`.
+- **فاز ۴۰ (کامل):** مهارِ شکنندگیِ روتینگ + کورپوسِ رگرسیون. S40.1-S40.9 کامل: ۹۷ رکوردِ کورپوس + `test:regression` (۱۰۰٪) + excludeSignal وزن‌دار در `router.ts` و `verifier.ts` + روتینگِ دولایه + anchorهای گمشده اصلاح شد. خوشه‌بندیِ ریشه‌محور (۸ ریشه). ۶۷ phrasing variant برای ۱۷ متریکِ Tier 1/2. رفعِ باگِ `isFinancialNumericQuery`. Exit Gate سبز. فایل: `FRE_ROADMAP_41_PHASE40_INTENT_ROBUSTNESS_REGRESSION.fa.md`.
 
 **کارهای باقی‌مانده:**
 - فاز ۱۶: S16.23 (field test روی کامپیوتر دوم) و S16.38 (exit gate field test) — نیازمند کامپیوتر دوم
-- فاز ۳۹: S39.6-S39.7 (party resolution field test)، S39.8b-S39.10 (few-shot + unit test)، S39.13-S39.14 (سنجهٔ سماجت + بازتست میدانی)
-- فاز ۴۰: S40.9 (≥۵ phrasing به ازای هر متریکِ Tier 1/2) + Exit Gate نهایی
+- فاز ۳۷: ۵ شکستِ باقی‌مانده از Category A (excludeSignal: صندوق/فاکتور، planner routing: سندهای تکراری/ردیف‌های بدون حساب) — به فاز ۴۰ موکول شد و رفع گردید
+- فاز ۴۳: Remote Ops Toolkit کامل شد
 
 ---
 
